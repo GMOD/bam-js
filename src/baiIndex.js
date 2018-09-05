@@ -39,7 +39,9 @@ class BaiIndex {
   async parseIndex() {
     const index = {}
     const data = await this.readFile()
-    return new Parser();
+    const parser = new Parser()
+      .string('magic', { length: 4 });
+    parser.parse(data)
   }
 
   getIndex() {
