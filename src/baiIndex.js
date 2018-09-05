@@ -20,7 +20,16 @@ class BaiIndex {
 
   async parseIndex() {
     const data = await this.readFile()
-    const parser = new Parser().string('magic', { length: 4 }).int32('nref')
+    const parser = new Parser().string('magic', { length: 4 }).int32('nref').array('refs', {
+      length: 'nref',
+      type: new Parser().int32('nbins').array('bins', {
+        length: 'nbins',
+        type: new Parser().int32('bin').int32('nchunks').array('chunks', {
+          length: 'nchunks',
+          type: new Parser().uint64('start').uint64('end')
+        })
+      })
+    })
     parser.parse(data)
   }
 
