@@ -1,4 +1,6 @@
 const { Parser } = require('binary-parser')
+const Long = require('long')
+
 const LocalFile = require('./localFile')
 
 class BaiIndex {
@@ -17,19 +19,32 @@ class BaiIndex {
     this.readFile = this.bai.readFile.bind(this.bai)
     this.index = this.parseIndex()
   }
-
   async parseIndex() {
     const data = await this.readFile()
-    const parser = new Parser().string('magic', { length: 4 }).int32('nref').array('refs', {
-      length: 'nref',
-      type: new Parser().int32('nbins').array('bins', {
-        length: 'nbins',
-        type: new Parser().int32('bin').int32('nchunks').array('chunks', {
-          length: 'nchunks',
-          type: new Parser().uint64('start').uint64('end')
-        })
+    const parser = new Parser()
+      .string('magic', { length: 4, assert: 'BAI\u0001' })
+      .int32('nref')
+      .array('refs', {
+        length: 'nref',
+        type: new Parser().int32('nbins').array('bins', {
+          length: 'nbins',
+          type: new Parser()
+            .int32('bin')
+            .int32('nchunks')
+            .array('chunks', {
+              length: 'nchunks',
+              type: new Parser()
+                .buffer('start', {
+                  length: 8,
+                  formatter: bytes => Long.fromBytes(bytes, true, false),
+                })
+                .buffer('end', {
+                  length: 8,
+                  formatter: bytes => Long.fromBytes(bytes, true, false),
+                }),
+            }),
+        }),
       })
-    })
     parser.parse(data)
   }
 
