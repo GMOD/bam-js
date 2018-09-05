@@ -11,7 +11,7 @@
     "__webpack_require__": true
   },
   "env": {
-    "mocha": true
+    "jest": true
   },
   "rules": {
     "no-underscore-dangle": 0,
