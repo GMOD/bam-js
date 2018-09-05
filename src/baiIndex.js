@@ -1,5 +1,6 @@
 const { Parser } = require('binary-parser')
 const { BamMalformedError } = require('./errors')
+const LocalFile = require('./localFile')
 
 function addRecordToIndex(index, record) {
   if (record.some(el => el === undefined)) {
@@ -25,9 +26,13 @@ class BaiIndex {
    * @param {string} [args.url]
    * @param {FileHandle} [args.filehandle]
    */
-  constructor(args) {
-    const filehandle = open(args.url, args.path, args.filehandle)
-    this.readFile = filehandle.readFile.bind(filehandle)
+  constructor({ baiFilehandle, baiPath }) {
+    if (baiFilehandle) {
+      this.bai = baiFilehandle
+    } else if (baiPath) {
+      this.bai = new LocalFile(baiPath)
+    }
+    this.readFile = this.bai.readFile.bind(this.bai)
     this.index = this.parseIndex()
   }
 
