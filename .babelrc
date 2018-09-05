@@ -2,10 +2,21 @@
   "presets": [
     ["env", {
       "targets": {
-        "node": 6
+        "node": 6,
+        "browsers": [
+          "> 0.5%",
+          "last 2 versions"
+        ]
       }
     }],
-    "stage-2",
-    "flow"
+    "stage-2"
+  ],
+  "plugins": [
+    ["transform-runtime", {
+      "helpers": true,
+      "polyfill": true,
+      "regenerator": true,
+      "moduleName": "babel-runtime"
+    }]
   ]
 }

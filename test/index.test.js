@@ -1,6 +1,6 @@
 import {BaiIndex} from "../src/";
-describe('FASTA parser', () => {
-  it('process unindexed fasta', async () => {
+describe('BAI parser', () => {
+  it('process bai index', async () => {
     const t = new BaiIndex({ baiPath: require.resolve('./data/volvox-sorted.bam.bai') })
     t.parseIndex()
   })

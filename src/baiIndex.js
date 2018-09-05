@@ -40,8 +40,10 @@ class BaiIndex {
     const index = {}
     const data = await this.readFile()
     const parser = new Parser()
-      .string('magic', { length: 4 });
-    parser.parse(data)
+      .string('magic', { length: 4 })
+      .int32('nref')
+    const ret = parser.parse(data)
+    console.log(ret)
   }
 
   getIndex() {

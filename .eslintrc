@@ -1,19 +1,35 @@
 {
-  "parser": "babel-eslint",
   "extends": [
     "airbnb-base",
-    "plugin:flowtype/recommended",
-    "plugin:prettier/recommended",
-    "prettier/flowtype"
+    "prettier"
   ],
   "plugins": [
-    "flowtype",
-    "flowtype-errors"
+    "prettier"
   ],
+  "globals": {
+    "window": true,
+    "__webpack_require__": true
+  },
   "env": {
-    "jest": true
+    "mocha": true
   },
   "rules": {
-    "flowtype-errors/show-errors": "error"
+    "no-underscore-dangle": 0,
+    "no-bitwise": 0,
+    "no-await-in-loop": "warn",
+    "no-param-reassign": "warn",
+    "no-loop-func": "warn",
+    "prefer-arrow-callback": "warn",
+    "prefer-destructuring": "warn",
+    "prefer-const": "warn",
+    "class-methods-use-this": 0,
+    "prettier/prettier": [
+      "error",
+      {
+        "singleQuote": true,
+        "semi": false,
+        "trailingComma": "all"
+      }
+    ]
   }
 }
