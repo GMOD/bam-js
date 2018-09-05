@@ -1,2 +1,4 @@
 import BaiIndex from './baiIndex'
-export { BaiIndex }
+import BamFile from './bamFile'
+
+export { BaiIndex, BamFile }

@@ -1,26 +1,8 @@
 const { Parser } = require('binary-parser')
-const { BamMalformedError } = require('./errors')
 const LocalFile = require('./localFile')
 
-function addRecordToIndex(index, record) {
-  if (record.some(el => el === undefined)) {
-    throw new BamMalformedError('invalid .bai index file')
-  }
-
-  const [seqId, start, span, containerStart, sliceStart, sliceBytes] = record
-
-  if (!index[seqId]) index[seqId] = []
-
-  index[seqId].push({
-    start,
-    span,
-    containerStart,
-    sliceStart,
-    sliceBytes,
-  })
-}
 class BaiIndex {
-   /**
+  /**
    * @param {object} args
    * @param {string} [args.path]
    * @param {string} [args.url]
@@ -37,13 +19,9 @@ class BaiIndex {
   }
 
   async parseIndex() {
-    const index = {}
     const data = await this.readFile()
-    const parser = new Parser()
-      .string('magic', { length: 4 })
-      .int32('nref')
-    const ret = parser.parse(data)
-    console.log(ret)
+    const parser = new Parser().string('magic', { length: 4 }).int32('nref')
+    parser.parse(data)
   }
 
   getIndex() {
@@ -70,11 +48,10 @@ class BaiIndex {
    * an array of objects of the form
    * `{start, span, containerStart, sliceStart, sliceBytes }`
    */
-  async getEntriesForRange(seqId, queryStart, queryEnd) {
-    const seqEntries = (await this.index)[seqId]
-    if (!seqEntries) return []
-
-  }
+  // async getEntriesForRange(seqId, queryStart, queryEnd) {
+  //   const seqEntries = (await this.index)[seqId]
+  //   if (!seqEntries) return []
+  // }
 }
 
 module.exports = BaiIndex
