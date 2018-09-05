@@ -1,6 +1,6 @@
-import sayHello from "../src";
-
-test("sayHello", () => {
-  expect(sayHello()).toBe("Hello, Haz!");
-  expect(sayHello("foo")).toBe("Hello, foo!");
-});
+import {BaiIndex} from "../src/";
+describe('FASTA parser', () => {
+  it('process unindexed fasta', async () => {
+    const t = new BaiIndex({ bai: testDataFile('volvox-sorted.bam.bai') })
+  })
+})
