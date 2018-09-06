@@ -108,7 +108,6 @@ class BAI {
     }
 
     data.refCount = bytes.readInt32LE(4)
-    console.log(data.refCount)
 
     // read the indexes for each reference sequence
     data.indices = new Array(data.refCount)

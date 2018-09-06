@@ -54,8 +54,42 @@ class BamFile {
     if (uncba.readInt32LE(0) !== BAM_MAGIC) throw new Error('Not a BAM file')
     const headLen = uncba.readInt32LE(4)
 
+    return this._readRefSeqs(headLen + 8, 65535)
+  }
 
-    // this._readRefSeqs(headLen + 8, 65536 * 4, successCallback, failCallback)
+  async _readRefSeqs(start, refSeqBytes) {
+    const buf = Buffer.allocUnsafe(refSeqBytes)
+    await this.bam.read(buf, 0, refSeqBytes, 0)
+
+    const uncba = await unzip(buf)
+    const nRef = uncba.readInt32LE(start)
+    let p = start + 4
+    this.chrToIndex = {}
+    this.indexToChr = []
+    for (let i = 0; i < nRef; i += 1) {
+      const lName = uncba.readInt32LE(p)
+      let name = ''
+      for (let j = 0; j < lName - 1; j += 1) {
+        name += String.fromCharCode(uncba[p + 4 + j])
+      }
+
+      const lRef = uncba.readInt32LE(p + lName + 4)
+      this.chrToIndex[name] = i
+      this.indexToChr.push({ name, length: lRef })
+
+      p = p + 8 + lName
+      if (p > uncba.length) {
+        // we've gotten to the end of the data without
+        // finishing reading the ref seqs, need to fetch a
+        // bigger chunk and try again.  :-(
+        refSeqBytes *= 2
+        console.warn(
+          `BAM header is very big.  Re-fetching ${refSeqBytes} bytes.`,
+        )
+        return this._readRefSeqs(start, refSeqBytes)
+      }
+    }
+    return true
   }
 }
 
