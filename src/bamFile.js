@@ -3,15 +3,23 @@ const LocalFile = require('./localFile')
 class BamFile {
   /**
    * @param {object} args
-   * @param {string} [args.path]
-   * @param {string} [args.url]
-   * @param {FileHandle} [args.filehandle]
+   * @param {string} [args.bamPath]
+   * @param {FileHandle} [args.bamFilehandle]
+   * @param {string} [args.baiPath]
+   * @param {FileHandle} [args.baiFilehandle]
    */
-  constructor({ bamFilehandle, bamPath }) {
+  constructor({ bamFilehandle, bamPath, baiPath, baiFilehandle }) {
     if (bamFilehandle) {
       this.bam = bamFilehandle
     } else if (bamPath) {
       this.bam = new LocalFile(bamPath)
+    }
+    if(baiFilehandle) {
+      this.bai = baiFilehandle
+    } else if (baiPath) {
+      this.bai = new LocalFile(baiPath)
+    } else {
+      this.bai = new LocalFile(bamPath + '.bai')
     }
   }
 }
