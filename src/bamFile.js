@@ -1,6 +1,9 @@
 const { unzip } = require('@gmod/bgzf-filehandle')
 const { CSI } = require('@gmod/tabix')
+const BAI = require('./bai')
 const LocalFile = require('./localFile')
+
+const BAM_MAGIC = 21840194
 
 class BamFile {
   /**
@@ -10,43 +13,49 @@ class BamFile {
    * @param {string} [args.baiPath]
    * @param {FileHandle} [args.baiFilehandle]
    */
-  constructor({ bamFilehandle, bamPath, baiPath, baiFilehandle, csiPath, csiFilehandle }) {
+  constructor({
+    bamFilehandle,
+    bamPath,
+    baiPath,
+    baiFilehandle,
+    csiPath,
+    csiFilehandle,
+  }) {
     if (bamFilehandle) {
       this.bam = bamFilehandle
     } else if (bamPath) {
       this.bam = new LocalFile(bamPath)
     }
-    if(csiFilehandle) {
-      this.index = csiFilehandle
-    } else if(csiPath) {
-      this.index = new LocalFile(csiPath)
-    } else if(baiFilehandle) {
-      this.index = baiFilehandle
+
+    if (csiFilehandle) {
+      this.index = new CSI({ filehandle: csiFilehandle })
+    } else if (csiPath) {
+      this.index = new CSI({ filehandle: new LocalFile(csiPath) })
+    } else if (baiFilehandle) {
+      this.index = new BAI({ filehandle: baiFilehandle })
     } else if (baiPath) {
-      this.index = new LocalFile(baiPath)
+      this.index = new BAI({ filehandle: new LocalFile(baiPath) })
     } else {
-      this.index = new LocalFile(bamPath + '.bai')
+      this.index = new BAI({ filehandle: new LocalFile(`${bamPath}.bai`) })
     }
   }
 
   async getHeader() {
-    const data = await this.data.read(
-        0,
-        thisB.index.minAlignmentVO ? thisB.index.minAlignmentVO.block + 65535 : undefined)
+    const indexData = await this.index.parse()
+    const ret = indexData.firstDataLine
+      ? indexData.firstDataLine.blockPosition + 65535
+      : undefined
 
-    var uncba;
-    try {
-        uncba = new Uint8Array( unzip(r) );
-    } catch(e) {
-        throw new Error( "Could not uncompress BAM data. Is it compressed correctly?" );
-    }
+    const buf = Buffer.allocUnsafe(ret)
+    await this.bam.read(buf, 0, ret)
 
-    if( readInt(uncba, 0) != BAM_MAGIC)
-        throw new Error('Not a BAM file');
+    const uncba = await unzip(buf)
 
-    var headLen = readInt(uncba, 4);
+    if (uncba.readInt32LE(0) !== BAM_MAGIC) throw new Error('Not a BAM file')
+    const headLen = uncba.readInt32LE(4)
 
-    thisB._readRefSeqs( headLen+8, 65536*4, successCallback, failCallback );
+
+    // this._readRefSeqs(headLen + 8, 65536 * 4, successCallback, failCallback)
   }
 }
 

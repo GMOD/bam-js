@@ -9,7 +9,6 @@ describe('bai index', () => {
       ),
     })
     const indexData = await ti.parse()
-    console.log(indexData)
     expect(indexData.bai).toEqual(true)
   })
 })
