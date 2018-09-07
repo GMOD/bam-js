@@ -53,13 +53,17 @@ class BamFile {
 
     if (uncba.readInt32LE(0) !== BAM_MAGIC) throw new Error('Not a BAM file')
     const headLen = uncba.readInt32LE(4)
-    this.header = ''
-    for (let j = 0; j < headLen; j += 1) {
-      this.header += String.fromCharCode(uncba[4 + j])
-    }
+
+    this.header = uncba.toString('utf8', 8, 8 + headLen)
+    // this.header = ''
+    // for (let j = 0; j < headLen; j += 1) {
+    //   this.header += String.fromCharCode(uncba[4 + j])
+    // }
     return this._readRefSeqs(headLen + 8, 65535)
   }
 
+  // the full length of the refseq block is not given in advance so this grabs a chunk and
+  // doubles it if all refseqs haven't been processed
   async _readRefSeqs(start, refSeqBytes) {
     const buf = Buffer.allocUnsafe(refSeqBytes)
     await this.bam.read(buf, 0, refSeqBytes, 0)
@@ -71,25 +75,17 @@ class BamFile {
     this.indexToChr = []
     for (let i = 0; i < nRef; i += 1) {
       const lName = uncba.readInt32LE(p)
-      let name = ''
-      for (let j = 0; j < lName - 1; j += 1) {
-        name += String.fromCharCode(uncba[p + 4 + j])
-      }
-
+      const name = uncba.toString('utf8', p + 4, p + 4 + lName - 1)
       const lRef = uncba.readInt32LE(p + lName + 4)
       this.chrToIndex[name] = i
       this.indexToChr.push({ name, length: lRef })
 
       p = p + 8 + lName
       if (p > uncba.length) {
-        // we've gotten to the end of the data without
-        // finishing reading the ref seqs, need to fetch a
-        // bigger chunk and try again.  :-(
-        refSeqBytes *= 2
         console.warn(
           `BAM header is very big.  Re-fetching ${refSeqBytes} bytes.`,
         )
-        return this._readRefSeqs(start, refSeqBytes)
+        return this._readRefSeqs(start, refSeqBytes * 2)
       }
     }
     return true
