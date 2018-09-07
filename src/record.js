@@ -1,7 +1,5 @@
 const Constants = require('./constants')
 
-
-
 /**
  * Class of each CRAM record returned by this API.
  */

@@ -97,6 +97,7 @@ class BamFile {
         return this._readRefSeqs(start, refSeqBytes * 2)
       }
     }
+    this.index.refNameToId = this.chrToIndex
     return true
   }
 
@@ -107,7 +108,7 @@ class BamFile {
     if (!(chrId >= 0)) {
       chunks = []
     } else {
-      chunks = this.index.blocksForRange(chrId, min, max, true)
+      chunks = await this.index.blocksForRange(chrId, min, max)
       if (!chunks) {
         throw new Error('Error in index fetch')
       }
@@ -126,11 +127,9 @@ class BamFile {
       return
     }
 
-    let chunksProcessed = 0
-
     // check the chunks for any that are over the size limit.  if
     // any are, don't fetch any of them
-    for (let i = 0; i < chunks.length; i++) {
+    for (let i = 0; i < chunks.length; i += 1) {
       const size = chunks[i].fetchedSize()
       if (size > this.chunkSizeLimit) {
         throw new Error(
@@ -141,19 +140,18 @@ class BamFile {
       }
     }
 
-    let haveError
-    let pastStart
     const records = []
-    array.forEach(chunks, c => {
-      this.featureCache.get(c, (f, e) => {
-        if (e && !haveError) errorCallback(e)
-        if ((haveError = haveError || e)) {
-          return
-        }
-
-        for (let i = 0; i < f.length; i++) {
+    const recordPromises = []
+    chunks.forEach(c => {
+      let recordsPromise = this.featureCache.get(c)
+      if (!recordsPromise) {
+        recordsPromise = this._readChunk(c)
+        this.featureCache.set(c, recordsPromise)
+      }
+      recordsPromise.then(f => {
+        for (let i = 0; i < f.length; i += 1) {
           const feature = f[i]
-          if (feature._refID == chrId) {
+          if (feature._refID === chrId) {
             // on the right ref seq
             if (feature.get('start') > max)
               // past end of range, can stop iterating
@@ -163,35 +161,29 @@ class BamFile {
               records.push(feature)
           }
         }
-        if (++chunksProcessed == chunks.length) {
-          return records
-        }
+      }, e => {
+        console.error(e)
       })
     })
+    Promise.all(recordPromises).then(() => records)
   }
 
-  async _readChunk(chunk, callback) {
+  async _readChunk(chunk) {
     const bufsize = chunk.fetchedSize()
     const buf = Buffer.allocUnsafe(bufsize)
-    await this.data.read(buf, chunk.minv.block, bufsize)
+    await this.bam.read(buf, 0, bufsize, chunk.minv.blockPosition)
     const data = await unzip(buf)
-    return this.readBamFeatures(
-      new Uint8Array(data),
-      chunk.minv.offset,
-      features,
-      callback,
-    )
+    return this.readBamFeatures(data, chunk.minv.dataPosition)
   }
 
-  readBamFeatures(ba, blockStart, callback) {
-    let featureCount = 0
+  readBamFeatures(ba, blockStart) {
+    //console.log('LOLLL',ba, blockStart)
     const sink = []
+    console.log(blockStart, ba.length)
 
-    const maxFeaturesWithoutYielding = 300
-
-    while (blockStart >= ba.length) {
+    while (blockStart <= ba.length) {
       // if we've read no more than 200 features this cycle, read another one
-      const blockSize = readInt(ba, blockStart)
+      const blockSize = ba.readInt32LE(blockStart)
       const blockEnd = blockStart + 4 + blockSize - 1
 
       // only try to read the feature if we have all the bytes for it
@@ -200,7 +192,6 @@ class BamFile {
           bytes: { byteArray: ba, start: blockStart, end: blockEnd },
         })
         sink.push(feature)
-        featureCount++
       }
 
       blockStart = blockEnd + 1

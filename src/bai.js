@@ -2,37 +2,21 @@ const VirtualOffset = require('./virtualOffset')
 const Chunk = require('./chunk')
 
 const BAI_MAGIC = 21578050 // BAI\1
-const MAX_BINS = 1000000
 
-function lshift(num, bits) {
-  return num << bits
-}
-function rshift(num, bits) {
-  return num >> bits
-}
 /**
  * calculate the list of bins that may overlap with region [beg,end) (zero-based half-open)
  * @returns {Array[number]}
  */
-function reg2bins(beg, end, minShift, depth) {
-  beg -= 1 // < convert to 1-based closed
-  if (beg < 1) beg = 1
-  if (end > 2 ** 50) end = 2 ** 34 // 17 GiB ought to be enough for anybody
+function reg2bins(beg, end) {
+  let k
+  const list = [0]
   end -= 1
-  let l = 0
-  let t = 0
-  let s = minShift + depth * 3
-  const bins = []
-  for (; l <= depth; s -= 3, t += lshift(1, l * 3), l += 1) {
-    const b = t + rshift(beg, s)
-    const e = t + rshift(end, s)
-    if (e - b + bins.length > MAX_BINS)
-      throw new Error(
-        `query ${beg}-${end} is too large for current binning scheme (shift ${minShift}, depth ${depth}), try a smaller query or a coarser index binning scheme`,
-      )
-    for (let i = b; i <= e; i += 1) bins.push(i)
-  }
-  return bins
+  for (k = 1 + (beg >> 26); k <= 1 + (end >> 26); k += 1) list.push(k)
+  for (k = 9 + (beg >> 23); k <= 9 + (end >> 23); k += 1) list.push(k)
+  for (k = 73 + (beg >> 20); k <= 73 + (end >> 20); k += 1) list.push(k)
+  for (k = 585 + (beg >> 17); k <= 585 + (end >> 17); k += 1) list.push(k)
+  for (k = 4681 + (beg >> 14); k <= 4681 + (end >> 14); k += 1) list.push(k)
+  return list
 }
 
 class BAI {
@@ -138,18 +122,17 @@ class BAI {
     return data
   }
 
-  async blocksForRange(refName, beg, end) {
+  async blocksForRange(refId, beg, end) {
     if (beg < 0) beg = 0
 
     const indexData = await this.parse()
     if (!indexData) return []
-    const refId = indexData.refNameToId[refName]
     const indexes = indexData.indices[refId]
     if (!indexes) return []
 
     const { binIndex } = indexes
 
-    const bins = reg2bins(beg, end, indexData.minShift, indexData.depth)
+    const bins = reg2bins(beg, end)
 
     let l
     let numOffsets = 0

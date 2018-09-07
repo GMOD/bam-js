@@ -32,7 +32,7 @@ describe('bam records', () => {
       bamPath: require.resolve('./data/volvox-sorted.bam'),
     })
     await ti.getHeader()
-    const records = await ti.getRecordsForRange(0, 0, 1000)
+    const records = await ti.getRecordsForRange('ctgA', 0, 1000)
     console.log(records)
   })
 })
