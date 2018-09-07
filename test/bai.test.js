@@ -25,3 +25,14 @@ describe('bam header', () => {
     expect(ti.indexToChr[0]).toEqual({ name: 'ctgA', length: 50001 })
   })
 })
+
+describe('bam records', () => {
+  it('gets features from volvox-sorted.bam', async () => {
+    const ti = new BAM({
+      bamPath: require.resolve('./data/volvox-sorted.bam'),
+    })
+    await ti.getHeader()
+    const records = await ti.getRecordsForRange(0, 0, 1000)
+    console.log(records)
+  })
+})
