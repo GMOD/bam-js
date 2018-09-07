@@ -2,6 +2,7 @@ const { unzip } = require('@gmod/bgzf-filehandle')
 const { CSI } = require('@gmod/tabix')
 const BAI = require('./bai')
 const LocalFile = require('./localFile')
+const LRU = require('lru-cache')
 
 const BAM_MAGIC = 21840194
 
@@ -38,6 +39,18 @@ class BamFile {
     } else {
       this.index = new BAI({ filehandle: new LocalFile(`${bamPath}.bai`) })
     }
+    this.options = {
+      cacheSize: args.cacheSize !== undefined ? args.cacheSize : 20000,
+    }
+
+    // cache of features in a slice, keyed by the
+    // slice offset. caches all of the features in a slice, or none.
+    // the cache is actually used by the slice object, it's just
+    // kept here at the level of the file
+    this.featureCache = LRU({
+      max: this.options.cacheSize,
+      length: featureArray => featureArray.length,
+    })
   }
 
   async getHeader() {
@@ -89,6 +102,185 @@ class BamFile {
       }
     }
     return true
+  }
+
+  fetch(chr, min, max, featCallback, endCallback, errorCallback) {
+    chr = this.store.browser.regularizeReferenceName(chr)
+
+    const chrId = this.chrToIndex && this.chrToIndex[chr]
+    let chunks
+    if (!(chrId >= 0)) {
+      chunks = []
+    } else {
+      chunks = this.index.blocksForRange(chrId, min, max, true)
+      if (!chunks) {
+        errorCallback(new Errors.Fatal('Error in index fetch'))
+      }
+    }
+
+    // toString function is used by the cache for making cache keys
+    chunks.toString = function() {
+      return this.join(', ')
+    }
+
+    try {
+      this._fetchChunkFeatures(
+        chunks,
+        chrId,
+        min,
+        max,
+        featCallback,
+        endCallback,
+        errorCallback,
+      )
+    } catch (e) {
+      errorCallback(e)
+    }
+  }
+
+  _fetchChunkFeatures(
+    chunks,
+    chrId,
+    min,
+    max,
+    featCallback,
+    endCallback,
+    errorCallback,
+  ) {
+    const thisB = this
+
+    if (!chunks.length) {
+      endCallback()
+      return
+    }
+
+    let chunksProcessed = 0
+
+    const cache = (this.featureCache =
+      this.featureCache ||
+      new LRUCache({
+        name: 'bamFeatureCache',
+        fillCallback: this._readChunk.bind(this),
+        sizeFunction(features) {
+          return features.length
+        },
+        maxSize: 100000, // cache up to 100,000 BAM features
+      }))
+
+    // check the chunks for any that are over the size limit.  if
+    // any are, don't fetch any of them
+    for (let i = 0; i < chunks.length; i++) {
+      const size = chunks[i].fetchedSize()
+      if (size > this.chunkSizeLimit) {
+        errorCallback(
+          new Errors.DataOverflow(
+            `Too many BAM features. BAM chunk size ${Util.commifyNumber(
+              size,
+            )} bytes exceeds chunkSizeLimit of ${Util.commifyNumber(
+              this.chunkSizeLimit,
+            )}.`,
+          ),
+        )
+        return
+      }
+    }
+
+    let haveError
+    let pastStart
+    array.forEach(chunks, c => {
+      cache.get(c, (f, e) => {
+        if (e && !haveError) errorCallback(e)
+        if ((haveError = haveError || e)) {
+          return
+        }
+
+        for (let i = 0; i < f.length; i++) {
+          const feature = f[i]
+          if (feature._refID == chrId) {
+            // on the right ref seq
+            if (feature.get('start') > max)
+              // past end of range, can stop iterating
+              break
+            else if (feature.get('end') >= min)
+              // must be in range
+              featCallback(feature)
+          }
+        }
+        if (++chunksProcessed == chunks.length) {
+          endCallback()
+        }
+      })
+    })
+  }
+
+  _readChunk(chunk, callback) {
+    const thisB = this
+    const features = []
+    // console.log('chunk '+chunk+' size ',Util.humanReadableNumber(size));
+
+    thisB.data.read(
+      chunk.minv.block,
+      chunk.fetchedSize(),
+      r => {
+        try {
+          const data = await unzip(
+            r,
+            chunk.maxv.block - chunk.minv.block + 1,
+          )
+          thisB.readBamFeatures(
+            new Uint8Array(data),
+            chunk.minv.offset,
+            features,
+            callback,
+          )
+        } catch (e) {
+          callback(null, new Errors.Fatal(e))
+        }
+      },
+      e => {
+        callback(null, new Errors.Fatal(e))
+      },
+    )
+  }
+
+  readBamFeatures(ba, blockStart, sink, callback) {
+    const that = this
+    let featureCount = 0
+
+    const maxFeaturesWithoutYielding = 300
+
+    while (true) {
+      if (blockStart >= ba.length) {
+        // if we're done, call the callback and return
+        callback(sink)
+        return
+      } else if (featureCount <= maxFeaturesWithoutYielding) {
+        // if we've read no more than 200 features this cycle, read another one
+        const blockSize = readInt(ba, blockStart)
+        const blockEnd = blockStart + 4 + blockSize - 1
+
+        // only try to read the feature if we have all the bytes for it
+        if (blockEnd < ba.length) {
+          const feature = new BAMFeature({
+            store: this.store,
+            file: this,
+            bytes: { byteArray: ba, start: blockStart, end: blockEnd },
+          })
+          sink.push(feature)
+          featureCount++
+        }
+
+        blockStart = blockEnd + 1
+      } else {
+        // if we're not done but we've read a good chunk of
+        // features, put the rest of our work into a timeout to continue
+        // later, avoiding blocking any UI stuff that's going on
+        window.setTimeout(() => {
+          that.readBamFeatures(ba, blockStart, sink, callback)
+        }, 1)
+        return
+      }
+    }
   }
 }
 
