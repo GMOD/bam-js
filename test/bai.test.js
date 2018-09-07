@@ -20,6 +20,7 @@ describe('bam header', () => {
       bamPath: require.resolve('./data/volvox-sorted.bam'),
     })
     await ti.getHeader()
+    expect(ti.header).toEqual('@SQ SN:ctgA LN:50')
     expect(ti.chrToIndex.ctgA).toEqual(0)
     expect(ti.indexToChr[0]).toEqual({ name: 'ctgA', length: 50001 })
   })

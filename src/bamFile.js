@@ -53,7 +53,10 @@ class BamFile {
 
     if (uncba.readInt32LE(0) !== BAM_MAGIC) throw new Error('Not a BAM file')
     const headLen = uncba.readInt32LE(4)
-
+    this.header = ''
+    for (let j = 0; j < headLen; j += 1) {
+      this.header += String.fromCharCode(uncba[4 + j])
+    }
     return this._readRefSeqs(headLen + 8, 65535)
   }
 
