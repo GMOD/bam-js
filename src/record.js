@@ -1,11 +1,34 @@
 const Constants = require('./constants')
 
+var SEQRET_DECODER = ['=', 'A', 'C', 'x', 'G', 'x', 'x', 'x', 'T', 'x', 'x', 'x', 'x', 'x', 'x', 'N'];
+var CIGAR_DECODER  = ['M', 'I', 'D', 'N', 'S', 'H', 'P', '=', 'X', '?', '?', '?', '?', '?', '?', '?'];
+
+
 /**
  * Class of each CRAM record returned by this API.
  */
 class BamRecord {
-  constructor() {
-    this.tags = {}
+  constructor(args) {
+    this.data = {}
+    this.bytes = {
+      start: args.bytes.start,
+      end: args.bytes.end,
+      byteArray: args.bytes.byteArray
+    };
+
+    this._coreParse();
+  }
+
+  /**
+   * parse the core data: ref ID and start
+   */
+  _coreParse() {
+    this._refID      = this.bytes.byteArray.readInt32LE( this.bytes.start + 4 );
+    this.data.start  = this.bytes.byteArray.readInt32LE( this.bytes.start + 8 );
+  }
+
+  get(str) {
+    return this.data[str]
   }
 
   /**

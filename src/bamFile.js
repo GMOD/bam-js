@@ -179,7 +179,6 @@ class BamFile {
   readBamFeatures(ba, blockStart) {
     //console.log('LOLLL',ba, blockStart)
     const sink = []
-    console.log(blockStart, ba.length)
 
     while (blockStart <= ba.length) {
       // if we've read no more than 200 features this cycle, read another one
