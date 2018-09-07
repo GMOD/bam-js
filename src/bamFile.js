@@ -105,8 +105,7 @@ class BamFile {
   }
 
   fetch(chr, min, max, featCallback, endCallback, errorCallback) {
-    chr = this.store.browser.regularizeReferenceName(chr)
-
+    // todo regularize refseq names
     const chrId = this.chrToIndex && this.chrToIndex[chr]
     let chunks
     if (!(chrId >= 0)) {
@@ -156,17 +155,6 @@ class BamFile {
 
     let chunksProcessed = 0
 
-    const cache = (this.featureCache =
-      this.featureCache ||
-      new LRUCache({
-        name: 'bamFeatureCache',
-        fillCallback: this._readChunk.bind(this),
-        sizeFunction(features) {
-          return features.length
-        },
-        maxSize: 100000, // cache up to 100,000 BAM features
-      }))
-
     // check the chunks for any that are over the size limit.  if
     // any are, don't fetch any of them
     for (let i = 0; i < chunks.length; i++) {
@@ -188,7 +176,7 @@ class BamFile {
     let haveError
     let pastStart
     array.forEach(chunks, c => {
-      cache.get(c, (f, e) => {
+      this.featureCache.get(c, (f, e) => {
         if (e && !haveError) errorCallback(e)
         if ((haveError = haveError || e)) {
           return
@@ -213,33 +201,18 @@ class BamFile {
     })
   }
 
-  _readChunk(chunk, callback) {
-    const thisB = this
+  async _readChunk(chunk, callback) {
     const features = []
     // console.log('chunk '+chunk+' size ',Util.humanReadableNumber(size));
-
-    thisB.data.read(
-      chunk.minv.block,
-      chunk.fetchedSize(),
-      r => {
-        try {
-          const data = await unzip(
-            r,
-            chunk.maxv.block - chunk.minv.block + 1,
-          )
-          thisB.readBamFeatures(
-            new Uint8Array(data),
-            chunk.minv.offset,
-            features,
-            callback,
-          )
-        } catch (e) {
-          callback(null, new Errors.Fatal(e))
-        }
-      },
-      e => {
-        callback(null, new Errors.Fatal(e))
-      },
+    const bufsize = chunk.fetchedSize()
+    const buf = Buffer.allocUnsafe(bufsize)
+    await this.data.read(buf, chunk.minv.block, bufsize)
+    const data = await unzip(buf)
+    this.readBamFeatures(
+      new Uint8Array(data),
+      chunk.minv.offset,
+      features,
+      callback,
     )
   }
 
