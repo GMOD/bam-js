@@ -143,12 +143,13 @@ class BamFile {
     const records = []
     const recordPromises = []
     chunks.forEach(c => {
-      let recordsPromise = this.featureCache.get(c)
-      if (!recordsPromise) {
-        recordsPromise = this._readChunk(c)
-        this.featureCache.set(c, recordsPromise)
+      let recordPromise = this.featureCache.get(c)
+      if (!recordPromise) {
+        recordPromise = this._readChunk(c)
+        recordPromises.push(recordPromise)
+        this.featureCache.set(c, recordPromise)
       }
-      recordsPromise.then(
+      recordPromise.then(
         f => {
           for (let i = 0; i < f.length; i += 1) {
             const feature = f[i]
@@ -168,7 +169,7 @@ class BamFile {
         },
       )
     })
-    Promise.all(recordPromises).then(() => records)
+    return Promise.all(recordPromises).then(() => records)
   }
 
   async _readChunk(chunk) {
