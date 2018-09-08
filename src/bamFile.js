@@ -148,22 +148,25 @@ class BamFile {
         recordsPromise = this._readChunk(c)
         this.featureCache.set(c, recordsPromise)
       }
-      recordsPromise.then(f => {
-        for (let i = 0; i < f.length; i += 1) {
-          const feature = f[i]
-          if (feature._refID === chrId) {
-            // on the right ref seq
-            if (feature.get('start') > max)
-              // past end of range, can stop iterating
-              break
-            else if (feature.get('end') >= min)
-              // must be in range
-              records.push(feature)
+      recordsPromise.then(
+        f => {
+          for (let i = 0; i < f.length; i += 1) {
+            const feature = f[i]
+            if (feature._refID === chrId) {
+              // on the right ref seq
+              if (feature.get('start') > max)
+                // past end of range, can stop iterating
+                break
+              else if (feature.get('end') >= min)
+                // must be in range
+                records.push(feature)
+            }
           }
-        }
-      }, e => {
-        console.error(e)
-      })
+        },
+        e => {
+          console.error(e)
+        },
+      )
     })
     Promise.all(recordPromises).then(() => records)
   }
@@ -177,11 +180,9 @@ class BamFile {
   }
 
   readBamFeatures(ba, blockStart) {
-    //console.log('LOLLL',ba, blockStart)
     const sink = []
 
-    while (blockStart <= ba.length) {
-      // if we've read no more than 200 features this cycle, read another one
+    while (blockStart < ba.length) {
       const blockSize = ba.readInt32LE(blockStart)
       const blockEnd = blockStart + 4 + blockSize - 1
 
