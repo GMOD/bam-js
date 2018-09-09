@@ -87,18 +87,17 @@ class BamRecord {
   // same as get(), except requires lower-case arguments.  used
   // internally to save lots of calls to field.toLowerCase()
   _get(field) {
-    if(field in this.data) {
+    if (field in this.data) {
       return this.data[field]
-    } else if(this[field]) {
+    } else if (this[field]) {
       this.data[field] = this[field]()
       return this.data[field]
-    } else if(this._flagMasks[field]) {
+    } else if (this._flagMasks[field]) {
       this.data[field] = this._parseFlag(field)
       return this.data[field]
-    } else {
-      this.data[field] = this._parseTag(field)
-      return this.data[field]
     }
+    this.data[field] = this._parseTag(field)
+    return this.data[field]
   }
 
   tags() {
@@ -142,16 +141,14 @@ class BamRecord {
     }
     tags = tags.concat(this._tagList || [])
 
-    const d = this.data
-    for (const k in d) {
+    Object.keys(this.data).forEach(k => {
       if (
-        d.hasOwnProperty(k) &&
         k[0] !== '_' &&
         k !== 'multi_segment_all_aligned' &&
         k !== 'next_seq_id'
       )
         tags.push(k)
-    }
+    })
 
     const seen = {}
     tags = tags.filter(t => {
@@ -190,7 +187,7 @@ class BamRecord {
    */
   mq() {
     const mq = (this._get('_bin_mq_nl') & 0xff00) >> 8
-    return mq == 255 ? undefined : mq
+    return mq === 255 ? undefined : mq
   }
   score() {
     return this._get('mq')
@@ -199,7 +196,7 @@ class BamRecord {
     if (this._get('unmapped')) return undefined
 
     const qseq = []
-    const byteArray = this.bytes.byteArray
+    const { byteArray } = this.bytes
     const p =
       this.bytes.start +
       36 +
@@ -230,7 +227,7 @@ class BamRecord {
     if (this._allTagsParsed) return undefined
 
     this._tagList = this._tagList || []
-    const byteArray = this.bytes.byteArray
+    const { byteArray } = this.bytes
     let p =
       this._tagOffset ||
       this.bytes.start +
@@ -248,7 +245,7 @@ class BamRecord {
       const type = String.fromCharCode(byteArray[p + 2])
       p += 3
 
-      var value
+      let value
       switch (type.toLowerCase()) {
         case 'a':
           value = String.fromCharCode(byteArray[p])
@@ -282,10 +279,10 @@ class BamRecord {
             }
           }
           break
-        case 'b':
+        case 'b': {
           value = ''
           const cc = byteArray[p++]
-          var Btype = String.fromCharCode(cc)
+          const Btype = String.fromCharCode(cc)
           if (Btype === 'i' || Btype === 'I') {
             const limit = byteArray.readInt32LE(p)
             p += 4
@@ -323,6 +320,7 @@ class BamRecord {
             }
           }
           break
+        }
         default:
           console.warn(`Unknown BAM tag type '${type}', tags may be incomplete`)
           value = undefined
@@ -432,7 +430,7 @@ class BamRecord {
   cigar() {
     if (this.isSegmentUnmapped()) return undefined
 
-    const byteArray = this.bytes.byteArray
+    const { byteArray } = this.bytes
     const numCigarOps = this._get('_n_cigar_op')
     let p = this.bytes.start + 36 + this._get('_l_read_name')
     let cigar = ''
@@ -454,7 +452,7 @@ class BamRecord {
     return cigar
   }
   length_on_ref() {
-    const c = this._get('cigar') // the length_on_ref is set as a
+    this._get('cigar') // the length_on_ref is set as a
     // side effect of the CIGAR parsing
     return this.data.length_on_ref
   }
@@ -475,7 +473,7 @@ class BamRecord {
   }
   seq() {
     let seq = ''
-    const byteArray = this.bytes.byteArray
+    const { byteArray } = this.bytes
     const p =
       this.bytes.start +
       36 +

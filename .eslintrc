@@ -21,6 +21,8 @@
     "no-await-in-loop": "warn",
     "no-param-reassign": "warn",
     "no-loop-func": "warn",
+    "no-plusplus": 0,
+    "camelcase": 0,
     "prefer-arrow-callback": "warn",
     "prefer-destructuring": "warn",
     "prefer-const": "warn",

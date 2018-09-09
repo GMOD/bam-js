@@ -123,10 +123,6 @@ class BamFile {
   }
 
   _fetchChunkFeatures(chunks, chrId, min, max) {
-    if (!chunks.length) {
-      return
-    }
-
     // check the chunks for any that are over the size limit.  if
     // any are, don't fetch any of them
     for (let i = 0; i < chunks.length; i += 1) {
