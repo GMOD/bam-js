@@ -1,5 +1,19 @@
 const Constants = require('./constants')
 
+const _flagMasks = {
+  multi_segment_template: 0x1,
+  multi_segment_all_correctly_aligned: 0x2,
+  unmapped: 0x4,
+  multi_segment_next_segment_unmapped: 0x8,
+  seq_reverse_complemented: 0x10,
+  multi_segment_next_segment_reversed: 0x20,
+  multi_segment_first: 0x40,
+  multi_segment_last: 0x80,
+  secondary_alignment: 0x100,
+  qc_failed: 0x200,
+  duplicate: 0x400,
+  supplementary_alignment: 0x800,
+}
 const SEQRET_DECODER = [
   '=',
   'A',
@@ -56,14 +70,157 @@ class BamRecord {
    * parse the core data: ref ID and start
    */
   _coreParse() {
-    this._refID      = this.bytes.byteArray.readInt32LE( this.bytes.start + 4 );
-    this.data.start  = this.bytes.byteArray.readInt32LE( this.bytes.start + 8 );
+    this._refID = this.bytes.byteArray.readInt32LE(this.bytes.start + 4)
+    this.data.start = this.bytes.byteArray.readInt32LE(this.bytes.start + 8)
   }
 
-  get(str) {
-    return this.data[str]
+  get(field) {
+    return this._get(field.toLowerCase())
+  }
+	end() {
+			return this._get('start') + ( this._get('length_on_ref') || this._get('seq_length') || undefined );
+	}
+  // same as get(), except requires lower-case arguments.  used
+  // internally to save lots of calls to field.toLowerCase()
+  _get(field) {
+    return field in this.data
+      ? this.data[field] // have we already parsed it out?
+      : function(field) {
+          const v = (this.data[field] = this[field]
+            ? this[field]() // maybe we have a special parser for it
+            : _flagMasks[field]
+              ? this._parseFlag(field) // or is it a flag?
+              : this._parseTag(field)) // otherwise, look for it in the tags
+          return v
+        }.call(this, field)
   }
 
+  /**
+   * Get the value of a tag, parsing the tags as far as necessary.
+   * Only called if we have not already parsed that field.
+   */
+  _parseTag(tagName) {
+    // if all of the tags have been parsed and we're still being
+    // called, we already know that we have no such tag, because
+    // it would already have been cached.
+    if (this._allTagsParsed) return undefined
+
+    this._tagList = this._tagList || []
+    const byteArray = this.bytes.byteArray
+    let p =
+      this._tagOffset ||
+      this.bytes.start +
+        36 +
+        this._get('_l_read_name') +
+        this._get('_n_cigar_op') * 4 +
+        this._get('_seq_bytes') +
+        this._get('seq_length')
+
+    const blockEnd = this.bytes.end
+    while (p < blockEnd && lcTag != tagName) {
+      const tag = String.fromCharCode(byteArray[p], byteArray[p + 1])
+      var lcTag = tag.toLowerCase()
+      const type = String.fromCharCode(byteArray[p + 2])
+      p += 3
+
+      var value
+      switch (type.toLowerCase()) {
+        case 'a':
+          value = String.fromCharCode(byteArray[p])
+          p += 1
+          break
+        case 'i':
+          value = byteArray.readInt32LE(p)
+          p += 4
+          break
+        case 'c':
+          value = byteArray.readInt8(p)
+          p += 1
+          break
+        case 's':
+          value = byteArray.readInt16LE(p)
+          p += 2
+          break
+        case 'f':
+          value = byteArray.readFloatLE(p)
+          p += 4
+          break
+        case 'z':
+        case 'h':
+          value = ''
+          while (p <= blockEnd) {
+            const cc = byteArray[p++]
+            if (cc === 0) {
+              break
+            } else {
+              value += String.fromCharCode(cc)
+            }
+          }
+          break
+        case 'b':
+          value = ''
+          const cc = byteArray[p++]
+          var Btype = String.fromCharCode(cc)
+          if (Btype === 'i' || Btype === 'I') {
+            const limit = byteArray.readInt32LE(p)
+            p += 4
+            for (let k = 0; k < limit; k++) {
+              value += byteArray.readInt32LE(p)
+              if (k + 1 < limit) value += ','
+              p += 4
+            }
+          }
+          if (Btype === 's' || Btype === 'S') {
+            const limit = byteArray.readInt32LE(p)
+            p += 4
+            for (let k = 0; k < limit; k++) {
+              value += byteArray.readInt16LE(p)
+              if (k + 1 < limit) value += ','
+              p += 2
+            }
+          }
+          if (Btype === 'c' || Btype === 'C') {
+            const limit = byteArray.readInt32LE(p)
+            p += 4
+            for (let k = 0; k < limit; k++) {
+              value += byteArray.readInt8(p)
+              if (k + 1 < limit) value += ','
+              p += 1
+            }
+          }
+          if (Btype === 'f') {
+            const limit = byteArray.readInt32LE(p)
+            p += 4
+            for (let k = 0; k < limit; k++) {
+              value += byteArray.readFloatLE(p)
+              if (k + 1 < limit) value += ','
+              p += 4
+            }
+          }
+          break
+        default:
+          console.warn(`Unknown BAM tag type '${type}', tags may be incomplete`)
+          value = undefined
+          p = blockEnd // stop parsing tags
+      }
+
+      this._tagOffset = p
+
+      this._tagList.push(tag)
+      if (lcTag === tagName) return value
+
+      this.data[lcTag] = value
+    }
+    this._allTagsParsed = true
+    return undefined
+  }
+  _parseAllTags() {
+    this._parseTag()
+  }
+
+  _parseFlag(flagName) {
+    return !!(this._get('_flags') & _flagMasks[flagName])
+  }
   /**
    * @returns {boolean} true if the read is paired, regardless of whether both segments are mapped
    */
@@ -147,7 +304,59 @@ class BamRecord {
   isUnknownBases() {
     return !!(this.cramFlags & Constants.CRAM_FLAG_NO_SEQ)
   }
+  cigar() {
+    if (this.isSegmentUnmapped()) return undefined
 
+    const byteArray = this.bytes.byteArray
+    const numCigarOps = this._get('_n_cigar_op')
+    let p = this.bytes.start + 36 + this._get('_l_read_name')
+    let cigar = ''
+    let lref = 0
+    for (let c = 0; c < numCigarOps; ++c) {
+      const cigop = byteArray.readInt32LE(p)
+      const lop = cigop >> 4
+      const op = CIGAR_DECODER[cigop & 0xf]
+      cigar += lop + op
+
+      // soft clip, hard clip, and insertion don't count toward
+      // the length on the reference
+      if (op != 'H' && op != 'S' && op != 'I') lref += lop
+
+      p += 4
+    }
+
+    this.data.length_on_ref = lref
+    return cigar
+  }
+	length_on_ref() {
+		var c = this._get('cigar'); // the length_on_ref is set as a
+															 // side effect of the CIGAR parsing
+		return this.data.length_on_ref;
+	}
+  _flag_nc() {
+    return this.bytes.byteArray.readInt32LE(this.bytes.start + 16)
+  }
+  _n_cigar_op() {
+    return this._get('_flag_nc') & 0xffff
+  }
+  _l_read_name() {
+    return this._get('_bin_mq_nl') & 0xff
+  }
+  _bin_mq_nl() {
+    return this.bytes.byteArray.readInt32LE(this.bytes.start + 12)
+  }
+  seq_length() {
+    return this.bytes.byteArray.readInt32LE(this.bytes.start + 20)
+  }
+  _next_refid() {
+    return this.bytes.byteArray.readInt32LE(this.bytes.start + 24)
+  }
+  _next_pos() {
+    return this.bytes.byteArray.readInt32LE(this.bytes.start + 28)
+  }
+  template_length() {
+    return this.bytes.byteArray.readInt32LE(this.bytes.start + 32)
+  }
   /**
    * Get the original sequence of this read.
    * @returns {String} sequence basepairs

@@ -33,6 +33,7 @@ describe('bam records', () => {
     })
     await ti.getHeader()
     const records = await ti.getRecordsForRange('ctgA', 0, 1000)
-    console.log(records)
+    expect(records[0].get('start')).toEqual(2)
+    expect(records[0].get('end')).toEqual(102)
   })
 })
