@@ -1215,6 +1215,10 @@ bser@^2.0.0:
   dependencies:
     node-int64 "^0.4.0"
 
+buffer-crc32@^0.2.13:
+  version "0.2.13"
+  resolved "https://registry.yarnpkg.com/buffer-crc32/-/buffer-crc32-0.2.13.tgz#0d333e3f00eac50aa1454abd30ef8c2a5d9a7242"
+
 buffer-equal@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/buffer-equal/-/buffer-equal-1.0.0.tgz#59616b498304d556abd466966b22eeda3eca5fbe"

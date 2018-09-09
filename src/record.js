@@ -1,4 +1,5 @@
 const Constants = require('./constants')
+const crc32 = require('buffer-crc32')
 
 const _flagMasks = {
   multi_segment_template: 0x1,
@@ -77,9 +78,12 @@ class BamRecord {
   get(field) {
     return this._get(field.toLowerCase())
   }
-	end() {
-			return this._get('start') + ( this._get('length_on_ref') || this._get('seq_length') || undefined );
-	}
+  end() {
+    return (
+      this._get('start') +
+      (this._get('length_on_ref') || this._get('seq_length') || undefined)
+    )
+  }
   // same as get(), except requires lower-case arguments.  used
   // internally to save lots of calls to field.toLowerCase()
   _get(field) {
@@ -94,7 +98,124 @@ class BamRecord {
           return v
         }.call(this, field)
   }
+  tags() {
+    return this._get('_tags')
+  }
 
+  _tags() {
+    this._parseAllTags()
+
+    let tags = [
+      'seq',
+      'seq_reverse_complemented',
+      'unmapped',
+      'qc_failed',
+      'duplicate',
+      'secondary_alignment',
+      'supplementary_alignment',
+    ]
+
+    if (!this._get('unmapped'))
+      tags.push(
+        'start',
+        'end',
+        'strand',
+        'score',
+        'qual',
+        'MQ',
+        'CIGAR',
+        'length_on_ref',
+        'template_length',
+      )
+    if (this._get('multi_segment_template')) {
+      tags.push(
+        'multi_segment_all_correctly_aligned',
+        'multi_segment_next_segment_unmapped',
+        'multi_segment_next_segment_reversed',
+        'multi_segment_first',
+        'multi_segment_last',
+        'next_segment_position',
+      )
+    }
+    tags = tags.concat(this._tagList || [])
+
+    const d = this.data
+    for (const k in d) {
+      if (
+        d.hasOwnProperty(k) &&
+        k[0] !== '_' &&
+        k !== 'multi_segment_all_aligned' &&
+        k !== 'next_seq_id'
+      )
+        tags.push(k)
+    }
+
+    const seen = {}
+    tags = tags.filter(t => {
+      if (t in this.data && this.data[t] === undefined) return false
+
+      const lt = t.toLowerCase()
+      const s = seen[lt]
+      seen[lt] = true
+      return !s
+    })
+
+    return tags
+  }
+
+  parent() {
+    return undefined
+  }
+
+  children() {
+    return this._get('subfeatures')
+  }
+
+  id() {
+    return crc32.signed(
+      this.bytes.byteArray.slice(this.bytes.start, this.bytes.end),
+    )
+  }
+
+  multi_segment_all_aligned() {
+    return this._get('multi_segment_all_correctly_aligned')
+  }
+
+  // special parsers
+  /**
+   * Mapping quality score.
+   */
+  mq() {
+    const mq = (this._get('_bin_mq_nl') & 0xff00) >> 8
+    return mq == 255 ? undefined : mq
+  }
+  score() {
+    return this._get('mq')
+  }
+  qual() {
+    if (this._get('unmapped')) return undefined
+
+    const qseq = []
+    const byteArray = this.bytes.byteArray
+    const p =
+      this.bytes.start +
+      36 +
+      this._get('_l_read_name') +
+      this._get('_n_cigar_op') * 4 +
+      this._get('_seq_bytes')
+    const lseq = this._get('seq_length')
+    for (let j = 0; j < lseq; ++j) {
+      qseq.push(byteArray[p + j])
+    }
+    return qseq.join(' ')
+  }
+  strand() {
+    return this._get('seq_reverse_complemented') ? -1 : 1
+  }
+  multi_segment_next_segment_strand() {
+    if (this._get('multi_segment_next_segment_unmapped')) return undefined
+    return this._get('multi_segment_next_segment_reversed') ? -1 : 1
+  }
   /**
    * Get the value of a tag, parsing the tags as far as necessary.
    * Only called if we have not already parsed that field.
@@ -117,9 +238,10 @@ class BamRecord {
         this._get('seq_length')
 
     const blockEnd = this.bytes.end
-    while (p < blockEnd && lcTag != tagName) {
+    let lcTag
+    while (p < blockEnd && lcTag !== tagName) {
       const tag = String.fromCharCode(byteArray[p], byteArray[p + 1])
-      var lcTag = tag.toLowerCase()
+      lcTag = tag.toLowerCase()
       const type = String.fromCharCode(byteArray[p + 2])
       p += 3
 
@@ -320,7 +442,7 @@ class BamRecord {
 
       // soft clip, hard clip, and insertion don't count toward
       // the length on the reference
-      if (op != 'H' && op != 'S' && op != 'I') lref += lop
+      if (op !== 'H' && op !== 'S' && op !== 'I') lref += lop
 
       p += 4
     }
@@ -328,11 +450,11 @@ class BamRecord {
     this.data.length_on_ref = lref
     return cigar
   }
-	length_on_ref() {
-		var c = this._get('cigar'); // the length_on_ref is set as a
-															 // side effect of the CIGAR parsing
-		return this.data.length_on_ref;
-	}
+  length_on_ref() {
+    const c = this._get('cigar') // the length_on_ref is set as a
+    // side effect of the CIGAR parsing
+    return this.data.length_on_ref
+  }
   _flag_nc() {
     return this.bytes.byteArray.readInt32LE(this.bytes.start + 16)
   }
