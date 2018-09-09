@@ -87,17 +87,20 @@ class BamRecord {
   // same as get(), except requires lower-case arguments.  used
   // internally to save lots of calls to field.toLowerCase()
   _get(field) {
-    return field in this.data
-      ? this.data[field] // have we already parsed it out?
-      : function(field) {
-          const v = (this.data[field] = this[field]
-            ? this[field]() // maybe we have a special parser for it
-            : _flagMasks[field]
-              ? this._parseFlag(field) // or is it a flag?
-              : this._parseTag(field)) // otherwise, look for it in the tags
-          return v
-        }.call(this, field)
+    if(field in this.data) {
+      return this.data[field]
+    } else if(this[field]) {
+      this.data[field] = this[field]()
+      return this.data[field]
+    } else if(this._flagMasks[field]) {
+      this.data[field] = this._parseFlag(field)
+      return this.data[field]
+    } else {
+      this.data[field] = this._parseTag(field)
+      return this.data[field]
+    }
   }
+
   tags() {
     return this._get('_tags')
   }
@@ -464,6 +467,29 @@ class BamRecord {
   _l_read_name() {
     return this._get('_bin_mq_nl') & 0xff
   }
+  /**
+   * number of bytes in the sequence field
+   */
+  _seq_bytes() {
+    return (this._get('seq_length') + 1) >> 1
+  }
+  seq() {
+    let seq = ''
+    const byteArray = this.bytes.byteArray
+    const p =
+      this.bytes.start +
+      36 +
+      this._get('_l_read_name') +
+      this._get('_n_cigar_op') * 4
+    const seqBytes = this._get('_seq_bytes')
+    for (let j = 0; j < seqBytes; ++j) {
+      const sb = byteArray[p + j]
+      seq += SEQRET_DECODER[(sb & 0xf0) >> 4]
+      if (seq.length < this.get('seq_length')) seq += SEQRET_DECODER[sb & 0x0f]
+    }
+    return seq
+  }
+
   _bin_mq_nl() {
     return this.bytes.byteArray.readInt32LE(this.bytes.start + 12)
   }

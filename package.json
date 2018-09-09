@@ -43,6 +43,7 @@
   ],
   "dependencies": {
     "@gmod/bgzf-filehandle": "^1.2.1",
+    "@gmod/tabix": "^1.0.0",
     "buffer-crc32": "^0.2.13",
     "long": "^4.0.0",
     "lru-cache": "^4.1.3",
