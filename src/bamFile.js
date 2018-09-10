@@ -55,6 +55,7 @@ class BamFile {
       ? indexData.firstDataLine.blockPosition + 65535
       : undefined
 
+
     const buf = Buffer.allocUnsafe(ret)
     await this.bam.read(buf, 0, ret)
 
@@ -167,8 +168,13 @@ class BamFile {
 
   async _readChunk(chunk) {
     const bufsize = chunk.fetchedSize()
-    const buf = Buffer.allocUnsafe(bufsize)
-    await this.bam.read(buf, 0, bufsize, chunk.minv.blockPosition)
+    let buf = Buffer.allocUnsafe(bufsize)
+    const len = chunk.minv.blockPosition
+    const bytesRead = await this.bam.read(buf, 0, bufsize, chunk.minv.blockPosition)
+    if(bytesRead<len) {
+      buf = buf.slice(0, bytesRead)
+    }
+
     const data = await unzip(buf)
     return this.readBamFeatures(data, chunk.minv.dataPosition)
   }

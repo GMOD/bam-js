@@ -89,8 +89,6 @@ describe('ecoli bam check', () => {
     }
     const expectedHeader = fs.readFileSync('test/data/ecoli_nanopore.bam.expected.header.txt', 'utf8')
     const expectedRecords = await loadTestJSON('ecoli_nanopore.bam.expected.records.json')
-    console.log(expectedRecords)
-
 
     expect(header).toEqual(expectedHeader)
     expect(records).toEqual(expectedRecords)
