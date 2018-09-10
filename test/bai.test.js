@@ -67,3 +67,22 @@ describe('bam deep record check', () => {
     expect(JsonClone(records)).toEqual(ret)
   })
 })
+
+
+describe('ecoli bam check', () => {
+  it('deep check ecoli', async () => {
+    const ti = new BAM({
+      bamPath: require.resolve('./data/aligned_reads.bam'),
+    })
+    const header = await ti.getHeader()
+
+    if (REWRITE_EXPECTED_DATA) {
+      fs.writeFileSync(
+        'test/data/aligned_reads.bam.expected.header.txt',
+        header
+      )
+    }
+    const ret = fs.readFileSync('test/data/aligned_reads.bam.expected.header.txt', 'utf8')
+    expect(header).toEqual(ret)
+  })
+})

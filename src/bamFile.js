@@ -64,11 +64,8 @@ class BamFile {
     const headLen = uncba.readInt32LE(4)
 
     this.header = uncba.toString('utf8', 8, 8 + headLen)
-    // this.header = ''
-    // for (let j = 0; j < headLen; j += 1) {
-    //   this.header += String.fromCharCode(uncba[4 + j])
-    // }
-    return this._readRefSeqs(headLen + 8, 65535)
+    await this._readRefSeqs(headLen + 8, 65535)
+    return this.header
   }
 
   // the full length of the refseq block is not given in advance so this grabs a chunk and
