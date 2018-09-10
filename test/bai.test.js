@@ -2,6 +2,13 @@ const BAI = require('../src/bai')
 const BAM = require('../src/bamFile')
 const LocalFile = require('../src/localFile')
 
+const {
+  loadTestJSON,
+  JsonClone,
+  REWRITE_EXPECTED_DATA,
+  fs,
+} = require('./lib/util')
+
 describe('bai index', () => {
   it('loads volvox-sorted.bam.bai', async () => {
     const ti = new BAI({
@@ -49,6 +56,14 @@ describe('bam deep record check', () => {
     })
     await ti.getHeader()
     const records = await ti.getRecordsForRange('ctgA', 0, 10)
-    console.log(records)
+
+    if (REWRITE_EXPECTED_DATA) {
+      fs.writeFileSync(
+        'test/data/volvox-sorted.bam.expected.json',
+        JSON.stringify(records, null, '  '),
+      )
+    }
+    const ret = await loadTestJSON('volvox-sorted.bam.expected.json')
+    expect(JsonClone(records)).toEqual(ret)
   })
 })

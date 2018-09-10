@@ -1,0 +1,26 @@
+[
+  {
+    "data": {
+      "start": 2,
+      "_flag_nc": 1,
+      "_n_cigar_op": 1,
+      "_bin_mq_nl": 306783516,
+      "_l_read_name": 28,
+      "length_on_ref": 100,
+      "cigar": "100M",
+      "end": 102
+    }
+  },
+  {
+    "data": {
+      "start": 7,
+      "_flag_nc": 1,
+      "_n_cigar_op": 1,
+      "_bin_mq_nl": 306783516,
+      "_l_read_name": 28,
+      "length_on_ref": 100,
+      "cigar": "100M",
+      "end": 107
+    }
+  }
+]
