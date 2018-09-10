@@ -9,7 +9,8 @@
       "length_on_ref": 100,
       "cigar": "100M",
       "end": 102
-    }
+    },
+    "flags": 0
   },
   {
     "data": {
@@ -21,6 +22,7 @@
       "length_on_ref": 100,
       "cigar": "100M",
       "end": 107
-    }
+    },
+    "flags": 0
   }
 ]

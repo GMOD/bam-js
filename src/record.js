@@ -1,20 +1,20 @@
 const Constants = require('./constants')
 const crc32 = require('buffer-crc32')
 
-const _flagMasks = {
-  multi_segment_template: 0x1,
-  multi_segment_all_correctly_aligned: 0x2,
-  unmapped: 0x4,
-  multi_segment_next_segment_unmapped: 0x8,
-  seq_reverse_complemented: 0x10,
-  multi_segment_next_segment_reversed: 0x20,
-  multi_segment_first: 0x40,
-  multi_segment_last: 0x80,
-  secondary_alignment: 0x100,
-  qc_failed: 0x200,
-  duplicate: 0x400,
-  supplementary_alignment: 0x800,
-}
+// const _flagMasks = {
+//   multi_segment_template: 0x1,
+//   multi_segment_all_correctly_aligned: 0x2,
+//   unmapped: 0x4,
+//   multi_segment_next_segment_unmapped: 0x8,
+//   seq_reverse_complemented: 0x10,
+//   multi_segment_next_segment_reversed: 0x20,
+//   multi_segment_first: 0x40,
+//   multi_segment_last: 0x80,
+//   secondary_alignment: 0x100,
+//   qc_failed: 0x200,
+//   duplicate: 0x400,
+//   supplementary_alignment: 0x800,
+// }
 const SEQRET_DECODER = [
   '=',
   'A',
@@ -73,6 +73,9 @@ class BamRecord {
   _coreParse() {
     this._refID = this.bytes.byteArray.readInt32LE(this.bytes.start + 4)
     this.data.start = this.bytes.byteArray.readInt32LE(this.bytes.start + 8)
+    this.flags =
+      (this.bytes.byteArray.readInt32LE(this.bytes.start + 16) & 0xffff0000) >>
+      16
   }
 
   get(field) {
@@ -341,10 +344,6 @@ class BamRecord {
     this._parseTag()
   }
 
-  _parseFlag(flagName) {
-    return !!(this._get('_flags') & _flagMasks[flagName])
-  }
-
   _parseCigar(cigar) {
     return cigar
       .match(/\d+\D/g)
@@ -458,9 +457,7 @@ class BamRecord {
     return cigar
   }
 
-  _flags() {
-    return (this.get('_flag_nc') & 0xffff0000) >> 16
-  }
+  _flags() {}
 
   length_on_ref() {
     this._get('cigar') // the length_on_ref is set as a
@@ -514,13 +511,6 @@ class BamRecord {
   }
   template_length() {
     return this.bytes.byteArray.readInt32LE(this.bytes.start + 32)
-  }
-  /**
-   * Get the original sequence of this read.
-   * @returns {String} sequence basepairs
-   */
-  getReadBases() {
-    return this.readBases
   }
 
   toJSON() {

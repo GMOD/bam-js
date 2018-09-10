@@ -1,13 +1,9 @@
 const BAI = require('../src/bai')
 const BAM = require('../src/bamFile')
 const LocalFile = require('../src/localFile')
+const fs = require('fs')
 
-const {
-  loadTestJSON,
-  JsonClone,
-  REWRITE_EXPECTED_DATA,
-  fs,
-} = require('./lib/util')
+const { JsonClone, REWRITE_EXPECTED_DATA } = require('./lib/util')
 
 describe('bai index', () => {
   it('loads volvox-sorted.bam.bai', async () => {
@@ -44,7 +40,6 @@ describe('bam records', () => {
     expect(records.length).toEqual(131)
     expect(records[0].get('start')).toEqual(2)
     expect(records[0].get('end')).toEqual(102)
-    expect(records[0].get('_flags')).toEqual(0)
     expect(records[0].get('cigar')).toEqual('100M')
   })
 })
@@ -63,11 +58,12 @@ describe('bam deep record check', () => {
         JSON.stringify(records, null, '  '),
       )
     }
-    const ret = await loadTestJSON('volvox-sorted.bam.expected.json')
+    const ret = JSON.parse(
+      fs.readFileSync('test/data/volvox-sorted.bam.expected.json'),
+    )
     expect(JsonClone(records)).toEqual(ret)
   })
 })
-
 
 describe('ecoli bam check', () => {
   it('check ecoli header and records', async () => {
@@ -80,17 +76,26 @@ describe('ecoli bam check', () => {
     if (REWRITE_EXPECTED_DATA) {
       fs.writeFileSync(
         'test/data/ecoli_nanopore.bam.expected.header.txt',
-        header
+        header,
       )
       fs.writeFileSync(
         'test/data/ecoli_nanopore.bam.expected.records.json',
         JSON.stringify(records, null, '  '),
       )
     }
-    const expectedHeader = fs.readFileSync('test/data/ecoli_nanopore.bam.expected.header.txt', 'utf8')
-    const expectedRecords = await loadTestJSON('ecoli_nanopore.bam.expected.records.json')
+    const expectedHeader = fs.readFileSync(
+      'test/data/ecoli_nanopore.bam.expected.header.txt',
+      'utf8',
+    )
+    const expectedRecords = JSON.parse(
+      fs.readFileSync(
+        'test/data/ecoli_nanopore.bam.expected.records.json',
+        'utf8',
+      ),
+    )
 
     expect(header).toEqual(expectedHeader)
-    expect(records).toEqual(expectedRecords)
+    expect(JsonClone(records)).toEqual(expectedRecords)
+    // console.log('wtf444')
   })
 })
