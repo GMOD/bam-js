@@ -39,45 +39,15 @@ class BAI {
     }
   }
 
-  async lineCount(refName) {
+  async lineCount(refId) {
     const indexData = await this.parse()
     if (!indexData) return -1
-    const refId = indexData.refNameToId[refName]
     const indexes = indexData.indices[refId]
     if (!indexes) return -1
-    const { depth } = indexData
+    const depth = 5
     const binLimit = ((1 << ((depth + 1) * 3)) - 1) / 7
     const ret = indexes.binIndex[binLimit + 1]
     return ret ? ret[ret.length - 1].minv.dataPosition : -1
-  }
-
-  /**
-   * @returns {Promise} for an object like
-   * `{ columnNumbers, metaChar, skipLines, refIdToName, refNameToId, coordinateType, format }`
-   */
-  async getMetadata() {
-    const {
-      columnNumbers,
-      metaChar,
-      format,
-      coordinateType,
-      skipLines,
-      refIdToName,
-      maxBlockSize,
-      refNameToId,
-      firstDataLine,
-    } = await this.parse()
-    return {
-      columnNumbers,
-      metaChar,
-      format,
-      coordinateType,
-      skipLines,
-      maxBlockSize,
-      refIdToName,
-      refNameToId,
-      firstDataLine,
-    }
   }
 
   // memoize

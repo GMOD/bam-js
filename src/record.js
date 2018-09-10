@@ -344,6 +344,12 @@ class BamRecord {
   _parseFlag(flagName) {
     return !!(this._get('_flags') & _flagMasks[flagName])
   }
+
+  _parseCigar(cigar) {
+    return cigar
+      .match(/\d+\D/g)
+      .map(op => [op.match(/\D/)[0].toUpperCase(), parseInt(op, 10)])
+  }
   /**
    * @returns {boolean} true if the read is paired, regardless of whether both segments are mapped
    */
@@ -451,14 +457,17 @@ class BamRecord {
     this.data.length_on_ref = lref
     return cigar
   }
+
+  _flags() {
+    return (this.get('_flag_nc') & 0xffff0000) >> 16
+  }
+
   length_on_ref() {
     this._get('cigar') // the length_on_ref is set as a
     // side effect of the CIGAR parsing
     return this.data.length_on_ref
   }
-  _flag_nc() {
-    return this.bytes.byteArray.readInt32LE(this.bytes.start + 16)
-  }
+
   _n_cigar_op() {
     return this._get('_flag_nc') & 0xffff
   }
@@ -491,6 +500,9 @@ class BamRecord {
   _bin_mq_nl() {
     return this.bytes.byteArray.readInt32LE(this.bytes.start + 12)
   }
+  _flag_nc() {
+    return this.bytes.byteArray.readInt32LE(this.bytes.start + 16)
+  }
   seq_length() {
     return this.bytes.byteArray.readInt32LE(this.bytes.start + 20)
   }
@@ -514,7 +526,7 @@ class BamRecord {
   toJSON() {
     const data = {}
     Object.keys(this).forEach(k => {
-      if (k.charAt(0) === '_') return
+      if (k.charAt(0) === '_' || k === 'bytes') return
       data[k] = this[k]
     })
 
