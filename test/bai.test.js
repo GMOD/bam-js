@@ -70,19 +70,29 @@ describe('bam deep record check', () => {
 
 
 describe('ecoli bam check', () => {
-  it('deep check ecoli', async () => {
+  it('check ecoli header and records', async () => {
     const ti = new BAM({
-      bamPath: require.resolve('./data/aligned_reads.bam'),
+      bamPath: require.resolve('./data/ecoli_nanopore.bam'),
     })
     const header = await ti.getHeader()
+    const records = await ti.getRecordsForRange('ref000001|chr', 0, 100)
 
     if (REWRITE_EXPECTED_DATA) {
       fs.writeFileSync(
-        'test/data/aligned_reads.bam.expected.header.txt',
+        'test/data/ecoli_nanopore.bam.expected.header.txt',
         header
       )
+      fs.writeFileSync(
+        'test/data/ecoli_nanopore.bam.expected.records.json',
+        JSON.stringify(records, null, '  '),
+      )
     }
-    const ret = fs.readFileSync('test/data/aligned_reads.bam.expected.header.txt', 'utf8')
-    expect(header).toEqual(ret)
+    const expectedHeader = fs.readFileSync('test/data/ecoli_nanopore.bam.expected.header.txt', 'utf8')
+    const expectedRecords = await loadTestJSON('ecoli_nanopore.bam.expected.records.json')
+    console.log(expectedRecords)
+
+
+    expect(header).toEqual(expectedHeader)
+    expect(records).toEqual(expectedRecords)
   })
 })
