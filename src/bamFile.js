@@ -8,6 +8,18 @@ const BAMFeature = require('./record')
 
 const BAM_MAGIC = 21840194
 
+class CSIEnhanced extends CSI {
+  constructor(args) {
+    super(args)
+    this.store = args.store
+  }
+  async parse() {
+    const ret = await super.parse()
+    if (this.refNameToId) ret.refNameToId = this.refNameToId
+    return ret
+  }
+}
+
 class BamFile {
   /**
    * @param {object} args
@@ -33,9 +45,12 @@ class BamFile {
     }
 
     if (csiFilehandle) {
-      this.index = new CSI({ filehandle: csiFilehandle })
+      this.index = new CSIEnhanced({ filehandle: csiFilehandle, store: this })
     } else if (csiPath) {
-      this.index = new CSI({ filehandle: new LocalFile(csiPath) })
+      this.index = new CSIEnhanced({
+        filehandle: new LocalFile(csiPath),
+        store: this,
+      })
     } else if (baiFilehandle) {
       this.index = new BAI({ filehandle: baiFilehandle })
     } else if (baiPath) {
@@ -57,7 +72,6 @@ class BamFile {
     const ret = indexData.firstDataLine
       ? indexData.firstDataLine.blockPosition + 65535
       : undefined
-    console.log(ret)
 
     let buf = Buffer.allocUnsafe(ret)
     const bytesRead = await this.bam.read(buf, 0, ret, 0)
@@ -72,6 +86,7 @@ class BamFile {
 
     this.header = uncba.toString('utf8', 8, 8 + headLen)
     await this._readRefSeqs(headLen + 8, 65535)
+    this.index.refNameToId = this.chrToIndex
     return this.header
   }
 
@@ -86,14 +101,14 @@ class BamFile {
     const uncba = await unzip(buf)
     const nRef = uncba.readInt32LE(start)
     let p = start + 4
-    this.chrToIndex = {}
-    this.indexToChr = []
+    const chrToIndex = {}
+    const indexToChr = []
     for (let i = 0; i < nRef; i += 1) {
       const lName = uncba.readInt32LE(p)
       const name = uncba.toString('utf8', p + 4, p + 4 + lName - 1)
       const lRef = uncba.readInt32LE(p + lName + 4)
-      this.chrToIndex[name] = i
-      this.indexToChr.push({ name, length: lRef })
+      chrToIndex[name] = i
+      indexToChr.push({ name, length: lRef })
 
       p = p + 8 + lName
       if (p > uncba.length) {
@@ -103,8 +118,9 @@ class BamFile {
         return this._readRefSeqs(start, refSeqBytes * 2)
       }
     }
-    this.index.refNameToId = this.chrToIndex
-    return true
+    this.chrToIndex = chrToIndex
+    this.indexToChr = indexToChr
+    return { chrToIndex, indexToChr }
   }
 
   async getRecordsForRange(chr, min, max) {

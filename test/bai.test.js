@@ -16,7 +16,6 @@ describe('index formats', () => {
     expect(indexData.bai).toEqual(true)
     expect(await ti.lineCount(0)).toEqual(9596)
   })
-
 })
 describe('bam header', () => {
   it('loads volvox-sorted.bam', async () => {
@@ -92,9 +91,8 @@ describe('1000 genomes bam check', () => {
       bamPath: require.resolve('./data/1000genomes_hg00096_chr1.bam'),
       csiPath: require.resolve('./data/1000genomes_hg00096_chr1.bam.csi'),
     })
-    const header = await ti.getHeader()
+    await ti.getHeader()
     const records = await ti.getRecordsForRange('1', 0, 1000)
-    console.log(records)
 
     if (REWRITE_EXPECTED_DATA) {
       fs.writeFileSync(
@@ -111,9 +109,8 @@ describe('1000 genomes bam check', () => {
     const ti = new BAM({
       bamPath: require.resolve('./data/1000genomes_hg00096_chr1.bam'),
     })
-    const header = await ti.getHeader()
+    await ti.getHeader()
     const records = await ti.getRecordsForRange('1', 0, 1000)
-    console.log(records)
 
     if (REWRITE_EXPECTED_DATA) {
       fs.writeFileSync(
@@ -122,7 +119,9 @@ describe('1000 genomes bam check', () => {
       )
     }
     const ret = JSON.parse(
-      fs.readFileSync('test/data/1000genomes_hg00096_chr1.bam.bai.expected.json'),
+      fs.readFileSync(
+        'test/data/1000genomes_hg00096_chr1.bam.bai.expected.json',
+      ),
     )
     expect(JsonClone(records)).toEqual(ret)
   })
