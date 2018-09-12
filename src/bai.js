@@ -54,6 +54,7 @@ class BAI {
   async parse() {
     const data = { bai: true, maxBlockSize: 1 << 16 }
     const bytes = await this.filehandle.readFile()
+    console.log(bytes)
 
     // check TBI magic numbers
     if (bytes.readUInt32LE(0) !== BAI_MAGIC) {

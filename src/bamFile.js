@@ -57,9 +57,13 @@ class BamFile {
     const ret = indexData.firstDataLine
       ? indexData.firstDataLine.blockPosition + 65535
       : undefined
+    console.log(ret)
 
-    const buf = Buffer.allocUnsafe(ret)
-    await this.bam.read(buf, 0, ret)
+    let buf = Buffer.allocUnsafe(ret)
+    const bytesRead = await this.bam.read(buf, 0, ret, 0)
+    if (bytesRead < ret) {
+      buf = buf.slice(0, bytesRead)
+    }
 
     const uncba = await unzip(buf)
 
@@ -74,9 +78,11 @@ class BamFile {
   // the full length of the refseq block is not given in advance so this grabs a chunk and
   // doubles it if all refseqs haven't been processed
   async _readRefSeqs(start, refSeqBytes) {
-    const buf = Buffer.allocUnsafe(refSeqBytes)
-    await this.bam.read(buf, 0, refSeqBytes, 0)
-
+    let buf = Buffer.allocUnsafe(refSeqBytes)
+    const bytesRead = await this.bam.read(buf, 0, refSeqBytes)
+    if (bytesRead < refSeqBytes) {
+      buf = buf.slice(0, bytesRead)
+    }
     const uncba = await unzip(buf)
     const nRef = uncba.readInt32LE(start)
     let p = start + 4

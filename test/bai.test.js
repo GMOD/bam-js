@@ -16,17 +16,7 @@ describe('index formats', () => {
     expect(indexData.bai).toEqual(true)
     expect(await ti.lineCount(0)).toEqual(9596)
   })
-  // it('loads volvox-sorted.bam.csi', async () => {
-  //   const ti = new CSI({
-  //     filehandle: new LocalFile(
-  //       require.resolve('./data/volvox-sorted.bam.csi'),
-  //     ),
-  //   })
-  //   const indexData = await ti.parse()
-  //   expect(indexData.csi).toEqual(true)
-  //   console.log(indexData)
-  //   expect(await ti.lineCount('ctgA')).toEqual(9596)
-  // })
+
 })
 describe('bam header', () => {
   it('loads volvox-sorted.bam', async () => {
@@ -98,13 +88,11 @@ describe('bam deep record check', () => {
 
 describe('1000 genomes bam check', () => {
   it('deep check 1000 genomes', async () => {
-    console.log('wtf')
     const ti = new BAM({
       bamPath: require.resolve('./data/1000genomes_hg00096_chr1.bam'),
+      csiPath: require.resolve('./data/1000genomes_hg00096_chr1.bam.csi'),
     })
-    console.log('wtf2')
     const header = await ti.getHeader()
-    console.log('wtf3',header)
     const records = await ti.getRecordsForRange('1', 0, 1000)
     console.log(records)
 
@@ -116,6 +104,25 @@ describe('1000 genomes bam check', () => {
     }
     const ret = JSON.parse(
       fs.readFileSync('test/data/1000genomes_hg00096_chr1.bam.expected.json'),
+    )
+    expect(JsonClone(records)).toEqual(ret)
+  })
+  it('deep check 1000 genomes bai', async () => {
+    const ti = new BAM({
+      bamPath: require.resolve('./data/1000genomes_hg00096_chr1.bam'),
+    })
+    const header = await ti.getHeader()
+    const records = await ti.getRecordsForRange('1', 0, 1000)
+    console.log(records)
+
+    if (REWRITE_EXPECTED_DATA) {
+      fs.writeFileSync(
+        'test/data/1000genomes_hg00096_chr1.bam.bai.expected.json',
+        JSON.stringify(records, null, '  '),
+      )
+    }
+    const ret = JSON.parse(
+      fs.readFileSync('test/data/1000genomes_hg00096_chr1.bam.bai.expected.json'),
     )
     expect(JsonClone(records)).toEqual(ret)
   })
