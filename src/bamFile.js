@@ -24,6 +24,7 @@ class BamFile {
     csiPath,
     csiFilehandle,
     cacheSize,
+    fetchSizeLimit,
   }) {
     if (bamFilehandle) {
       this.bam = bamFilehandle
@@ -47,6 +48,8 @@ class BamFile {
       max: cacheSize,
       length: featureArray => featureArray.length,
     })
+
+    this.fetchSizeLimit = fetchSizeLimit || 3000000
   }
 
   async getHeader() {
@@ -110,6 +113,13 @@ class BamFile {
         throw new Error('Error in index fetch')
       }
     }
+    const totalSize = chunks
+      .map(s => s.fetchedSize())
+      .reduce((a, b) => a + b, 0)
+    if (totalSize > this.fetchSizeLimit)
+      throw new Error(
+        `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
+      )
 
     // toString function is used by the cache for making cache keys
     chunks.toString = function() {

@@ -5,7 +5,7 @@ const fs = require('fs')
 
 const { JsonClone, REWRITE_EXPECTED_DATA } = require('./lib/util')
 
-describe('bai index', () => {
+describe('index formats', () => {
   it('loads volvox-sorted.bam.bai', async () => {
     const ti = new BAI({
       filehandle: new LocalFile(
@@ -16,12 +16,32 @@ describe('bai index', () => {
     expect(indexData.bai).toEqual(true)
     expect(await ti.lineCount(0)).toEqual(9596)
   })
+  // it('loads volvox-sorted.bam.csi', async () => {
+  //   const ti = new CSI({
+  //     filehandle: new LocalFile(
+  //       require.resolve('./data/volvox-sorted.bam.csi'),
+  //     ),
+  //   })
+  //   const indexData = await ti.parse()
+  //   expect(indexData.csi).toEqual(true)
+  //   console.log(indexData)
+  //   expect(await ti.lineCount('ctgA')).toEqual(9596)
+  // })
 })
-
 describe('bam header', () => {
   it('loads volvox-sorted.bam', async () => {
     const ti = new BAM({
       bamPath: require.resolve('./data/volvox-sorted.bam'),
+    })
+    await ti.getHeader()
+    expect(ti.header).toEqual('@SQ	SN:ctgA	LN:50001\n')
+    expect(ti.chrToIndex.ctgA).toEqual(0)
+    expect(ti.indexToChr[0]).toEqual({ name: 'ctgA', length: 50001 })
+  })
+  it('loads volvox-sorted.bam with csi index', async () => {
+    const ti = new BAM({
+      bamPath: require.resolve('./data/volvox-sorted.bam'),
+      csiPath: require.resolve('./data/volvox-sorted.bam.csi'),
     })
     await ti.getHeader()
     expect(ti.header).toEqual('@SQ	SN:ctgA	LN:50001\n')
@@ -41,6 +61,9 @@ describe('bam records', () => {
     expect(records[0].get('start')).toEqual(2)
     expect(records[0].get('end')).toEqual(102)
     expect(records[0].get('cigar')).toEqual('100M')
+    expect(records[0].getReadBases()).toEqual(
+      'TTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG',
+    )
   })
 })
 

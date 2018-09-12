@@ -1,15 +1,4 @@
 module.exports = {
-  CRAM_FLAG_PRESERVE_QUAL_SCORES: 1 << 0,
-  CRAM_FLAG_DETACHED: 1 << 1,
-  CRAM_FLAG_MATE_DOWNSTREAM: 1 << 2,
-  CRAM_FLAG_NO_SEQ: 1 << 3,
-  CRAM_FLAG_MASK: (1 << 4) - 1,
-
-  // mate read is reversed
-  CRAM_M_REVERSE: 1,
-  // mated read is unmapped
-  CRAM_M_UNMAP: 2,
-
   //  the read is paired in sequencing, no matter whether it is mapped in a pair
   BAM_FPAIRED: 1,
   //  the read is mapped in a proper pair

@@ -1,20 +1,6 @@
 const Constants = require('./constants')
 const crc32 = require('buffer-crc32')
 
-// const _flagMasks = {
-//   multi_segment_template: 0x1,
-//   multi_segment_all_correctly_aligned: 0x2,
-//   unmapped: 0x4,
-//   multi_segment_next_segment_unmapped: 0x8,
-//   seq_reverse_complemented: 0x10,
-//   multi_segment_next_segment_reversed: 0x20,
-//   multi_segment_first: 0x40,
-//   multi_segment_last: 0x80,
-//   secondary_alignment: 0x100,
-//   qc_failed: 0x200,
-//   duplicate: 0x400,
-//   supplementary_alignment: 0x800,
-// }
 const SEQRET_DECODER = [
   '=',
   'A',
@@ -477,7 +463,7 @@ class BamRecord {
   _seq_bytes() {
     return (this._get('seq_length') + 1) >> 1
   }
-  seq() {
+  getReadBases() {
     let seq = ''
     const { byteArray } = this.bytes
     const p =
