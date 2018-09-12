@@ -65,6 +65,14 @@ describe('bam records', () => {
       'TTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG',
     )
   })
+  it('gets out of bounds from volvox-sorted.bam', async () => {
+    const ti = new BAM({
+      bamPath: require.resolve('./data/volvox-sorted.bam'),
+    })
+    await ti.getHeader()
+    const records = await ti.getRecordsForRange('ctgA', 60000, 70000)
+    expect(records.length).toEqual(0)
+  })
 })
 
 describe('bam deep record check', () => {
@@ -83,6 +91,31 @@ describe('bam deep record check', () => {
     }
     const ret = JSON.parse(
       fs.readFileSync('test/data/volvox-sorted.bam.expected.json'),
+    )
+    expect(JsonClone(records)).toEqual(ret)
+  })
+})
+
+describe('1000 genomes bam check', () => {
+  it('deep check 1000 genomes', async () => {
+    console.log('wtf')
+    const ti = new BAM({
+      bamPath: require.resolve('./data/1000genomes_hg00096_chr1.bam'),
+    })
+    console.log('wtf2')
+    const header = await ti.getHeader()
+    console.log('wtf3',header)
+    const records = await ti.getRecordsForRange('1', 0, 1000)
+    console.log(records)
+
+    if (REWRITE_EXPECTED_DATA) {
+      fs.writeFileSync(
+        'test/data/1000genomes_hg00096_chr1.bam.expected.json',
+        JSON.stringify(records, null, '  '),
+      )
+    }
+    const ret = JSON.parse(
+      fs.readFileSync('test/data/1000genomes_hg00096_chr1.bam.expected.json'),
     )
     expect(JsonClone(records)).toEqual(ret)
   })
@@ -119,6 +152,5 @@ describe('ecoli bam check', () => {
 
     expect(header).toEqual(expectedHeader)
     expect(JsonClone(records)).toEqual(expectedRecords)
-    // console.log('wtf444')
   })
 })

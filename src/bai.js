@@ -8,14 +8,13 @@ const BAI_MAGIC = 21578050 // BAI\1
  * @returns {Array[number]}
  */
 function reg2bins(beg, end) {
-  let k
   const list = [0]
   end -= 1
-  for (k = 1 + (beg >> 26); k <= 1 + (end >> 26); k += 1) list.push(k)
-  for (k = 9 + (beg >> 23); k <= 9 + (end >> 23); k += 1) list.push(k)
-  for (k = 73 + (beg >> 20); k <= 73 + (end >> 20); k += 1) list.push(k)
-  for (k = 585 + (beg >> 17); k <= 585 + (end >> 17); k += 1) list.push(k)
-  for (k = 4681 + (beg >> 14); k <= 4681 + (end >> 14); k += 1) list.push(k)
+  for (let k = 1 + (beg >> 26); k <= 1 + (end >> 26); k += 1) list.push(k)
+  for (let k = 9 + (beg >> 23); k <= 9 + (end >> 23); k += 1) list.push(k)
+  for (let k = 73 + (beg >> 20); k <= 73 + (end >> 20); k += 1) list.push(k)
+  for (let k = 585 + (beg >> 17); k <= 585 + (end >> 17); k += 1) list.push(k)
+  for (let k = 4681 + (beg >> 14); k <= 4681 + (end >> 14); k += 1) list.push(k)
   return list
 }
 
