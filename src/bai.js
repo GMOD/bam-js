@@ -55,7 +55,7 @@ class BAI {
     const data = { bai: true, maxBlockSize: 1 << 16 }
     const bytes = await this.filehandle.readFile()
 
-    // check TBI magic numbers
+    // check BAI magic numbers
     if (bytes.readUInt32LE(0) !== BAI_MAGIC) {
       throw new Error('Not a BAI file')
     }
@@ -68,6 +68,7 @@ class BAI {
     for (let i = 0; i < data.refCount; i += 1) {
       // the binning index
       const binCount = bytes.readInt32LE(currOffset)
+
       currOffset += 4
       const binIndex = {}
       for (let j = 0; j < binCount; j += 1) {
@@ -84,6 +85,17 @@ class BAI {
         }
         binIndex[bin] = chunks
       }
+
+      const nintv = bytes.readInt32LE(currOffset)
+      currOffset += 4
+      // as we're going through the linear index, figure out
+      // the smallest virtual offset in the indexes, which
+      // tells us where the BAM header ends
+      if (nintv) {
+        this._findFirstData(bytes, VirtualOffset.fromBytes(bytes, currOffset))
+      }
+
+      currOffset += nintv * 8
 
       data.indices[i] = { binIndex }
     }

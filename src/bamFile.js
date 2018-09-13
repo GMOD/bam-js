@@ -72,11 +72,15 @@ class BamFile {
     const ret = indexData.firstDataLine
       ? indexData.firstDataLine.blockPosition + 65535
       : undefined
-
-    let buf = Buffer.allocUnsafe(ret)
-    const bytesRead = await this.bam.read(buf, 0, ret, 0)
-    if (bytesRead < ret) {
-      buf = buf.slice(0, bytesRead)
+    let buf
+    if (ret) {
+      buf = Buffer.allocUnsafe(ret)
+      const bytesRead = await this.bam.read(buf, 0, ret, 0)
+      if (bytesRead < ret) {
+        buf = buf.slice(0, bytesRead)
+      }
+    } else {
+      buf = await this.bam.readFile()
     }
 
     const uncba = await unzip(buf)

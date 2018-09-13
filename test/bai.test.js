@@ -187,3 +187,25 @@ describe('BAM with test_deletion_2_0.snps.bwa_align.sorted.grouped.bam', () => {
     ).toBeTruthy()
   })
 })
+
+describe('BAM tiny', () => {
+  it('loads some data', async () => {
+    const b = new BAM({
+      bamPath: 'test/data/tiny.bam',
+    })
+    await b.getHeader()
+    const features = await b.getRecordsForRange('22', 30000000, 30010000)
+    expect(features.length).toEqual(2)
+  })
+})
+
+describe('BAM empty', () => {
+  it('loads but does not crash', async () => {
+    const b = new BAM({
+      bamPath: 'test/data/empty.bam',
+    })
+    await b.getHeader()
+    const features = await b.getRecordsForRange('22', 30000000, 30010000)
+    expect(features.length).toEqual(0)
+  })
+})
