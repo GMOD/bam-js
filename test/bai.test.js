@@ -160,3 +160,30 @@ describe('ecoli bam check', () => {
     expect(JsonClone(records)).toEqual(expectedRecords)
   })
 })
+describe('BAM with test_deletion_2_0.snps.bwa_align.sorted.grouped.bam', () => {
+  let b
+  beforeEach(async () => {
+    b = new BAM({
+      bamPath: 'test/data/test_deletion_2_0.snps.bwa_align.sorted.grouped.bam',
+    })
+    await b.getHeader()
+  })
+
+  it('constructs', () => {
+    expect(b).toBeTruthy()
+  })
+
+  it('loads some data', async () => {
+    const features = await b.getRecordsForRange('Chromosome', 17000, 18000)
+    expect(features.length).toEqual(124)
+  })
+
+  it('check that seqlength == seq.length', async () => {
+    const features = await b.getRecordsForRange('Chromosome', 17000, 18000)
+    expect(
+      features.every(
+        feature => feature.get('seq_length') === feature.getReadBases().length,
+      ),
+    ).toBeTruthy()
+  })
+})
