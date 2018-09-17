@@ -205,6 +205,19 @@ class BamRecord {
     if (this._get('multi_segment_next_segment_unmapped')) return undefined
     return this._get('multi_segment_next_segment_reversed') ? -1 : 1
   }
+
+  name() {
+    return this._get('_read_name')
+  }
+  _read_name() {
+    const nl = this._get('_l_read_name')
+    return this.bytes.byteArray.toString(
+      'utf8',
+      this.bytes.start + 36,
+      this.bytes.start + 36 + nl - 1,
+    )
+  }
+
   /**
    * Get the value of a tag, parsing the tags as far as necessary.
    * Only called if we have not already parsed that field.

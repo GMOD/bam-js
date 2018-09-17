@@ -4,18 +4,7 @@ const LocalFile = require('../src/localFile')
 const fs = require('fs')
 
 const { JsonClone, REWRITE_EXPECTED_DATA } = require('./lib/util')
-describe('large bai', () => {
-  it('loads HG00096.wgs.ILLUMINA.bwa.GBR.high_cov_pcr_free.20140203.bam.bai', async () => {
-    const ti = new BAI({
-      filehandle: new LocalFile(
-        require.resolve('./data/HG00096.wgs.ILLUMINA.bwa.GBR.high_cov_pcr_free.20140203.bam.bai'),
-      ),
-    })
-    const indexData = await ti.parse()
-    expect(indexData.bai).toEqual(true)
-    //expect(await ti.lineCount(0)).toEqual(9596)
-  })
-})
+
 describe('index formats', () => {
   it('loads volvox-sorted.bam.bai', async () => {
     const ti = new BAI({
@@ -62,6 +51,7 @@ describe('bam records', () => {
     expect(records[0].get('start')).toEqual(2)
     expect(records[0].get('end')).toEqual(102)
     expect(records[0].get('cigar')).toEqual('100M')
+    expect(records[0].get('name')).toEqual('ctgA_3_555_0:0:0_2:0:0_102d')
     expect(records[0].getReadBases()).toEqual(
       'TTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG',
     )
