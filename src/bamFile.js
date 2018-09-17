@@ -238,6 +238,16 @@ class BamFile {
     }
     return sink
   }
+
+  /**
+   *
+   * @param {number} seqId
+   * @returns {Promise} true if the CRAM file contains data for the given
+   * reference sequence numerical ID
+   */
+  hasDataForReferenceSequence(seqId) {
+    return this.index.hasDataForReferenceSequence(seqId)
+  }
 }
 
 module.exports = BamFile

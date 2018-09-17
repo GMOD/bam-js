@@ -26,6 +26,7 @@ class BAI {
   constructor({ filehandle, renameRefSeqs = n => n }) {
     this.filehandle = filehandle
     this.renameRefSeq = renameRefSeqs
+    this.index = this.parse()
   }
 
   _findFirstData(data, virtualOffset) {
@@ -171,6 +172,16 @@ class BAI {
     numOffsets = l + 1
 
     return off.slice(0, numOffsets)
+  }
+
+
+  /**
+   * @param {number} seqId
+   * @returns {Promise} true if the index contains entries for
+   * the given reference sequence ID, false otherwise
+   */
+  async hasDataForReferenceSequence(seqId) {
+    return !!((await this.index).indices[seqId])
   }
 }
 
