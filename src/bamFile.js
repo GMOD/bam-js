@@ -5,8 +5,10 @@ const LRU = require('lru-cache')
 const BAI = require('./bai')
 const LocalFile = require('./localFile')
 const BAMFeature = require('./record')
+const { parseHeaderText } = require('./sam')
 
 const BAM_MAGIC = 21840194
+
 
 class CSIEnhanced extends CSI {
   constructor(args) {
@@ -91,7 +93,8 @@ class BamFile {
     this.header = uncba.toString('utf8', 8, 8 + headLen)
     await this._readRefSeqs(headLen + 8, 65535)
     this.index.refNameToId = this.chrToIndex
-    return this.header
+
+    return parseHeaderText(this.header)
   }
 
   // the full length of the refseq block is not given in advance so this grabs a chunk and
