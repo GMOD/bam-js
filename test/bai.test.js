@@ -76,6 +76,11 @@ describe('bam records', () => {
     var recs = await Promise.all(promises)
     expect(recs.every(record => record.length > 0)).toBeTruthy()
   })
+
+  it('gets specific weird chunk of volvox-sorted.bam', async () => {
+    const records = await ti.getRecordsForRange('ctgA', 30000, 34999)
+    expect(records.length).toEqual(947)
+  })
 })
 
 describe('bam deep record check', () => {
