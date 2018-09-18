@@ -39,7 +39,7 @@ const CIGAR_DECODER = [
 ]
 
 /**
- * Class of each CRAM record returned by this API.
+ * Class of each BAM record returned by this API.
  */
 class BamRecord {
   constructor(args) {
@@ -57,11 +57,10 @@ class BamRecord {
    * parse the core data: ref ID and start
    */
   _coreParse() {
-    this._refID = this.bytes.byteArray.readInt32LE(this.bytes.start + 4)
-    this.data.start = this.bytes.byteArray.readInt32LE(this.bytes.start + 8)
-    this.flags =
-      (this.bytes.byteArray.readInt32LE(this.bytes.start + 16) & 0xffff0000) >>
-      16
+    const { start, byteArray } = this.bytes
+    this._refID = byteArray.readInt32LE(start + 4)
+    this.data.start = byteArray.readInt32LE(start + 8)
+    this.flags = (byteArray.readInt32LE(start + 16) & 0xffff0000) >> 16
   }
 
   get(field) {
@@ -80,17 +79,10 @@ class BamRecord {
       return this.data[field]
     } else if (this[field]) {
       this.data[field] = this[field]()
-      return this.data[field]
-    } else if (this._flagMasks[field]) {
-      this.data[field] = this._parseFlag(field)
-      return this.data[field]
+    } else {
+      this.data[field] = this._parseTag(field)
     }
-    this.data[field] = this._parseTag(field)
     return this.data[field]
-  }
-
-  tags() {
-    return this._get('_tags')
   }
 
   _tags() {
@@ -434,9 +426,9 @@ class BamRecord {
   cigar() {
     if (this.isSegmentUnmapped()) return undefined
 
-    const { byteArray } = this.bytes
+    const { byteArray, start } = this.bytes
     const numCigarOps = this._get('_n_cigar_op')
-    let p = this.bytes.start + 36 + this._get('_l_read_name')
+    let p = start + 36 + this._get('_l_read_name')
     let cigar = ''
     let lref = 0
     for (let c = 0; c < numCigarOps; ++c) {
