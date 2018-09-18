@@ -75,7 +75,7 @@ class BamFile {
       : undefined
     let buf
     if (ret) {
-      buf = Buffer.allocUnsafe(ret)
+      buf = Buffer.alloc(ret)
       const bytesRead = await this.bam.read(buf, 0, ret, 0)
       if (bytesRead < ret) {
         buf = buf.slice(0, bytesRead)
@@ -99,7 +99,7 @@ class BamFile {
   // the full length of the refseq block is not given in advance so this grabs a chunk and
   // doubles it if all refseqs haven't been processed
   async _readRefSeqs(start, refSeqBytes) {
-    let buf = Buffer.allocUnsafe(refSeqBytes)
+    let buf = Buffer.alloc(refSeqBytes)
     const bytesRead = await this.bam.read(buf, 0, refSeqBytes)
     if (bytesRead < refSeqBytes) {
       buf = buf.slice(0, bytesRead)
@@ -205,7 +205,7 @@ class BamFile {
 
   async _readChunk(chunk) {
     const bufsize = chunk.fetchedSize()
-    let buf = Buffer.allocUnsafe(bufsize)
+    let buf = Buffer.alloc(bufsize)
     const len = chunk.minv.blockPosition
     const bytesRead = await this.bam.read(
       buf,
