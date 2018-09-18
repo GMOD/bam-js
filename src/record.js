@@ -106,7 +106,7 @@ class BamRecord {
       'supplementary_alignment',
     ]
 
-    if (!this._get('unmapped'))
+    if (!this.isSegmentUnmapped())
       tags.push(
         'start',
         'end',
@@ -118,7 +118,7 @@ class BamRecord {
         'length_on_ref',
         'template_length',
       )
-    if (this._get('multi_segment_template')) {
+    if (this.isPaired()) {
       tags.push(
         'multi_segment_all_correctly_aligned',
         'multi_segment_next_segment_unmapped',
@@ -182,7 +182,7 @@ class BamRecord {
     return this._get('mq')
   }
   qual() {
-    if (this._get('unmapped')) return undefined
+    if (this.isSegmentUnmapped()) return undefined
 
     const qseq = []
     const { byteArray } = this.bytes
@@ -199,11 +199,11 @@ class BamRecord {
     return qseq.join(' ')
   }
   strand() {
-    return this._get('seq_reverse_complemented') ? -1 : 1
+    return this.isReverseComplemented() ? -1 : 1
   }
   multi_segment_next_segment_strand() {
-    if (this._get('multi_segment_next_segment_unmapped')) return undefined
-    return this._get('multi_segment_next_segment_reversed') ? -1 : 1
+    if (this.isMateUnmapped()) return undefined
+    return this.isMateReverseComplemented() ? -1 : 1
   }
 
   name() {

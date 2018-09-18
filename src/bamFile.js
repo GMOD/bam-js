@@ -9,7 +9,6 @@ const { parseHeaderText } = require('./sam')
 
 const BAM_MAGIC = 21840194
 
-
 class CSIEnhanced extends CSI {
   constructor(args) {
     super(args)

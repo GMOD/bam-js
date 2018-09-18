@@ -52,6 +52,9 @@ describe('bam records', () => {
     expect(records[0].get('end')).toEqual(102)
     expect(records[0].get('cigar')).toEqual('100M')
     expect(records[0].get('name')).toEqual('ctgA_3_555_0:0:0_2:0:0_102d')
+    expect(records[0].get('qual')).toEqual(
+      '17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17',
+    )
     expect(records[0].getReadBases()).toEqual(
       'TTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG',
     )
@@ -147,9 +150,11 @@ describe('ecoli bam check', () => {
         JSON.stringify(records, null, '  '),
       )
     }
-    const expectedHeader = fs.readFileSync(
-      'test/data/ecoli_nanopore.bam.expected.header.txt',
-      'utf8',
+    const expectedHeader = JSON.parse(
+      fs.readFileSync(
+        'test/data/ecoli_nanopore.bam.expected.header.txt',
+        'utf8',
+      ),
     )
     const expectedRecords = JSON.parse(
       fs.readFileSync(
