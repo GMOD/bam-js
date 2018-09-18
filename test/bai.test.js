@@ -41,11 +41,14 @@ describe('bam header', () => {
 })
 
 describe('bam records', () => {
-  it('gets features from volvox-sorted.bam', async () => {
-    const ti = new BAM({
+  let ti
+  beforeEach(async () => {
+    ti = new BAM({
       bamPath: require.resolve('./data/volvox-sorted.bam'),
     })
-    await ti.getHeader()
+    return await ti.getHeader()
+  })
+  it('gets features from volvox-sorted.bam', async () => {
     const records = await ti.getRecordsForRange('ctgA', 0, 1000)
     expect(records.length).toEqual(131)
     expect(records[0].get('start')).toEqual(2)
@@ -61,12 +64,12 @@ describe('bam records', () => {
     )
   })
   it('gets out of bounds from volvox-sorted.bam', async () => {
-    const ti = new BAM({
-      bamPath: require.resolve('./data/volvox-sorted.bam'),
-    })
-    await ti.getHeader()
     const records = await ti.getRecordsForRange('ctgA', 60000, 70000)
     expect(records.length).toEqual(0)
+  })
+  it('gets large chunk from volvox-sorted.bam', async () => {
+    const records = await ti.getRecordsForRange('ctgA', 29999, 34999)
+    console.log(records)
   })
 })
 
@@ -184,10 +187,6 @@ describe('BAM with test_deletion_2_0.snps.bwa_align.sorted.grouped.bam', () => {
   it('loads some data', async () => {
     const features = await b.getRecordsForRange('Chromosome', 17000, 18000)
     expect(features.length).toEqual(124)
-  })
-
-  it('check that seqlength == seq.length', async () => {
-    const features = await b.getRecordsForRange('Chromosome', 17000, 18000)
     expect(
       features.every(
         feature => feature.get('seq_length') === feature.getReadBases().length,
