@@ -42,11 +42,11 @@ describe('bam header', () => {
 
 describe('bam records', () => {
   let ti
-  beforeEach(async () => {
+  beforeEach(() => {
     ti = new BAM({
       bamPath: require.resolve('./data/volvox-sorted.bam'),
     })
-    return await ti.getHeader()
+    return ti.getHeader()
   })
   it('gets features from volvox-sorted.bam', async () => {
     const records = await ti.getRecordsForRange('ctgA', 0, 1000)
@@ -68,8 +68,12 @@ describe('bam records', () => {
     expect(records.length).toEqual(0)
   })
   it('gets large chunk from volvox-sorted.bam', async () => {
+    const records = await ti.getRecordsForRange('ctgA', 24999, 29999)
+    expect(records.length).toBeGreaterThan(0)
+  })
+  it('gets another large chunk from volvox-sorted.bam', async () => {
     const records = await ti.getRecordsForRange('ctgA', 29999, 34999)
-    console.log(records)
+    expect(records.length).toBeGreaterThan(0)
   })
 })
 
