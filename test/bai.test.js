@@ -69,17 +69,22 @@ describe('bam records', () => {
   })
   it('gets large chunk from volvox-sorted.bam', async () => {
     const promises = []
-    for (let i = 0; i < 50000; i += 5000) {
-      const records = ti.getRecordsForRange('ctgA', i, i + 4999)
+    const win = 1000
+    for (let i = 0; i < 50000; i += win) {
+      const records = ti.getRecordsForRange('ctgA', i, i + win)
       promises.push(records)
     }
-    var recs = await Promise.all(promises)
+    const recs = await Promise.all(promises)
     expect(recs.every(record => record.length > 0)).toBeTruthy()
   })
 
   it('gets specific weird chunk of volvox-sorted.bam', async () => {
-    const records = await ti.getRecordsForRange('ctgA', 30000, 34999)
-    expect(records.length).toEqual(947)
+    const records = await ti.getRecordsForRange('ctgA', 32749, 32799)
+    expect(records.length).toEqual(14)
+  })
+  it('gets specific other weird chunk of volvox-sorted.bam', async () => {
+    const records = await ti.getRecordsForRange('ctgA', 32799, 32849)
+    expect(records.length).toEqual(12)
   })
 })
 

@@ -21,6 +21,8 @@ class CSIEnhanced extends CSI {
   }
 }
 
+const blockLen = 1 << 16
+
 class BamFile {
   /**
    * @param {object} args
@@ -75,10 +77,12 @@ class BamFile {
       : undefined
     let buf
     if (ret) {
-      buf = Buffer.alloc(ret)
-      const bytesRead = await this.bam.read(buf, 0, ret, 0)
+      buf = Buffer.alloc(ret + blockLen)
+      const bytesRead = await this.bam.read(buf, 0, ret + blockLen, 0)
       if (bytesRead < ret) {
         buf = buf.slice(0, bytesRead)
+      } else {
+        buf = buf.slice(0, ret)
       }
     } else {
       buf = await this.bam.readFile()
@@ -99,10 +103,12 @@ class BamFile {
   // the full length of the refseq block is not given in advance so this grabs a chunk and
   // doubles it if all refseqs haven't been processed
   async _readRefSeqs(start, refSeqBytes) {
-    let buf = Buffer.alloc(refSeqBytes)
-    const bytesRead = await this.bam.read(buf, 0, refSeqBytes)
+    let buf = Buffer.alloc(refSeqBytes + blockLen)
+    const bytesRead = await this.bam.read(buf, 0, refSeqBytes + blockLen)
     if (bytesRead < refSeqBytes) {
       buf = buf.slice(0, bytesRead)
+    } else {
+      buf = buf.slice(0, refSeqBytes)
     }
     const uncba = await unzip(buf)
     const nRef = uncba.readInt32LE(start)
@@ -205,16 +211,17 @@ class BamFile {
 
   async _readChunk(chunk) {
     const bufsize = chunk.fetchedSize()
-    let buf = Buffer.alloc(bufsize)
-    const len = chunk.minv.blockPosition
+    let buf = Buffer.alloc(bufsize + blockLen)
     const bytesRead = await this.bam.read(
       buf,
       0,
-      bufsize,
+      bufsize + blockLen,
       chunk.minv.blockPosition,
     )
-    if (bytesRead < len) {
+    if (bytesRead < bufsize) {
       buf = buf.slice(0, bytesRead)
+    } else {
+      buf = buf.slice(0, bufsize)
     }
 
     const data = await unzip(buf)
