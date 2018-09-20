@@ -80,11 +80,11 @@ describe('bam records', () => {
 
   it('gets specific weird chunk of volvox-sorted.bam', async () => {
     const records = await ti.getRecordsForRange('ctgA', 32749, 32799)
-    expect(records.length).toEqual(14)
+    expect(records.length).toEqual(13)
   })
   it('gets specific other weird chunk of volvox-sorted.bam', async () => {
     const records = await ti.getRecordsForRange('ctgA', 32799, 32849)
-    expect(records.length).toEqual(12)
+    expect(records.length).toEqual(11)
   })
 })
 

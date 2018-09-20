@@ -149,7 +149,7 @@ class BamFile {
     if (!(chrId >= 0)) {
       chunks = []
     } else {
-      chunks = await this.index.blocksForRange(chrId, min, max)
+      chunks = await this.index.blocksForRange(chrId, min - 1, max)
 
       if (!chunks) {
         throw new Error('Error in index fetch')
@@ -193,12 +193,13 @@ class BamFile {
             const feature = f[i]
             if (feature._refID === chrId) {
               // on the right ref seq
-              if (feature.get('start') > max)
+              if (feature.get('start') >= max)
                 // past end of range, can stop iterating
                 break
-              else if (feature.get('end') >= min)
+              else if (feature.get('end') >= min) {
                 // must be in range
                 records.push(feature)
+              }
             }
           }
         },

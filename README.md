@@ -21,7 +21,7 @@ var header = await t.getHeader()
 var records = await t.getRecordsForRange('ctgA', 1, 50000)
 ```
 
-Input are 1-based closed coordinates (e.g. same as samtools view coordinate inputs)
+Input are 0-based half-open coordinates (note: not the same as samtools view coordinate inputs!)
 
 
 ## License
