@@ -26,7 +26,7 @@ describe('bam header', () => {
     await ti.getHeader()
     expect(ti.header).toEqual('@SQ	SN:ctgA	LN:50001\n')
     expect(ti.chrToIndex.ctgA).toEqual(0)
-    expect(ti.indexToChr[0]).toEqual({ name: 'ctgA', length: 50001 })
+    expect(ti.indexToChr[0]).toEqual({ refName: 'ctgA', length: 50001 })
   })
   it('loads volvox-sorted.bam with csi index', async () => {
     const ti = new BAM({
@@ -36,7 +36,7 @@ describe('bam header', () => {
     await ti.getHeader()
     expect(ti.header).toEqual('@SQ	SN:ctgA	LN:50001\n')
     expect(ti.chrToIndex.ctgA).toEqual(0)
-    expect(ti.indexToChr[0]).toEqual({ name: 'ctgA', length: 50001 })
+    expect(ti.indexToChr[0]).toEqual({ refName: 'ctgA', length: 50001 })
   })
 })
 

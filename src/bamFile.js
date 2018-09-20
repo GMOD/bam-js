@@ -40,7 +40,10 @@ class BamFile {
     csiFilehandle,
     cacheSize,
     fetchSizeLimit,
+    renameRefSeqs = n => n,
   }) {
+    this.renameRefSeq = renameRefSeqs
+
     if (bamFilehandle) {
       this.bam = bamFilehandle
     } else if (bamPath) {
@@ -117,10 +120,12 @@ class BamFile {
     const indexToChr = []
     for (let i = 0; i < nRef; i += 1) {
       const lName = uncba.readInt32LE(p)
-      const name = uncba.toString('utf8', p + 4, p + 4 + lName - 1)
+      let refName = uncba.toString('utf8', p + 4, p + 4 + lName - 1)
+      refName = this.renameRefSeq(refName)
       const lRef = uncba.readInt32LE(p + lName + 4)
-      chrToIndex[name] = i
-      indexToChr.push({ name, length: lRef })
+
+      chrToIndex[refName] = i
+      indexToChr.push({ refName, length: lRef })
 
       p = p + 8 + lName
       if (p > uncba.length) {
