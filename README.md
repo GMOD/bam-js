@@ -10,10 +10,10 @@
 ## Usage
 
 ```js
-const { BAM } = require('@gmod/bam')
+const {BamFile} = require('@gmod/bam');
 
-const t = new BAM({
-  path: 'test.bam',
+const t = new BamFile({
+		bamPath: 'test.bam',
 });
 
 var header = await t.getHeader()
@@ -21,7 +21,7 @@ var header = await t.getHeader()
 var records = await t.getRecordsForRange('ctgA', 1, 50000)
 ```
 
-Coordinates are 1-based closed coordinates (same as samtools view coordinate inputs)
+Input are 1-based closed coordinates (e.g. same as samtools view coordinate inputs)
 
 
 ## License
