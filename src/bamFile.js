@@ -233,7 +233,7 @@ class BamFile {
     const sink = []
 
     while (blockStart < ba.length) {
-      const blockSize = ba.readInt32LE(blockStart)
+      const blockSize = ba.readInt32LE(blockStart, true)
       const blockEnd = blockStart + 4 + blockSize - 1
 
       // only try to read the feature if we have all the bytes for it
