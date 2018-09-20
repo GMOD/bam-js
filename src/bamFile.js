@@ -66,7 +66,7 @@ class BamFile {
     }
 
     this.featureCache = LRU({
-      max: cacheSize,
+      max: cacheSize !== undefined ? cacheSize : 20000,
       length: featureArray => featureArray.length,
     })
 
@@ -148,6 +148,7 @@ class BamFile {
       chunks = []
     } else {
       chunks = await this.index.blocksForRange(chrId, min, max)
+
       if (!chunks) {
         throw new Error('Error in index fetch')
       }
@@ -159,11 +160,6 @@ class BamFile {
       throw new Error(
         `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
       )
-
-    // toString function is used by the cache for making cache keys
-    chunks.toString = function() {
-      return this.join(', ')
-    }
 
     return this._fetchChunkFeatures(chunks, chrId, min, max)
   }
@@ -185,12 +181,12 @@ class BamFile {
     const records = []
     const recordPromises = []
     chunks.forEach(c => {
-      let recordPromise = this.featureCache.get(c)
+      let recordPromise = this.featureCache.get(c.toString())
       if (!recordPromise) {
         recordPromise = this._readChunk(c)
-        recordPromises.push(recordPromise)
-        this.featureCache.set(c, recordPromise)
+        this.featureCache.set(c.toString(), recordPromise)
       }
+      recordPromises.push(recordPromise)
       recordPromise.then(
         f => {
           for (let i = 0; i < f.length; i += 1) {
