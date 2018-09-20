@@ -40,6 +40,7 @@ class BamFile {
     csiFilehandle,
     cacheSize,
     fetchSizeLimit,
+    chunkSizeLimit,
     renameRefSeqs = n => n,
   }) {
     this.renameRefSeq = renameRefSeqs
@@ -70,7 +71,8 @@ class BamFile {
       length: featureArray => featureArray.length,
     })
 
-    this.fetchSizeLimit = fetchSizeLimit || 3000000
+    this.fetchSizeLimit = fetchSizeLimit || 50000000
+    this.chunkSizeLimit = chunkSizeLimit || 10000000
   }
 
   async getHeader() {
@@ -153,20 +155,6 @@ class BamFile {
         throw new Error('Error in index fetch')
       }
     }
-    const totalSize = chunks
-      .map(s => s.fetchedSize())
-      .reduce((a, b) => a + b, 0)
-    if (totalSize > this.fetchSizeLimit)
-      throw new Error(
-        `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
-      )
-
-    return this._fetchChunkFeatures(chunks, chrId, min, max)
-  }
-
-  _fetchChunkFeatures(chunks, chrId, min, max) {
-    // check the chunks for any that are over the size limit.  if
-    // any are, don't fetch any of them
     for (let i = 0; i < chunks.length; i += 1) {
       const size = chunks[i].fetchedSize()
       if (size > this.chunkSizeLimit) {
@@ -178,6 +166,18 @@ class BamFile {
       }
     }
 
+    const totalSize = chunks
+      .map(s => s.fetchedSize())
+      .reduce((a, b) => a + b, 0)
+    if (totalSize > this.fetchSizeLimit)
+      throw new Error(
+        `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
+      )
+
+    return this._fetchChunkFeatures(chunks, chrId, min, max)
+  }
+
+  async _fetchChunkFeatures(chunks, chrId, min, max) {
     const records = []
     const recordPromises = []
     chunks.forEach(c => {
@@ -207,7 +207,8 @@ class BamFile {
         },
       )
     })
-    return Promise.all(recordPromises).then(() => records)
+    await Promise.all(recordPromises)
+    return records
   }
 
   async _readChunk(chunk) {
