@@ -402,27 +402,6 @@ class BamRecord {
     return !!(this.flags & Constants.BAM_FSUPPLEMENTARY)
   }
 
-  /**
-   * @returns {boolean} true if the read is detached
-   */
-  isDetached() {
-    return !!(this.cramFlags & Constants.CRAM_FLAG_DETACHED)
-  }
-
-  /** @returns {boolean} true if the read has a mate in this same CRAM segment */
-  hasMateDownStream() {
-    return !!(this.cramFlags & Constants.CRAM_FLAG_MATE_DOWNSTREAM)
-  }
-
-  /** @returns {boolean} true if the read contains qual scores */
-  isPreservingQualityScores() {
-    return !!(this.cramFlags & Constants.CRAM_FLAG_PRESERVE_QUAL_SCORES)
-  }
-
-  /** @returns {boolean} true if the read has no sequence bases */
-  isUnknownBases() {
-    return !!(this.cramFlags & Constants.CRAM_FLAG_NO_SEQ)
-  }
   cigar() {
     if (this.isSegmentUnmapped()) return undefined
 
