@@ -178,8 +178,8 @@ class BamFile {
   }
 
   async _fetchChunkFeatures(chunks, chrId, min, max) {
-    const records = []
     const recordPromises = []
+    const featPromises = []
     chunks.forEach(c => {
       let recordPromise = this.featureCache.get(c.toString())
       if (!recordPromise) {
@@ -187,8 +187,9 @@ class BamFile {
         this.featureCache.set(c.toString(), recordPromise)
       }
       recordPromises.push(recordPromise)
-      recordPromise.then(
+      const featPromise = recordPromise.then(
         f => {
+          const recs = []
           for (let i = 0; i < f.length; i += 1) {
             const feature = f[i]
             if (feature._refID === chrId) {
@@ -198,18 +199,20 @@ class BamFile {
                 break
               else if (feature.get('end') >= min) {
                 // must be in range
-                records.push(feature)
+                recs.push(feature)
               }
             }
           }
+          return recs
         },
         e => {
           console.error(e)
         },
       )
+      featPromises.push(featPromise)
     })
-    await Promise.all(recordPromises)
-    return records
+    const recs = await Promise.all(featPromises)
+    return [].concat(...recs)
   }
 
   async _readChunk(chunk) {
