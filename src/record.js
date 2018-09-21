@@ -72,6 +72,9 @@ class BamRecord {
       (this._get('length_on_ref') || this._get('seq_length') || undefined)
     )
   }
+  seq_id() {
+    return this._refID
+  }
   // same as get(), except requires lower-case arguments.  used
   // internally to save lots of calls to field.toLowerCase()
   _get(field) {

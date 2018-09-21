@@ -221,6 +221,17 @@ describe('BAM tiny', () => {
   })
 })
 
+describe('BAM secondary', () => {
+  it('checks secondary', async () => {
+    const b = new BAM({
+      bamPath: 'test/data/secondary.bam',
+    })
+    await b.getHeader()
+    const features = await b.getRecordsForRange('20', 10761157, 10761387)
+    const dups = features.map(f => f.isDuplicate()).reduce((x, y) => x + y)
+    expect(dups).toEqual(2)
+  })
+})
 describe('BAM empty', () => {
   it('loads but does not crash', async () => {
     const b = new BAM({

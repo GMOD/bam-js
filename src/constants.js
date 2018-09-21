@@ -23,20 +23,4 @@ module.exports = {
   BAM_FDUP: 1024,
   //  supplementary alignment
   BAM_FSUPPLEMENTARY: 2048,
-
-  BAM_CMATCH: 0,
-  BAM_CINS: 1,
-  BAM_CDEL: 2,
-  BAM_CREF_SKIP: 3,
-  BAM_CSOFT_CLIP: 4,
-  BAM_CHARD_CLIP: 5,
-  BAM_CPAD: 6,
-  BAM_CEQUAL: 7,
-  BAM_CDIFF: 8,
-  BAM_CBACK: 9,
-
-  BAM_CIGAR_STR: 'MIDNSHP:XB',
-  BAM_CIGAR_SHIFT: 4,
-  BAM_CIGAR_MASK: 0xf,
-  BAM_CIGAR_TYPE: 0x3c1a7,
 }
