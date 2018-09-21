@@ -231,3 +231,23 @@ describe('BAM empty', () => {
     expect(features.length).toEqual(0)
   })
 })
+
+describe('BAM with B tags', () => {
+  it('test B tags', async () => {
+    const b = new BAM({
+      bamPath: 'test/data/Btag.bam',
+    })
+    await b.getHeader()
+
+    const features = await b.getRecordsForRange('chr1', 980654, 981663)
+    // ZC:B:i,364,359,1,0    ZD:B:f,0.01,0.02,0.03   ZE:B:c,0,1,2,3  ZK:B:s,45,46,47
+    const ret = features[1].get('ZD').split(',')
+    expect(features[1].get('ZC')).toEqual('364,359,1,0')
+    expect(features[1].get('ZE')).toEqual('0,1,2,3')
+    expect(features[1].get('ZK')).toEqual('45,46,47')
+    expect(+ret[0]).toBeCloseTo(0.01)
+    expect(+ret[1]).toBeCloseTo(0.02)
+    expect(+ret[2]).toBeCloseTo(0.03)
+    expect(features.length).toEqual(2)
+  })
+})
