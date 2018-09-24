@@ -73,5 +73,8 @@
     "prettier": "^1.11.1",
     "rimraf": "^2.6.2",
     "standard-changelog": "^2.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
