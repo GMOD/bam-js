@@ -63,6 +63,10 @@ describe('bam records', () => {
       'TTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG',
     )
   })
+  it('gets features from the end of volvox-sorted.bam', async () => {
+    const records = await ti.getRecordsForRange('ctgA', 47457, 50001)
+    expect(records.length).toEqual(473)
+  })
   it('gets out of bounds from volvox-sorted.bam', async () => {
     const records = await ti.getRecordsForRange('ctgA', 60000, 70000)
     expect(records.length).toEqual(0)
@@ -260,5 +264,19 @@ describe('BAM with B tags', () => {
     expect(+ret[1]).toBeCloseTo(0.02)
     expect(+ret[2]).toBeCloseTo(0.03)
     expect(features.length).toEqual(2)
+  })
+})
+
+describe('BAM with paired ends', () => {
+  it('paired ends', async () => {
+    const b = new BAM({
+      bamPath: 'test/data/paired.bam',
+    })
+    await b.getHeader()
+
+    const features = await b.getRecordsForRange('20', 62500, 64500)
+    const f = features[0]
+    expect(f._next_refid()).toEqual(19)
+    expect(f._next_pos()).toEqual(62352)
   })
 })
