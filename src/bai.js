@@ -179,7 +179,7 @@ class BAI {
    * @returns {Promise} true if the index contains entries for
    * the given reference sequence ID, false otherwise
    */
-  async hasDataForReferenceSequence(seqId) {
+  async hasRefSeq(seqId) {
     return !!(await this.index).indices[seqId]
   }
 }

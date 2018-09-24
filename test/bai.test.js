@@ -15,7 +15,7 @@ describe('index formats', () => {
     const indexData = await ti.parse()
     expect(indexData.bai).toEqual(true)
     expect(await ti.lineCount(0)).toEqual(9596)
-    expect(await ti.hasDataForReferenceSequence(0)).toEqual(true)
+    expect(await ti.hasRefSeq(0)).toEqual(true)
   })
 })
 describe('bam header', () => {
