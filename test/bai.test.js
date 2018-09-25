@@ -280,3 +280,20 @@ describe('BAM with paired ends', () => {
     expect(f._next_pos()).toEqual(62352)
   })
 })
+
+describe('BAM+CSI with large coordinates', () => {
+  it('use csi', async () => {
+    const b = new BAM({
+      bamPath: 'test/data/large_coords.bam',
+      csiPath: 'test/data/large_coords.bam.csi',
+    })
+    await b.getHeader()
+
+    const features = await b.getRecordsForRange(
+      'ctgA',
+      1073741824,
+      1073741824 + 50000,
+    )
+    expect(features.length).toEqual(9596)
+  })
+})
