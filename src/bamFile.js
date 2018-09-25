@@ -1,25 +1,13 @@
 const { unzip } = require('@gmod/bgzf-filehandle')
-const { CSI } = require('@gmod/tabix')
 const LRU = require('lru-cache')
 
 const BAI = require('./bai')
+const CSI = require('./csi')
 const LocalFile = require('./localFile')
 const BAMFeature = require('./record')
 const { parseHeaderText } = require('./sam')
 
 const BAM_MAGIC = 21840194
-
-class CSIEnhanced extends CSI {
-  constructor(args) {
-    super(args)
-    this.store = args.store
-  }
-  async parse() {
-    const ret = await super.parse()
-    if (this.refNameToId) ret.refNameToId = this.refNameToId
-    return ret
-  }
-}
 
 const blockLen = 1 << 16
 
@@ -52,11 +40,10 @@ class BamFile {
     }
 
     if (csiFilehandle) {
-      this.index = new CSIEnhanced({ filehandle: csiFilehandle, store: this })
+      this.index = new CSI({ filehandle: csiFilehandle })
     } else if (csiPath) {
-      this.index = new CSIEnhanced({
+      this.index = new CSI({
         filehandle: new LocalFile(csiPath),
-        store: this,
       })
     } else if (baiFilehandle) {
       this.index = new BAI({ filehandle: baiFilehandle })
@@ -99,8 +86,12 @@ class BamFile {
     const headLen = uncba.readInt32LE(4)
 
     this.header = uncba.toString('utf8', 8, 8 + headLen)
-    await this._readRefSeqs(headLen + 8, 65535)
-    this.index.refNameToId = this.chrToIndex
+    const { chrToIndex, indexToChr } = await this._readRefSeqs(
+      headLen + 8,
+      65535,
+    )
+    this.chrToIndex = chrToIndex
+    this.indexToChr = indexToChr
 
     return parseHeaderText(this.header)
   }
@@ -137,8 +128,6 @@ class BamFile {
         return this._readRefSeqs(start, refSeqBytes * 2)
       }
     }
-    this.chrToIndex = chrToIndex
-    this.indexToChr = indexToChr
     return { chrToIndex, indexToChr }
   }
 

@@ -26,7 +26,6 @@ class BAI {
   constructor({ filehandle, renameRefSeqs = n => n }) {
     this.filehandle = filehandle
     this.renameRefSeq = renameRefSeqs
-    this.index = this.parse()
   }
 
   _findFirstData(data, virtualOffset) {
@@ -119,7 +118,9 @@ class BAI {
     let l
     let numOffsets = 0
     for (let i = 0; i < bins.length; i += 1) {
-      if (binIndex[bins[i]]) numOffsets += binIndex[bins[i]].length
+      if (binIndex[bins[i]]) {
+        numOffsets += binIndex[bins[i]].length
+      }
     }
 
     if (numOffsets === 0) return []
@@ -180,7 +181,7 @@ class BAI {
    * the given reference sequence ID, false otherwise
    */
   async hasRefSeq(seqId) {
-    return !!(await this.index).indices[seqId]
+    return !!(await this.parse()).indices[seqId]
   }
 }
 
