@@ -202,63 +202,68 @@ class BamFile {
     })
     const recs = await Promise.all(featPromises)
     let ret = [].concat(...recs)
-    let kk = {};
-    if(opts.viewAsPairs) {
-      for(let i = 0; i < ret.length; i++) {
-        var name = ret[i].name()
-        if(!kk[name]) kk[name] = 0
+    const kk = {}
+    if (opts.viewAsPairs) {
+      for (let i = 0; i < ret.length; i++) {
+        const name = ret[i].name()
+        if (!kk[name]) kk[name] = 0
         kk[name]++
       }
-      let unmatedPairs = {}
+      const unmatedPairs = {}
       Object.entries(kk).forEach(([k, v]) => {
-        if(v == 1) unmatedPairs[k] = true
+        if (v === 1) unmatedPairs[k] = true
       })
-      let matePromises = []
-      for(let i = 0; i < ret.length; i++) {
-        var name = ret[i].name()
-        if(unmatedPairs[name]) {
-          matePromises.push(this.index.blocksForRange(ret[i]._next_refid(), ret[i]._next_pos(), ret[i]._next_pos()+1))
+      const matePromises = []
+      for (let i = 0; i < ret.length; i++) {
+        const name = ret[i].name()
+        if (unmatedPairs[name]) {
+          matePromises.push(
+            this.index.blocksForRange(
+              ret[i]._next_refid(),
+              ret[i]._next_pos(),
+              ret[i]._next_pos() + 1,
+            ),
+          )
         }
       }
-      const chunks = await Promise.all(matePromises)
-      let myu = [...new Set(chunks.map(c => c.toString()))]
-      let uniqueChunks = []
-      for(let i = 0; i < myu.length; i++) {
-        for(let j = 0; j < myu.length; j++) {
-          if(chunks[i].toString() == myu[j]) {
-            uniqueChunks.push(chunks[i]);
+      const mateChunks = await Promise.all(matePromises)
+      const mateStrings = [...new Set(mateChunks.map(c => c.toString()))]
+      const uniqueChunks = []
+      for (let i = 0; i < mateStrings.length; i++) {
+        for (let j = 0; j < mateStrings.length; j++) {
+          if (mateChunks[i].toString() === mateStrings[j]) {
+            uniqueChunks.push(mateChunks[i])
           }
         }
       }
 
-
-      const recordPromises = []
-      const featPromises = []
+      const mateRecordPromises = []
+      const mateFeatPromises = []
       uniqueChunks.forEach(c => {
         let recordPromise = this.featureCache.get(c.toString())
         if (!recordPromise) {
           recordPromise = this._readChunk(c)
           this.featureCache.set(c.toString(), recordPromise)
         }
-        recordPromises.push(recordPromise)
+        mateRecordPromises.push(recordPromise)
         const featPromise = recordPromise.then(
           f => {
-            const recs = []
+            const mateRecs = []
             for (let i = 0; i < f.length; i += 1) {
               const feature = f[i]
               if (unmatedPairs[feature.get('name')]) {
-                recs.push(feature)
+                mateRecs.push(feature)
               }
             }
-            return recs
+            return mateRecs
           },
           e => {
             console.error(e)
           },
         )
-        featPromises.push(featPromise)
+        mateFeatPromises.push(featPromise)
       })
-      const newMateFeats = await Promise.all(featPromises)
+      const newMateFeats = await Promise.all(mateFeatPromises)
       ret = ret.concat(newMateFeats)
     }
     return ret

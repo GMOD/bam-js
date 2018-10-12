@@ -285,7 +285,9 @@ describe('BAM with paired ends', () => {
     })
     await b.getHeader()
 
-    const features = await b.getRecordsForRange('20', 62500, 64500, { viewAsPairs: true })
+    const features = await b.getRecordsForRange('20', 62500, 64500, {
+      viewAsPairs: true,
+    })
     const f = features[0]
     expect(f._next_refid()).toEqual(19)
     expect(f._next_pos()).toEqual(62352)
