@@ -201,12 +201,67 @@ class BamFile {
       featPromises.push(featPromise)
     })
     const recs = await Promise.all(featPromises)
-    if(opts.pairReads) {
-      for(let i = 0; i < recs.length; i++) {
-        console.log(recs[i].get('start'))
+    let ret = [].concat(...recs)
+    let kk = {};
+    if(opts.viewAsPairs) {
+      for(let i = 0; i < ret.length; i++) {
+        var name = ret[i].name()
+        if(!kk[name]) kk[name] = 0
+        kk[name]++
       }
+      let unmatedPairs = {}
+      Object.entries(kk).forEach(([k, v]) => {
+        if(v == 1) unmatedPairs[k] = true
+      })
+      let matePromises = []
+      for(let i = 0; i < ret.length; i++) {
+        var name = ret[i].name()
+        if(unmatedPairs[name]) {
+          matePromises.push(this.index.blocksForRange(ret[i]._next_refid(), ret[i]._next_pos(), ret[i]._next_pos()+1))
+        }
+      }
+      const chunks = await Promise.all(matePromises)
+      let myu = [...new Set(chunks.map(c => c.toString()))]
+      let uniqueChunks = []
+      for(let i = 0; i < myu.length; i++) {
+        for(let j = 0; j < myu.length; j++) {
+          if(chunks[i].toString() == myu[j]) {
+            uniqueChunks.push(chunks[i]);
+          }
+        }
+      }
+
+
+      const recordPromises = []
+      const featPromises = []
+      uniqueChunks.forEach(c => {
+        let recordPromise = this.featureCache.get(c.toString())
+        if (!recordPromise) {
+          recordPromise = this._readChunk(c)
+          this.featureCache.set(c.toString(), recordPromise)
+        }
+        recordPromises.push(recordPromise)
+        const featPromise = recordPromise.then(
+          f => {
+            const recs = []
+            for (let i = 0; i < f.length; i += 1) {
+              const feature = f[i]
+              if (unmatedPairs[feature.get('name')]) {
+                recs.push(feature)
+              }
+            }
+            return recs
+          },
+          e => {
+            console.error(e)
+          },
+        )
+        featPromises.push(featPromise)
+      })
+      const newMateFeats = await Promise.all(featPromises)
+      ret = ret.concat(newMateFeats)
     }
-    return [].concat(...recs)
+    return ret
   }
 
   async _readChunk(chunk) {

@@ -279,6 +279,17 @@ describe('BAM with paired ends', () => {
     expect(f._next_refid()).toEqual(19)
     expect(f._next_pos()).toEqual(62352)
   })
+  it('read as pairs', async () => {
+    const b = new BAM({
+      bamPath: 'test/data/paired.bam',
+    })
+    await b.getHeader()
+
+    const features = await b.getRecordsForRange('20', 62500, 64500, { viewAsPairs: true })
+    const f = features[0]
+    expect(f._next_refid()).toEqual(19)
+    expect(f._next_pos()).toEqual(62352)
+  })
 })
 
 describe('BAM+CSI with large coordinates', () => {
