@@ -3,20 +3,7 @@ const Chunk = require('./chunk')
 
 const BAI_MAGIC = 21578050 // BAI\1
 
-/**
- * calculate the list of bins that may overlap with region [beg,end) (zero-based half-open)
- * @returns {Array[number]}
- */
-function reg2bins(beg, end) {
-  const list = [0]
-  end -= 1
-  for (let k = 1 + (beg >> 26); k <= 1 + (end >> 26); k += 1) list.push(k)
-  for (let k = 9 + (beg >> 23); k <= 9 + (end >> 23); k += 1) list.push(k)
-  for (let k = 73 + (beg >> 20); k <= 73 + (end >> 20); k += 1) list.push(k)
-  for (let k = 585 + (beg >> 17); k <= 585 + (end >> 17); k += 1) list.push(k)
-  for (let k = 4681 + (beg >> 14); k <= 4681 + (end >> 14); k += 1) list.push(k)
-  return list
-}
+
 
 class BAI {
   /**
@@ -113,7 +100,7 @@ class BAI {
 
     const { binIndex } = indexes
 
-    const bins = reg2bins(beg, end)
+    const bins = this.reg2bins(beg, end)
 
     let l
     let numOffsets = 0
@@ -182,6 +169,21 @@ class BAI {
    */
   async hasRefSeq(seqId) {
     return !!(await this.parse()).indices[seqId]
+  }
+
+  /**
+   * calculate the list of bins that may overlap with region [beg,end) (zero-based half-open)
+   * @returns {Array[number]}
+   */
+  reg2bins(beg, end) {
+    const list = [0]
+    end -= 1
+    for (let k = 1 + (beg >> 26); k <= 1 + (end >> 26); k += 1) list.push(k)
+    for (let k = 9 + (beg >> 23); k <= 9 + (end >> 23); k += 1) list.push(k)
+    for (let k = 73 + (beg >> 20); k <= 73 + (end >> 20); k += 1) list.push(k)
+    for (let k = 585 + (beg >> 17); k <= 585 + (end >> 17); k += 1) list.push(k)
+    for (let k = 4681 + (beg >> 14); k <= 4681 + (end >> 14); k += 1) list.push(k)
+    return list
   }
 }
 

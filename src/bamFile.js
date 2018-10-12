@@ -131,7 +131,7 @@ class BamFile {
     return { chrToIndex, indexToChr }
   }
 
-  async getRecordsForRange(chr, min, max) {
+  async getRecordsForRange(chr, min, max, opts = {}) {
     // todo regularize refseq names
     const chrId = this.chrToIndex && this.chrToIndex[chr]
     let chunks
@@ -163,10 +163,10 @@ class BamFile {
         `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
       )
 
-    return this._fetchChunkFeatures(chunks, chrId, min, max)
+    return this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
-  async _fetchChunkFeatures(chunks, chrId, min, max) {
+  async _fetchChunkFeatures(chunks, chrId, min, max, opts) {
     const recordPromises = []
     const featPromises = []
     chunks.forEach(c => {
@@ -201,6 +201,11 @@ class BamFile {
       featPromises.push(featPromise)
     })
     const recs = await Promise.all(featPromises)
+    if(opts.pairReads) {
+      for(let i = 0; i < recs.length; i++) {
+        console.log(recs[i].get('start'))
+      }
+    }
     return [].concat(...recs)
   }
 

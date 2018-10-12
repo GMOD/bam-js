@@ -16,30 +16,6 @@ function rshift(num, bits) {
   return Math.floor(num / 2 ** bits)
 }
 
-/**
- * calculate the list of bins that may overlap with region [beg,end) (zero-based half-open)
- * @returns {Array[number]}
- */
-function reg2bins(beg, end, minShift, depth, binLimit) {
-  beg -= 1 // < convert to 1-based closed
-  if (beg < 1) beg = 1
-  if (end > 2 ** 50) end = 2 ** 34 // 17 GiB ought to be enough for anybody
-  end -= 1
-  let l = 0
-  let t = 0
-  let s = minShift + depth * 3
-  const bins = []
-  for (; l <= depth; s -= 3, t += lshift(1, l * 3), l += 1) {
-    const b = t + rshift(beg, s)
-    const e = t + rshift(end, s)
-    if (e - b + bins.length > binLimit)
-      throw new Error(
-        `query ${beg}-${end} is too large for current binning scheme (shift ${minShift}, depth ${depth}), try a smaller query or a coarser index binning scheme`,
-      )
-    for (let i = b; i <= e; i += 1) bins.push(i)
-  }
-  return bins
-}
 
 class CSI {
   /**
@@ -136,9 +112,9 @@ class CSI {
       // TODO: do we need to support big-endian CSI files?
     }
 
-    data.minShift = bytes.readInt32LE(4)
-    data.depth = bytes.readInt32LE(8)
-    data.maxBinNumber = ((1 << ((data.depth + 1) * 3)) - 1) / 7
+    this.minShift = bytes.readInt32LE(4)
+    this.depth = bytes.readInt32LE(8)
+    this.maxBinNumber = ((1 << ((this.depth + 1) * 3)) - 1) / 7
     const auxLength = bytes.readInt32LE(12)
     if (auxLength) {
       Object.assign(data, this.parseAuxData(bytes, 16, auxLength))
@@ -156,7 +132,7 @@ class CSI {
       let stats // < provided by parsing a pseudo-bin, if present
       for (let j = 0; j < binCount; j += 1) {
         const bin = bytes.readUInt32LE(currOffset)
-        if (bin > data.maxBinNumber) {
+        if (bin > this.maxBinNumber) {
           // this is a fake bin that actually has stats information
           // about the reference sequence in it
           stats = this.parsePseudoBin(bytes, currOffset + 4)
@@ -206,13 +182,7 @@ class CSI {
 
     const { binIndex } = indexes
 
-    const bins = reg2bins(
-      beg,
-      end,
-      indexData.minShift,
-      indexData.depth,
-      indexData.maxBinNumber,
-    )
+    const bins = this.reg2bins(beg, end)
 
     let l
     let numOffsets = 0
@@ -270,6 +240,31 @@ class CSI {
     numOffsets = l + 1
 
     return off.slice(0, numOffsets)
+  }
+
+  /**
+   * calculate the list of bins that may overlap with region [beg,end) (zero-based half-open)
+   * @returns {Array[number]}
+   */
+  reg2bins(beg, end) {
+    beg -= 1 // < convert to 1-based closed
+    if (beg < 1) beg = 1
+    if (end > 2 ** 50) end = 2 ** 34 // 17 GiB ought to be enough for anybody
+    end -= 1
+    let l = 0
+    let t = 0
+    let s = this.minShift + this.depth * 3
+    const bins = []
+    for (; l <= this.depth; s -= 3, t += lshift(1, l * 3), l += 1) {
+      const b = t + rshift(beg, s)
+      const e = t + rshift(end, s)
+      if (e - b + bins.length > this.maxBinNumber)
+        throw new Error(
+          `query ${beg}-${end} is too large for current binning scheme (shift ${this.minShift}, depth ${this.depth}), try a smaller query or a coarser index binning scheme`,
+        )
+      for (let i = b; i <= e; i += 1) bins.push(i)
+    }
+    return bins
   }
 }
 
