@@ -1,7 +1,9 @@
+const Long = require('long')
 const VirtualOffset = require('./virtualOffset')
 const Chunk = require('./chunk')
 
 const BAI_MAGIC = 21578050 // BAI\1
+const { longToNumber } = require('./util')
 
 class BAI {
   /**
@@ -23,15 +25,20 @@ class BAI {
     }
   }
 
+  parsePseudoBin(bytes, offset) {
+    const lineCount = longToNumber(
+      Long.fromBytesLE(bytes.slice(offset + 20, offset + 28), true),
+    )
+    return { lineCount }
+  }
+
   async lineCount(refId) {
-    const indexData = await this.parse()
-    if (!indexData) return -1
-    const indexes = indexData.indices[refId]
-    if (!indexes) return -1
-    const depth = 5
-    const binLimit = ((1 << ((depth + 1) * 3)) - 1) / 7
-    const ret = indexes.binIndex[binLimit + 1]
-    return ret ? ret[ret.length - 1].minv.dataPosition : -1
+    const index = (await this.parse()).indices[refId]
+    if (!index) {
+      return -1
+    }
+    const ret = index.stats || {}
+    return ret.lineCount === undefined ? -1 : ret.lineCount
   }
 
   // memoize
@@ -46,6 +53,8 @@ class BAI {
     }
 
     data.refCount = bytes.readInt32LE(4)
+    const depth = 5
+    const binLimit = ((1 << ((depth + 1) * 3)) - 1) / 7
 
     // read the indexes for each reference sequence
     data.indices = new Array(data.refCount)
@@ -53,11 +62,16 @@ class BAI {
     for (let i = 0; i < data.refCount; i += 1) {
       // the binning index
       const binCount = bytes.readInt32LE(currOffset)
+      let stats
 
       currOffset += 4
       const binIndex = {}
       for (let j = 0; j < binCount; j += 1) {
         const bin = bytes.readUInt32LE(currOffset)
+        if (bin > binLimit) {
+          stats = this.parsePseudoBin(bytes, currOffset + 4)
+        }
+
         const chunkCount = bytes.readInt32LE(currOffset + 4)
         currOffset += 8
         const chunks = new Array(chunkCount)
@@ -82,7 +96,7 @@ class BAI {
 
       currOffset += nintv * 8
 
-      data.indices[i] = { binIndex }
+      data.indices[i] = { binIndex, stats }
     }
 
     return data
@@ -166,7 +180,7 @@ class BAI {
    * the given reference sequence ID, false otherwise
    */
   async hasRefSeq(seqId) {
-    return !!(await this.parse()).indices[seqId]
+    return !!((await this.parse()).indices[seqId] || {}).binIndex
   }
 
   /**
