@@ -176,34 +176,29 @@ class BamFile {
         this.featureCache.set(c.toString(), recordPromise)
       }
       recordPromises.push(recordPromise)
-      const featPromise = recordPromise.then(
-        f => {
-          const recs = []
-          for (let i = 0; i < f.length; i += 1) {
-            const feature = f[i]
-            if (feature._refID === chrId) {
-              // on the right ref seq
-              if (feature.get('start') >= max)
-                // past end of range, can stop iterating
-                break
-              else if (feature.get('end') >= min) {
-                // must be in range
-                recs.push(feature)
-              }
+      const featPromise = recordPromise.then(f => {
+        const recs = []
+        for (let i = 0; i < f.length; i += 1) {
+          const feature = f[i]
+          if (feature._refID === chrId) {
+            // on the right ref seq
+            if (feature.get('start') >= max)
+              // past end of range, can stop iterating
+              break
+            else if (feature.get('end') >= min) {
+              // must be in range
+              recs.push(feature)
             }
           }
-          return recs
-        },
-        e => {
-          console.error(e)
-        },
-      )
+        }
+        return recs
+      })
       featPromises.push(featPromise)
     })
     const recs = await Promise.all(featPromises)
     let ret = [].concat(...recs)
-    const kk = {}
     if (opts.viewAsPairs) {
+      const kk = {}
       for (let i = 0; i < ret.length; i++) {
         const name = ret[i].name()
         if (!kk[name]) kk[name] = 0
@@ -217,54 +212,54 @@ class BamFile {
       for (let i = 0; i < ret.length; i++) {
         const name = ret[i].name()
         if (unmatedPairs[name]) {
-          matePromises.push(
-            this.index.blocksForRange(
-              ret[i]._next_refid(),
-              ret[i]._next_pos(),
-              ret[i]._next_pos() + 1,
-            ),
+          const blocks = this.index.blocksForRange(
+            ret[i]._next_refid(),
+            ret[i]._next_pos(),
+            ret[i]._next_pos() + 1,
           )
+          matePromises.push(blocks)
         }
       }
-      const mateChunks = await Promise.all(matePromises)
-      const mateStrings = [...new Set(mateChunks.map(c => c.toString()))]
-      const uniqueChunks = []
-      for (let i = 0; i < mateStrings.length; i++) {
-        for (let j = 0; j < mateStrings.length; j++) {
-          if (mateChunks[i].toString() === mateStrings[j]) {
-            uniqueChunks.push(mateChunks[i])
-          }
-        }
+      const mateBlocks = await Promise.all(matePromises)
+      let mateChunks = []
+      for (let i = 0; i < mateBlocks.length; i++) {
+        mateChunks.push(...mateBlocks[i])
       }
+      mateChunks = mateChunks
+        .sort((a, b) => a.toString().localeCompare(b.toString()))
+        .filter(
+          (item, pos, ary) =>
+            !pos || item.toString() !== ary[pos - 1].toString(),
+        )
 
       const mateRecordPromises = []
       const mateFeatPromises = []
-      uniqueChunks.forEach(c => {
+      mateChunks.forEach(c => {
         let recordPromise = this.featureCache.get(c.toString())
         if (!recordPromise) {
           recordPromise = this._readChunk(c)
           this.featureCache.set(c.toString(), recordPromise)
         }
         mateRecordPromises.push(recordPromise)
-        const featPromise = recordPromise.then(
-          f => {
-            const mateRecs = []
-            for (let i = 0; i < f.length; i += 1) {
-              const feature = f[i]
-              if (unmatedPairs[feature.get('name')]) {
-                mateRecs.push(feature)
-              }
+        const featPromise = recordPromise.then(feats => {
+          const mateRecs = []
+          for (let i = 0; i < feats.length; i += 1) {
+            const feature = feats[i]
+            if (unmatedPairs[feature.get('name')]) {
+              mateRecs.push(feature)
             }
-            return mateRecs
-          },
-          e => {
-            console.error(e)
-          },
-        )
+          }
+          return mateRecs
+        })
         mateFeatPromises.push(featPromise)
       })
       const newMateFeats = await Promise.all(mateFeatPromises)
-      ret = ret.concat(newMateFeats)
+      if (newMateFeats.length) {
+        const newMates = newMateFeats.reduce((result, current) =>
+          result.concat(current),
+        )
+        ret = ret.concat(newMates)
+      }
     }
     return ret
   }
