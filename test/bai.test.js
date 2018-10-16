@@ -299,14 +299,20 @@ describe('BAM with paired ends', () => {
     const b = new BAM({
       bamPath: 'test/data/paired.bam',
     })
+    const p = new BAM({
+      bamPath: 'test/data/paired-region.bam',
+    })
+
     await b.getHeader()
+    await p.getHeader()
 
     const features = await b.getRecordsForRange('20', 62500, 64500, {
       viewAsPairs: true,
     })
-    const f = features[0]
-    expect(f._next_refid()).toEqual(19)
-    expect(f._next_pos()).toEqual(62352)
+    const features2 = await p.getRecordsForRange('20', 0, 70000)
+    const f = features[features.length-1]
+    const f2 = features2[features2.length-1]
+    expect(f.get('start')).toEqual(f2.get('start'))
   })
 })
 
