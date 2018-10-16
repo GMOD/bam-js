@@ -198,14 +198,17 @@ class BamFile {
     const recs = await Promise.all(featPromises)
     let ret = [].concat(...recs)
     if (opts.viewAsPairs) {
-      const kk = {}
+      const readNames = {}
+      const readIds = {}
       for (let i = 0; i < ret.length; i++) {
         const name = ret[i].name()
-        if (!kk[name]) kk[name] = 0
-        kk[name]++
+        const id = ret[i].id()
+        if (!readNames[name]) readNames[name] = 0
+        readNames[name]++
+        readIds[id] = 1
       }
       const unmatedPairs = {}
-      Object.entries(kk).forEach(([k, v]) => {
+      Object.entries(readNames).forEach(([k, v]) => {
         if (v === 1) unmatedPairs[k] = true
       })
       const matePromises = []
@@ -225,6 +228,7 @@ class BamFile {
       for (let i = 0; i < mateBlocks.length; i++) {
         mateChunks.push(...mateBlocks[i])
       }
+      // filter out duplicate chunks (the blocks are lists of chunks, blocks are concatenated, then filter dup chunks)
       mateChunks = mateChunks
         .sort((a, b) => a.toString().localeCompare(b.toString()))
         .filter(
@@ -245,7 +249,10 @@ class BamFile {
           const mateRecs = []
           for (let i = 0; i < feats.length; i += 1) {
             const feature = feats[i]
-            if (unmatedPairs[feature.get('name')]) {
+            if (
+              unmatedPairs[feature.get('name')] &&
+              !readIds[feature.get('id')]
+            ) {
               mateRecs.push(feature)
             }
           }
@@ -258,6 +265,7 @@ class BamFile {
         const newMates = newMateFeats.reduce((result, current) =>
           result.concat(current),
         )
+        // console.log(chrId, min, max, newMates.map(m => m.get('name')).sort())
         ret = ret.concat(newMates)
       }
     }
