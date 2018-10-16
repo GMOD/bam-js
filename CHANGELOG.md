@@ -1,3 +1,8 @@
+<a name="1.0.5"></a>
+## [1.0.5](https://github.com/GMOD/bam-js/compare/v1.0.4...v1.0.5) (2018-10-16)
+
+
+
 - Add a bugfix for pairing reads related to adding duplicate records to results
 
 <a name="1.0.4"></a>
