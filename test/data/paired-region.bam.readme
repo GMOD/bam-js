@@ -1,0 +1,4 @@
+# the paired region with redispatching test is compared against bazam output https://github.com/ssadedin/bazam
+
+bazam -bam test/data/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam -L 20:62501-64500 -o test.fq
+cat test.fq | bwa mem -p chr20.fa - | samtools view -bSu - | samtools sort -o out.bam
