@@ -71,6 +71,9 @@ class BamFile {
     if (ret) {
       buf = Buffer.alloc(ret + blockLen)
       const bytesRead = await this.bam.read(buf, 0, ret + blockLen, 0)
+      if (!bytesRead) {
+        throw new Error('Error reading header')
+      }
       if (bytesRead < ret) {
         buf = buf.slice(0, bytesRead)
       } else {
@@ -101,6 +104,9 @@ class BamFile {
   async _readRefSeqs(start, refSeqBytes) {
     let buf = Buffer.alloc(refSeqBytes + blockLen)
     const bytesRead = await this.bam.read(buf, 0, refSeqBytes + blockLen)
+    if (!bytesRead) {
+      return new Error('Error reading refseqs from header')
+    }
     if (bytesRead < refSeqBytes) {
       buf = buf.slice(0, bytesRead)
     } else {
@@ -281,6 +287,9 @@ class BamFile {
       bufsize + blockLen,
       chunk.minv.blockPosition,
     )
+    if (!bytesRead) {
+      return []
+    }
     if (bytesRead < bufsize) {
       buf = buf.slice(0, bytesRead)
     } else {
