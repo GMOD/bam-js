@@ -1,3 +1,8 @@
+<a name="1.0.6"></a>
+## [1.0.6](https://github.com/GMOD/bam-js/compare/v1.0.5...v1.0.6) (2018-10-19)
+
+
+
 - Add bugfix for where bytes for an invalid request returns 0 resulting in pako unzip errors
 
 <a name="1.0.5"></a>
