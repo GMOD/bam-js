@@ -1,5 +1,6 @@
 const BAI = require('../src/bai')
 const BAM = require('../src/bamFile')
+const Record = require('../src/record')
 const LocalFile = require('../src/localFile')
 const fs = require('fs')
 
@@ -334,5 +335,92 @@ describe('BAM+CSI with large coordinates', () => {
       1073741824 + 50000,
     )
     expect(features.length).toEqual(9596)
+  })
+})
+
+class FakeRecord extends Record {
+  constructor(read1, strand1, strand2, tlen) {
+    super({
+      bytes: {
+        start: 0,
+        byteArray: Buffer.from([
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+        ]),
+      },
+    })
+    this.read1 = read1
+    this.read2 = !read1
+    this.strand1 = strand1 === 'R'
+    this.strand2 = strand2 === 'R'
+    this.tlen = tlen
+    this._refID = 1
+  }
+  isRead1() {
+    return this.read1
+  }
+  isRead2() {
+    return this.read2
+  }
+  isMateReverseComplemented() {
+    return this.strand2
+  }
+  isReverseComplemented() {
+    return this.strand1
+  }
+  template_length() {
+    return this.tlen
+  }
+  _next_refid() {
+    return 1
+  }
+}
+describe('Pair orientations', () => {
+  it('test pair orientations', async () => {
+    const b1 = new FakeRecord(true, 'F', 'F', 100)
+    const b2 = new FakeRecord(true, 'F', 'R', 100)
+    const b3 = new FakeRecord(true, 'R', 'R', 100)
+    const b4 = new FakeRecord(true, 'R', 'F', 100)
+    const b5 = new FakeRecord(false, 'F', 'F', 100)
+    const b6 = new FakeRecord(false, 'F', 'R', 100)
+    const b7 = new FakeRecord(false, 'R', 'R', 100)
+    const b8 = new FakeRecord(false, 'R', 'F', 100)
+    const b9 = new FakeRecord(false, 'F', 'F', -100)
+    const b10 = new FakeRecord(false, 'F', 'R', -100)
+    const b11 = new FakeRecord(false, 'R', 'R', -100)
+    const b12 = new FakeRecord(false, 'R', 'F', -100)
+    expect(b1.getPairOrientation()).toEqual('F1F2')
+    expect(b2.getPairOrientation()).toEqual('F1R2')
+    expect(b3.getPairOrientation()).toEqual('R1R2')
+    expect(b4.getPairOrientation()).toEqual('R1F2')
+    expect(b5.getPairOrientation()).toEqual('F2F1')
+    expect(b6.getPairOrientation()).toEqual('F2R1')
+    expect(b7.getPairOrientation()).toEqual('R2R1')
+    expect(b8.getPairOrientation()).toEqual('R2F1')
+    expect(b9.getPairOrientation()).toEqual('F1F2')
+    expect(b10.getPairOrientation()).toEqual('R1F2')
+    expect(b11.getPairOrientation()).toEqual('R1R2')
+    expect(b12.getPairOrientation()).toEqual('F1R2')
   })
 })

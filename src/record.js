@@ -121,6 +121,7 @@ class BamRecord {
         'multi_segment_first',
         'multi_segment_last',
         'next_segment_position',
+        'pair_orientation',
       )
     }
     tags = tags.concat(this._tagList || [])
@@ -465,6 +466,43 @@ class BamRecord {
       if (seq.length < this.get('seq_length')) seq += SEQRET_DECODER[sb & 0x0f]
     }
     return seq
+  }
+
+  // adapted from igv.js
+  getPairOrientation() {
+    if (
+      !this.isSegmentUnmapped() &&
+      !this.isMateUnmapped() &&
+      this._refID === this._next_refid()
+    ) {
+      const s1 = this.isReverseComplemented() ? 'R' : 'F'
+      const s2 = this.isMateReverseComplemented() ? 'R' : 'F'
+      let o1 = ' '
+      let o2 = ' '
+      if (this.isRead1()) {
+        o1 = '1'
+        o2 = '2'
+      } else if (this.isRead2()) {
+        o1 = '2'
+        o2 = '1'
+      }
+
+      const tmp = []
+      const isize = this.template_length()
+      if (isize > 0) {
+        tmp[0] = s1
+        tmp[1] = o1
+        tmp[2] = s2
+        tmp[3] = o2
+      } else {
+        tmp[2] = s1
+        tmp[3] = o1
+        tmp[0] = s2
+        tmp[1] = o2
+      }
+      return tmp.join('')
+    }
+    return null
   }
 
   _bin_mq_nl() {
