@@ -138,6 +138,7 @@ class BamFile {
   }
 
   async getRecordsForRange(chr, min, max, opts = {}) {
+    // console.log('recs', chr,min,max)
     // todo regularize refseq names
     const chrId = this.chrToIndex && this.chrToIndex[chr]
     let chunks
@@ -164,6 +165,7 @@ class BamFile {
     const totalSize = chunks
       .map(s => s.fetchedSize())
       .reduce((a, b) => a + b, 0)
+    // console.log('initial ' + totalSize/(1024*1024) + 'mb')
     if (totalSize > this.fetchSizeLimit)
       throw new Error(
         `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
@@ -175,6 +177,8 @@ class BamFile {
   async _fetchChunkFeatures(chunks, chrId, min, max, opts) {
     const recordPromises = []
     const featPromises = []
+    // console.log('chunks',chunks)
+    // const cstrings = chunks.map(s => s.toString())
     chunks.forEach(c => {
       let recordPromise = this.featureCache.get(c.toString())
       if (!recordPromise) {
@@ -242,8 +246,17 @@ class BamFile {
             !pos || item.toString() !== ary[pos - 1].toString(),
         )
 
+      // console.log('mates',mateChunks)
+      // mateChunks = mateChunks.filter(c => !cstrings.includes(c.toString()));
+
       const mateRecordPromises = []
       const mateFeatPromises = []
+
+      // console.log('c2',mateChunks.map(s => s.toString()).sort())
+      // const mateTotalSize = mateChunks
+      //   .map(s => s.fetchedSize())
+      //   .reduce((a, b) => a + b, 0)
+      // console.log('mateTotalSize ' + mateTotalSize/(1024*1024), 'mb')
       mateChunks.forEach(c => {
         let recordPromise = this.featureCache.get(c.toString())
         if (!recordPromise) {

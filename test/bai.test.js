@@ -376,11 +376,7 @@ describe('SAM spec pdf', () => {
     })
     await b.getHeader()
 
-    const features = await b.getRecordsForRange(
-      'ref',
-      1,
-      100,
-    )
+    const features = await b.getRecordsForRange('ref', 1, 100)
     expect(features.length).toEqual(6)
     expect(features[2].get('sa')).toEqual('ref,29,-,6H5M,17,0;')
     expect(features[4].get('sa')).toEqual('ref,9,+,5S6M,30,1;')
