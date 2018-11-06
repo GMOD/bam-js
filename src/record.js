@@ -1,42 +1,10 @@
 const Constants = require('./constants')
 const crc32 = require('buffer-crc32')
 
-const SEQRET_DECODER = [
-  '=',
-  'A',
-  'C',
-  'x',
-  'G',
-  'x',
-  'x',
-  'x',
-  'T',
-  'x',
-  'x',
-  'x',
-  'x',
-  'x',
-  'x',
-  'N',
-]
-const CIGAR_DECODER = [
-  'M',
-  'I',
-  'D',
-  'N',
-  'S',
-  'H',
-  'P',
-  '=',
-  'X',
-  '?',
-  '?',
-  '?',
-  '?',
-  '?',
-  '?',
-  '?',
-]
+// prettier-ignore
+const SEQRET_DECODER = ['=', 'A', 'C', 'x', 'G', 'x', 'x', 'x', 'T', 'x', 'x', 'x', 'x', 'x', 'x', 'N',]
+// prettier-ignore
+const CIGAR_DECODER = ['M', 'I', 'D', 'N', 'S', 'H', 'P', '=', 'X', '?', '?', '?', '?', '?', '?', '?']
 
 /**
  * Class of each BAM record returned by this API.

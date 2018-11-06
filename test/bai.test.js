@@ -315,7 +315,6 @@ describe('BAM with paired ends', () => {
     expect(features.map(f => f.get('name')).sort()).toEqual(
       features2.map(f => f.get('name')).sort(),
     )
-    console.log(features.map(f => f.get('name')).sort())
     const f = features[features.length - 1]
     const f2 = features2[features2.length - 1]
     expect(f.get('start')).toEqual(f2.get('start'))
