@@ -1,6 +1,5 @@
 const BAI = require('../src/bai')
 const BAM = require('../src/bamFile')
-const Record = require('../src/record')
 const LocalFile = require('../src/localFile')
 const FakeRecord = require('./fakerecord')
 const fs = require('fs')
@@ -316,6 +315,7 @@ describe('BAM with paired ends', () => {
     expect(features.map(f => f.get('name')).sort()).toEqual(
       features2.map(f => f.get('name')).sort(),
     )
+    console.log(features.map(f => f.get('name')).sort())
     const f = features[features.length - 1]
     const f2 = features2[features2.length - 1]
     expect(f.get('start')).toEqual(f2.get('start'))
@@ -368,5 +368,33 @@ describe('Pair orientations', () => {
   })
 })
 
+describe('SAM spec pdf', () => {
+  it('check parse', async () => {
+    const b = new BAM({
+      bamPath: 'test/data/samspec.bam',
+      baiPath: 'test/data/samspec.bam.bai',
+    })
+    await b.getHeader()
 
+    const features = await b.getRecordsForRange(
+      'ref',
+      1,
+      100,
+    )
+    expect(features.length).toEqual(6)
+    expect(features[2].get('sa')).toEqual('ref,29,-,6H5M,17,0;')
+    expect(features[4].get('sa')).toEqual('ref,9,+,5S6M,30,1;')
+  })
+})
+// describe('BAM with paired ends and long insert size', () => {
+//   it('paired long insert', async () => {
+//     const b = new BAM({
+//       bamPath: 'test/data/FM.01.sorted.bam',
+//     })
+//     await b.getHeader()
 
+//     const features = await b.getRecordsForRange('GK000001.2', 62500, 64500, {viewAsPairs: true})
+// //    console.log(features)
+//   })
+
+// })
