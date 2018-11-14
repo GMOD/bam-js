@@ -224,7 +224,10 @@ class BamFile {
       const matePromises = []
       for (let i = 0; i < ret.length; i++) {
         const name = ret[i].name()
-        if (unmatedPairs[name]) {
+        if (
+          unmatedPairs[name] &&
+          (ret[i]._next_refid() === chrId || opts.pairAcrossChr)
+        ) {
           const blocks = this.index.blocksForRange(
             ret[i]._next_refid(),
             ret[i]._next_pos(),
