@@ -227,7 +227,8 @@ class BamFile {
         if (
           unmatedPairs[name] &&
           (ret[i]._next_refid() === chrId || opts.pairAcrossChr) &&
-          (Math.abs(ret[i].get('start') - ret[i]._next_pos()) < opts.maxInsertSize)
+          Math.abs(ret[i].get('start') - ret[i]._next_pos()) <
+            opts.maxInsertSize
         ) {
           const blocks = this.index.blocksForRange(
             ret[i]._next_refid(),

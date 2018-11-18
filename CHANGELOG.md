@@ -1,10 +1,12 @@
+- Add a maxInsertSize parameter to getRecordsForRange
+
 <a name="1.0.9"></a>
 ## [1.0.9](https://github.com/GMOD/bam-js/compare/v1.0.8...v1.0.9) (2018-11-16)
 
 
 
 - Allow bases other than ACGT to be decoded
-* Make viewAsPairs only resolve pairs on given refSeq unless pairAcrossChr is enabled for query
+- Make viewAsPairs only resolve pairs on given refSeq unless pairAcrossChr is enabled for query
 
 <a name="1.0.8"></a>
 ## [1.0.8](https://github.com/GMOD/bam-js/compare/v1.0.7...v1.0.8) (2018-10-31)
