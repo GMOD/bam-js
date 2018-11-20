@@ -1,11 +1,11 @@
-const LRU = require('lru-cache')
+const LRU = require('quick-lru')
 
 class BufferCache {
   constructor({ fetch, size = 10000000, chunkSize = 32768 }) {
     if (!fetch) throw new Error('fetch function required')
     this.fetch = fetch
     this.chunkSize = chunkSize
-    this.lruCache = LRU({ max: Math.floor(size / chunkSize) })
+    this.lruCache = new LRU({ maxSize: Math.floor(size / chunkSize) })
   }
   async get(outputBuffer, offset, length, position) {
     if (outputBuffer.length < offset + length)

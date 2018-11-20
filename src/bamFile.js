@@ -1,5 +1,5 @@
 const { unzip } = require('@gmod/bgzf-filehandle')
-const LRU = require('lru-cache')
+const LRU = require('quick-lru')
 
 const BAI = require('./bai')
 const CSI = require('./csi')
@@ -53,8 +53,8 @@ class BamFile {
       this.index = new BAI({ filehandle: new LocalFile(`${bamPath}.bai`) })
     }
 
-    this.featureCache = LRU({
-      max: cacheSize !== undefined ? cacheSize : 20000,
+    this.featureCache = new LRU({
+      maxSize: cacheSize !== undefined ? cacheSize : 20000,
       length: featureArray => featureArray.length,
     })
 
