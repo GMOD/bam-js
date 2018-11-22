@@ -44,7 +44,8 @@
     "@gmod/bgzf-filehandle": "^1.2.1",
     "buffer-crc32": "^0.2.13",
     "es6-promisify": "^6.0.1",
-    "long": "^4.0.0"
+    "long": "^4.0.0",
+    "quick-lru": "^2.0.0"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",
