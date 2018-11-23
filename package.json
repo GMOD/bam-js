@@ -41,7 +41,7 @@
     "genomics"
   ],
   "dependencies": {
-    "@gmod/bgzf-filehandle": "^1.2.1",
+    "@gmod/bgzf-filehandle": "^1.2.2",
     "buffer-crc32": "^0.2.13",
     "es6-promisify": "^6.0.1",
     "long": "^4.0.0",
