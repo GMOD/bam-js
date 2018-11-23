@@ -1,3 +1,5 @@
+- Fix for ie11
+
 <a name="1.0.10"></a>
 ## [1.0.10](https://github.com/GMOD/bam-js/compare/v1.0.9...v1.0.10) (2018-11-18)
 
