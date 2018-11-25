@@ -245,7 +245,7 @@ class BamFile {
       }
       // filter out duplicate chunks (the blocks are lists of chunks, blocks are concatenated, then filter dup chunks)
       mateChunks = mateChunks
-        .sort((a, b) => a.toString().localeCompare(b.toString()))
+        .sort()
         .filter(
           (item, pos, ary) =>
             !pos || item.toString() !== ary[pos - 1].toString(),
