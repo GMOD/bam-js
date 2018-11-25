@@ -1,3 +1,8 @@
+<a name="1.0.12"></a>
+## [1.0.12](https://github.com/GMOD/bam-js/compare/v1.0.11...v1.0.12) (2018-11-25)
+
+
+
 - Faster viewAsPairs operation
 
 <a name="1.0.11"></a>
