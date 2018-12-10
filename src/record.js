@@ -174,7 +174,7 @@ class BamRecord {
   _read_name() {
     const nl = this._get('_l_read_name')
     return this.bytes.byteArray.toString(
-      'utf8',
+      'ascii',
       this.bytes.start + 36,
       this.bytes.start + 36 + nl - 1,
     )
