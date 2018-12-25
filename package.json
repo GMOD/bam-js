@@ -1,6 +1,6 @@
 {
   "name": "@gmod/bam",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "Parser for BAM and BAM index (bai) files",
   "license": "MIT",
   "repository": "GMOD/bam-js",
