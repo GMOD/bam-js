@@ -1,3 +1,6 @@
+- Use ascii decoding for read names
+- Fix error with large BAM headers with many refseqs
+
 <a name="1.0.12"></a>
 ## [1.0.12](https://github.com/GMOD/bam-js/compare/v1.0.11...v1.0.12) (2018-11-25)
 

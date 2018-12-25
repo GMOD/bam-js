@@ -103,6 +103,9 @@ class BamFile {
   // doubles it if all refseqs haven't been processed
   async _readRefSeqs(start, refSeqBytes) {
     let buf = Buffer.alloc(refSeqBytes + blockLen)
+    if (start > refSeqBytes) {
+      return this._readRefSeqs(start, refSeqBytes * 2)
+    }
     const bytesRead = await this.bam.read(buf, 0, refSeqBytes + blockLen)
     if (!bytesRead) {
       return new Error('Error reading refseqs from header')

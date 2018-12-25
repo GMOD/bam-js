@@ -381,15 +381,13 @@ describe('SAM spec pdf', () => {
     expect(features[4].get('sa')).toEqual('ref,9,+,5S6M,30,1;')
   })
 })
-// describe('BAM with paired ends and long insert size', () => {
-//   it('paired long insert', async () => {
-//     const b = new BAM({
-//       bamPath: 'test/data/FM.01.sorted.bam',
-//     })
-//     await b.getHeader()
-
-//     const features = await b.getRecordsForRange('GK000001.2', 62500, 64500, {viewAsPairs: true})
-// //    console.log(features)
-//   })
-
-// })
+describe('trigger range out of bounds file', () => {
+  it('range error', async () => {
+    const b = new BAM({
+      bamPath: 'test/data/cho.bam',
+    })
+    await b.getHeader()
+    // console.log(JSON.stringify(h))
+    expect(Object.keys(b.chrToIndex).length).toEqual(28751)
+  })
+})
