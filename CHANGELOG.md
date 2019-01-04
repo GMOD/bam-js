@@ -1,3 +1,5 @@
+- Add hasRefSeq for CSI indexes
+
 <a name="1.0.13"></a>
 ## [1.0.13](https://github.com/GMOD/bam-js/compare/v1.0.12...v1.0.13) (2018-12-25)
 

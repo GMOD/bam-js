@@ -242,6 +242,14 @@ class CSI {
   }
 
   /**
+   * @param {number} seqId
+   * @returns {Promise} true if the index contains entries for
+   * the given reference sequence ID, false otherwise
+   */
+  async hasRefSeq(seqId) {
+    return !!((await this.parse()).indices[seqId] || {}).binIndex
+  }
+  /**
    * calculate the list of bins that may overlap with region [beg,end) (zero-based half-open)
    * @returns {Array[number]}
    */
