@@ -1,8 +1,8 @@
+const fs = require('fs')
 const BAI = require('../src/bai')
 const BAM = require('../src/bamFile')
 const LocalFile = require('../src/localFile')
 const FakeRecord = require('./fakerecord')
-const fs = require('fs')
 
 const { JsonClone, REWRITE_EXPECTED_DATA } = require('./lib/util')
 

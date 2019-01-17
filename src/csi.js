@@ -249,6 +249,7 @@ class CSI {
   async hasRefSeq(seqId) {
     return !!((await this.parse()).indices[seqId] || {}).binIndex
   }
+
   /**
    * calculate the list of bins that may overlap with region [beg,end) (zero-based half-open)
    * @returns {Array[number]}

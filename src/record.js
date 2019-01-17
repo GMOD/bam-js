@@ -1,5 +1,5 @@
-const Constants = require('./constants')
 const crc32 = require('buffer-crc32')
+const Constants = require('./constants')
 
 const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
 const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
@@ -32,21 +32,25 @@ class BamRecord {
   get(field) {
     return this._get(field.toLowerCase())
   }
+
   end() {
     return (
       this._get('start') +
       (this._get('length_on_ref') || this._get('seq_length') || undefined)
     )
   }
+
   seq_id() {
     return this._refID
   }
+
   // same as get(), except requires lower-case arguments.  used
   // internally to save lots of calls to field.toLowerCase()
   _get(field) {
     if (field in this.data) {
       return this.data[field]
-    } else if (this[field]) {
+    }
+    if (this[field]) {
       this.data[field] = this[field]()
     } else {
       this.data[field] = this._parseTag(field)
@@ -140,9 +144,11 @@ class BamRecord {
     const mq = (this._get('_bin_mq_nl') & 0xff00) >> 8
     return mq === 255 ? undefined : mq
   }
+
   score() {
     return this._get('mq')
   }
+
   qual() {
     if (this.isSegmentUnmapped()) return undefined
 
@@ -160,9 +166,11 @@ class BamRecord {
     }
     return qseq.join(' ')
   }
+
   strand() {
     return this.isReverseComplemented() ? -1 : 1
   }
+
   multi_segment_next_segment_strand() {
     if (this.isMateUnmapped()) return undefined
     return this.isMateReverseComplemented() ? -1 : 1
@@ -171,6 +179,7 @@ class BamRecord {
   name() {
     return this._get('_read_name')
   }
+
   _read_name() {
     const nl = this._get('_l_read_name')
     return this.bytes.byteArray.toString(
@@ -301,6 +310,7 @@ class BamRecord {
     this._allTagsParsed = true
     return undefined
   }
+
   _parseAllTags() {
     this._parseTag()
   }
@@ -310,6 +320,7 @@ class BamRecord {
       .match(/\d+\D/g)
       .map(op => [op.match(/\D/)[0].toUpperCase(), parseInt(op, 10)])
   }
+
   /**
    * @returns {boolean} true if the read is paired, regardless of whether both segments are mapped
    */
@@ -408,15 +419,18 @@ class BamRecord {
   _n_cigar_op() {
     return this._get('_flag_nc') & 0xffff
   }
+
   _l_read_name() {
     return this._get('_bin_mq_nl') & 0xff
   }
+
   /**
    * number of bytes in the sequence field
    */
   _seq_bytes() {
     return (this._get('seq_length') + 1) >> 1
   }
+
   getReadBases() {
     let seq = ''
     const { byteArray } = this.bytes
@@ -474,18 +488,23 @@ class BamRecord {
   _bin_mq_nl() {
     return this.bytes.byteArray.readInt32LE(this.bytes.start + 12)
   }
+
   _flag_nc() {
     return this.bytes.byteArray.readInt32LE(this.bytes.start + 16)
   }
+
   seq_length() {
     return this.bytes.byteArray.readInt32LE(this.bytes.start + 20)
   }
+
   _next_refid() {
     return this.bytes.byteArray.readInt32LE(this.bytes.start + 24)
   }
+
   _next_pos() {
     return this.bytes.byteArray.readInt32LE(this.bytes.start + 28)
   }
+
   template_length() {
     return this.bytes.byteArray.readInt32LE(this.bytes.start + 32)
   }

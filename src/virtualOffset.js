@@ -22,6 +22,7 @@ class VirtualOffset {
   toString() {
     return `${this.blockPosition}:${this.dataPosition}`
   }
+
   compareTo(b) {
     return (
       this.blockPosition - b.blockPosition || this.dataPosition - b.dataPosition

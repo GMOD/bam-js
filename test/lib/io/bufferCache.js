@@ -7,6 +7,7 @@ class BufferCache {
     this.chunkSize = chunkSize
     this.lruCache = new LRU({ maxSize: Math.floor(size / chunkSize) })
   }
+
   async get(outputBuffer, offset, length, position) {
     if (outputBuffer.length < offset + length)
       throw new Error('output buffer not big enough for request')
