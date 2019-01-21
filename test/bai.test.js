@@ -1,4 +1,3 @@
-const fs = require('fs')
 const BAI = require('../src/bai')
 const BAM = require('../src/bamFile')
 const LocalFile = require('../src/localFile')
