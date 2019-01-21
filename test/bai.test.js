@@ -4,8 +4,6 @@ const BAM = require('../src/bamFile')
 const LocalFile = require('../src/localFile')
 const FakeRecord = require('./fakerecord')
 
-const { JsonClone, REWRITE_EXPECTED_DATA } = require('./lib/util')
-
 describe('index formats', () => {
   it('loads volvox-sorted.bam.bai', async () => {
     const ti = new BAI({
@@ -116,17 +114,7 @@ describe('bam deep record check', () => {
     })
     await ti.getHeader()
     const records = await ti.getRecordsForRange('ctgA', 0, 10)
-
-    if (REWRITE_EXPECTED_DATA) {
-      fs.writeFileSync(
-        'test/data/volvox-sorted.bam.expected.json',
-        JSON.stringify(records, null, '  '),
-      )
-    }
-    const ret = JSON.parse(
-      fs.readFileSync('test/data/volvox-sorted.bam.expected.json'),
-    )
-    expect(JsonClone(records)).toEqual(ret)
+    expect(records).toMatchSnapshot()
   })
 })
 
@@ -138,17 +126,7 @@ describe('1000 genomes bam check', () => {
     })
     await ti.getHeader()
     const records = await ti.getRecordsForRange('1', 0, 1000)
-
-    if (REWRITE_EXPECTED_DATA) {
-      fs.writeFileSync(
-        'test/data/1000genomes_hg00096_chr1.bam.expected.json',
-        JSON.stringify(records, null, '  '),
-      )
-    }
-    const ret = JSON.parse(
-      fs.readFileSync('test/data/1000genomes_hg00096_chr1.bam.expected.json'),
-    )
-    expect(JsonClone(records)).toEqual(ret)
+    expect(records).toMatchSnapshot()
   })
   it('deep check 1000 genomes bai', async () => {
     const ti = new BAM({
@@ -156,19 +134,7 @@ describe('1000 genomes bam check', () => {
     })
     await ti.getHeader()
     const records = await ti.getRecordsForRange('1', 0, 1000)
-
-    if (REWRITE_EXPECTED_DATA) {
-      fs.writeFileSync(
-        'test/data/1000genomes_hg00096_chr1.bam.bai.expected.json',
-        JSON.stringify(records, null, '  '),
-      )
-    }
-    const ret = JSON.parse(
-      fs.readFileSync(
-        'test/data/1000genomes_hg00096_chr1.bam.bai.expected.json',
-      ),
-    )
-    expect(JsonClone(records)).toEqual(ret)
+    expect(records).toMatchSnapshot()
   })
 })
 
@@ -179,32 +145,8 @@ describe('ecoli bam check', () => {
     })
     const header = await ti.getHeader()
     const records = await ti.getRecordsForRange('ref000001|chr', 0, 100)
-
-    if (REWRITE_EXPECTED_DATA) {
-      fs.writeFileSync(
-        'test/data/ecoli_nanopore.bam.expected.header.txt',
-        header,
-      )
-      fs.writeFileSync(
-        'test/data/ecoli_nanopore.bam.expected.records.json',
-        JSON.stringify(records, null, '  '),
-      )
-    }
-    const expectedHeader = JSON.parse(
-      fs.readFileSync(
-        'test/data/ecoli_nanopore.bam.expected.header.txt',
-        'utf8',
-      ),
-    )
-    const expectedRecords = JSON.parse(
-      fs.readFileSync(
-        'test/data/ecoli_nanopore.bam.expected.records.json',
-        'utf8',
-      ),
-    )
-
-    expect(header).toEqual(expectedHeader)
-    expect(JsonClone(records)).toEqual(expectedRecords)
+    expect(header).toMatchSnapshot()
+    expect(records).toMatchSnapshot()
   })
 })
 describe('BAM with test_deletion_2_0.snps.bwa_align.sorted.grouped.bam', () => {
