@@ -61,7 +61,7 @@
     "eslint-config-airbnb-base": "^13.1.0",
     "eslint-config-prettier": "^3.4.0",
     "eslint-plugin-flowtype": "^3.2.1",
-    "eslint-plugin-flowtype-errors": "^3.5.1",
+    "eslint-plugin-flowtype-errors": "^4.0.0",
     "eslint-plugin-import": "^2.10.0",
     "eslint-plugin-prettier": "^3.0.1",
     "jest-cli": "^23.1.0",
