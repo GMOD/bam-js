@@ -37,7 +37,7 @@
     "genomics"
   ],
   "dependencies": {
-    "@babel/runtime": "^7.3.4",
+    "@babel/runtime-corejs2": "^7.3.4",
     "@gmod/bgzf-filehandle": "^1.2.3",
     "buffer-crc32": "^0.2.13",
     "es6-promisify": "^6.0.1",
