@@ -1,23 +1,23 @@
 {
   "presets": [
-    ["env", {
-      "targets": {
-        "node": 6,
-        "browsers": [
-          "> 0.5%",
-          "last 2 versions"
-        ]
+    [
+      "@babel/preset-env",
+      {
+        "targets": {
+          "browsers": [
+            "last 2 versions",
+            "> 0.5%"
+          ],
+          "node": "6.10"
+        }
       }
-    }],
-    "stage-2"
+    ]
   ],
-	"sourceMaps": true,
-	"plugins": [
-		["transform-runtime", {
-			"helpers": true,
-			"polyfill": true,
-			"regenerator": true,
-			"moduleName": "babel-runtime"
-		}]
-	]
+  "retainLines": true,
+  "sourceMaps": true,
+  "plugins": [
+    [
+      "@babel/plugin-transform-runtime"
+    ]
+  ]
 }
