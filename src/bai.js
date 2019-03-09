@@ -73,22 +73,36 @@ class BAI extends IndexFile {
         }
       }
 
-      const nintv = bytes.readInt32LE(currOffset)
+      const linearCount = bytes.readInt32LE(currOffset)
       currOffset += 4
       // as we're going through the linear index, figure out
       // the smallest virtual offset in the indexes, which
       // tells us where the BAM header ends
-      if (nintv) {
-        this._findFirstData(bytes, VirtualOffset.fromBytes(bytes, currOffset))
+      const linearIndex = new Array(linearCount)
+      for (let k = 0; k < linearCount; k += 1) {
+        linearIndex[k] = VirtualOffset.fromBytes(bytes, currOffset)
+        currOffset += 8
+        this._findFirstData(data, linearIndex[k])
       }
 
-      currOffset += nintv * 8
-
-      data.indices[i] = { binIndex, stats }
+      data.indices[i] = { binIndex, linearIndex, stats }
     }
 
     return data
   }
+
+  async indexCov(seqId) {
+    const indexData = await this.parse()
+      console.log(indexData.indices)
+    //console.log(indexData.indices, chrId, seqId)
+    const linearIndex = indexData.indices[chrId]
+    if(!linearIndex) {
+      return []
+    }
+    console.log(linearIndex)
+    return linearIndex
+  }
+
 
   async blocksForRange(refId, beg, end) {
     if (beg < 0) beg = 0
@@ -160,6 +174,16 @@ class BAI extends IndexFile {
     numOffsets = l + 1
 
     return off.slice(0, numOffsets)
+  }
+
+  /**
+   * @param {number} seqId
+   * @param {AbortSignal} [abortSignal]
+   * @returns {Promise} true if the index contains entries for
+   * the given reference sequence ID, false otherwise
+   */
+  async hasRefSeq(seqId, abortSignal) {
+    return !!((await this.parse(abortSignal)).indices[seqId] || {}).binIndex
   }
 
   /**

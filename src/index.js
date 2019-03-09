@@ -1,4 +1,4 @@
 import BAI from './bai'
-import BamFile from './bamFile'
+import BAM from './bamFile'
 
-export { BAI, BamFile }
+export { BAI, BAM }

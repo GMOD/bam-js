@@ -1,5 +1,4 @@
-const BAI = require('../src/bai')
-const BAM = require('../src/bamFile')
+import {BAI, BAM} from '../src/'
 const LocalFile = require('../src/localFile')
 const FakeRecord = require('./fakerecord')
 
@@ -367,6 +366,8 @@ describe('trigger range out of bounds file', () => {
     await b.getHeader()
     // console.log(JSON.stringify(h))
     expect(Object.keys(b.chrToIndex).length).toEqual(28751)
+    const ret = await b.indexCov()
+    console.log(ret)
   })
 })
 
@@ -378,3 +379,5 @@ describe('test too large of genome coordinates', () => {
     await expect(ti.parse()).rejects.toThrow(/too many bins/)
   })
 })
+
+

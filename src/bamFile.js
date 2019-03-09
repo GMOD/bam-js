@@ -13,7 +13,7 @@ const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
 
-class BamFile {
+export default class BAM {
   /**
    * @param {object} args
    * @param {string} [args.bamPath]
@@ -366,6 +366,11 @@ class BamFile {
   hasRefSeq(seqId) {
     return this.index.hasRefSeq(seqId)
   }
+
+  async indexCov(seqName) {
+    const indexData = await this.index.parse()
+    const seqId = indexData.chrToIndex && indexData.chrToIndex[seqName]
+    return this.index.indexCov(seqId)
+  }
 }
 
-module.exports = BamFile
