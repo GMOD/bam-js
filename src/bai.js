@@ -27,7 +27,7 @@ class BAI {
 
   parsePseudoBin(bytes, offset) {
     const lineCount = longToNumber(
-      Long.fromBytesLE(bytes.slice(offset + 20, offset + 28), true),
+      Long.fromBytesLE(bytes.slice(offset + 16, offset + 24), true),
     )
     return { lineCount }
   }
@@ -68,21 +68,26 @@ class BAI {
       const binIndex = {}
       for (let j = 0; j < binCount; j += 1) {
         const bin = bytes.readUInt32LE(currOffset)
-        if (bin > binLimit) {
-          stats = this.parsePseudoBin(bytes, currOffset + 4)
+        currOffset += 4
+        if (bin === binLimit + 1) {
+          currOffset += 4
+          stats = this.parsePseudoBin(bytes, currOffset)
+          currOffset += 32
+        } else if (bin > binLimit + 1) {
+          throw new Error('bai index contains too many bins, please use CSI')
+        } else {
+          const chunkCount = bytes.readInt32LE(currOffset)
+          currOffset += 4
+          const chunks = new Array(chunkCount)
+          for (let k = 0; k < chunkCount; k += 1) {
+            const u = VirtualOffset.fromBytes(bytes, currOffset)
+            const v = VirtualOffset.fromBytes(bytes, currOffset + 8)
+            currOffset += 16
+            this._findFirstData(data, u)
+            chunks[k] = new Chunk(u, v, bin)
+          }
+          binIndex[bin] = chunks
         }
-
-        const chunkCount = bytes.readInt32LE(currOffset + 4)
-        currOffset += 8
-        const chunks = new Array(chunkCount)
-        for (let k = 0; k < chunkCount; k += 1) {
-          const u = VirtualOffset.fromBytes(bytes, currOffset)
-          const v = VirtualOffset.fromBytes(bytes, currOffset + 8)
-          currOffset += 16
-          this._findFirstData(data, u)
-          chunks[k] = new Chunk(u, v, bin)
-        }
-        binIndex[bin] = chunks
       }
 
       const nintv = bytes.readInt32LE(currOffset)

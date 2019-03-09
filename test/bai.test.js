@@ -332,3 +332,12 @@ describe('trigger range out of bounds file', () => {
     expect(Object.keys(b.chrToIndex).length).toEqual(28751)
   })
 })
+
+describe('test too large of genome coordinates', () => {
+  it('test error', async () => {
+    const ti = new BAI({
+      filehandle: new LocalFile(require.resolve('./data/needs_csi.bai')),
+    })
+    await expect(ti.parse()).rejects.toThrow(/too many bins/)
+  })
+})
