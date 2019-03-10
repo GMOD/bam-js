@@ -93,13 +93,8 @@ class BAI extends IndexFile {
 
   async indexCov(seqId) {
     const indexData = await this.parse()
-      console.log(indexData.indices)
-    //console.log(indexData.indices, chrId, seqId)
-    const linearIndex = indexData.indices[chrId]
-    if(!linearIndex) {
-      return []
-    }
-    console.log(linearIndex)
+    console.log(indexData.indices, seqId)
+    const {linearIndex} = indexData.indices[seqId]
     return linearIndex
   }
 

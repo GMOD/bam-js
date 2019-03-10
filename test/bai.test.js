@@ -63,6 +63,8 @@ describe('bam header', () => {
     expect(ti.header).toEqual('@SQ	SN:ctgA	LN:50001\n')
     expect(ti.chrToIndex.ctgA).toEqual(0)
     expect(ti.indexToChr[0]).toEqual({ refName: 'ctgA', length: 50001 })
+    const ret = await ti.indexCov('ctgA')
+    console.log(ret)
   })
   it('loads volvox-sorted.bam with csi index', async () => {
     const ti = new BAM({
@@ -366,8 +368,6 @@ describe('trigger range out of bounds file', () => {
     await b.getHeader()
     // console.log(JSON.stringify(h))
     expect(Object.keys(b.chrToIndex).length).toEqual(28751)
-    const ret = await b.indexCov()
-    console.log(ret)
   })
 })
 
