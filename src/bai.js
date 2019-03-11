@@ -93,9 +93,20 @@ class BAI extends IndexFile {
 
   async indexCov(seqId) {
     const indexData = await this.parse()
-    console.log(indexData.indices, seqId)
-    const {linearIndex} = indexData.indices[seqId]
-    return linearIndex
+    const seqIdx = indexData.indices[seqId]
+    if (!seqIdx) return []
+    const { linearIndex = [], stats } = seqIdx
+    if (!linearIndex.length) return []
+    let currentPos = linearIndex[0].blockPosition
+    const depths = Array(linearIndex.length)
+    const totalSize = linearIndex.slice(-1)[0].blockPosition
+    for (let i = 0; i < linearIndex.length; i++) {
+      depths[i] = linearIndex[i].blockPosition - currentPos
+      currentPos = linearIndex[i].blockPosition
+    }
+    const sizes = depths.map(d => (d * stats.lineCount) / totalSize)
+
+    return sizes
   }
 
 

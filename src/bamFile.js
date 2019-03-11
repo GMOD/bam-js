@@ -368,11 +368,8 @@ export default class BAM {
   }
 
   async indexCov(seqName) {
-    const indexData = await this.index.parse()
-    console.log(indexData.chrToIndex)
+    await this.index.parse()
     const seqId = this.chrToIndex && this.chrToIndex[seqName]
-    console.log('seqId',seqName,seqId)
     return this.index.indexCov(seqId)
   }
 }
-

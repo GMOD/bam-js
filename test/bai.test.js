@@ -1,4 +1,5 @@
-import {BAI, BAM} from '../src/'
+import { BAI, BAM } from '../src'
+
 const LocalFile = require('../src/localFile')
 const FakeRecord = require('./fakerecord')
 
@@ -64,7 +65,7 @@ describe('bam header', () => {
     expect(ti.chrToIndex.ctgA).toEqual(0)
     expect(ti.indexToChr[0]).toEqual({ refName: 'ctgA', length: 50001 })
     const ret = await ti.indexCov('ctgA')
-    console.log(ret)
+    expect(ret).toMatchSnapshot()
   })
   it('loads volvox-sorted.bam with csi index', async () => {
     const ti = new BAM({
@@ -380,4 +381,16 @@ describe('test too large of genome coordinates', () => {
   })
 })
 
-
+describe('large indexcov', () => {
+  it('human 1000g', async () => {
+    const ti = new BAI({
+      filehandle: new LocalFile(
+        require.resolve('./data/HG00096_illumina_lowcov.bam.bai'),
+      ),
+    })
+    const ret = await ti.indexCov(10)
+    expect(ret).toMatchSnapshot()
+    const empty = await ti.indexCov(0)
+    expect(empty).toEqual([])
+  })
+})
