@@ -158,6 +158,20 @@ describe('1000 genomes bam check', () => {
     const records = await ti.getRecordsForRange('1', 0, 1000)
     expect(records).toMatchSnapshot()
   })
+  it('start to deep check 1000 genomes but abort instead', async () => {
+    const aborter = new HalfAbortController()
+    const ti = new BAM({
+      bamPath: require.resolve('./data/1000genomes_hg00096_chr1.bam'),
+      csiPath: require.resolve('./data/1000genomes_hg00096_chr1.bam.csi'),
+    })
+    const recordsP = ti
+      .getHeader(aborter.signal)
+      .then(() =>
+        ti.getRecordsForRange('1', 0, 1000, { signal: aborter.signal }),
+      )
+    aborter.abort()
+    await expect(recordsP).rejects.toThrow(/aborted/)
+  })
 })
 
 describe('ecoli bam check', () => {
