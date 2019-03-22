@@ -9,12 +9,12 @@ function longToNumber(long) {
 }
 
 /**
- * properly check if the given AbortSignal is aborted.
- * per the standard, if the signal reads as aborted,
+ * Properly check if the given AbortSignal is aborted.
+ * Per the standard, if the signal reads as aborted,
  * this function throws either a DOMException AbortError, or a regular error
  * with a `code` attribute set to `ERR_ABORTED`.
  *
- * for convenience, passing `undefined` is a no-op
+ * For convenience, passing `undefined` is a no-op
  *
  * @param {AbortSignal} [signal] an AbortSignal, or anything with an `aborted` attribute
  * @returns nothing
@@ -36,8 +36,8 @@ function checkAbortSignal(signal) {
 }
 
 /**
- * skips to the next tick, then runs `checkAbortSignal`.
- * await this to inside an otherwise synchronous loop to
+ * Skips to the next tick, then runs `checkAbortSignal`.
+ * Await this to inside an otherwise synchronous loop to
  * provide a place to break when an abort signal is received.
  * @param {AbortSignal} signal
  */
