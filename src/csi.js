@@ -3,6 +3,7 @@ const { unzip } = require('@gmod/bgzf-filehandle')
 
 const VirtualOffset = require('./virtualOffset')
 const Chunk = require('./chunk')
+const IndexFile = require('./indexFile')
 
 const { longToNumber, abortBreakPoint } = require('./util')
 
@@ -16,26 +17,7 @@ function rshift(num, bits) {
   return Math.floor(num / 2 ** bits)
 }
 
-class CSI {
-  /**
-   * @param {filehandle} filehandle
-   * @param {function} [renameRefSeqs]
-   */
-  constructor({ filehandle, renameRefSeqs = n => n }) {
-    this.filehandle = filehandle
-    this.renameRefSeq = renameRefSeqs
-  }
-
-  _findFirstData(data, virtualOffset) {
-    const currentFdl = data.firstDataLine
-    if (currentFdl) {
-      data.firstDataLine =
-        currentFdl.compareTo(virtualOffset) > 0 ? virtualOffset : currentFdl
-    } else {
-      data.firstDataLine = virtualOffset
-    }
-  }
-
+class CSI extends IndexFile {
   async lineCount(refId) {
     const indexData = await this.parse()
     if (!indexData) return -1
@@ -93,22 +75,6 @@ class CSI {
       }
     }
     return { refNameToId, refIdToName }
-  }
-
-  async parse(abortSignal) {
-    if (!this._parseCache) {
-      this._parseCache = this._parse(abortSignal)
-      this._parseCache.catch(() => {
-        if (abortSignal && abortSignal.aborted) delete this._parseCache
-      })
-      return this._parseCache
-    }
-    return this._parseCache.catch(e => {
-      if (e.code === 'ERR_ABORTED' || e.name === 'AbortError') {
-        return this.parse(abortSignal)
-      }
-      throw e
-    })
   }
 
   // fetch and parse the index
@@ -255,16 +221,6 @@ class CSI {
     numOffsets = l + 1
 
     return off.slice(0, numOffsets)
-  }
-
-  /**
-   * @param {number} seqId
-   * @param {AbortSignal} [abortSignal]
-   * @returns {Promise} true if the index contains entries for
-   * the given reference sequence ID, false otherwise
-   */
-  async hasRefSeq(seqId, abortSignal) {
-    return !!((await this.parse(abortSignal)).indices[seqId] || {}).binIndex
   }
 
   /**
