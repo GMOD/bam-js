@@ -17,7 +17,7 @@
     "strict": 0,
     "no-underscore-dangle": 0,
     "no-bitwise": 0,
-    "no-await-in-loop": "warn",
+    "no-await-in-loop": 0,
     "no-param-reassign": "warn",
     "no-loop-func": "warn",
     "no-plusplus": 0,
