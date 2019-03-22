@@ -6,6 +6,7 @@ const CSI = require('./csi')
 const LocalFile = require('./localFile')
 const BAMFeature = require('./record')
 const { parseHeaderText } = require('./sam')
+const { abortBreakPoint, checkAbortSignal } = require('./util')
 
 const BAM_MAGIC = 21840194
 
@@ -150,13 +151,15 @@ class BamFile {
     if (!(chrId >= 0)) {
       chunks = []
     } else {
-      chunks = await this.index.blocksForRange(chrId, min - 1, max)
+      chunks = await this.index.blocksForRange(chrId, min - 1, max, opts)
 
       if (!chunks) {
         throw new Error('Error in index fetch')
       }
     }
+
     for (let i = 0; i < chunks.length; i += 1) {
+      await abortBreakPoint(opts.signal)
       const size = chunks[i].fetchedSize()
       if (size > this.chunkSizeLimit) {
         throw new Error(
@@ -184,7 +187,7 @@ class BamFile {
     chunks.forEach(c => {
       let recordPromise = this.featureCache.get(c.toString())
       if (!recordPromise) {
-        recordPromise = this._readChunk(c)
+        recordPromise = this._readChunk(c, opts.signal)
         this.featureCache.set(c.toString(), recordPromise)
       }
       recordPromises.push(recordPromise)
@@ -208,6 +211,7 @@ class BamFile {
       featPromises.push(featPromise)
     })
     const recs = await Promise.all(featPromises)
+    checkAbortSignal(opts.signal)
     let ret = [].concat(...recs)
     if (opts.viewAsPairs) {
       const readNames = {}
@@ -237,6 +241,7 @@ class BamFile {
             ret[i]._next_refid(),
             ret[i]._next_pos(),
             ret[i]._next_pos() + 1,
+            opts,
           )
           matePromises.push(blocks)
         }
@@ -268,7 +273,7 @@ class BamFile {
       mateChunks.forEach(c => {
         let recordPromise = this.featureCache.get(c.toString())
         if (!recordPromise) {
-          recordPromise = this._readChunk(c)
+          recordPromise = this._readChunk(c, opts.signal)
           this.featureCache.set(c.toString(), recordPromise)
         }
         mateRecordPromises.push(recordPromise)
@@ -299,7 +304,7 @@ class BamFile {
     return ret
   }
 
-  async _readChunk(chunk) {
+  async _readChunk(chunk, abortSignal) {
     const bufsize = chunk.fetchedSize()
     let buf = Buffer.alloc(bufsize + blockLen)
     const bytesRead = await this.bam.read(
@@ -307,7 +312,10 @@ class BamFile {
       0,
       bufsize + blockLen,
       chunk.minv.blockPosition,
+      abortSignal,
     )
+    checkAbortSignal(abortSignal)
+
     if (!bytesRead) {
       return []
     }
@@ -318,6 +326,7 @@ class BamFile {
     }
 
     const data = await unzip(buf)
+    checkAbortSignal(abortSignal)
     return this.readBamFeatures(data, chunk.minv.dataPosition)
   }
 

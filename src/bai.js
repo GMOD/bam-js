@@ -3,7 +3,7 @@ const VirtualOffset = require('./virtualOffset')
 const Chunk = require('./chunk')
 
 const BAI_MAGIC = 21578050 // BAI\1
-const { longToNumber } = require('./util')
+const { longToNumber, abortBreakPoint } = require('./util')
 
 class BAI {
   /**
@@ -41,11 +41,26 @@ class BAI {
     return ret.lineCount === undefined ? -1 : ret.lineCount
   }
 
-  // memoize
+  async parse(abortSignal) {
+    if (!this._parseCache) {
+      this._parseCache = this._parse(abortSignal)
+      this._parseCache.catch(() => {
+        if (abortSignal && abortSignal.aborted) delete this._parseCache
+      })
+      return this._parseCache
+    }
+    return this._parseCache.catch(e => {
+      if (e.code === 'ERR_ABORTED' || e.name === 'AbortError') {
+        return this.parse(abortSignal)
+      }
+      throw e
+    })
+  }
+
   // fetch and parse the index
-  async parse() {
+  async _parse(abortSignal) {
     const data = { bai: true, maxBlockSize: 1 << 16 }
-    const bytes = await this.filehandle.readFile()
+    const bytes = await this.filehandle.readFile(abortSignal)
 
     // check BAI magic numbers
     if (bytes.readUInt32LE(0) !== BAI_MAGIC) {
@@ -60,6 +75,8 @@ class BAI {
     data.indices = new Array(data.refCount)
     let currOffset = 8
     for (let i = 0; i < data.refCount; i += 1) {
+      await abortBreakPoint(abortSignal)
+
       // the binning index
       const binCount = bytes.readInt32LE(currOffset)
       let stats
@@ -204,19 +221,5 @@ class BAI {
     return list
   }
 }
-
-// this is the stupidest possible memoization, ignores arguments.
-function tinyMemoize(_class, methodName) {
-  const method = _class.prototype[methodName]
-  if (!method)
-    throw new Error(`no method ${methodName} found in class ${_class.name}`)
-  const memoAttrName = `_memo_${methodName}`
-  _class.prototype[methodName] = function _tinyMemoized() {
-    if (!(memoAttrName in this)) this[memoAttrName] = method.call(this)
-    return this[memoAttrName]
-  }
-}
-// memoize index.parse()
-tinyMemoize(BAI, 'parse')
 
 module.exports = BAI

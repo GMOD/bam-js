@@ -4,7 +4,7 @@ const { unzip } = require('@gmod/bgzf-filehandle')
 const VirtualOffset = require('./virtualOffset')
 const Chunk = require('./chunk')
 
-const { longToNumber } = require('./util')
+const { longToNumber, abortBreakPoint } = require('./util')
 
 const CSI1_MAGIC = 21582659 // CSI\1
 const CSI2_MAGIC = 38359875 // CSI\2
@@ -95,11 +95,26 @@ class CSI {
     return { refNameToId, refIdToName }
   }
 
-  // memoize
+  async parse(abortSignal) {
+    if (!this._parseCache) {
+      this._parseCache = this._parse(abortSignal)
+      this._parseCache.catch(() => {
+        if (abortSignal && abortSignal.aborted) delete this._parseCache
+      })
+      return this._parseCache
+    }
+    return this._parseCache.catch(e => {
+      if (e.code === 'ERR_ABORTED' || e.name === 'AbortError') {
+        return this.parse(abortSignal)
+      }
+      throw e
+    })
+  }
+
   // fetch and parse the index
-  async parse() {
+  async _parse(abortSignal) {
     const data = { csi: true, maxBlockSize: 1 << 16 }
-    const bytes = await unzip(await this.filehandle.readFile())
+    const bytes = await unzip(await this.filehandle.readFile(abortSignal))
 
     // check TBI magic numbers
     if (bytes.readUInt32LE(0) === CSI1_MAGIC) {
@@ -124,6 +139,7 @@ class CSI {
     data.indices = new Array(data.refCount)
     let currOffset = 16 + auxLength + 4
     for (let i = 0; i < data.refCount; i += 1) {
+      await abortBreakPoint(abortSignal)
       // the binning index
       const binCount = bytes.readInt32LE(currOffset)
       currOffset += 4
@@ -171,10 +187,10 @@ class CSI {
     return { lineCount }
   }
 
-  async blocksForRange(refId, beg, end) {
+  async blocksForRange(refId, beg, end, opts) {
     if (beg < 0) beg = 0
 
-    const indexData = await this.parse()
+    const indexData = await this.parse(opts.signal)
     if (!indexData) return []
     const indexes = indexData.indices[refId]
     if (!indexes) return []
@@ -279,19 +295,5 @@ class CSI {
     return bins
   }
 }
-
-// this is the stupidest possible memoization, ignores arguments.
-function tinyMemoize(_class, methodName) {
-  const method = _class.prototype[methodName]
-  if (!method)
-    throw new Error(`no method ${methodName} found in class ${_class.name}`)
-  const memoAttrName = `_memo_${methodName}`
-  _class.prototype[methodName] = function _tinyMemoized() {
-    if (!(memoAttrName in this)) this[memoAttrName] = method.call(this)
-    return this[memoAttrName]
-  }
-}
-// memoize index.parse()
-tinyMemoize(CSI, 'parse')
 
 module.exports = CSI
