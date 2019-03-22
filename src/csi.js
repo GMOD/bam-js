@@ -259,11 +259,12 @@ class CSI {
 
   /**
    * @param {number} seqId
+   * @param {AbortSignal} [abortSignal]
    * @returns {Promise} true if the index contains entries for
    * the given reference sequence ID, false otherwise
    */
-  async hasRefSeq(seqId) {
-    return !!((await this.parse()).indices[seqId] || {}).binIndex
+  async hasRefSeq(seqId, abortSignal) {
+    return !!((await this.parse(abortSignal)).indices[seqId] || {}).binIndex
   }
 
   /**
