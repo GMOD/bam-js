@@ -145,6 +145,7 @@ class BamFile {
 
       p = p + 8 + lName
       if (p > uncba.length) {
+        // eslint-disable-next-line no-console
         console.warn(
           `BAM header is very big.  Re-fetching ${refSeqBytes} bytes.`,
         )
