@@ -1,5 +1,5 @@
 import * as Long from 'long'
-import VirtualOffset from './virtualOffset'
+import {VirtualOffset, fromBytes} from './virtualOffset'
 import Chunk from './chunk'
 const IndexFile = require('./indexFile')
 
@@ -63,8 +63,8 @@ export default class BAI extends IndexFile {
           currOffset += 4
           const chunks = new Array(chunkCount)
           for (let k = 0; k < chunkCount; k += 1) {
-            const u = VirtualOffset.fromBytes(bytes, currOffset)
-            const v = VirtualOffset.fromBytes(bytes, currOffset + 8)
+            const u = fromBytes(bytes, currOffset)
+            const v = fromBytes(bytes, currOffset + 8)
             currOffset += 16
             this._findFirstData(data, u)
             chunks[k] = new Chunk(u, v, bin)
@@ -80,7 +80,7 @@ export default class BAI extends IndexFile {
       // tells us where the BAM header ends
       const linearIndex = new Array(linearCount)
       for (let k = 0; k < linearCount; k += 1) {
-        linearIndex[k] = VirtualOffset.fromBytes(bytes, currOffset)
+        linearIndex[k] = fromBytes(bytes, currOffset)
         currOffset += 8
         this._findFirstData(data, linearIndex[k])
       }

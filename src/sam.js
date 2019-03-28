@@ -1,4 +1,4 @@
-function parseHeaderText(text) {
+export function parseHeaderText(text) {
   const lines = text.split(/\r?\n/)
   const data = []
   lines.forEach(line => {
@@ -12,4 +12,3 @@ function parseHeaderText(text) {
   return data
 }
 
-module.exports = { parseHeaderText }
