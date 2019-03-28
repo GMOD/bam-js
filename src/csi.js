@@ -17,7 +17,7 @@ function rshift(num, bits) {
   return Math.floor(num / 2 ** bits)
 }
 
-class CSI extends IndexFile {
+export default class CSI extends IndexFile {
   async lineCount(refId) {
     const indexData = await this.parse()
     if (!indexData) return -1
@@ -263,4 +263,3 @@ class CSI extends IndexFile {
   }
 }
 
-module.exports = CSI

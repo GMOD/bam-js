@@ -1,12 +1,12 @@
-const Long = require('long')
-const VirtualOffset = require('./virtualOffset')
-const Chunk = require('./chunk')
+import * as Long from 'long'
+import VirtualOffset from './virtualOffset'
+import Chunk from './chunk'
 const IndexFile = require('./indexFile')
 
 const BAI_MAGIC = 21578050 // BAI\1
 const { longToNumber, abortBreakPoint } = require('./util')
 
-class BAI extends IndexFile {
+export default class BAI extends IndexFile {
   parsePseudoBin(bytes, offset) {
     const lineCount = longToNumber(
       Long.fromBytesLE(bytes.slice(offset + 16, offset + 24), true),
@@ -209,4 +209,3 @@ class BAI extends IndexFile {
   }
 }
 
-module.exports = BAI
