@@ -25,6 +25,26 @@ var records = await t.getRecordsForRange('ctgA', 1, 50000)
 
 Input are 0-based half-open coordinates (note: not the same as samtools view coordinate inputs!)
 
+## Documentation
+
+BAM class constructor infers BAI by default as bamPath+'.bai', or you can specify it explicitely via baiPath (also accepts csiPath)
+
+    BAM({ bamPath: "yourfile.bam", baiPath: "yourfile.bai" })
+
+Or accepts filehandles, this is an abstract filehandle concept that can represent remote files. The remote file concept is not built into this repository, but see @gmod/cram for example of the remoteFile.js class
+
+    BAM({ bamFilehandle: new FileHandle("http://localhost/file.bam", baiFilehandle: new FileHandle("yourfile.bai") })
+
+
+
+The method getRecordsForRange(refName, start, end, opts) has the opts blob that can contain
+
+
+* opts.signal - an AbortSignal to indicate stop processing
+* opts.viewAsPairs - re-dispatches requests to find mate pairs
+* opts.pairAcrossChr - control the viewAsPairs option behavior to pair across chromosomes
+* opts.maxInsertSize - control the viewAsPairs option behavior to limit distance within a chromosome to fetch
+
 
 ## License
 
