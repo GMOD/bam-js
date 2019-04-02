@@ -45,6 +45,16 @@ The method getRecordsForRange(refName, start, end, opts) has the opts blob that 
 * opts.pairAcrossChr - control the viewAsPairs option behavior to pair across chromosomes
 * opts.maxInsertSize - control the viewAsPairs option behavior to limit distance within a chromosome to fetch
 
+The returned features from BAM are lazy features meaning that it delays processing of all the feature tags until necessary. You can perform feature.get('field') to get the value of a feature attribute
+
+Example
+
+		feature.get('seq_id')
+		feature.get('start')
+		feature.get('name') // QNAME
+		feature.get('seq') // get feature sequence
+
+This may change in future versions to make it raw records but will be a major version bump
 
 ## License
 
