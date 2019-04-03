@@ -1,3 +1,6 @@
+import AbortablePromiseCache from 'abortable-promise-cache'
+import QuickLRU from 'quick-lru'
+
 class IndexFile {
   /**
    * @param {filehandle} filehandle
@@ -19,19 +22,12 @@ class IndexFile {
   }
 
   async parse(abortSignal) {
-    if (!this._parseCache) {
-      this._parseCache = this._parse(abortSignal)
-      this._parseCache.catch(() => {
-        if (abortSignal && abortSignal.aborted) delete this._parseCache
+    if (!this._parseCache)
+      this._parseCache = new AbortablePromiseCache({
+        cache: new QuickLRU({ maxSize: 1 }),
+        fill: this._parse.bind(this),
       })
-      return this._parseCache
-    }
-    return this._parseCache.catch(e => {
-      if (e.code === 'ERR_ABORTED' || e.name === 'AbortError') {
-        return this.parse(abortSignal)
-      }
-      throw e
-    })
+    return this._parseCache.get('index', null, abortSignal)
   }
 
   /**

@@ -1,6 +1,7 @@
+import AbortablePromiseCache from 'abortable-promise-cache'
+
 const { unzip } = require('@gmod/bgzf-filehandle')
 const LRU = require('quick-lru')
-
 const BAI = require('./bai')
 const CSI = require('./csi')
 const LocalFile = require('./localFile')
@@ -54,9 +55,11 @@ class BamFile {
       this.index = new BAI({ filehandle: new LocalFile(`${bamPath}.bai`) })
     }
 
-    this.featureCache = new LRU({
-      maxSize: cacheSize !== undefined ? cacheSize : 20000,
-      length: featureArray => featureArray.length,
+    this.featureCache = new AbortablePromiseCache({
+      cache: new LRU({
+        maxSize: cacheSize !== undefined ? cacheSize : 50,
+      }),
+      fill: this._readChunk.bind(this),
     })
 
     this.fetchSizeLimit = fetchSizeLimit || 50000000
@@ -199,11 +202,7 @@ class BamFile {
     const recordPromises = []
     const featPromises = []
     chunks.forEach(c => {
-      let recordPromise = this.featureCache.get(c.toString())
-      if (!recordPromise) {
-        recordPromise = this._readChunk(c, opts.signal)
-        this.featureCache.set(c.toString(), recordPromise)
-      }
+      const recordPromise = this.featureCache.get(c.toString(), c, opts.signal)
       recordPromises.push(recordPromise)
       const featPromise = recordPromise.then(f => {
         const recs = []
@@ -285,11 +284,11 @@ class BamFile {
         )
       }
       mateChunks.forEach(c => {
-        let recordPromise = this.featureCache.get(c.toString())
-        if (!recordPromise) {
-          recordPromise = this._readChunk(c, opts.signal)
-          this.featureCache.set(c.toString(), recordPromise)
-        }
+        const recordPromise = this.featureCache.get(
+          c.toString(),
+          c,
+          opts.signal,
+        )
         mateRecordPromises.push(recordPromise)
         const featPromise = recordPromise.then(feats => {
           const mateRecs = []
