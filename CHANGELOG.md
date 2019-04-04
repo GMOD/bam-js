@@ -1,3 +1,7 @@
+## [1.0.15](https://github.com/GMOD/bam-js/compare/v1.0.14...v1.0.15) (2019-04-04)
+
+
+
 - Added check for too large of chromosomes in the bai bins
 - Added aborting support (thanks @rbuels)
 - Refactored index file class
