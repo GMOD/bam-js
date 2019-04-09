@@ -27,23 +27,48 @@ Input are 0-based half-open coordinates (note: not the same as samtools view coo
 
 ## Documentation
 
-BAM class constructor infers BAI by default as bamPath+'.bai', or you can specify it explicitely via baiPath (also accepts csiPath)
 
-    BAM({ bamPath: "yourfile.bam", baiPath: "yourfile.bai" })
-
-Or accepts filehandles, this is an abstract filehandle concept that can represent remote files. The remote file concept is not built into this repository, but see @gmod/cram for example of the remoteFile.js class
-
-    BAM({ bamFilehandle: new FileHandle("http://localhost/file.bam", baiFilehandle: new FileHandle("yourfile.bai") })
+### BAM constructor
 
 
+The BAM class constructor accepts arguments
 
-The method getRecordsForRange(refName, start, end, opts) has the opts blob that can contain
+* bamPath/bamFilehandle - a string file path to a local file or a class object with a read method
+* csiPath/csiFilehandle - a CSI index for the BAM file, required for long chromosomes greater than 2^29 in length
+* baiPath/baiFilehandle - a BAI index for the BAM file
+* fetchSizeLimit - total size of the number of chunks being fetched at once. default: ~50MB
+* chunkSizeLimit - size limit on any individual chunk. default: ~10MB
+* cacheSize - limit on number of chunks to cache. default: 50
+
+### Implementing your filehandle class
+
+If using the filehandle class, should implement
+
+    async read(buffer, offset = 0, length, position) // reads into buffer argument similar to fs.read
+    async readFile() // returns buffer similar to fs.readFile
+    async stat() // returns similar to nodejs stat
+
+A custom filehandle could be used to read from Blob types in the browser for example
+
+### Example
+
+    const bam = new BAM({ bamPath: "yourfile.bam", baiPath: "yourfile.bai" })
 
 
+### Documentation
+
+#### getRecordsForRange(refName, start, end, opts)
+
+* refName - a string for the chrom to fetch from
+* start - a 0 based half open start coordinate
+* end - a 0 based half open end coordinate
 * opts.signal - an AbortSignal to indicate stop processing
 * opts.viewAsPairs - re-dispatches requests to find mate pairs
 * opts.pairAcrossChr - control the viewAsPairs option behavior to pair across chromosomes
 * opts.maxInsertSize - control the viewAsPairs option behavior to limit distance within a chromosome to fetch
+
+
+### Returned features
 
 The returned features from BAM are lazy features meaning that it delays processing of all the feature tags until necessary. You can perform feature.get('field') to get the value of a feature attribute
 
