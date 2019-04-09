@@ -2,7 +2,6 @@
 [![NPM version](https://img.shields.io/npm/v/@gmod/bam.svg?style=flat-square)](https://npmjs.org/package/@gmod/bam)
 [![Build Status](https://img.shields.io/travis/GMOD/bam-js/master.svg?style=flat-square)](https://travis-ci.org/GMOD/bam-js)
 [![Coverage Status](https://img.shields.io/codecov/c/github/GMOD/bam-js/master.svg?style=flat-square)](https://codecov.io/gh/GMOD/bam-js/branch/master)
-[![Greenkeeper badge](https://badges.greenkeeper.io/GMOD/bam-js.svg)](https://greenkeeper.io/)
 
 
 ## Install
@@ -15,7 +14,7 @@
 const {BamFile} = require('@gmod/bam');
 
 const t = new BamFile({
-		bamPath: 'test.bam',
+    bamPath: 'test.bam',
 });
 
 var header = await t.getHeader()
@@ -44,7 +43,7 @@ The BAM class constructor accepts arguments
 
 If using the filehandle class, should implement
 
-    async read(buffer, offset = 0, length, position) // reads into buffer argument similar to fs.read
+    async read(buffer, offset = 0, length, position) // reads into buffer argument similar to fs.read, returns number of bytes read
     async readFile() // returns buffer similar to fs.readFile
     async stat() // returns similar to nodejs stat
 
@@ -63,23 +62,44 @@ A custom filehandle could be used to read from Blob types in the browser for exa
 * start - a 0 based half open start coordinate
 * end - a 0 based half open end coordinate
 * opts.signal - an AbortSignal to indicate stop processing
-* opts.viewAsPairs - re-dispatches requests to find mate pairs
-* opts.pairAcrossChr - control the viewAsPairs option behavior to pair across chromosomes
-* opts.maxInsertSize - control the viewAsPairs option behavior to limit distance within a chromosome to fetch
+* opts.viewAsPairs - re-dispatches requests to find mate pairs. default: false
+* opts.pairAcrossChr - control the viewAsPairs option behavior to pair across chromosomes. default: false
+* opts.maxInsertSize - control the viewAsPairs option behavior to limit distance within a chromosome to fetch. default: 200kb
 
 
 ### Returned features
 
-The returned features from BAM are lazy features meaning that it delays processing of all the feature tags until necessary. You can perform feature.get('field') to get the value of a feature attribute
+The returned features from BAM are lazy features meaning that it delays processing of all the feature tags until necessary.
+
+You can access data feature.get('field') to get the value of a feature attribute
 
 Example
 
-		feature.get('seq_id')
-		feature.get('start')
-		feature.get('name') // QNAME
-		feature.get('seq') // get feature sequence
+    feature.get('seq_id') // numerical sequence id corresponding to position in the sam header
+    feature.get('start') // 0 based half open start coordinate
+    feature.get('end') // 0 based half open end coordinate
 
-This may change in future versions to make it raw records but will be a major version bump
+## Fields
+
+    feature.get('name') // QNAME
+    feature.get('seq') // feature sequence
+    feature.get('qual') // qualities
+    feature.get('cigar') // cigar string
+    feature.get('MD') // MD string
+    feature.get('SA') // supplementary alignments
+    feature.get('template_length') // TLEN
+    feature.get('length_on_ref') // derived from CIGAR using standard algorithm
+
+### Flags
+
+    feature.get('seq_reverse_complemented')
+    feature.get('unmapped')
+    feature.get('qc_failed')
+    feature.get('duplicate')
+    feature.get('secondary_alignment')
+    feature.get('supplementary_alignment')
+
+The feature format may change in future versions to be more raw records but will be a major version bump
 
 ## License
 
