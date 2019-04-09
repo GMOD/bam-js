@@ -371,6 +371,17 @@ describe('trigger range out of bounds file', () => {
     expect(Object.keys(b.chrToIndex).length).toEqual(28751)
   })
 })
+describe('url', () => {
+  it('haha', async () => {
+    const b = new BAM({
+      bamUrl: 'http://localhost/volvox.bam',
+    })
+    console.log(await b.getHeader())
+    console.log(await b.getRecordsForRange('ctgA',0,100))
+
+  })
+})
+
 
 describe('test too large of genome coordinates', () => {
   it('test error', async () => {

@@ -21,13 +21,11 @@ class LocalFile {
       readPosition = this.position
       this.position += length
     }
-    const ret = await fsRead(await this.fd, buffer, offset, length, position)
-    if (typeof ret === 'object') return ret.bytesRead
-    return ret
+    return fsRead(await this.fd, buffer, offset, length, position)
   }
 
   async readFile() {
-    return fsReadFile(this.filename)
+    return fsReadFile(await this.fd)
   }
 
   async stat() {
