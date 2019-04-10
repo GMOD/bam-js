@@ -2,8 +2,8 @@ import AbortablePromiseCache from 'abortable-promise-cache'
 
 const { unzip } = require('@gmod/bgzf-filehandle')
 const LRU = require('quick-lru')
-const BAI = require('./bai')
-const CSI = require('./csi')
+import BAI from './bai'
+import CSI from './csi'
 const LocalFile = require('./localFile')
 const BAMFeature = require('./record')
 const { parseHeaderText } = require('./sam')
@@ -13,7 +13,7 @@ const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
 
-export default class BAM {
+export default class BamFile {
   /**
    * @param {object} args
    * @param {string} [args.bamPath]
