@@ -66,6 +66,13 @@ A custom filehandle could be used to read from Blob types in the browser for exa
 * opts.pairAcrossChr - control the viewAsPairs option behavior to pair across chromosomes. default: false
 * opts.maxInsertSize - control the viewAsPairs option behavior to limit distance within a chromosome to fetch. default: 200kb
 
+### indexCov(refName, start, end)
+
+* refName - a string for the chrom to fetch from
+* start - a 0 based half open start coordinate (optional, will fetch whole chromosome without)
+* end - a 0 based half open end coordinate (optional, will fetch whole chromosome without even if start is specified)
+
+Returns features of the form {start, end, score} containing estimated feature density across 16kb windows in the genome
 
 ### Returned features
 
