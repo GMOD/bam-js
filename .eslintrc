@@ -27,6 +27,7 @@
     "prefer-const": "warn",
     "no-restricted-syntax": "warn",
     "class-methods-use-this": 0,
+    "import/prefer-default-export": 0,
     "prettier/prettier": [
       "error",
       {

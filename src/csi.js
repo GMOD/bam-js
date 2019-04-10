@@ -1,11 +1,11 @@
-const Long = require('long')
-const { unzip } = require('@gmod/bgzf-filehandle')
+import * as Long from 'long'
+import { unzip } from '@gmod/bgzf-filehandle'
 
-const VirtualOffset = require('./virtualOffset')
-const Chunk = require('./chunk')
+import { fromBytes } from './virtualOffset'
+import Chunk from './chunk'
+import { longToNumber, abortBreakPoint } from './util'
+
 const IndexFile = require('./indexFile')
-
-const { longToNumber, abortBreakPoint } = require('./util')
 
 const CSI1_MAGIC = 21582659 // CSI\1
 const CSI2_MAGIC = 38359875 // CSI\2
@@ -17,7 +17,7 @@ function rshift(num, bits) {
   return Math.floor(num / 2 ** bits)
 }
 
-class CSI extends IndexFile {
+export default class CSI extends IndexFile {
   async lineCount(refId) {
     const indexData = await this.parse()
     if (!indexData) return -1
@@ -119,14 +119,14 @@ class CSI extends IndexFile {
           stats = this.parsePseudoBin(bytes, currOffset + 4)
           currOffset += 4 + 8 + 4 + 16 + 16
         } else {
-          const loffset = VirtualOffset.fromBytes(bytes, currOffset + 4)
+          const loffset = fromBytes(bytes, currOffset + 4)
           this._findFirstData(data, loffset)
           const chunkCount = bytes.readInt32LE(currOffset + 12)
           currOffset += 16
           const chunks = new Array(chunkCount)
           for (let k = 0; k < chunkCount; k += 1) {
-            const u = VirtualOffset.fromBytes(bytes, currOffset)
-            const v = VirtualOffset.fromBytes(bytes, currOffset + 8)
+            const u = fromBytes(bytes, currOffset)
+            const v = fromBytes(bytes, currOffset + 8)
             currOffset += 16
             // this._findFirstData(data, u)
             chunks[k] = new Chunk(u, v, bin)
@@ -224,6 +224,16 @@ class CSI extends IndexFile {
   }
 
   /**
+   * @param {number} seqId
+   * @param {AbortSignal} [abortSignal]
+   * @returns {Promise} true if the index contains entries for
+   * the given reference sequence ID, false otherwise
+   */
+  async hasRefSeq(seqId, abortSignal) {
+    return !!((await this.parse(abortSignal)).indices[seqId] || {}).binIndex
+  }
+
+  /**
    * calculate the list of bins that may overlap with region [beg,end) (zero-based half-open)
    * @returns {Array[number]}
    */
@@ -252,5 +262,3 @@ class CSI extends IndexFile {
     return bins
   }
 }
-
-module.exports = CSI

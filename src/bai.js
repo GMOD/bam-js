@@ -1,12 +1,20 @@
-const Long = require('long')
-const VirtualOffset = require('./virtualOffset')
-const Chunk = require('./chunk')
+import * as Long from 'long'
+import { fromBytes } from './virtualOffset'
+import Chunk from './chunk'
+
 const IndexFile = require('./indexFile')
 
 const BAI_MAGIC = 21578050 // BAI\1
 const { longToNumber, abortBreakPoint } = require('./util')
 
-class BAI extends IndexFile {
+function roundDown(n, multiple) {
+  return n - (n % multiple)
+}
+function roundUp(n, multiple) {
+  return n - (n % multiple) + multiple
+}
+
+export default class BAI extends IndexFile {
   parsePseudoBin(bytes, offset) {
     const lineCount = longToNumber(
       Long.fromBytesLE(bytes.slice(offset + 16, offset + 24), true),
@@ -63,8 +71,8 @@ class BAI extends IndexFile {
           currOffset += 4
           const chunks = new Array(chunkCount)
           for (let k = 0; k < chunkCount; k += 1) {
-            const u = VirtualOffset.fromBytes(bytes, currOffset)
-            const v = VirtualOffset.fromBytes(bytes, currOffset + 8)
+            const u = fromBytes(bytes, currOffset)
+            const v = fromBytes(bytes, currOffset + 8)
             currOffset += 16
             this._findFirstData(data, u)
             chunks[k] = new Chunk(u, v, bin)
@@ -73,21 +81,79 @@ class BAI extends IndexFile {
         }
       }
 
-      const nintv = bytes.readInt32LE(currOffset)
+      const linearCount = bytes.readInt32LE(currOffset)
       currOffset += 4
       // as we're going through the linear index, figure out
       // the smallest virtual offset in the indexes, which
       // tells us where the BAM header ends
-      if (nintv) {
-        this._findFirstData(bytes, VirtualOffset.fromBytes(bytes, currOffset))
+      const linearIndex = new Array(linearCount)
+      for (let k = 0; k < linearCount; k += 1) {
+        linearIndex[k] = fromBytes(bytes, currOffset)
+        currOffset += 8
+        this._findFirstData(data, linearIndex[k])
       }
 
-      currOffset += nintv * 8
-
-      data.indices[i] = { binIndex, stats }
+      data.indices[i] = { binIndex, linearIndex, stats }
     }
 
     return data
+  }
+
+  async indexCov(seqId, start, end) {
+    const v = 16384
+    const range = start !== undefined
+    const indexData = await this.parse()
+    const seqIdx = indexData.indices[seqId]
+    if (!seqIdx) return []
+    const { linearIndex = [], stats } = seqIdx
+    if (!linearIndex.length) return []
+    const e = range ? roundUp(end, v) : (linearIndex.length - 1) * v
+    const s = range ? roundDown(start, v) : 0
+    let depths
+    if (range) {
+      depths = new Array(Math.floor((e - s) / v))
+    } else {
+      depths = new Array(linearIndex.length - 1)
+    }
+    const totalSize = linearIndex[linearIndex.length - 1].blockPosition
+    if (e > (linearIndex.length - 1) * v) {
+      throw new Error('query outside of range of linear index')
+    }
+    let currentPos = linearIndex[s / v].blockPosition
+    for (let i = s / v, j = 0; i + 1 < e / v; i++, j++) {
+      depths[j] = {
+        score: linearIndex[i + 1].blockPosition - currentPos,
+        start: i * v,
+        end: i * v + v,
+      }
+      currentPos = linearIndex[i + 1].blockPosition
+    }
+    return depths.map(d => {
+      return { ...d, score: (d.score * stats.lineCount) / totalSize }
+    })
+  }
+
+  async indexCovTotal(seqId) {
+    const v = 16384
+    const indexData = await this.parse()
+    const seqIdx = indexData.indices[seqId]
+    if (!seqIdx) return []
+    const { linearIndex = [], stats } = seqIdx
+    if (!linearIndex.length) return []
+    let currentPos = linearIndex[0].blockPosition
+    const depths = new Array(linearIndex.length - 1)
+    const totalSize = linearIndex.slice(-1)[0].blockPosition
+    for (let i = 1, j = 0; i < linearIndex.length; i++, j++) {
+      depths[j] = linearIndex[i].blockPosition - currentPos
+      currentPos = linearIndex[i].blockPosition
+    }
+    return depths.map((d, i) => {
+      return {
+        score: (d * stats.lineCount) / totalSize,
+        start: i * v,
+        end: i * v + v,
+      }
+    })
   }
 
   async blocksForRange(refId, beg, end) {
@@ -163,6 +229,16 @@ class BAI extends IndexFile {
   }
 
   /**
+   * @param {number} seqId
+   * @param {AbortSignal} [abortSignal]
+   * @returns {Promise} true if the index contains entries for
+   * the given reference sequence ID, false otherwise
+   */
+  async hasRefSeq(seqId, abortSignal) {
+    return !!((await this.parse(abortSignal)).indices[seqId] || {}).binIndex
+  }
+
+  /**
    * calculate the list of bins that may overlap with region [beg,end) (zero-based half-open)
    * @returns {Array[number]}
    */
@@ -178,5 +254,3 @@ class BAI extends IndexFile {
     return list
   }
 }
-
-module.exports = BAI
