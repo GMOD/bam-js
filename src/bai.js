@@ -8,7 +8,7 @@ const BAI_MAGIC = 21578050 // BAI\1
 const { longToNumber, abortBreakPoint } = require('./util')
 
 function roundDown(n, multiple) {
-  return (n / multiple) * multiple
+  return n - (n % multiple)
 }
 function roundUp(n, multiple) {
   return n - (n % multiple) + multiple
@@ -107,30 +107,26 @@ export default class BAI extends IndexFile {
     if (!seqIdx) return []
     const { linearIndex = [], stats } = seqIdx
     if (!linearIndex.length) return []
-    const e = range ? roundUp(end, v) : (linearIndex.length-1) * v
+    const e = range ? roundUp(end, v) : (linearIndex.length - 1) * v
     const s = range ? roundDown(start, v) : 0
     let depths
     if (range) {
       depths = new Array(Math.floor((e - s) / v))
     } else {
-      depths = new Array(linearIndex.length-1)
+      depths = new Array(linearIndex.length - 1)
     }
     const totalSize = linearIndex[linearIndex.length - 1].blockPosition
     if (e > (linearIndex.length - 1) * v) {
       throw new Error('query outside of range of linear index')
     }
-    let currentPos = linearIndex[s/v].blockPosition
-    for (
-      let i = s / v, j = 0;
-      i + 1 < e / v;
-      i++, j++
-    ) {
+    let currentPos = linearIndex[s / v].blockPosition
+    for (let i = s / v, j = 0; i + 1 < e / v; i++, j++) {
       depths[j] = {
         score: linearIndex[i + 1].blockPosition - currentPos,
         start: i * v,
         end: i * v + v,
       }
-      currentPos = linearIndex[i+1].blockPosition
+      currentPos = linearIndex[i + 1].blockPosition
     }
     return depths.map(d => {
       return { ...d, score: (d.score * stats.lineCount) / totalSize }
@@ -145,19 +141,19 @@ export default class BAI extends IndexFile {
     const { linearIndex = [], stats } = seqIdx
     if (!linearIndex.length) return []
     let currentPos = linearIndex[0].blockPosition
-    const depths = new Array(linearIndex.length-1)
+    const depths = new Array(linearIndex.length - 1)
     const totalSize = linearIndex.slice(-1)[0].blockPosition
-    for (let i = 1, j=0; i < linearIndex.length; i++,j++) {
+    for (let i = 1, j = 0; i < linearIndex.length; i++, j++) {
       depths[j] = linearIndex[i].blockPosition - currentPos
       currentPos = linearIndex[i].blockPosition
     }
-    return depths.map((d,i) => {
-			return {
-				score: (d * stats.lineCount) / totalSize,
-				start: i*v,
-				end: i*v+v
-			}
-		})
+    return depths.map((d, i) => {
+      return {
+        score: (d * stats.lineCount) / totalSize,
+        start: i * v,
+        end: i * v + v,
+      }
+    })
   }
 
   async blocksForRange(refId, beg, end) {

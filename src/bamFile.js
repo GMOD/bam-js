@@ -371,6 +371,8 @@ export default class BamFile {
     await this.index.parse()
     const range = start !== undefined
     const seqId = this.chrToIndex && this.chrToIndex[seqName]
-    return range?this.index.indexCov(seqId, start, end):this.index.indexCovTotal(seqId)
+    return range
+      ? this.index.indexCov(seqId, start, end)
+      : this.index.indexCovTotal(seqId)
   }
 }
