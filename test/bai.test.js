@@ -1,6 +1,6 @@
 import { BAI, BamFile } from '../src'
 
-const LocalFile = require('../src/localFile')
+const { LocalFile } = require('generic-filehandle')
 const FakeRecord = require('./fakerecord')
 
 class HalfAbortController {
@@ -367,21 +367,9 @@ describe('trigger range out of bounds file', () => {
       bamPath: 'test/data/cho.bam',
     })
     await b.getHeader()
-    // console.log(JSON.stringify(h))
     expect(Object.keys(b.chrToIndex).length).toEqual(28751)
   })
 })
-describe('url', () => {
-  it('haha', async () => {
-    const b = new BAM({
-      bamUrl: 'http://localhost/volvox.bam',
-    })
-    console.log(await b.getHeader())
-    console.log(await b.getRecordsForRange('ctgA',0,100))
-
-  })
-})
-
 
 describe('test too large of genome coordinates', () => {
   it('test error', async () => {

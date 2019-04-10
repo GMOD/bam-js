@@ -4,7 +4,7 @@ import CSI from './csi'
 
 const { unzip } = require('@gmod/bgzf-filehandle')
 const LRU = require('quick-lru')
-const { LocalFile, RemoteFile } = require('./io')
+const { LocalFile, RemoteFile } = require('generic-filehandle')
 const BAMFeature = require('./record')
 const { parseHeaderText } = require('./sam')
 const { abortBreakPoint, checkAbortSignal } = require('./util')
@@ -24,17 +24,19 @@ export default class BamFile {
   constructor({
     bamFilehandle,
     bamPath,
+    bamUrl,
     baiPath,
     baiFilehandle,
+    baiUrl,
     csiPath,
     csiFilehandle,
+    csiUrl,
     cacheSize,
     fetchSizeLimit,
     chunkSizeLimit,
     renameRefSeqs = n => n,
   }) {
     this.renameRefSeq = renameRefSeqs
-
 
     if (bamFilehandle) {
       this.bam = bamFilehandle
@@ -55,14 +57,12 @@ export default class BamFile {
       this.index = new BAI({ filehandle: new LocalFile(baiPath) })
     } else if (baiUrl) {
       this.index = new BAI({ filehandle: new RemoteFile(baiUrl) })
+    } else if (bamPath) {
+      this.index = new BAI({ filehandle: new LocalFile(`${bamPath}.bai`) })
+    } else if (bamUrl) {
+      this.index = new BAI({ filehandle: new RemoteFile(`${bamUrl}.bai`) })
     } else {
-      if(bamPath) {
-        this.index = new BAI({ filehandle: new LocalFile(`${bamPath}.bai`) })
-      } else if(bamUrl) {
-        this.index = new BAI({ filehandle: new RemoteFile(`${bamUrl}.bai`) })
-      } else {
-        throw new Error('unable to infer index format')
-      }
+      throw new Error('unable to infer index format')
     }
     this.featureCache = new AbortablePromiseCache({
       cache: new LRU({
@@ -99,7 +99,7 @@ export default class BamFile {
         buf = buf.slice(0, ret)
       }
     } else {
-      buf = await this.bam.readFile(abortSignal)
+      buf = await this.bam.readFile({ signal: abortSignal })
     }
 
     const uncba = await unzip(buf)

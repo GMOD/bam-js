@@ -34,7 +34,7 @@ export default class BAI extends IndexFile {
   // fetch and parse the index
   async _parse(abortSignal) {
     const data = { bai: true, maxBlockSize: 1 << 16 }
-    const bytes = await this.filehandle.readFile(abortSignal)
+    const bytes = await this.filehandle.readFile({ signal: abortSignal })
 
     // check BAI magic numbers
     if (bytes.readUInt32LE(0) !== BAI_MAGIC) {

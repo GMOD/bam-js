@@ -80,7 +80,9 @@ export default class CSI extends IndexFile {
   // fetch and parse the index
   async _parse(abortSignal) {
     const data = { csi: true, maxBlockSize: 1 << 16 }
-    const bytes = await unzip(await this.filehandle.readFile(abortSignal))
+    const bytes = await unzip(
+      await this.filehandle.readFile({ signal: abortSignal }),
+    )
 
     // check TBI magic numbers
     if (bytes.readUInt32LE(0) === CSI1_MAGIC) {
