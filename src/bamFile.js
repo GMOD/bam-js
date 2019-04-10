@@ -1,9 +1,9 @@
 import AbortablePromiseCache from 'abortable-promise-cache'
+import BAI from './bai'
+import CSI from './csi'
 
 const { unzip } = require('@gmod/bgzf-filehandle')
 const LRU = require('quick-lru')
-import BAI from './bai'
-import CSI from './csi'
 const LocalFile = require('./localFile')
 const BAMFeature = require('./record')
 const { parseHeaderText } = require('./sam')

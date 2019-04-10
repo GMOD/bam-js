@@ -1,11 +1,11 @@
 import * as Long from 'long'
 import { unzip } from '@gmod/bgzf-filehandle'
 
-import {VirtualOffset, fromBytes} from './virtualOffset'
+import { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
-const IndexFile = require('./indexFile')
 import { longToNumber, abortBreakPoint } from './util'
 
+const IndexFile = require('./indexFile')
 
 const CSI1_MAGIC = 21582659 // CSI\1
 const CSI2_MAGIC = 38359875 // CSI\2
@@ -262,4 +262,3 @@ export default class CSI extends IndexFile {
     return bins
   }
 }
-

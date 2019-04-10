@@ -64,7 +64,7 @@ describe('bam header', () => {
     expect(ti.header).toEqual('@SQ	SN:ctgA	LN:50001\n')
     expect(ti.chrToIndex.ctgA).toEqual(0)
     expect(ti.indexToChr[0]).toEqual({ refName: 'ctgA', length: 50001 })
-    const ret = await ti.indexCov('ctgA')
+    const ret = await ti.indexCov('ctgA', 0, 500001)
     expect(ret).toMatchSnapshot()
   })
   it('loads volvox-sorted.bam with csi index', async () => {
@@ -388,7 +388,7 @@ describe('large indexcov', () => {
         require.resolve('./data/HG00096_illumina_lowcov.bam.bai'),
       ),
     })
-    const ret = await ti.indexCov(10)
+    const ret = await ti.indexCov(10, 0, 1000000)
     expect(ret).toMatchSnapshot()
     const empty = await ti.indexCov(0)
     expect(empty).toEqual([])

@@ -11,4 +11,3 @@ export function parseHeaderText(text) {
   })
   return data
 }
-

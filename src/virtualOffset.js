@@ -1,11 +1,8 @@
-
 export class VirtualOffset {
   constructor(blockPosition, dataPosition) {
     this.blockPosition = blockPosition // < offset of the compressed data block
     this.dataPosition = dataPosition // < offset into the uncompressed data
   }
-
-
 
   toString() {
     return `${this.blockPosition}:${this.dataPosition}`

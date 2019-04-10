@@ -1,10 +1,18 @@
 import * as Long from 'long'
-import {VirtualOffset, fromBytes} from './virtualOffset'
+import { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
+
 const IndexFile = require('./indexFile')
 
 const BAI_MAGIC = 21578050 // BAI\1
 const { longToNumber, abortBreakPoint } = require('./util')
+
+function roundDown(n, multiple) {
+  return (n / multiple) * multiple
+}
+function roundUp(n, multiple) {
+  return n - (n % multiple) + multiple
+}
 
 export default class BAI extends IndexFile {
   parsePseudoBin(bytes, offset) {
@@ -91,24 +99,42 @@ export default class BAI extends IndexFile {
     return data
   }
 
-  async indexCov(seqId) {
+  async indexCov(seqId, start, end) {
+    const v = 16384
+    const range = start !== undefined
     const indexData = await this.parse()
     const seqIdx = indexData.indices[seqId]
     if (!seqIdx) return []
     const { linearIndex = [], stats } = seqIdx
     if (!linearIndex.length) return []
-    let currentPos = linearIndex[0].blockPosition
-    const depths = Array(linearIndex.length)
-    const totalSize = linearIndex.slice(-1)[0].blockPosition
-    for (let i = 0; i < linearIndex.length; i++) {
-      depths[i] = linearIndex[i].blockPosition - currentPos
+    const e = range ? roundUp(end, v) : linearIndex.length * v
+    const s = range ? roundDown(start, v) : 0
+    let depths
+    if (range) {
+      depths = new Array(Math.floor((e - s) / v))
+    } else {
+      depths = new Array(linearIndex.length)
+    }
+    const totalSize = linearIndex[linearIndex.length - 1].blockPosition
+    if (e > (linearIndex.length - 1) * v) {
+      throw new Error('query outside of range of linear index')
+    }
+    for (
+      let i = s / v, currentPos = linearIndex[i].blockPosition;
+      i < e / v;
+      i++
+    ) {
+      depths[i] = {
+        score: linearIndex[i].blockPosition - currentPos,
+        start: i * v,
+        end: i * v + v,
+      }
       currentPos = linearIndex[i].blockPosition
     }
-    const sizes = depths.map(d => (d * stats.lineCount) / totalSize)
-
-    return sizes
+    return depths.map(d => {
+      return { ...d, score: (d.score * stats.lineCount) / totalSize }
+    })
   }
-
 
   async blocksForRange(refId, beg, end) {
     if (beg < 0) beg = 0
@@ -208,4 +234,3 @@ export default class BAI extends IndexFile {
     return list
   }
 }
-
