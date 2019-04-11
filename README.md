@@ -49,10 +49,6 @@ If using the filehandle class, should implement
 
 A custom filehandle could be used to read from Blob types in the browser for example
 
-### Example
-
-    const bam = new BAM({ bamPath: "yourfile.bam", baiPath: "yourfile.bai" })
-
 
 ### Documentation
 
