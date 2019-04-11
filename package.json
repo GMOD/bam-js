@@ -43,7 +43,7 @@
     "buffer-crc32": "^0.2.13",
     "cross-fetch": "^3.0.2",
     "es6-promisify": "^6.0.1",
-    "generic-filehandle": "^1.0.2",
+    "generic-filehandle": "^1.0.4",
     "long": "^4.0.0",
     "quick-lru": "^2.0.0"
   },
