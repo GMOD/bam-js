@@ -32,23 +32,14 @@ Input are 0-based half-open coordinates (note: not the same as samtools view coo
 
 The BAM class constructor accepts arguments
 
-* bamPath/bamFilehandle - a string file path to a local file or a class object with a read method
-* csiPath/csiFilehandle - a CSI index for the BAM file, required for long chromosomes greater than 2^29 in length
-* baiPath/baiFilehandle - a BAI index for the BAM file
+* bamPath/baiUrl/bamFilehandle - a string file path to a local file or a class object with a read method
+* csiPath/csiUrl/csiFilehandle - a CSI index for the BAM file, required for long chromosomes greater than 2^29 in length
+* baiPath/baiUrl/baiFilehandle - a BAI index for the BAM file
 * fetchSizeLimit - total size of the number of chunks being fetched at once. default: ~50MB
 * chunkSizeLimit - size limit on any individual chunk. default: ~10MB
 * cacheSize - limit on number of chunks to cache. default: 50
 
-### Implementing your filehandle class
-
-If using the filehandle class, should implement
-
-    async read(buffer, offset = 0, length, position) // reads into buffer argument similar to fs.read, returns number of bytes read
-    async readFile() // returns buffer similar to fs.readFile
-    async stat() // returns similar to nodejs stat
-
-A custom filehandle could be used to read from Blob types in the browser for example
-
+Note: filehandles implement the Filehandle interface from https://www.npmjs.com/package/generic-filehandle. This module offers the path and url arguments as convenience methods for supplying the LocalFile and RemoteFile
 
 ### Documentation
 
