@@ -893,14 +893,6 @@
   resolved "https://registry.yarnpkg.com/@babel/preset-stage-0/-/preset-stage-0-7.0.0.tgz#999aaec79ee8f0a763042c68c06539c97c6e0646"
   integrity sha512-FBMd0IiARPtH5aaOFUVki6evHiJQiY0pFy7fizyRF7dtwc+el3nwpzvhb9qBNzceG1OIJModG1xpE0DDFjPXwA==
 
-"@babel/runtime-corejs2@^7.3.4":
-  version "7.3.4"
-  resolved "https://registry.yarnpkg.com/@babel/runtime-corejs2/-/runtime-corejs2-7.3.4.tgz#63f8bbc77622da202e9ea6f8f6e3bf28991832d9"
-  integrity sha512-QwPuQE65kNxjsNKk34Rfgen2R5fk0J2So99SD45uXBp34QOfyz11SqVgJ4xvyCpnCIieSQ0X0hSSc9z/ymlJJw==
-  dependencies:
-    core-js "^2.5.7"
-    regenerator-runtime "^0.12.0"
-
 "@babel/runtime@^7.3.4":
   version "7.3.4"
   resolved "https://registry.yarnpkg.com/@babel/runtime/-/runtime-7.3.4.tgz#73d12ba819e365fcf7fd152aed56d6df97d21c83"
@@ -1179,14 +1171,6 @@ abortable-promise-cache@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/abortable-promise-cache/-/abortable-promise-cache-1.0.0.tgz#5fb6914fb149155001adeb20767634c668d36df5"
   integrity sha512-Wo7Em/l/sTS6S2jerJ9qdj2LEMb9jGbipC/0a18C6ccoYGepcUjQx+NRL/fSiKQVtC+54gtHs+ryYeoNcqjFQg==
-  dependencies:
-    abortcontroller-polyfill "^1.2.9"
-    babel-runtime "^6.26.0"
-
-abortable-promise-cache@^1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/abortable-promise-cache/-/abortable-promise-cache-1.0.1.tgz#68638de7806444e0fc3f3c2c5d53b81fad1c4466"
-  integrity sha512-Iu27BBSRe6jPrNhf5SjCyxJ0yb8fJ63H3CRoEVD+sJ2AvJsXppY5PVMvpFlB4si8K2cTFgjSgYNTELjm9ofwTQ==
   dependencies:
     abortcontroller-polyfill "^1.2.9"
     babel-runtime "^6.26.0"
@@ -2010,7 +1994,7 @@ copy-descriptor@^0.1.0:
   resolved "https://registry.yarnpkg.com/copy-descriptor/-/copy-descriptor-0.1.1.tgz#676f6eb3c39997c2ee1ac3a924fd6124748f578d"
   integrity sha1-Z29us8OZl8LuGsOpJP1hJHSPV40=
 
-core-js@^2.4.0, core-js@^2.5.7:
+core-js@^2.4.0:
   version "2.6.5"
   resolved "https://registry.yarnpkg.com/core-js/-/core-js-2.6.5.tgz#44bc8d249e7fb2ff5d00e0341a7ffb94fbf67895"
   integrity sha512-klh/kDpwX8hryYL14M9w/xei6vrv6sE8gTHDG7/T/+SEovB/G4ejwcfE/CBzO6Edsu+OETZMZ3wcX/EjUkrl5A==
@@ -2780,6 +2764,11 @@ file-entry-cache@^5.0.1:
   dependencies:
     flat-cache "^2.0.1"
 
+file-uri-to-path@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/file-uri-to-path/-/file-uri-to-path-1.0.0.tgz#553a7b8446ff6f684359c445f1e37a05dacc33dd"
+  integrity sha512-0Zt+s3L7Vf1biwWZ29aARiVYLx7iMGnEUl9x33fbB/j3jR81u/O2LbqK+Bm1CDSNDKVtJ/YjwY7TUd5SkeLQLw==
+
 fileset@^2.0.3:
   version "2.0.3"
   resolved "https://registry.yarnpkg.com/fileset/-/fileset-2.0.3.tgz#8e7548a96d3cc2327ee5e674168723a333bba2a0"
@@ -2941,16 +2930,14 @@ gauge@~2.7.3:
     strip-ansi "^3.0.1"
     wide-align "^1.1.0"
 
-generic-filehandle@^1.0.4:
-  version "1.0.4"
-  resolved "https://registry.yarnpkg.com/generic-filehandle/-/generic-filehandle-1.0.4.tgz#aaf8d8f56d31f9af3af8cf66a01954623a2618c9"
-  integrity sha512-L5AAyFuTJJ/1oRtx1M9TXUbLdA4t2nhd4WJo0A34eCzN9+laXR6H+px4+TnNzabimVxFRiEXSAXsY1av11cbqg==
+generic-filehandle@^1.0.7:
+  version "1.0.7"
+  resolved "https://registry.yarnpkg.com/generic-filehandle/-/generic-filehandle-1.0.7.tgz#51aabd90d00238131620f77be74b87396e9f3e3c"
+  integrity sha512-i31Vcyc70SOlaEOLYUFY3u0VXkmWVr914op93atfIbI6ABdyue61CHJDJywTG641UgPZMoBGkPM92/29DhroVw==
   dependencies:
     "@babel/runtime" "^7.4.3"
-    abortable-promise-cache "^1.0.1"
-    cross-fetch "^3.0.2"
     es6-promisify "^6.0.1"
-    quick-lru "^2.0.0"
+    file-uri-to-path "^1.0.0"
 
 get-caller-file@^1.0.1:
   version "1.0.3"
@@ -4959,6 +4946,11 @@ object.assign@^4.0.4, object.assign@^4.1.0:
     function-bind "^1.1.1"
     has-symbols "^1.0.0"
     object-keys "^1.0.11"
+
+object.entries-ponyfill@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/object.entries-ponyfill/-/object.entries-ponyfill-1.0.1.tgz#29abdf77cbfbd26566dd1aa24e9d88f65433d256"
+  integrity sha1-Kavfd8v70mVm3RqiTp2I9lQz0lY=
 
 object.entries@^1.0.4:
   version "1.1.0"

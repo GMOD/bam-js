@@ -2,6 +2,8 @@ import AbortablePromiseCache from 'abortable-promise-cache'
 import BAI from './bai'
 import CSI from './csi'
 
+const entries = require('object.entries-ponyfill')
+
 const { unzip } = require('@gmod/bgzf-filehandle')
 const LRU = require('quick-lru')
 const { LocalFile, RemoteFile } = require('generic-filehandle')
@@ -246,7 +248,7 @@ export default class BamFile {
         readIds[id] = 1
       }
       const unmatedPairs = {}
-      Object.entries(readNames).forEach(([k, v]) => {
+      entries(readNames).forEach(([k, v]) => {
         if (v === 1) unmatedPairs[k] = true
       })
 
