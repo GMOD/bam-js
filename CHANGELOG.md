@@ -1,3 +1,7 @@
+- Added indexCov algorithm to retrieve approximate coverage of the BAM inferred from the size of the BAI linear index bins
+- Fixed abortSignal on read() calls
+- Updated API to allow bamUrl/baiUrl/csiUrl
+
 ## [1.0.15](https://github.com/GMOD/bam-js/compare/v1.0.14...v1.0.15) (2019-04-04)
 
 
