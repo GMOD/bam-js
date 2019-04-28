@@ -124,7 +124,7 @@ export default class BamFile {
     if (start > refSeqBytes) {
       return this._readRefSeqs(start, refSeqBytes * 2)
     }
-    const bytesRead = await this.bam.read(buf, 0, refSeqBytes + blockLen, {
+    const bytesRead = await this.bam.read(buf, 0, refSeqBytes + blockLen, 0, {
       signal: abortSignal,
     })
     if (!bytesRead) {
