@@ -1,3 +1,7 @@
+## [1.0.17](https://github.com/GMOD/bam-js/compare/v1.0.16...v1.0.17) (2019-04-28)
+
+
+
 - Fix wrong number of arguments being passed to the readRefSeqs file read() invocation resulting in bad range requests
 
 ## [1.0.16](https://github.com/GMOD/bam-js/compare/v1.0.15...v1.0.16) (2019-04-28)
