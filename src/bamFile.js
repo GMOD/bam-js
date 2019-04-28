@@ -90,7 +90,7 @@ export default class BamFile {
         0,
         ret + blockLen,
         0,
-        abortSignal,
+        { signal: abortSignal },
       )
       if (!bytesRead) {
         throw new Error('Error reading header')
@@ -132,7 +132,7 @@ export default class BamFile {
       buf,
       0,
       refSeqBytes + blockLen,
-      abortSignal,
+      { signal: abortSignal },
     )
     if (!bytesRead) {
       return new Error('Error reading refseqs from header')
@@ -336,7 +336,7 @@ export default class BamFile {
       0,
       bufsize + blockLen,
       chunk.minv.blockPosition,
-      abortSignal,
+      { signal: abortSignal },
     )
     checkAbortSignal(abortSignal)
 
