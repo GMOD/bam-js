@@ -85,13 +85,9 @@ export default class BamFile {
     let buf
     if (ret) {
       buf = Buffer.alloc(ret + blockLen)
-      const bytesRead = await this.bam.read(
-        buf,
-        0,
-        ret + blockLen,
-        0,
-        { signal: abortSignal },
-      )
+      const bytesRead = await this.bam.read(buf, 0, ret + blockLen, 0, {
+        signal: abortSignal,
+      })
       if (!bytesRead) {
         throw new Error('Error reading header')
       }
@@ -128,12 +124,9 @@ export default class BamFile {
     if (start > refSeqBytes) {
       return this._readRefSeqs(start, refSeqBytes * 2)
     }
-    const bytesRead = await this.bam.read(
-      buf,
-      0,
-      refSeqBytes + blockLen,
-      { signal: abortSignal },
-    )
+    const bytesRead = await this.bam.read(buf, 0, refSeqBytes + blockLen, {
+      signal: abortSignal,
+    })
     if (!bytesRead) {
       return new Error('Error reading refseqs from header')
     }
