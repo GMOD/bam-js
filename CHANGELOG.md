@@ -1,5 +1,5 @@
-- Bump generic-filehandle to fix error with using native fetch (global fetch needed to be bound)
-- Bump abortable-promise-cache version to fix error with using native fetch (global fetch needed proper polyfill)
+- Bump generic-filehandle to 1.0.9 to fix error with using native fetch (global fetch needed to be bound)
+- Bump abortable-promise-cache to 1.0.1 version to fix error with using native fetch and abort signals
 
 ## [1.0.17](https://github.com/GMOD/bam-js/compare/v1.0.16...v1.0.17) (2019-04-28)
 
