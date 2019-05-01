@@ -1167,10 +1167,10 @@ abbrev@1:
   resolved "https://registry.yarnpkg.com/abbrev/-/abbrev-1.1.1.tgz#f8f2c887ad10bf67f634f005b6987fed3179aac8"
   integrity sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==
 
-abortable-promise-cache@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/abortable-promise-cache/-/abortable-promise-cache-1.0.0.tgz#5fb6914fb149155001adeb20767634c668d36df5"
-  integrity sha512-Wo7Em/l/sTS6S2jerJ9qdj2LEMb9jGbipC/0a18C6ccoYGepcUjQx+NRL/fSiKQVtC+54gtHs+ryYeoNcqjFQg==
+abortable-promise-cache@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/abortable-promise-cache/-/abortable-promise-cache-1.0.1.tgz#68638de7806444e0fc3f3c2c5d53b81fad1c4466"
+  integrity sha512-Iu27BBSRe6jPrNhf5SjCyxJ0yb8fJ63H3CRoEVD+sJ2AvJsXppY5PVMvpFlB4si8K2cTFgjSgYNTELjm9ofwTQ==
   dependencies:
     abortcontroller-polyfill "^1.2.9"
     babel-runtime "^6.26.0"
