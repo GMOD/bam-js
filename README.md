@@ -11,7 +11,7 @@
 ## Usage
 
 ```js
-const {BamFile} = require('@gmod/bam');
+const {BamFile} = require('@gmod/bam'); // or import {BamFile} from '@gmod/bam'
 
 const t = new BamFile({
     bamPath: 'test.bam',
@@ -19,7 +19,8 @@ const t = new BamFile({
 
 var header = await t.getHeader()
 
-var records = await t.getRecordsForRange('ctgA', 1, 50000)
+// this would get same records as samtools view ctgA:1-50000
+var records = await t.getRecordsForRange('ctgA', 0, 49999)
 ```
 
 Input are 0-based half-open coordinates (note: not the same as samtools view coordinate inputs!)
