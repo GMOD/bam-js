@@ -1,3 +1,5 @@
+- Fix ability to use bamUrl argument via updates to the upstream generic-filehandle module
+
 ## [1.0.17](https://github.com/GMOD/bam-js/compare/v1.0.16...v1.0.17) (2019-04-28)
 
 
