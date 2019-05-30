@@ -44,7 +44,7 @@ Note: filehandles implement the Filehandle interface from https://www.npmjs.com/
 
 ### Documentation
 
-#### getRecordsForRange(refName, start, end, opts)
+#### async getRecordsForRange(refName, start, end, opts)
 
 * refName - a string for the chrom to fetch from
 * start - a 0 based half open start coordinate
@@ -54,7 +54,7 @@ Note: filehandles implement the Filehandle interface from https://www.npmjs.com/
 * opts.pairAcrossChr - control the viewAsPairs option behavior to pair across chromosomes. default: false
 * opts.maxInsertSize - control the viewAsPairs option behavior to limit distance within a chromosome to fetch. default: 200kb
 
-### indexCov(refName, start, end)
+### async indexCov(refName, start, end)
 
 * refName - a string for the chrom to fetch from
 * start - a 0 based half open start coordinate (optional, will fetch whole chromosome without)
@@ -63,12 +63,17 @@ Note: filehandles implement the Filehandle interface from https://www.npmjs.com/
 Returns features of the form {start, end, score} containing estimated feature density across 16kb windows in the genome
 
 
-### lineCount(refName)
+### async lineCount(refName)
 
 * refName - a string for the chrom to fetch from
 
-Returns number of features on refName, uses special pseudo-bin from the BAI/CSI index (e.g. bin 37450 from bai, returning n_mapped from SAM spec pdf)
+Returns number of features on refName, uses special pseudo-bin from the BAI/CSI index (e.g. bin 37450 from bai, returning n_mapped from SAM spec pdf) or -1 if refName not exist in sample
 
+### async hasRefSeq(refName)
+
+* refName - a string for the chrom to check
+
+Returns whether we have this refName in the sample
 
 ### Returned features
 
