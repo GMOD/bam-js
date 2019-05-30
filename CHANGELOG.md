@@ -1,3 +1,7 @@
+## [1.0.19](https://github.com/GMOD/bam-js/compare/v1.0.18...v1.0.19) (2019-05-30)
+
+
+
 - Added lineCount and hasRefSeq functions to BamFile, each accepting a string seqName
 - Fixed aborting on index retrieval code
 
