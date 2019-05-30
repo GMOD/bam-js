@@ -25,7 +25,7 @@ class IndexFile {
     if (!this._parseCache)
       this._parseCache = new AbortablePromiseCache({
         cache: new QuickLRU({ maxSize: 1 }),
-        fill: this._parse.bind(this),
+        fill: (data, signal) => this._parse(signal),
       })
     return this._parseCache.get('index', null, abortSignal)
   }

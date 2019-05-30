@@ -25,6 +25,14 @@ describe('index formats', () => {
     expect(await ti.lineCount(0)).toEqual(9596)
     expect(await ti.hasRefSeq(0)).toEqual(true)
   })
+  it('loads volvox-sorted.bam in similar test', async () => {
+    const ti = new BamFile({
+      bamPath: require.resolve('./data/volvox-sorted.bam'),
+    })
+    await ti.getHeader()
+    expect(await ti.lineCount('ctgA')).toEqual(9596)
+    expect(await ti.hasRefSeq('ctgA')).toEqual(true)
+  })
 })
 
 describe('index human data', () => {

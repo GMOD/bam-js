@@ -62,6 +62,14 @@ Note: filehandles implement the Filehandle interface from https://www.npmjs.com/
 
 Returns features of the form {start, end, score} containing estimated feature density across 16kb windows in the genome
 
+
+### lineCount(refName)
+
+* refName - a string for the chrom to fetch from
+
+Returns number of features on refName, uses special pseudo-bin from the BAI/CSI index (e.g. bin 37450 from bai, returning n_mapped from SAM spec pdf)
+
+
 ### Returned features
 
 The returned features from BAM are lazy features meaning that it delays processing of all the feature tags until necessary.

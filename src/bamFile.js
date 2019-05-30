@@ -367,8 +367,14 @@ export default class BamFile {
     return sink
   }
 
-  hasRefSeq(seqId) {
-    return this.index.hasRefSeq(seqId)
+  async hasRefSeq(seqName) {
+    const refId = this.chrToIndex && this.chrToIndex[seqName]
+    return this.index.hasRefSeq(refId)
+  }
+
+  async lineCount(seqName) {
+    const refId = this.chrToIndex && this.chrToIndex[seqName]
+    return this.index.lineCount(refId)
   }
 
   async indexCov(seqName, start, end) {
