@@ -2,9 +2,9 @@ import AbortablePromiseCache from 'abortable-promise-cache'
 import BAI from './bai'
 import CSI from './csi'
 
-const entries = require('object.entries-ponyfill')
+import { unzip, unzipChunk } from './unzip'
 
-const { unzip } = require('@gmod/bgzf-filehandle')
+const entries = require('object.entries-ponyfill')
 const LRU = require('quick-lru')
 const { LocalFile, RemoteFile } = require('generic-filehandle')
 const BAMFeature = require('./record')
@@ -85,7 +85,7 @@ export default class BamFile {
     let buf
     if (ret) {
       buf = Buffer.alloc(ret + blockLen)
-      const bytesRead = await this.bam.read(buf, 0, ret + blockLen, 0, {
+      const { bytesRead } = await this.bam.read(buf, 0, ret + blockLen, 0, {
         signal: abortSignal,
       })
       if (!bytesRead) {
@@ -100,7 +100,7 @@ export default class BamFile {
       buf = await this.bam.readFile({ signal: abortSignal })
     }
 
-    const uncba = await unzip(buf)
+    const uncba = unzip(buf)
 
     if (uncba.readInt32LE(0) !== BAM_MAGIC) throw new Error('Not a BAM file')
     const headLen = uncba.readInt32LE(4)
@@ -124,7 +124,7 @@ export default class BamFile {
     if (start > refSeqBytes) {
       return this._readRefSeqs(start, refSeqBytes * 2)
     }
-    const bytesRead = await this.bam.read(buf, 0, refSeqBytes + blockLen, 0, {
+    const { bytesRead } = await this.bam.read(buf, 0, refSeqBytes, 0, {
       signal: abortSignal,
     })
     if (!bytesRead) {
@@ -135,7 +135,7 @@ export default class BamFile {
     } else {
       buf = buf.slice(0, refSeqBytes)
     }
-    const uncba = await unzip(buf)
+    const uncba = unzip(buf)
     const nRef = uncba.readInt32LE(start)
     let p = start + 4
     const chrToIndex = {}
@@ -314,7 +314,6 @@ export default class BamFile {
         const newMates = newMateFeats.reduce((result, current) =>
           result.concat(current),
         )
-        // console.log(chrId, min, max, newMates.map(m => m.get('name')).sort())
         ret = ret.concat(newMates)
       }
     }
@@ -323,16 +322,17 @@ export default class BamFile {
 
   async _readChunk(chunk, abortSignal) {
     const bufsize = chunk.fetchedSize()
-    let buf = Buffer.alloc(bufsize + blockLen)
-    const bytesRead = await this.bam.read(
+    let buf = Buffer.alloc(bufsize)
+    const { bytesRead } = await this.bam.read(
       buf,
       0,
-      bufsize + blockLen,
+      bufsize,
       chunk.minv.blockPosition,
-      { signal: abortSignal },
+      {
+        signal: abortSignal,
+      },
     )
     checkAbortSignal(abortSignal)
-
     if (!bytesRead) {
       return []
     }
@@ -342,16 +342,17 @@ export default class BamFile {
       buf = buf.slice(0, bufsize)
     }
 
-    const data = await unzip(buf)
+    const data = unzipChunk(buf, chunk)
     checkAbortSignal(abortSignal)
-    return this.readBamFeatures(data, chunk.minv.dataPosition)
+    return this.readBamFeatures(data)
   }
 
-  readBamFeatures(ba, blockStart) {
+  readBamFeatures(ba) {
+    let blockStart = 0
     const sink = []
 
-    while (blockStart < ba.length) {
-      const blockSize = ba.readInt32LE(blockStart, true)
+    while (blockStart + 4 < ba.length) {
+      const blockSize = ba.readInt32LE(blockStart)
       const blockEnd = blockStart + 4 + blockSize - 1
 
       // only try to read the feature if we have all the bytes for it
