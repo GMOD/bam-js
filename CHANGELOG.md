@@ -1,3 +1,5 @@
+- Added a method for smaller chunk unpacking, by modifying the header parsing to return smaller chunks and the bgzf unzipping to respect chunk boundaries (#30)
+
 ## [1.0.19](https://github.com/GMOD/bam-js/compare/v1.0.18...v1.0.19) (2019-05-30)
 
 
