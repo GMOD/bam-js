@@ -401,3 +401,12 @@ describe('large indexcov', () => {
     expect(empty).toEqual([])
   })
 })
+
+test('unique id for duplicate features', async () => {
+  const ti = new BamFile({
+    bamPath: require.resolve('./data/exact_duplicate.bam'),
+  })
+  await ti.getHeader()
+  const ret = await ti.getRecordsForRange('ctgA', 0, 1000)
+  expect(ret[0].id() !== ret[1].id()).toBeTruthy()
+})

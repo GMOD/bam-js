@@ -85,9 +85,10 @@ export default class BamFile {
     let buf
     if (ret) {
       buf = Buffer.alloc(ret + blockLen)
-      const { bytesRead } = await this.bam.read(buf, 0, ret + blockLen, 0, {
+      const res = await this.bam.read(buf, 0, ret + blockLen, 0, {
         signal: abortSignal,
       })
+      const { bytesRead } = res
       if (!bytesRead) {
         throw new Error('Error reading header')
       }
@@ -344,10 +345,10 @@ export default class BamFile {
 
     const data = unzipChunk(buf, chunk)
     checkAbortSignal(abortSignal)
-    return this.readBamFeatures(data)
+    return this.readBamFeatures(data, chunk)
   }
 
-  readBamFeatures(ba) {
+  readBamFeatures(ba, chunk) {
     let blockStart = 0
     const sink = []
 
@@ -358,7 +359,15 @@ export default class BamFile {
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
         const feature = new BAMFeature({
-          bytes: { byteArray: ba, start: blockStart, end: blockEnd },
+          bytes: {
+            byteArray: ba,
+            start: blockStart,
+            end: blockEnd,
+          },
+          fileOffset:
+            chunk.minv.blockPosition * 2 ** 16 +
+            chunk.minv.dataPosition +
+            blockStart, // synthesized fileoffset from virtual offset
         })
         sink.push(feature)
       }

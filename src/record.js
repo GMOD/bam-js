@@ -1,4 +1,3 @@
-const crc32 = require('buffer-crc32')
 const Constants = require('./constants')
 
 const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
@@ -15,6 +14,7 @@ class BamRecord {
       end: args.bytes.end,
       byteArray: args.bytes.byteArray,
     }
+    this._id = args.fileOffset
 
     this._coreParse()
   }
@@ -127,9 +127,7 @@ class BamRecord {
   }
 
   id() {
-    return crc32.signed(
-      this.bytes.byteArray.slice(this.bytes.start, this.bytes.end),
-    )
+    return this._id
   }
 
   multi_segment_all_aligned() {
