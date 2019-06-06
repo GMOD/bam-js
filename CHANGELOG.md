@@ -1,3 +1,8 @@
+<a name="1.0.20"></a>
+## [1.0.20](https://github.com/GMOD/bam-js/compare/v1.0.19...v1.0.20) (2019-06-06)
+
+
+
 - Added a method for smaller chunk unpacking, by modifying the header parsing to return smaller chunks and the bgzf unzipping to respect chunk boundaries (#30)
 - Use fileOffset as bam feature ID which previously was crc32 of the BAM buffer which consequently speeds up processing and allows exact duplicate features
 
