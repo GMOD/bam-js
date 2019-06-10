@@ -42,9 +42,8 @@ The BAM class constructor accepts arguments
 
 Note: filehandles implement the Filehandle interface from https://www.npmjs.com/package/generic-filehandle. This module offers the path and url arguments as convenience methods for supplying the LocalFile and RemoteFile
 
-### Documentation
 
-#### async getRecordsForRange(refName, start, end, opts)
+### async getRecordsForRange(refName, start, end, opts)
 
 * refName - a string for the chrom to fetch from
 * start - a 0 based half open start coordinate
@@ -87,7 +86,7 @@ Example
     feature.get('start') // 0 based half open start coordinate
     feature.get('end') // 0 based half open end coordinate
 
-## Fields
+#### Fields
 
     feature.get('name') // QNAME
     feature.get('seq') // feature sequence
@@ -98,7 +97,7 @@ Example
     feature.get('template_length') // TLEN
     feature.get('length_on_ref') // derived from CIGAR using standard algorithm
 
-### Flags
+#### Flags
 
     feature.get('seq_reverse_complemented')
     feature.get('unmapped')
@@ -107,7 +106,18 @@ Example
     feature.get('secondary_alignment')
     feature.get('supplementary_alignment')
 
-The feature format may change in future versions to be more raw records but will be a major version bump
+#### Tags
+
+BAM tags such as MD can be obtained via
+
+    feature.get('MD')
+    
+A full list of tags that can be obtained can be obtained via
+
+    feature._tags()
+    
+    
+The feature format may change in future versions to be more raw data records, but this will be a major version bump
 
 ## License
 
