@@ -185,9 +185,7 @@ export default class BamFile {
       const size = chunks[i].fetchedSize()
       if (size > this.chunkSizeLimit) {
         throw new Error(
-          `Too many BAM features. BAM chunk size ${size} bytes exceeds chunkSizeLimit of ${
-            this.chunkSizeLimit
-          }`,
+          `Too many BAM features. BAM chunk size ${size} bytes exceeds chunkSizeLimit of ${this.chunkSizeLimit}`,
         )
       }
     }

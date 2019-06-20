@@ -241,11 +241,7 @@ export default class CSI extends IndexFile {
       const e = t + rshift(end, s)
       if (e - b + bins.length > this.maxBinNumber)
         throw new Error(
-          `query ${beg}-${end} is too large for current binning scheme (shift ${
-            this.minShift
-          }, depth ${
-            this.depth
-          }), try a smaller query or a coarser index binning scheme`,
+          `query ${beg}-${end} is too large for current binning scheme (shift ${this.minShift}, depth ${this.depth}), try a smaller query or a coarser index binning scheme`,
         )
       for (let i = b; i <= e; i += 1) bins.push(i)
     }
