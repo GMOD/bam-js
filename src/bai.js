@@ -2,10 +2,10 @@ import * as Long from 'long'
 import { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 
-const IndexFile = require('./indexFile')
+import IndexFile from './indexFile'
 
 const BAI_MAGIC = 21578050 // BAI\1
-const { longToNumber, abortBreakPoint } = require('./util')
+const { longToNumber, abortBreakPoint, canMergeBlocks } = require('./util')
 
 function roundDown(n, multiple) {
   return n - (n % multiple)
@@ -213,17 +213,19 @@ export default class BAI extends IndexFile {
       if (off[i - 1].maxv.compareTo(off[i].minv) >= 0)
         off[i - 1].maxv = off[i].minv
 
-    return off.slice(0, numOffsets)
-  }
+    // merge adjacent blocks
+    l = 0
+    for (let i = 1; i < numOffsets; i += 1) {
+      if (canMergeBlocks(off[l], off[i])) off[l].maxv = off[i].maxv
+      else {
+        l += 1
+        off[l].minv = off[i].minv
+        off[l].maxv = off[i].maxv
+      }
+    }
+    numOffsets = l + 1
 
-  /**
-   * @param {number} seqId
-   * @param {AbortSignal} [abortSignal]
-   * @returns {Promise} true if the index contains entries for
-   * the given reference sequence ID, false otherwise
-   */
-  async hasRefSeq(seqId, abortSignal) {
-    return !!((await this.parse(abortSignal)).indices[seqId] || {}).binIndex
+    return off.slice(0, numOffsets)
   }
 
   /**

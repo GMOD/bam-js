@@ -3,7 +3,7 @@ import { unzip } from './unzip'
 
 import { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
-import { longToNumber, abortBreakPoint } from './util'
+import { longToNumber, abortBreakPoint, canMergeBlocks } from './util'
 
 const IndexFile = require('./indexFile')
 
@@ -210,17 +210,19 @@ export default class CSI extends IndexFile {
       if (off[i - 1].maxv.compareTo(off[i].minv) >= 0)
         off[i - 1].maxv = off[i].minv
 
-    return off.slice(0, numOffsets)
-  }
+    // merge adjacent blocks
+    l = 0
+    for (let i = 1; i < numOffsets; i += 1) {
+      if (canMergeBlocks(off[l], off[i])) off[l].maxv = off[i].maxv
+      else {
+        l += 1
+        off[l].minv = off[i].minv
+        off[l].maxv = off[i].maxv
+      }
+    }
+    numOffsets = l + 1
 
-  /**
-   * @param {number} seqId
-   * @param {AbortSignal} [abortSignal]
-   * @returns {Promise} true if the index contains entries for
-   * the given reference sequence ID, false otherwise
-   */
-  async hasRefSeq(seqId, abortSignal) {
-    return !!((await this.parse(abortSignal)).indices[seqId] || {}).binIndex
+    return off.slice(0, numOffsets)
   }
 
   /**
