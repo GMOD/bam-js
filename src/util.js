@@ -46,4 +46,17 @@ async function abortBreakPoint(signal) {
   checkAbortSignal(signal)
 }
 
-module.exports = { longToNumber, checkAbortSignal, abortBreakPoint }
+function canMergeBlocks(block1, block2) {
+  return (
+    block1.minv.blockPosition === block1.maxv.blockPosition &&
+    block1.maxv.blockPosition === block2.minv.blockPosition &&
+    block2.minv.blockPosition === block2.maxv.blockPosition
+  )
+}
+
+module.exports = {
+  longToNumber,
+  checkAbortSignal,
+  abortBreakPoint,
+  canMergeBlocks,
+}
