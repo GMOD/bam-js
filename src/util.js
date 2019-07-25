@@ -54,4 +54,9 @@ function canMergeBlocks(block1, block2) {
   )
 }
 
-module.exports = { longToNumber, checkAbortSignal, abortBreakPoint, canMergeBlocks }
+module.exports = {
+  longToNumber,
+  checkAbortSignal,
+  abortBreakPoint,
+  canMergeBlocks,
+}
