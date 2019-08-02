@@ -1,3 +1,5 @@
+- Add a fix for the small chunk unpacking re-seeking in the same bgzf block repeatedly (#35)
+
 <a name="1.0.20"></a>
 ## [1.0.20](https://github.com/GMOD/bam-js/compare/v1.0.19...v1.0.20) (2019-06-06)
 
