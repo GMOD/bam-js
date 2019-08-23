@@ -410,3 +410,15 @@ test('unique id for duplicate features', async () => {
   const ret = await ti.getRecordsForRange('ctgA', 0, 1000)
   expect(ret[0].id() !== ret[1].id()).toBeTruthy()
 })
+
+test('usage of the chr22 ultralong nanopore', async () => {
+  const ti = new BamFile({
+    bamPath: require.resolve('./data/chr22_nanopore_subset.bam'),
+  })
+  await ti.getHeader()
+  const ret1 = await ti.getRecordsForRange('22', 16559999, 16564499)
+  const ret2 = await ti.getRecordsForRange('22', 16564499, 16564999)
+  const findfeat = k => k.get('name') === '3d509937-5c54-46d7-8dec-c49c7165d2d5'
+  const [r1, r2] = [ret1, ret2].map(x => x.find(findfeat))
+  expect(r1.id()).toEqual(r2.id())
+})
