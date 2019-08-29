@@ -225,11 +225,11 @@ export default class BamFile {
 
     if (opts.viewAsPairs) {
       const unmatedPairs = {}
+      const readIds = {}
       await Promise.all(
         featPromises.map(async f => {
           const ret = await f
           const readNames = {}
-          const readIds = {}
           for (let i = 0; i < ret.length; i++) {
             const name = ret[i].name()
             const id = ret[i].id()
@@ -237,84 +237,91 @@ export default class BamFile {
             readNames[name]++
             readIds[id] = 1
           }
-
           entries(readNames).forEach(([k, v]) => {
             if (v === 1) unmatedPairs[k] = true
           })
+        }),
+      )
 
-          const matePromises = []
+      const matePromises = []
+      await Promise.all(
+        featPromises.map(async f => {
+          const ret = await f
           for (let i = 0; i < ret.length; i++) {
             const name = ret[i].name()
             if (
               unmatedPairs[name] &&
-              (ret[i]._next_refid() === chrId || opts.pairAcrossChr) &&
-              Math.abs(ret[i].get('start') - ret[i]._next_pos()) <
-                opts.maxInsertSize
+              (opts.pairAcrossChr ||
+                (ret[i]._next_refid() === chrId &&
+                  Math.abs(ret[i].get('start') - ret[i]._next_pos()) <
+                    opts.maxInsertSize))
             ) {
-              const blocks = this.index.blocksForRange(
-                ret[i]._next_refid(),
-                ret[i]._next_pos(),
-                ret[i]._next_pos() + 1,
-                opts,
+              matePromises.push(
+                this.index.blocksForRange(
+                  ret[i]._next_refid(),
+                  ret[i]._next_pos(),
+                  ret[i]._next_pos() + 1,
+                  opts,
+                ),
               )
-              matePromises.push(blocks)
             }
-          }
-          const mateBlocks = await Promise.all(matePromises)
-          let mateChunks = []
-          for (let i = 0; i < mateBlocks.length; i++) {
-            mateChunks.push(...mateBlocks[i])
-          }
-          // filter out duplicate chunks (the blocks are lists of chunks, blocks are concatenated, then filter dup chunks)
-          mateChunks = mateChunks
-            .sort()
-            .filter(
-              (item, pos, ary) =>
-                !pos || item.toString() !== ary[pos - 1].toString(),
-            )
-
-          const mateRecordPromises = []
-          const mateFeatPromises = []
-
-          const mateTotalSize = mateChunks
-            .map(s => s.fetchedSize())
-            .reduce((a, b) => a + b, 0)
-          if (mateTotalSize > this.fetchSizeLimit) {
-            throw new Error(
-              `data size of ${mateTotalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
-            )
-          }
-          mateChunks.forEach(c => {
-            const recordPromise = this.featureCache.get(
-              c.toString(),
-              c,
-              opts.signal,
-            )
-            mateRecordPromises.push(recordPromise)
-            const featPromise = recordPromise.then(feats => {
-              const mateRecs = []
-              for (let i = 0; i < feats.length; i += 1) {
-                const feature = feats[i]
-                if (
-                  unmatedPairs[feature.get('name')] &&
-                  !readIds[feature.get('id')]
-                ) {
-                  mateRecs.push(feature)
-                }
-              }
-              return mateRecs
-            })
-            mateFeatPromises.push(featPromise)
-          })
-          const newMateFeats = await Promise.all(mateFeatPromises)
-          if (newMateFeats.length) {
-            const newMates = newMateFeats.reduce((result, current) =>
-              result.concat(current),
-            )
-            featuresRet = featuresRet.concat(newMates)
           }
         }),
       )
+
+      const mateBlocks = await Promise.all(matePromises)
+      let mateChunks = []
+      for (let i = 0; i < mateBlocks.length; i++) {
+        mateChunks.push(...mateBlocks[i])
+      }
+      // filter out duplicate chunks (the blocks are lists of chunks, blocks are concatenated, then filter dup chunks)
+      mateChunks = mateChunks
+        .sort()
+        .filter(
+          (item, pos, ary) =>
+            !pos || item.toString() !== ary[pos - 1].toString(),
+        )
+
+      const mateRecordPromises = []
+      const mateFeatPromises = []
+
+      const mateTotalSize = mateChunks
+        .map(s => s.fetchedSize())
+        .reduce((a, b) => a + b, 0)
+      if (mateTotalSize > this.fetchSizeLimit) {
+        throw new Error(
+          `data size of ${mateTotalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
+        )
+      }
+      mateChunks.forEach(c => {
+        const recordPromise = this.featureCache.get(
+          c.toString(),
+          c,
+          opts.signal,
+        )
+        mateRecordPromises.push(recordPromise)
+        const featPromise = recordPromise.then(feats => {
+          const mateRecs = []
+          for (let i = 0; i < feats.length; i += 1) {
+            const feature = feats[i]
+            if (
+              unmatedPairs[feature.get('name')] &&
+              !readIds[feature.get('id')]
+            ) {
+              mateRecs.push(feature)
+            }
+          }
+          return mateRecs
+        })
+        mateFeatPromises.push(featPromise)
+      })
+      const newMateFeats = await Promise.all(mateFeatPromises)
+      if (newMateFeats.length) {
+        const newMates = newMateFeats.reduce((result, current) =>
+          result.concat(current),
+        )
+        featuresRet = featuresRet.concat(newMates)
+      }
     }
     const recs = await Promise.all(featPromises)
     featuresRet = [].concat(...recs).concat(featuresRet)
