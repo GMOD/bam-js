@@ -53,6 +53,16 @@ Note: filehandles implement the Filehandle interface from https://www.npmjs.com/
 * opts.pairAcrossChr - control the viewAsPairs option behavior to pair across chromosomes. default: false
 * opts.maxInsertSize - control the viewAsPairs option behavior to limit distance within a chromosome to fetch. default: 200kb
 
+
+### async *streamRecordsForRange(refName, start, end, opts)
+
+This is a async generator function that takes the same signature as getRecordsForRange but results can be processed using 
+
+    for await(const chunk of file.streamRecordsForRange(refName, start, end, opts)) {
+    }
+
+The getRecordsForRange simply wraps this process by concatenating chunks into an array
+
 ### async indexCov(refName, start, end)
 
 * refName - a string for the chrom to fetch from
