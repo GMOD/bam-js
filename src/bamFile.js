@@ -164,6 +164,14 @@ export default class BamFile {
   }
 
   async getRecordsForRange(chr, min, max, opts = {}) {
+    let records = []
+    for await (const chunk of this.streamRecordsForRange(chr, min, max, opts)) {
+      records = records.concat(...chunk)
+    }
+    return records
+  }
+
+  async *streamRecordsForRange(chr, min, max, opts) {
     opts.viewAsPairs = opts.viewAsPairs || false
     opts.pairAcrossChr = opts.pairAcrossChr || false
     opts.maxInsertSize = opts.maxInsertSize || 200000
@@ -197,11 +205,10 @@ export default class BamFile {
       throw new Error(
         `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
       )
-
-    return this._fetchChunkFeatures(chunks, chrId, min, max, opts)
+    yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
-  async _fetchChunkFeatures(chunks, chrId, min, max, opts = {}) {
+  async *_fetchChunkFeatures(chunks, chrId, min, max, opts = {}) {
     const featPromises = chunks.map(async c => {
       const records = await this.featureCache.get(c.toString(), c, opts.signal)
       const recs = []
@@ -323,9 +330,10 @@ export default class BamFile {
         featuresRet = featuresRet.concat(newMates)
       }
     }
-    const recs = await Promise.all(featPromises)
-    featuresRet = [].concat(...recs).concat(featuresRet)
-    return featuresRet
+    for (let i = 0; i < featPromises.length; i++) {
+      yield featPromises[i]
+    }
+    yield featuresRet
   }
 
   async _readChunk(chunk, abortSignal) {
