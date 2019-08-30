@@ -16,10 +16,14 @@
   "retainLines": true,
   "sourceMaps": true,
   "plugins": [
-    [
-      "@babel/plugin-transform-runtime",
-    ], [
+     [
       "@babel/plugin-proposal-async-generator-functions"
+    ], [
+      "@babel/plugin-transform-runtime",
+{
+"corejs": 2,
+"helpers": true,
+}
     ]
   ]
 }
