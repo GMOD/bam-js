@@ -1,3 +1,8 @@
+<a name="1.0.22"></a>
+## [1.0.22](https://github.com/GMOD/bam-js/compare/v1.0.20...v1.0.22) (2019-09-03)
+
+
+
 - Fixed issue with features having different IDs across different chunks (#36)
 
 <a name="1.0.21"></a>
