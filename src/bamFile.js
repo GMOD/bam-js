@@ -164,6 +164,14 @@ export default class BamFile {
   }
 
   async getRecordsForRange(chr, min, max, opts = {}) {
+    let records = []
+    for await (const chunk of this.streamRecordsForRange(chr, min, max, opts)) {
+      records = records.concat(...chunk)
+    }
+    return records
+  }
+
+  async *streamRecordsForRange(chr, min, max, opts) {
     opts.viewAsPairs = opts.viewAsPairs || false
     opts.pairAcrossChr = opts.pairAcrossChr || false
     opts.maxInsertSize = opts.maxInsertSize || 200000
@@ -197,71 +205,77 @@ export default class BamFile {
       throw new Error(
         `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
       )
-
-    return this._fetchChunkFeatures(chunks, chrId, min, max, opts)
+    yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
-  async _fetchChunkFeatures(chunks, chrId, min, max, opts = {}) {
-    const recordPromises = []
-    const featPromises = []
-    chunks.forEach(c => {
-      const recordPromise = this.featureCache.get(c.toString(), c, opts.signal)
-      recordPromises.push(recordPromise)
-      const featPromise = recordPromise.then(f => {
-        const recs = []
-        for (let i = 0; i < f.length; i += 1) {
-          const feature = f[i]
-          if (feature._refID === chrId) {
-            // on the right ref seq
-            if (feature.get('start') >= max)
-              // past end of range, can stop iterating
-              break
-            else if (feature.get('end') >= min) {
-              // must be in range
-              recs.push(feature)
-            }
+  async *_fetchChunkFeatures(chunks, chrId, min, max, opts = {}) {
+    const featPromises = chunks.map(async c => {
+      const records = await this.featureCache.get(c.toString(), c, opts.signal)
+      const recs = []
+      for (let i = 0; i < records.length; i += 1) {
+        const feature = records[i]
+        if (feature._refID === chrId) {
+          if (feature.get('start') >= max)
+            // past end of range, can stop iterating
+            break
+          else if (feature.get('end') >= min) {
+            // must be in range
+            recs.push(feature)
           }
         }
-        return recs
-      })
-      featPromises.push(featPromise)
-    })
-    const recs = await Promise.all(featPromises)
-    checkAbortSignal(opts.signal)
-    let ret = [].concat(...recs)
-    if (opts.viewAsPairs) {
-      const readNames = {}
-      const readIds = {}
-      for (let i = 0; i < ret.length; i++) {
-        const name = ret[i].name()
-        const id = ret[i].id()
-        if (!readNames[name]) readNames[name] = 0
-        readNames[name]++
-        readIds[id] = 1
       }
+      return recs
+    })
+
+    checkAbortSignal(opts.signal)
+    let featuresRet = []
+
+    if (opts.viewAsPairs) {
       const unmatedPairs = {}
-      entries(readNames).forEach(([k, v]) => {
-        if (v === 1) unmatedPairs[k] = true
-      })
+      const readIds = {}
+      await Promise.all(
+        featPromises.map(async f => {
+          const ret = await f
+          const readNames = {}
+          for (let i = 0; i < ret.length; i++) {
+            const name = ret[i].name()
+            const id = ret[i].id()
+            if (!readNames[name]) readNames[name] = 0
+            readNames[name]++
+            readIds[id] = 1
+          }
+          entries(readNames).forEach(([k, v]) => {
+            if (v === 1) unmatedPairs[k] = true
+          })
+        }),
+      )
 
       const matePromises = []
-      for (let i = 0; i < ret.length; i++) {
-        const name = ret[i].name()
-        if (
-          unmatedPairs[name] &&
-          (ret[i]._next_refid() === chrId || opts.pairAcrossChr) &&
-          Math.abs(ret[i].get('start') - ret[i]._next_pos()) <
-            opts.maxInsertSize
-        ) {
-          const blocks = this.index.blocksForRange(
-            ret[i]._next_refid(),
-            ret[i]._next_pos(),
-            ret[i]._next_pos() + 1,
-            opts,
-          )
-          matePromises.push(blocks)
-        }
-      }
+      await Promise.all(
+        featPromises.map(async f => {
+          const ret = await f
+          for (let i = 0; i < ret.length; i++) {
+            const name = ret[i].name()
+            if (
+              unmatedPairs[name] &&
+              (opts.pairAcrossChr ||
+                (ret[i]._next_refid() === chrId &&
+                  Math.abs(ret[i].get('start') - ret[i]._next_pos()) <
+                    opts.maxInsertSize))
+            ) {
+              matePromises.push(
+                this.index.blocksForRange(
+                  ret[i]._next_refid(),
+                  ret[i]._next_pos(),
+                  ret[i]._next_pos() + 1,
+                  opts,
+                ),
+              )
+            }
+          }
+        }),
+      )
+
       const mateBlocks = await Promise.all(matePromises)
       let mateChunks = []
       for (let i = 0; i < mateBlocks.length; i++) {
@@ -313,10 +327,13 @@ export default class BamFile {
         const newMates = newMateFeats.reduce((result, current) =>
           result.concat(current),
         )
-        ret = ret.concat(newMates)
+        featuresRet = featuresRet.concat(newMates)
       }
     }
-    return ret
+    for (let i = 0; i < featPromises.length; i++) {
+      yield featPromises[i]
+    }
+    yield featuresRet
   }
 
   async _readChunk(chunk, abortSignal) {

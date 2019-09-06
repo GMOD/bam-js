@@ -422,3 +422,15 @@ test('usage of the chr22 ultralong nanopore', async () => {
   const [r1, r2] = [ret1, ret2].map(x => x.find(findfeat))
   expect(r1.id()).toEqual(r2.id())
 })
+
+test('pair across chrom', async () => {
+  const ti = new BamFile({
+    bamPath: require.resolve('./data/pair_across_chr.bam'),
+  })
+  await ti.getHeader()
+  const ret1 = await ti.getRecordsForRange('1', 0, 272213638, {
+    viewAsPairs: true,
+    pairAcrossChr: true,
+  })
+  expect(ret1.length).toBe(2)
+})
