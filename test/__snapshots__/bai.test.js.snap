@@ -389,6 +389,53 @@ Array [
 ]
 `;
 
+exports[`fetch chimeras across chromosomes 1`] = `
+Array [
+  Object {
+    "data": Object {
+      "_bin_mq_nl": 306781701,
+      "_flag_nc": 2,
+      "_l_read_name": 5,
+      "_n_cigar_op": 2,
+      "_read_name": "r003",
+      "_seq_bytes": 6,
+      "cigar": "5S6M",
+      "end": 14,
+      "length_on_ref": 6,
+      "sa": "ref2,29,-,6H5M,17,0;",
+      "seq_length": 11,
+      "start": 8,
+    },
+    "flags": 0,
+  },
+  Object {
+    "data": Object {
+      "_bin_mq_nl": 306778373,
+      "_flag_nc": 135266306,
+      "_l_read_name": 5,
+      "_n_cigar_op": 2,
+      "_read_name": "r003",
+      "_seq_bytes": 3,
+      "id": 6357082,
+      "isChimeric": true,
+      "name": "r003",
+      "seq_length": 5,
+      "start": 28,
+    },
+    "flags": 2064,
+  },
+]
+`;
+
+exports[`fetch chimeras in the samspec file 1`] = `
+Array [
+  "r003",
+  "r003",
+  "r003",
+  "r003",
+]
+`;
+
 exports[`large indexcov human 1000g 1`] = `
 Array [
   Object {

@@ -2,6 +2,7 @@ import AbortablePromiseCache from 'abortable-promise-cache'
 import BAI from './bai'
 import CSI from './csi'
 import Chunk from './chunk'
+import BAMRecord from './record'
 
 import { unzip, unzipChunk } from './unzip'
 
@@ -24,6 +25,44 @@ interface BamOpts {
   pairAcrossChr: boolean
   maxInsertSize: number
   signal?: AbortSignal
+}
+
+const comp: { [key: string]: string } = {
+  A: 'T',
+  C: 'G',
+  G: 'C',
+  T: 'A',
+  M: 'K',
+  K: 'M',
+  Y: 'R',
+  R: 'Y',
+  V: 'B',
+  B: 'V',
+  H: 'D',
+  D: 'H',
+  a: 't',
+  c: 'g',
+  g: 'c',
+  t: 'a',
+  m: 'k',
+  k: 'm',
+  y: 'r',
+  r: 'y',
+  v: 'b',
+  b: 'v',
+  h: 'd',
+  d: 'h',
+}
+
+function revcomp(s: string) {
+  let i,
+    t = ''
+  for (i = 0; i < s.length; ++i) {
+    const c = s.charAt(s.length - 1 - i)
+    const d = comp[c]
+    t += d ? d : c
+  }
+  return t
 }
 export default class BamFile {
   private renameRefSeq: (a: string) => string
@@ -307,12 +346,10 @@ export default class BamFile {
           const name = ret[i].name()
           if (chimericReads[name]) {
             let sa = ret[i].get('SA')
-            console.log(ret[i].get('name'), ret[i].get('SA'))
             if (!sa) throw new Error('badly formatted SA tag')
             sa = sa.replace(/;$/, '')
 
             sa.split(';').map((s: string) => {
-              console.log(s)
               const [chr, coord] = s.split(',')
               const refId = this.chrToIndex[chr]
               chimeraPromises.push(this.index.blocksForRange(refId, +coord, +coord + 1, opts))
@@ -354,13 +391,39 @@ export default class BamFile {
       })
       chimeraFeatPromises.push(featPromise)
     })
-    const newchimeraFeats = await Promise.all(chimeraFeatPromises)
+    const newChimericFeatures = await Promise.all(chimeraFeatPromises)
     let featuresRet: BAMFeature[] = []
-    if (newchimeraFeats.length) {
-      const newchimeras = newchimeraFeats.reduce((result, current) => result.concat(current))
-      featuresRet = featuresRet.concat(newchimeras)
+    if (newChimericFeatures.length) {
+      const newChimeras = newChimericFeatures.reduce((result, current) => result.concat(current))
+      featuresRet = featuresRet.concat(newChimeras)
     }
-    return featuresRet
+    const chimericReadNames = Object.keys(chimericReads)
+    const seqs: {
+      [key: string]: BAMRecord[]
+    } = {}
+    featuresRet.forEach(f => {
+      const n = f.name()
+      if (chimericReadNames.includes(n)) {
+        if (!seqs[n]) seqs[n] = []
+        const id = f.id()
+        if (!f.isSupplementary()) seqs[n].unshift(f)
+        else seqs[n].push(f)
+      }
+    })
+    Object.entries(seqs).forEach(([k, v]) => {
+      const primarySeq = v[0].getReadBases()
+      v[0].setChimeric(true)
+      for (let i = 1; i < v.length; i += 1) {
+        const record = v[i]
+        const rb = v[i].getReadBases()
+        const pos = primarySeq.indexOf(v[i].isReverseComplemented() ? revcomp(rb) : rb)
+        if (pos !== -1) {
+          v[i].setChimericTemplatePosition(pos)
+        }
+        v[i].setChimeric(true)
+      }
+    })
+    return featuresRet.filter(f => !readIds[f.id()])
   }
 
   async fetchPairs(chrId: number, featPromises: Promise<BAMFeature[]>[], opts: BamOpts) {
