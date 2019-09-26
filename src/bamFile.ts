@@ -324,6 +324,8 @@ export default class BamFile {
   async fetchChimeras(chrId: number, featPromises: Promise<BAMFeature[]>[], opts: BamOpts) {
     const chimericReads: { [key: string]: boolean } = {}
     const readIds: { [key: string]: number } = {}
+
+    // find all the split/chimeric reads by searching for the SA tag
     await Promise.all(
       featPromises.map(async f => {
         const ret = await f
@@ -339,6 +341,7 @@ export default class BamFile {
       }),
     )
 
+    // parse the SA tags and gather the blocks that need redispatching
     const chimeraPromises: Promise<Chunk[]>[] = []
     await Promise.all(
       featPromises.map(async f => {
@@ -350,7 +353,7 @@ export default class BamFile {
             if (!sa) throw new Error('badly formatted SA tag')
             sa = sa.replace(/;$/, '')
 
-            sa.split(';').map((s: string) => {
+            sa.split(';').forEach((s: string) => {
               const [chr, coord] = s.split(',')
               const refId = this.chrToIndex[chr]
               chimeraPromises.push(this.index.blocksForRange(refId, +coord, +coord + 1, opts))
@@ -399,26 +402,37 @@ export default class BamFile {
       featuresRet = featuresRet.concat(newChimeras)
     }
     const chimericReadNames = Object.keys(chimericReads)
-    const seqs: {
+
+    // chimericReadSet is a map of readName->list of alignments
+    const chimericReadSet: {
       [key: string]: BAMRecord[]
     } = {}
+
+    // the primary alignment is the first element of the list for each element of the chimericReadSet
     featuresRet.forEach(f => {
       const n = f.name()
       if (chimericReadNames.includes(n)) {
-        if (!seqs[n]) seqs[n] = []
+        if (!chimericReadSet[n]) chimericReadSet[n] = []
         const id = f.id()
-        if (!f.isSupplementary()) seqs[n].unshift(f)
-        else seqs[n].push(f)
+        if (!f.isSupplementary()) chimericReadSet[n].unshift(f)
+        else chimericReadSet[n].push(f)
       }
     })
-    Object.entries(seqs).forEach(([k, v]) => {
+
+    // find the sequence of the reads with the supplementary_alignment==true in the primary alignment
+    // and store in the feature as the chimeric template position
+    Object.entries(chimericReadSet).forEach(([k, v]) => {
       const primarySeq = v[0].getReadBases()
       for (let i = 1; i < v.length; i += 1) {
-        const record = v[i]
         const rb = v[i].getReadBases()
-        const pos = primarySeq.indexOf(v[i].isReverseComplemented() ? revcomp(rb) : rb)
-        if (pos !== -1) {
-          v[i].setChimericTemplatePosition(pos)
+        const cigar = v[i].get('cigar')
+        const match = cigar.match(/^(\d+)([SH])/)
+        if (match) {
+          if (match[2] === 'S') {
+            v[i].setChimericTemplatePosition(+match[1])
+          } else {
+            v[i].setChimericTemplatePosition(0)
+          }
         }
       }
     })

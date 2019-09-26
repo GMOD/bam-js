@@ -437,3 +437,14 @@ test('fetch chimeras in the samspec file', async () => {
 
   expect(ret1.length).toBe(6)
 })
+
+test('fetch chimeras in pacbio file which uses soft instead of hard clipping', async () => {
+  const ti = new BamFile({
+    bamPath: require.resolve('./data/split_alignments_with_softclipping.bam'),
+  })
+  await ti.getHeader()
+  const ret1 = await ti.getRecordsForRange('3', 186692600, 186692700, { viewAsChimeras: true })
+
+  expect(ret1).toMatchSnapshot()
+  expect(ret1.length).toBe(3)
+})

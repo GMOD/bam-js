@@ -425,6 +425,74 @@ Array [
 ]
 `;
 
+exports[`fetch chimeras in pacbio file which uses soft instead of hard clipping 1`] = `
+Array [
+  Object {
+    "data": Object {
+      "_bin_mq_nl": 131677218,
+      "_flag_nc": 44,
+      "_l_read_name": 34,
+      "_n_cigar_op": 44,
+      "_read_name": "m64011_181218_235052/85067842/ccs",
+      "_seq_bytes": 5518,
+      "cigar": "919=1I420=1X191=1I1903=1D495=1D92=1X4=1X293=1D707=1X333=1X275=2D223=1D155=1X34=1X204=1X41=1X43=1X572=1X629=1X401=1X3=1X2=3081S",
+      "end": 186700648,
+      "length_on_ref": 7959,
+      "mc": 99.72339630126953,
+      "name": "m64011_181218_235052/85067842/ccs",
+      "np": 9,
+      "rg": "b50fc700",
+      "rm": 1,
+      "rq": 0.9993500113487244,
+      "rs": "3146,0,0,0,0,0",
+      "sa": "3,186700631,+,10597S438M1S,60,1;6,56758392,+,7956S2547M6D533S,22,8;",
+      "seq_length": 11036,
+      "sn": "9.098270416259766,13.394499778747559,3.565700054168701,6.259679794311523",
+      "start": 186692689,
+      "t1": 16.47800064086914,
+      "t2": 0.20299899578094482,
+      "t3": 13.9399995803833,
+      "zm": 85067842,
+    },
+    "flags": 0,
+  },
+  Object {
+    "data": Object {
+      "_bin_mq_nl": 1053572130,
+      "_flag_nc": 134217733,
+      "_l_read_name": 34,
+      "_n_cigar_op": 5,
+      "_read_name": "m64011_181218_235052/85067842/ccs",
+      "_seq_bytes": 5518,
+      "chimericTemplateReadPosition": 10597,
+      "cigar": "10597S11=1X426=1S",
+      "length_on_ref": 438,
+      "name": "m64011_181218_235052/85067842/ccs",
+      "seq_length": 11036,
+      "start": 186700630,
+    },
+    "flags": 2048,
+  },
+  Object {
+    "data": Object {
+      "_bin_mq_nl": 533796386,
+      "_flag_nc": 134217769,
+      "_l_read_name": 34,
+      "_n_cigar_op": 41,
+      "_read_name": "m64011_181218_235052/85067842/ccs",
+      "_seq_bytes": 5518,
+      "chimericTemplateReadPosition": 7956,
+      "cigar": "7956S4=1D5=1X744=1D63=1X121=1I18=1X99=1X57=1I64=1D8=1X207=1D42=1I103=1X425=1X48=2I107=1I116=1X222=7D75=1D5=533S",
+      "length_on_ref": 2553,
+      "name": "m64011_181218_235052/85067842/ccs",
+      "seq_length": 11036,
+      "start": 56758391,
+    },
+    "flags": 2048,
+  },
+]
+`;
+
 exports[`fetch chimeras in the samspec file 1`] = `
 Array [
   Object {
