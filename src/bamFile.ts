@@ -20,6 +20,7 @@ type G = GenericFilehandle
 
 interface BamOpts {
   viewAsPairs: boolean
+  viewAsChimeras: boolean
   pairAcrossChr: boolean
   maxInsertSize: number
   signal?: AbortSignal
@@ -198,7 +199,7 @@ export default class BamFile {
     chr: string,
     min: number,
     max: number,
-    opts: BamOpts = { viewAsPairs: false, pairAcrossChr: false, maxInsertSize: 200000 },
+    opts: BamOpts = { viewAsPairs: false, viewAsChimeras: false, pairAcrossChr: false, maxInsertSize: 200000 },
   ) {
     let records: BAMFeature[] = []
     for await (const chunk of this.streamRecordsForRange(chr, min, max, opts)) {
@@ -211,10 +212,11 @@ export default class BamFile {
     chr: string,
     min: number,
     max: number,
-    opts: BamOpts = { viewAsPairs: false, pairAcrossChr: false, maxInsertSize: 200000 },
+    opts: BamOpts = { viewAsPairs: false, viewAsChimeras: false, pairAcrossChr: false, maxInsertSize: 200000 },
   ) {
     // todo regularize refseq names
     opts.viewAsPairs = opts.viewAsPairs || false
+    opts.viewAsChimeras = opts.viewAsChimeras || false
     opts.pairAcrossChr = opts.pairAcrossChr || false
     opts.maxInsertSize = opts.maxInsertSize !== undefined ? opts.maxInsertSize : 200000
     const chrId = this.chrToIndex && this.chrToIndex[chr]
@@ -275,6 +277,93 @@ export default class BamFile {
     if (opts.viewAsPairs) {
       yield this.fetchPairs(chrId, featPromises, opts)
     }
+    if (opts.viewAsChimeras) {
+      yield this.fetchChimeras(chrId, featPromises, opts)
+    }
+  }
+
+  async fetchChimeras(chrId: number, featPromises: Promise<BAMFeature[]>[], opts: BamOpts) {
+    const unmatedChimeras: { [key: string]: boolean } = {}
+    const readIds: { [key: string]: number } = {}
+    await Promise.all(
+      featPromises.map(async f => {
+        const ret = await f
+        const readNames: { [key: string]: number } = {}
+        for (let i = 0; i < ret.length; i++) {
+          const name = ret[i].name()
+          const id = ret[i].id()
+          if (!readNames[name]) readNames[name] = 0
+          readNames[name]++
+          readIds[id] = 1
+        }
+        entries(readNames).forEach(([k, v]: [string, number]) => {
+          if (v === 1) unmatedChimeras[k] = true
+        })
+      }),
+    )
+    console.log(unmatedChimeras)
+
+    const chimeraPromises: Promise<Chunk[]>[] = []
+    await Promise.all(
+      featPromises.map(async f => {
+        const ret = await f
+        for (let i = 0; i < ret.length; i++) {
+          const name = ret[i].name()
+          if (unmatedChimeras[name]) {
+            let sa = ret[i].get('SA')
+            if (!sa) throw new Error('badly formatted SA tag')
+            sa = sa.replace(/;$/, '')
+
+            sa.split(';').map((s: string) => {
+              console.log(s)
+              const [chr, coord] = s.split(',')
+              const refId = this.chrToIndex[chr]
+              chimeraPromises.push(this.index.blocksForRange(refId, +coord, +coord + 1, opts))
+            })
+          }
+        }
+      }),
+    )
+
+    const chimeraBlocks = await Promise.all(chimeraPromises)
+    let chimeraChunks = []
+    for (let i = 0; i < chimeraBlocks.length; i++) {
+      chimeraChunks.push(...chimeraBlocks[i])
+    }
+    // filter out duplicate chunks (the blocks are lists of chunks, blocks are concatenated, then filter dup chunks)
+    chimeraChunks = chimeraChunks.sort().filter((item, pos, ary) => !pos || item.toString() !== ary[pos - 1].toString())
+
+    const chimeraRecordPromises = []
+    const chimeraFeatPromises: Promise<BAMFeature[]>[] = []
+
+    const chimeraTotalSize = chimeraChunks.map(s => s.fetchedSize()).reduce((a, b) => a + b, 0)
+    if (chimeraTotalSize > this.fetchSizeLimit) {
+      throw new Error(
+        `data size of ${chimeraTotalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
+      )
+    }
+    chimeraChunks.forEach(c => {
+      const recordPromise = this.featureCache.get(c.toString(), c, opts.signal)
+      chimeraRecordPromises.push(recordPromise)
+      const featPromise = recordPromise.then((feats: BAMFeature[]) => {
+        const chimeraRecs = []
+        for (let i = 0; i < feats.length; i += 1) {
+          const feature = feats[i]
+          if (unmatedChimeras[feature.get('name')] && !readIds[feature.get('id')]) {
+            chimeraRecs.push(feature)
+          }
+        }
+        return chimeraRecs
+      })
+      chimeraFeatPromises.push(featPromise)
+    })
+    const newchimeraFeats = await Promise.all(chimeraFeatPromises)
+    let featuresRet: BAMFeature[] = []
+    if (newchimeraFeats.length) {
+      const newchimeras = newchimeraFeats.reduce((result, current) => result.concat(current))
+      featuresRet = featuresRet.concat(newchimeras)
+    }
+    return featuresRet
   }
 
   async fetchPairs(chrId: number, featPromises: Promise<BAMFeature[]>[], opts: BamOpts) {

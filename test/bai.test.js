@@ -414,3 +414,12 @@ test('pair across chrom', async () => {
   })
   expect(ret1.length).toBe(2)
 })
+
+test('fetch chimeras', async () => {
+  const ti = new BamFile({
+    bamPath: require.resolve('./data/cross_chr_chimera_samspec.bam'),
+  })
+  await ti.getHeader()
+  const ret1 = await ti.getRecordsForRange('ref1', 0, 10000, { viewAsChimeras: true })
+  expect(ret1.length).toBe(2)
+})
