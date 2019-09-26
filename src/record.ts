@@ -1,4 +1,6 @@
-const Constants = require('./constants')
+/* eslint-disable @typescript-eslint/camelcase */
+/* eslint-disable @typescript-eslint/no-empty-function */
+import Constants from './constants'
 
 const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
 const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
@@ -6,8 +8,16 @@ const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
 /**
  * Class of each BAM record returned by this API.
  */
-class BamRecord {
-  constructor(args) {
+export default class BamRecord {
+  private data: any
+  private bytes: any
+  private flags: any
+  private _id: number
+  private _refID: number
+  private _tagOffset: number | undefined = undefined
+  private _tagList: string[] = []
+  private _allTagsParsed = false
+  constructor(args: any) {
     this.data = {}
     this.bytes = {
       start: args.bytes.start,
@@ -15,29 +25,18 @@ class BamRecord {
       byteArray: args.bytes.byteArray,
     }
     this._id = args.fileOffset
-
-    this._coreParse()
-  }
-
-  /**
-   * parse the core data: ref ID and start
-   */
-  _coreParse() {
     const { start, byteArray } = this.bytes
     this._refID = byteArray.readInt32LE(start + 4)
     this.data.start = byteArray.readInt32LE(start + 8)
     this.flags = (byteArray.readInt32LE(start + 16) & 0xffff0000) >> 16
   }
 
-  get(field) {
+  get(field: string) {
     return this._get(field.toLowerCase())
   }
 
   end() {
-    return (
-      this._get('start') +
-      (this._get('length_on_ref') || this._get('seq_length') || undefined)
-    )
+    return this._get('start') + (this._get('length_on_ref') || this._get('seq_length') || undefined)
   }
 
   seq_id() {
@@ -46,11 +45,13 @@ class BamRecord {
 
   // same as get(), except requires lower-case arguments.  used
   // internally to save lots of calls to field.toLowerCase()
-  _get(field) {
+  _get(field: string) {
     if (field in this.data) {
       return this.data[field]
     }
+    //@ts-ignore
     if (this[field]) {
+      //@ts-ignore
       this.data[field] = this[field]()
     } else {
       this.data[field] = this._parseTag(field)
@@ -72,17 +73,7 @@ class BamRecord {
     ]
 
     if (!this.isSegmentUnmapped())
-      tags.push(
-        'start',
-        'end',
-        'strand',
-        'score',
-        'qual',
-        'MQ',
-        'CIGAR',
-        'length_on_ref',
-        'template_length',
-      )
+      tags.push('start', 'end', 'strand', 'score', 'qual', 'MQ', 'CIGAR', 'length_on_ref', 'template_length')
     if (this.isPaired()) {
       tags.push(
         'multi_segment_all_correctly_aligned',
@@ -97,15 +88,10 @@ class BamRecord {
     tags = tags.concat(this._tagList || [])
 
     Object.keys(this.data).forEach(k => {
-      if (
-        k[0] !== '_' &&
-        k !== 'multi_segment_all_aligned' &&
-        k !== 'next_seq_id'
-      )
-        tags.push(k)
+      if (k[0] !== '_' && k !== 'multi_segment_all_aligned' && k !== 'next_seq_id') tags.push(k)
     })
 
-    const seen = {}
+    const seen: { [key: string]: boolean } = {}
     tags = tags.filter(t => {
       if (t in this.data && this.data[t] === undefined) return false
 
@@ -152,12 +138,7 @@ class BamRecord {
 
     const qseq = []
     const { byteArray } = this.bytes
-    const p =
-      this.bytes.start +
-      36 +
-      this._get('_l_read_name') +
-      this._get('_n_cigar_op') * 4 +
-      this._get('_seq_bytes')
+    const p = this.bytes.start + 36 + this._get('_l_read_name') + this._get('_n_cigar_op') * 4 + this._get('_seq_bytes')
     const lseq = this._get('seq_length')
     for (let j = 0; j < lseq; ++j) {
       qseq.push(byteArray[p + j])
@@ -180,24 +161,19 @@ class BamRecord {
 
   _read_name() {
     const nl = this._get('_l_read_name')
-    return this.bytes.byteArray.toString(
-      'ascii',
-      this.bytes.start + 36,
-      this.bytes.start + 36 + nl - 1,
-    )
+    return this.bytes.byteArray.toString('ascii', this.bytes.start + 36, this.bytes.start + 36 + nl - 1)
   }
 
   /**
    * Get the value of a tag, parsing the tags as far as necessary.
    * Only called if we have not already parsed that field.
    */
-  _parseTag(tagName) {
+  _parseTag(tagName?: string) {
     // if all of the tags have been parsed and we're still being
     // called, we already know that we have no such tag, because
     // it would already have been cached.
     if (this._allTagsParsed) return undefined
 
-    this._tagList = this._tagList || []
     const { byteArray } = this.bytes
     let p =
       this._tagOffset ||
@@ -313,10 +289,9 @@ class BamRecord {
     this._parseTag()
   }
 
-  _parseCigar(cigar) {
-    return cigar
-      .match(/\d+\D/g)
-      .map(op => [op.match(/\D/)[0].toUpperCase(), parseInt(op, 10)])
+  _parseCigar(cigar: string) {
+    //@ts-ignore
+    return cigar.match(/\d+\D/g).map((op: string) => [op.match(/\D/)[0].toUpperCase(), parseInt(op, 10)])
   }
 
   /**
@@ -432,11 +407,7 @@ class BamRecord {
   getReadBases() {
     let seq = ''
     const { byteArray } = this.bytes
-    const p =
-      this.bytes.start +
-      36 +
-      this._get('_l_read_name') +
-      this._get('_n_cigar_op') * 4
+    const p = this.bytes.start + 36 + this._get('_l_read_name') + this._get('_n_cigar_op') * 4
     const seqBytes = this._get('_seq_bytes')
     for (let j = 0; j < seqBytes; ++j) {
       const sb = byteArray[p + j]
@@ -448,11 +419,7 @@ class BamRecord {
 
   // adapted from igv.js
   getPairOrientation() {
-    if (
-      !this.isSegmentUnmapped() &&
-      !this.isMateUnmapped() &&
-      this._refID === this._next_refid()
-    ) {
+    if (!this.isSegmentUnmapped() && !this.isMateUnmapped() && this._refID === this._next_refid()) {
       const s1 = this.isReverseComplemented() ? 'R' : 'F'
       const s2 = this.isMateReverseComplemented() ? 'R' : 'F'
       let o1 = ' '
@@ -508,14 +475,13 @@ class BamRecord {
   }
 
   toJSON() {
-    const data = {}
+    const data: { [key: string]: any } = {}
     Object.keys(this).forEach(k => {
       if (k.charAt(0) === '_' || k === 'bytes') return
+      //@ts-ignore
       data[k] = this[k]
     })
 
     return data
   }
 }
-
-module.exports = BamRecord

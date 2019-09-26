@@ -1,5 +1,7 @@
-export class VirtualOffset {
-  constructor(blockPosition, dataPosition) {
+export default class VirtualOffset {
+  public blockPosition:number
+  public dataPosition:number
+  constructor(blockPosition:number, dataPosition:number) {
     this.blockPosition = blockPosition // < offset of the compressed data block
     this.dataPosition = dataPosition // < offset into the uncompressed data
   }
@@ -8,13 +10,13 @@ export class VirtualOffset {
     return `${this.blockPosition}:${this.dataPosition}`
   }
 
-  compareTo(b) {
+  compareTo(b:VirtualOffset) {
     return (
       this.blockPosition - b.blockPosition || this.dataPosition - b.dataPosition
     )
   }
 
-  static min(...args) {
+  static min(...args:VirtualOffset[]) {
     let min
     let i = 0
     for (; !min; i += 1) min = args[i]
@@ -24,7 +26,7 @@ export class VirtualOffset {
     return min
   }
 }
-export function fromBytes(bytes, offset = 0, bigendian = false) {
+export function fromBytes(bytes:Buffer, offset = 0, bigendian = false) {
   if (bigendian)
     throw new Error('big-endian virtual file offsets not implemented')
 

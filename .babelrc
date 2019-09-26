@@ -1,27 +1,27 @@
 {
+  "comments": true,
   "presets": [
+    "@babel/preset-typescript",
     [
       "@babel/preset-env",
       {
         "targets": {
+          "node": 6,
           "browsers": [
-            "last 2 versions",
-            "> 0.5%"
-          ],
-          "node": "6.10"
+            "> 0.5%",
+            "last 2 versions"
+          ]
         }
       }
     ]
   ],
-  "retainLines": true,
-  "sourceMaps": true,
   "plugins": [
     [
-      "@babel/plugin-transform-runtime",
+      "@babel/transform-runtime",
       {
-        "corejs": 2,
-        "helpers": true
+        "regenerator": true
       }
-    ]
+    ],
+    "@babel/proposal-class-properties"
   ]
 }

@@ -1,4 +1,4 @@
-module.exports = {
+export default {
   //  the read is paired in sequencing, no matter whether it is mapped in a pair
   BAM_FPAIRED: 1,
   //  the read is mapped in a proper pair
