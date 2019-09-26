@@ -431,7 +431,9 @@ test('fetch chimeras in the samspec file', async () => {
   })
   await ti.getHeader()
   const ret1 = await ti.getRecordsForRange('ref', 0, 10000, { viewAsChimeras: true })
-  const c = ret1.filter(f => f.isChimeric()).map(f => f.name())
-  expect(c).toMatchSnapshot()
-  expect(ret1.length).toBe(8)
+  expect(ret1).toMatchSnapshot()
+  const chim = ret1.filter(f => f.get('name') === 'r003')
+  expect(chim[1].getChimericTemplatePosition()).toBe(0)
+
+  expect(ret1.length).toBe(6)
 })

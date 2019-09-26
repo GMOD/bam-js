@@ -485,12 +485,6 @@ export default class BamRecord {
 
     return data
   }
-  setChimeric(f: boolean) {
-    this.data.isChimeric = f
-  }
-  isChimeric(): boolean {
-    return this.data.isChimeric
-  }
   setChimericTemplatePosition(pos: number) {
     this.data.chimericTemplateReadPosition = pos
   }

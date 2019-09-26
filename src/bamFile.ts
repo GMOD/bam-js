@@ -331,6 +331,7 @@ export default class BamFile {
         for (let i = 0; i < ret.length; i++) {
           const name = ret[i].name()
           const id = ret[i].id()
+          readIds[id] = name
           if (ret[i].get('SA')) {
             chimericReads[name] = true
           }
@@ -383,7 +384,7 @@ export default class BamFile {
         const chimeraRecs = []
         for (let i = 0; i < feats.length; i += 1) {
           const feature = feats[i]
-          if (chimericReads[feature.get('name')] && !readIds[feature.get('id')]) {
+          if (chimericReads[feature.get('name')]) {
             chimeraRecs.push(feature)
           }
         }
@@ -412,7 +413,6 @@ export default class BamFile {
     })
     Object.entries(seqs).forEach(([k, v]) => {
       const primarySeq = v[0].getReadBases()
-      v[0].setChimeric(true)
       for (let i = 1; i < v.length; i += 1) {
         const record = v[i]
         const rb = v[i].getReadBases()
@@ -420,7 +420,6 @@ export default class BamFile {
         if (pos !== -1) {
           v[i].setChimericTemplatePosition(pos)
         }
-        v[i].setChimeric(true)
       }
     })
     return featuresRet.filter(f => !readIds[f.id()])
