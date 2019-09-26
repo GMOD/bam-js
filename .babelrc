@@ -19,7 +19,9 @@
     [
       "@babel/transform-runtime",
       {
-        "regenerator": true
+        "regenerator": true,
+        "helpers": true,
+        "corejs": 2
       }
     ],
     "@babel/proposal-class-properties"
