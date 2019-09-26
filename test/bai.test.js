@@ -415,11 +415,20 @@ test('pair across chrom', async () => {
   expect(ret1.length).toBe(2)
 })
 
-test('fetch chimeras', async () => {
+test('fetch chimeras across chromosomes', async () => {
   const ti = new BamFile({
     bamPath: require.resolve('./data/cross_chr_chimera_samspec.bam'),
   })
   await ti.getHeader()
   const ret1 = await ti.getRecordsForRange('ref1', 0, 10000, { viewAsChimeras: true })
   expect(ret1.length).toBe(2)
+})
+
+test('fetch chimeras in the samspec file', async () => {
+  const ti = new BamFile({
+    bamPath: require.resolve('./data/samspec.bam'),
+  })
+  await ti.getHeader()
+  const ret1 = await ti.getRecordsForRange('ref', 0, 10000, { viewAsChimeras: true })
+  expect(ret1.length).toBe(8)
 })

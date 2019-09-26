@@ -283,7 +283,7 @@ export default class BamFile {
   }
 
   async fetchChimeras(chrId: number, featPromises: Promise<BAMFeature[]>[], opts: BamOpts) {
-    const unmatedChimeras: { [key: string]: boolean } = {}
+    const chimericReads: { [key: string]: boolean } = {}
     const readIds: { [key: string]: number } = {}
     await Promise.all(
       featPromises.map(async f => {
@@ -292,16 +292,12 @@ export default class BamFile {
         for (let i = 0; i < ret.length; i++) {
           const name = ret[i].name()
           const id = ret[i].id()
-          if (!readNames[name]) readNames[name] = 0
-          readNames[name]++
-          readIds[id] = 1
+          if (ret[i].get('SA')) {
+            chimericReads[name] = true
+          }
         }
-        entries(readNames).forEach(([k, v]: [string, number]) => {
-          if (v === 1) unmatedChimeras[k] = true
-        })
       }),
     )
-    console.log(unmatedChimeras)
 
     const chimeraPromises: Promise<Chunk[]>[] = []
     await Promise.all(
@@ -309,8 +305,9 @@ export default class BamFile {
         const ret = await f
         for (let i = 0; i < ret.length; i++) {
           const name = ret[i].name()
-          if (unmatedChimeras[name]) {
+          if (chimericReads[name]) {
             let sa = ret[i].get('SA')
+            console.log(ret[i].get('name'), ret[i].get('SA'))
             if (!sa) throw new Error('badly formatted SA tag')
             sa = sa.replace(/;$/, '')
 
@@ -349,7 +346,7 @@ export default class BamFile {
         const chimeraRecs = []
         for (let i = 0; i < feats.length; i += 1) {
           const feature = feats[i]
-          if (unmatedChimeras[feature.get('name')] && !readIds[feature.get('id')]) {
+          if (chimericReads[feature.get('name')] && !readIds[feature.get('id')]) {
             chimeraRecs.push(feature)
           }
         }
