@@ -1,4 +1,5 @@
-import { Inflate, FlushValues } from 'pako'
+//@ts-ignore
+import { Inflate, Z_SYNC_FLUSH } from 'pako'
 import Chunk from './chunk'
 
 export function unzip(inputData: Buffer) {
@@ -12,7 +13,8 @@ export function unzip(inputData: Buffer) {
     inflator = new Inflate()
     //@ts-ignore
     ;({ strm } = inflator)
-    inflator.push(remainingInput, FlushValues.Z_SYNC_FLUSH)
+    //@ts-ignore
+    inflator.push(remainingInput, Z_SYNC_FLUSH)
     if (inflator.err) throw new Error(inflator.msg)
 
     pos += strm.next_in
@@ -40,7 +42,8 @@ export function unzipChunk(inputData: Buffer, chunk: Chunk) {
     inflator = new Inflate()
     //@ts-ignore
     ;({ strm } = inflator)
-    inflator.push(remainingInput, FlushValues.Z_SYNC_FLUSH)
+    //@ts-ignore
+    inflator.push(remainingInput, Z_SYNC_FLUSH)
     if (inflator.err) throw new Error(inflator.msg)
 
     //@ts-ignore

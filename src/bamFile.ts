@@ -19,12 +19,11 @@ const blockLen = 1 << 16
 type G = GenericFilehandle
 
 interface BamOpts {
-  viewAsPairs?: boolean
-  pairAcrossChr?: boolean
-  maxInsertSize?: number
+  viewAsPairs: boolean
+  pairAcrossChr: boolean
+  maxInsertSize: number
   signal?: AbortSignal
 }
-const defaultBamOpts = { viewAsPairs: false, pairAcrossChr: false, maxInsertSize: 200000 }
 export default class BamFile {
   private renameRefSeq: (a: string) => string
   private bam: GenericFilehandle
@@ -195,7 +194,12 @@ export default class BamFile {
     return { chrToIndex, indexToChr }
   }
 
-  async getRecordsForRange(chr: string, min: number, max: number, opts: BamOpts = defaultBamOpts) {
+  async getRecordsForRange(
+    chr: string,
+    min: number,
+    max: number,
+    opts: BamOpts = { viewAsPairs: false, pairAcrossChr: false, maxInsertSize: 200000 },
+  ) {
     let records: BAMFeature[] = []
     for await (const chunk of this.streamRecordsForRange(chr, min, max, opts)) {
       records = records.concat(...chunk)
@@ -203,11 +207,16 @@ export default class BamFile {
     return records
   }
 
-  async *streamRecordsForRange(chr: string, min: number, max: number, opts: BamOpts = defaultBamOpts) {
+  async *streamRecordsForRange(
+    chr: string,
+    min: number,
+    max: number,
+    opts: BamOpts = { viewAsPairs: false, pairAcrossChr: false, maxInsertSize: 200000 },
+  ) {
+    // todo regularize refseq names
     opts.viewAsPairs = opts.viewAsPairs || false
     opts.pairAcrossChr = opts.pairAcrossChr || false
-    opts.maxInsertSize = opts.maxInsertSize || 200000
-    // todo regularize refseq names
+    opts.maxInsertSize = opts.maxInsertSize !== undefined ? opts.maxInsertSize : 200000
     const chrId = this.chrToIndex && this.chrToIndex[chr]
     let chunks: Chunk[]
     if (!(chrId >= 0)) {
@@ -238,7 +247,7 @@ export default class BamFile {
     yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
-  async *_fetchChunkFeatures(chunks: Chunk[], chrId: number, min: number, max: number, opts: Record<string, any> = {}) {
+  async *_fetchChunkFeatures(chunks: Chunk[], chrId: number, min: number, max: number, opts: BamOpts) {
     const featPromises = chunks.map(async c => {
       const records = await this.featureCache.get(c.toString(), c, opts.signal)
       const recs = []
@@ -258,92 +267,96 @@ export default class BamFile {
     })
 
     checkAbortSignal(opts.signal)
-    let featuresRet: BAMFeature[] = []
 
-    if (opts.viewAsPairs) {
-      const unmatedPairs: { [key: string]: boolean } = {}
-      const readIds: { [key: string]: number } = {}
-      await Promise.all(
-        featPromises.map(async f => {
-          const ret = await f
-          const readNames: { [key: string]: number } = {}
-          for (let i = 0; i < ret.length; i++) {
-            const name = ret[i].name()
-            const id = ret[i].id()
-            if (!readNames[name]) readNames[name] = 0
-            readNames[name]++
-            readIds[id] = 1
-          }
-          entries(readNames).forEach(([k, v]: [string, number]) => {
-            if (v === 1) unmatedPairs[k] = true
-          })
-        }),
-      )
-
-      const matePromises: Promise<Chunk[]>[] = []
-      await Promise.all(
-        featPromises.map(async f => {
-          const ret = await f
-          for (let i = 0; i < ret.length; i++) {
-            const name = ret[i].name()
-            if (
-              unmatedPairs[name] &&
-              (opts.pairAcrossChr ||
-                (ret[i]._next_refid() === chrId &&
-                  Math.abs(ret[i].get('start') - ret[i]._next_pos()) < opts.maxInsertSize))
-            ) {
-              matePromises.push(
-                this.index.blocksForRange(ret[i]._next_refid(), ret[i]._next_pos(), ret[i]._next_pos() + 1, opts),
-              )
-            }
-          }
-        }),
-      )
-
-      const mateBlocks = await Promise.all(matePromises)
-      let mateChunks = []
-      for (let i = 0; i < mateBlocks.length; i++) {
-        mateChunks.push(...mateBlocks[i])
-      }
-      // filter out duplicate chunks (the blocks are lists of chunks, blocks are concatenated, then filter dup chunks)
-      mateChunks = mateChunks.sort().filter((item, pos, ary) => !pos || item.toString() !== ary[pos - 1].toString())
-
-      const mateRecordPromises = []
-      const mateFeatPromises: Promise<BAMFeature[]>[] = []
-
-      const mateTotalSize = mateChunks.map(s => s.fetchedSize()).reduce((a, b) => a + b, 0)
-      if (mateTotalSize > this.fetchSizeLimit) {
-        throw new Error(
-          `data size of ${mateTotalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
-        )
-      }
-      mateChunks.forEach(c => {
-        const recordPromise = this.featureCache.get(c.toString(), c, opts.signal)
-        mateRecordPromises.push(recordPromise)
-        const featPromise = recordPromise.then((feats: BAMFeature[]) => {
-          const mateRecs = []
-          for (let i = 0; i < feats.length; i += 1) {
-            const feature = feats[i]
-            if (unmatedPairs[feature.get('name')] && !readIds[feature.get('id')]) {
-              mateRecs.push(feature)
-            }
-          }
-          return mateRecs
-        })
-        mateFeatPromises.push(featPromise)
-      })
-      const newMateFeats = await Promise.all(mateFeatPromises)
-      if (newMateFeats.length) {
-        const newMates = newMateFeats.reduce((result, current) => result.concat(current))
-        featuresRet = featuresRet.concat(newMates)
-      }
-    }
     for (let i = 0; i < featPromises.length; i++) {
       yield featPromises[i]
     }
-    yield featuresRet
+    checkAbortSignal(opts.signal)
+    if (opts.viewAsPairs) {
+      yield this.fetchPairs(chrId, featPromises, opts)
+    }
   }
 
+  async fetchPairs(chrId: number, featPromises: Promise<BAMFeature[]>[], opts: BamOpts) {
+    const unmatedPairs: { [key: string]: boolean } = {}
+    const readIds: { [key: string]: number } = {}
+    await Promise.all(
+      featPromises.map(async f => {
+        const ret = await f
+        const readNames: { [key: string]: number } = {}
+        for (let i = 0; i < ret.length; i++) {
+          const name = ret[i].name()
+          const id = ret[i].id()
+          if (!readNames[name]) readNames[name] = 0
+          readNames[name]++
+          readIds[id] = 1
+        }
+        entries(readNames).forEach(([k, v]: [string, number]) => {
+          if (v === 1) unmatedPairs[k] = true
+        })
+      }),
+    )
+
+    const matePromises: Promise<Chunk[]>[] = []
+    await Promise.all(
+      featPromises.map(async f => {
+        const ret = await f
+        for (let i = 0; i < ret.length; i++) {
+          const name = ret[i].name()
+          if (
+            unmatedPairs[name] &&
+            (opts.pairAcrossChr ||
+              (ret[i]._next_refid() === chrId &&
+                Math.abs(ret[i].get('start') - ret[i]._next_pos()) < opts.maxInsertSize))
+          ) {
+            matePromises.push(
+              this.index.blocksForRange(ret[i]._next_refid(), ret[i]._next_pos(), ret[i]._next_pos() + 1, opts),
+            )
+          }
+        }
+      }),
+    )
+
+    const mateBlocks = await Promise.all(matePromises)
+    let mateChunks = []
+    for (let i = 0; i < mateBlocks.length; i++) {
+      mateChunks.push(...mateBlocks[i])
+    }
+    // filter out duplicate chunks (the blocks are lists of chunks, blocks are concatenated, then filter dup chunks)
+    mateChunks = mateChunks.sort().filter((item, pos, ary) => !pos || item.toString() !== ary[pos - 1].toString())
+
+    const mateRecordPromises = []
+    const mateFeatPromises: Promise<BAMFeature[]>[] = []
+
+    const mateTotalSize = mateChunks.map(s => s.fetchedSize()).reduce((a, b) => a + b, 0)
+    if (mateTotalSize > this.fetchSizeLimit) {
+      throw new Error(
+        `data size of ${mateTotalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
+      )
+    }
+    mateChunks.forEach(c => {
+      const recordPromise = this.featureCache.get(c.toString(), c, opts.signal)
+      mateRecordPromises.push(recordPromise)
+      const featPromise = recordPromise.then((feats: BAMFeature[]) => {
+        const mateRecs = []
+        for (let i = 0; i < feats.length; i += 1) {
+          const feature = feats[i]
+          if (unmatedPairs[feature.get('name')] && !readIds[feature.get('id')]) {
+            mateRecs.push(feature)
+          }
+        }
+        return mateRecs
+      })
+      mateFeatPromises.push(featPromise)
+    })
+    const newMateFeats = await Promise.all(mateFeatPromises)
+    let featuresRet: BAMFeature[] = []
+    if (newMateFeats.length) {
+      const newMates = newMateFeats.reduce((result, current) => result.concat(current))
+      featuresRet = featuresRet.concat(newMates)
+    }
+    return featuresRet
+  }
   async _readChunk(chunk: Chunk, abortSignal?: AbortSignal) {
     const bufsize = chunk.fetchedSize()
     let buf = Buffer.alloc(bufsize)
