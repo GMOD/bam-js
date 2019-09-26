@@ -5,20 +5,29 @@ import { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 import { longToNumber, abortBreakPoint, canMergeBlocks } from './util'
 
-const IndexFile = require('./indexFile')
+import IndexFile from './indexFile'
 
 const CSI1_MAGIC = 21582659 // CSI\1
 const CSI2_MAGIC = 38359875 // CSI\2
 
-function lshift(num, bits) {
+function lshift(num: number, bits: number) {
   return num * 2 ** bits
 }
-function rshift(num, bits) {
+function rshift(num: number, bits: number) {
   return Math.floor(num / 2 ** bits)
 }
 
 export default class CSI extends IndexFile {
-  async lineCount(refId) {
+  private maxBinNumber: number
+  private depth: number
+  private minShift: number
+  constructor(args: any) {
+    super(args)
+    this.maxBinNumber = 0
+    this.depth = 0
+    this.minShift = 0
+  }
+  async lineCount(refId: number): Promise<number> {
     const indexData = await this.parse()
     if (!indexData) return -1
     const idx = indexData.indices[refId]
@@ -28,16 +37,14 @@ export default class CSI extends IndexFile {
     return -1
   }
 
-  parseAuxData(bytes, offset, auxLength) {
+  parseAuxData(bytes: Buffer, offset: number, auxLength: number) {
     if (auxLength < 30) return {}
 
-    const data = {}
+    const data: { [key: string]: any } = {}
     data.formatFlags = bytes.readInt32LE(offset)
-    data.coordinateType =
-      data.formatFlags & 0x10000 ? 'zero-based-half-open' : '1-based-closed'
-    data.format = { 0: 'generic', 1: 'SAM', 2: 'VCF' }[data.formatFlags & 0xf]
-    if (!data.format)
-      throw new Error(`invalid Tabix preset format flags ${data.formatFlags}`)
+    data.coordinateType = data.formatFlags & 0x10000 ? 'zero-based-half-open' : '1-based-closed'
+    data.format = ({ 0: 'generic', 1: 'SAM', 2: 'VCF' } as { [key: number]: string })[data.formatFlags & 0xf]
+    if (!data.format) throw new Error(`invalid Tabix preset format flags ${data.formatFlags}`)
     data.columnNumbers = {
       ref: bytes.readInt32LE(offset + 4),
       start: bytes.readInt32LE(offset + 8),
@@ -48,20 +55,15 @@ export default class CSI extends IndexFile {
     data.skipLines = bytes.readInt32LE(offset + 20)
     const nameSectionLength = bytes.readInt32LE(offset + 24)
 
-    Object.assign(
-      data,
-      this._parseNameBytes(
-        bytes.slice(offset + 28, offset + 28 + nameSectionLength),
-      ),
-    )
+    Object.assign(data, this._parseNameBytes(bytes.slice(offset + 28, offset + 28 + nameSectionLength)))
     return data
   }
 
-  _parseNameBytes(namesBytes) {
+  _parseNameBytes(namesBytes: Buffer) {
     let currRefId = 0
     let currNameStart = 0
     const refIdToName = []
-    const refNameToId = {}
+    const refNameToId: { [key: string]: number } = {}
     for (let i = 0; i < namesBytes.length; i += 1) {
       if (!namesBytes[i]) {
         if (currNameStart < i) {
@@ -78,11 +80,9 @@ export default class CSI extends IndexFile {
   }
 
   // fetch and parse the index
-  async _parse(abortSignal) {
-    const data = { csi: true, maxBlockSize: 1 << 16 }
-    const bytes = await unzip(
-      await this.filehandle.readFile({ signal: abortSignal }),
-    )
+  async _parse(abortSignal?: AbortSignal) {
+    const data: { [key: string]: any } = { csi: true, maxBlockSize: 1 << 16 }
+    const bytes = await unzip((await this.filehandle.readFile({ signal: abortSignal })) as Buffer)
 
     // check TBI magic numbers
     if (bytes.readUInt32LE(0) === CSI1_MAGIC) {
@@ -111,7 +111,7 @@ export default class CSI extends IndexFile {
       // the binning index
       const binCount = bytes.readInt32LE(currOffset)
       currOffset += 4
-      const binIndex = {}
+      const binIndex: { [key: string]: Chunk[] } = {}
       let stats // < provided by parsing a pseudo-bin, if present
       for (let j = 0; j < binCount; j += 1) {
         const bin = bytes.readUInt32LE(currOffset)
@@ -143,19 +143,18 @@ export default class CSI extends IndexFile {
     return data
   }
 
-  parsePseudoBin(bytes, offset) {
+  parsePseudoBin(bytes: Buffer, offset: number) {
     // const one = Long.fromBytesLE(bytes.slice(offset + 4, offset + 12), true)
     // const two = Long.fromBytesLE(bytes.slice(offset + 12, offset + 20), true)
     // const three = longToNumber(
     //   Long.fromBytesLE(bytes.slice(offset + 20, offset + 28), true),
     // )
-    const lineCount = longToNumber(
-      Long.fromBytesLE(bytes.slice(offset + 28, offset + 36), true),
-    )
+    // @ts-ignore
+    const lineCount = longToNumber(Long.fromBytesLE(bytes.slice(offset + 28, offset + 36), true))
     return { lineCount }
   }
 
-  async blocksForRange(refId, beg, end, opts) {
+  async blocksForRange(refId: number, beg: number, end: number, opts: Record<string, any> = {}): Promise<Chunk[]> {
     if (beg < 0) beg = 0
 
     const indexData = await this.parse(opts.signal)
@@ -181,11 +180,7 @@ export default class CSI extends IndexFile {
       const chunks = binIndex[bins[i]]
       if (chunks)
         for (let j = 0; j < chunks.length; j += 1) {
-          off[numOffsets] = new Chunk(
-            chunks[j].minv,
-            chunks[j].maxv,
-            chunks[j].bin,
-          )
+          off[numOffsets] = new Chunk(chunks[j].minv, chunks[j].maxv, chunks[j].bin)
           numOffsets += 1
         }
     }
@@ -207,8 +202,7 @@ export default class CSI extends IndexFile {
 
     // resolve overlaps between adjacent blocks; this may happen due to the merge in indexing
     for (let i = 1; i < numOffsets; i += 1)
-      if (off[i - 1].maxv.compareTo(off[i].minv) >= 0)
-        off[i - 1].maxv = off[i].minv
+      if (off[i - 1].maxv.compareTo(off[i].minv) >= 0) off[i - 1].maxv = off[i].minv
 
     // merge adjacent blocks
     l = 0
@@ -229,7 +223,7 @@ export default class CSI extends IndexFile {
    * calculate the list of bins that may overlap with region [beg,end) (zero-based half-open)
    * @returns {Array[number]}
    */
-  reg2bins(beg, end) {
+  reg2bins(beg: number, end: number) {
     beg -= 1 // < convert to 1-based closed
     if (beg < 1) beg = 1
     if (end > 2 ** 50) end = 2 ** 34 // 17 GiB ought to be enough for anybody

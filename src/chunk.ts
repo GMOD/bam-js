@@ -1,12 +1,24 @@
+import VirtualOffset from "./virtualOffset"
+
 // little class representing a chunk in the index
-class Chunk {
+export default class Chunk {
+  public minv: VirtualOffset;
+  public maxv: VirtualOffset;
+  public bin: number;
+  public _fetchedSize?: number;
+
   /**
    * @param {VirtualOffset} minv
    * @param {VirtualOffset} maxv
    * @param {number} bin
    * @param {number} [fetchedSize]
    */
-  constructor(minv, maxv, bin, fetchedSize) {
+  constructor(
+    minv: VirtualOffset,
+    maxv: VirtualOffset,
+    bin: number,
+    fetchedSize = undefined
+  ) {
     this.minv = minv
     this.maxv = maxv
     this.bin = bin
@@ -23,7 +35,7 @@ class Chunk {
     return this.toUniqueString()
   }
 
-  compareTo(b) {
+  compareTo(b: Chunk) {
     return (
       this.minv.compareTo(b.minv) ||
       this.maxv.compareTo(b.maxv) ||
@@ -36,5 +48,3 @@ class Chunk {
     return this.maxv.blockPosition + (1 << 16) - this.minv.blockPosition
   }
 }
-
-module.exports = Chunk

@@ -3,26 +3,27 @@ import { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 
 import IndexFile from './indexFile'
+import { longToNumber, abortBreakPoint, canMergeBlocks } from './util'
 
 const BAI_MAGIC = 21578050 // BAI\1
-const { longToNumber, abortBreakPoint, canMergeBlocks } = require('./util')
 
-function roundDown(n, multiple) {
+function roundDown(n: number, multiple: number) {
   return n - (n % multiple)
 }
-function roundUp(n, multiple) {
+function roundUp(n: number, multiple: number) {
   return n - (n % multiple) + multiple
 }
 
 export default class BAI extends IndexFile {
-  parsePseudoBin(bytes, offset) {
+  parsePseudoBin(bytes: Buffer, offset: number) {
     const lineCount = longToNumber(
+      //@ts-ignore
       Long.fromBytesLE(bytes.slice(offset + 16, offset + 24), true),
     )
     return { lineCount }
   }
 
-  async lineCount(refId) {
+  async lineCount(refId: number) {
     const index = (await this.parse()).indices[refId]
     if (!index) {
       return -1
@@ -32,9 +33,11 @@ export default class BAI extends IndexFile {
   }
 
   // fetch and parse the index
-  async _parse(abortSignal) {
-    const data = { bai: true, maxBlockSize: 1 << 16 }
-    const bytes = await this.filehandle.readFile({ signal: abortSignal })
+  async _parse(abortSignal?: AbortSignal) {
+    const data: { [key: string]: any } = { bai: true, maxBlockSize: 1 << 16 }
+    const bytes = (await this.filehandle.readFile({
+      signal: abortSignal,
+    })) as Buffer
 
     // check BAI magic numbers
     if (bytes.readUInt32LE(0) !== BAI_MAGIC) {
@@ -56,7 +59,7 @@ export default class BAI extends IndexFile {
       let stats
 
       currOffset += 4
-      const binIndex = {}
+      const binIndex: { [key: number]: Chunk[] } = {}
       for (let j = 0; j < binCount; j += 1) {
         const bin = bytes.readUInt32LE(currOffset)
         currOffset += 4
@@ -99,7 +102,7 @@ export default class BAI extends IndexFile {
     return data
   }
 
-  async indexCov(seqId, start, end) {
+  async indexCov(seqId: number, start: number, end: number) {
     const v = 16384
     const range = start !== undefined
     const indexData = await this.parse()
@@ -133,7 +136,7 @@ export default class BAI extends IndexFile {
     })
   }
 
-  async indexCovTotal(seqId) {
+  async indexCovTotal(seqId: number) {
     const v = 16384
     const indexData = await this.parse()
     const seqIdx = indexData.indices[seqId]
@@ -156,7 +159,7 @@ export default class BAI extends IndexFile {
     })
   }
 
-  async blocksForRange(refId, beg, end) {
+  async blocksForRange(refId: number, beg: number, end: number): Promise<Chunk[]> {
     if (beg < 0) beg = 0
 
     const indexData = await this.parse()
@@ -164,7 +167,7 @@ export default class BAI extends IndexFile {
     const indexes = indexData.indices[refId]
     if (!indexes) return []
 
-    const { binIndex } = indexes
+    const binIndex: { [key: number]: any } = indexes.binIndex
 
     const bins = this.reg2bins(beg, end)
 
@@ -184,11 +187,7 @@ export default class BAI extends IndexFile {
       const chunks = binIndex[bins[i]]
       if (chunks)
         for (let j = 0; j < chunks.length; j += 1) {
-          off[numOffsets] = new Chunk(
-            chunks[j].minv,
-            chunks[j].maxv,
-            chunks[j].bin,
-          )
+          off[numOffsets] = new Chunk(chunks[j].minv, chunks[j].maxv, chunks[j].bin)
           numOffsets += 1
         }
     }
@@ -198,8 +197,7 @@ export default class BAI extends IndexFile {
     off = off.sort((a, b) => a.compareTo(b))
     // resolve overlaps between adjacent blocks; this may happen due to the merge in indexing
     for (let i = 1; i < numOffsets; i += 1)
-      if (off[i - 1].maxv.compareTo(off[i].minv) >= 0)
-        off[i - 1].maxv = off[i].minv
+      if (off[i - 1].maxv.compareTo(off[i].minv) >= 0) off[i - 1].maxv = off[i].minv
 
     // merge adjacent blocks
     l = 0
@@ -220,15 +218,14 @@ export default class BAI extends IndexFile {
    * calculate the list of bins that may overlap with region [beg,end) (zero-based half-open)
    * @returns {Array[number]}
    */
-  reg2bins(beg, end) {
+  reg2bins(beg: number, end: number) {
     const list = [0]
     end -= 1
     for (let k = 1 + (beg >> 26); k <= 1 + (end >> 26); k += 1) list.push(k)
     for (let k = 9 + (beg >> 23); k <= 9 + (end >> 23); k += 1) list.push(k)
     for (let k = 73 + (beg >> 20); k <= 73 + (end >> 20); k += 1) list.push(k)
     for (let k = 585 + (beg >> 17); k <= 585 + (end >> 17); k += 1) list.push(k)
-    for (let k = 4681 + (beg >> 14); k <= 4681 + (end >> 14); k += 1)
-      list.push(k)
+    for (let k = 4681 + (beg >> 14); k <= 4681 + (end >> 14); k += 1) list.push(k)
     return list
   }
 }

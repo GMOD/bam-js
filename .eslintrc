@@ -1,40 +1,22 @@
 {
-  "extends": [
-    "airbnb-base",
-    "prettier"
-  ],
+  "parser": "@typescript-eslint/parser",
   "plugins": [
-    "prettier"
+    "prettier",
+    "jest",
+    "@typescript-eslint"
   ],
-  "globals": {
-    "window": true,
-    "__webpack_require__": true
-  },
-  "env": {
-    "jest": true
-  },
+  "extends": [
+    "plugin:@typescript-eslint/recommended",
+    "prettier/@typescript-eslint",
+    "plugin:prettier/recommended"
+  ],
   "rules": {
-    "strict": 0,
     "no-underscore-dangle": 0,
-    "no-bitwise": 0,
-    "no-await-in-loop": 0,
-    "no-param-reassign": "warn",
-    "no-loop-func": "warn",
-    "no-plusplus": 0,
-    "camelcase": 0,
-    "prefer-arrow-callback": "warn",
-    "prefer-destructuring": "warn",
-    "prefer-const": "warn",
-    "no-restricted-syntax": "warn",
-    "class-methods-use-this": 0,
-    "import/prefer-default-export": 0,
-    "prettier/prettier": [
+    "@typescript-eslint/no-explicit-any": 0,
+    "@typescript-eslint/explicit-function-return-type": 0,
+    "semi": [
       "error",
-      {
-        "singleQuote": true,
-        "semi": false,
-        "trailingComma": "all"
-      }
+      "never"
     ]
   }
 }

@@ -1,21 +1,40 @@
 import AbortablePromiseCache from 'abortable-promise-cache'
 import BAI from './bai'
 import CSI from './csi'
+import Chunk from './chunk'
 
 import { unzip, unzipChunk } from './unzip'
 
-const entries = require('object.entries-ponyfill')
-const LRU = require('quick-lru')
-const { LocalFile, RemoteFile } = require('generic-filehandle')
-const BAMFeature = require('./record')
-const { parseHeaderText } = require('./sam')
-const { abortBreakPoint, checkAbortSignal } = require('./util')
+import entries from 'object.entries-ponyfill'
+import LRU from 'quick-lru'
+import { LocalFile, RemoteFile, GenericFilehandle } from 'generic-filehandle'
+import BAMFeature from './record'
+import IndexFile from './indexFile'
+import { parseHeaderText } from './sam'
+import { abortBreakPoint, checkAbortSignal } from './util'
 
 const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
+type G = GenericFilehandle
 
+interface BamOpts {
+  viewAsPairs: boolean
+  pairAcrossChr: boolean
+  maxInsertSize: number
+  signal?: AbortSignal
+}
 export default class BamFile {
+  private renameRefSeq: (a: string) => string
+  private bam: GenericFilehandle
+  private index: IndexFile
+  private featureCache: any
+  private chunkSizeLimit: number
+  private fetchSizeLimit: number
+  private header: any
+  private chrToIndex: any
+  private indexToChr: any
+
   /**
    * @param {object} args
    * @param {string} [args.bamPath]
@@ -37,6 +56,20 @@ export default class BamFile {
     fetchSizeLimit,
     chunkSizeLimit,
     renameRefSeqs = n => n,
+  }: {
+    bamFilehandle: G
+    bamPath: string
+    bamUrl: string
+    baiPath: string
+    baiFilehandle: G
+    baiUrl: string
+    csiPath: string
+    csiFilehandle: G
+    csiUrl: string
+    cacheSize: number
+    fetchSizeLimit: number
+    chunkSizeLimit: number
+    renameRefSeqs?: (a: string) => string
   }) {
     this.renameRefSeq = renameRefSeqs
 
@@ -46,6 +79,8 @@ export default class BamFile {
       this.bam = new LocalFile(bamPath)
     } else if (bamUrl) {
       this.bam = new RemoteFile(bamUrl)
+    } else {
+      throw new Error('unable to initialize bam')
     }
     if (csiFilehandle) {
       this.index = new CSI({ filehandle: csiFilehandle })
@@ -77,11 +112,9 @@ export default class BamFile {
     this.chunkSizeLimit = chunkSizeLimit || 10000000
   }
 
-  async getHeader(abortSignal) {
+  async getHeader(abortSignal?: AbortSignal) {
     const indexData = await this.index.parse(abortSignal)
-    const ret = indexData.firstDataLine
-      ? indexData.firstDataLine.blockPosition + 65535
-      : undefined
+    const ret = indexData.firstDataLine ? indexData.firstDataLine.blockPosition + 65535 : undefined
     let buf
     if (ret) {
       buf = Buffer.alloc(ret + blockLen)
@@ -98,7 +131,7 @@ export default class BamFile {
         buf = buf.slice(0, ret)
       }
     } else {
-      buf = await this.bam.readFile({ signal: abortSignal })
+      buf = (await this.bam.readFile({ signal: abortSignal })) as Buffer
     }
 
     const uncba = unzip(buf)
@@ -107,11 +140,7 @@ export default class BamFile {
     const headLen = uncba.readInt32LE(4)
 
     this.header = uncba.toString('utf8', 8, 8 + headLen)
-    const { chrToIndex, indexToChr } = await this._readRefSeqs(
-      headLen + 8,
-      65535,
-      abortSignal,
-    )
+    const { chrToIndex, indexToChr } = await this._readRefSeqs(headLen + 8, 65535, abortSignal)
     this.chrToIndex = chrToIndex
     this.indexToChr = indexToChr
 
@@ -120,7 +149,11 @@ export default class BamFile {
 
   // the full length of the refseq block is not given in advance so this grabs a chunk and
   // doubles it if all refseqs haven't been processed
-  async _readRefSeqs(start, refSeqBytes, abortSignal) {
+  async _readRefSeqs(
+    start: number,
+    refSeqBytes: number,
+    abortSignal?: AbortSignal,
+  ): Promise<{ chrToIndex: { [key: string]: number }; indexToChr: { refName: string; length: number }[] }> {
     let buf = Buffer.alloc(refSeqBytes + blockLen)
     if (start > refSeqBytes) {
       return this._readRefSeqs(start, refSeqBytes * 2)
@@ -129,7 +162,7 @@ export default class BamFile {
       signal: abortSignal,
     })
     if (!bytesRead) {
-      return new Error('Error reading refseqs from header')
+      throw new Error('Error reading refseqs from header')
     }
     if (bytesRead < refSeqBytes) {
       buf = buf.slice(0, bytesRead)
@@ -139,8 +172,8 @@ export default class BamFile {
     const uncba = unzip(buf)
     const nRef = uncba.readInt32LE(start)
     let p = start + 4
-    const chrToIndex = {}
-    const indexToChr = []
+    const chrToIndex: { [key: string]: number } = {}
+    const indexToChr: { refName: string; length: number }[] = []
     for (let i = 0; i < nRef; i += 1) {
       await abortBreakPoint(abortSignal)
       const lName = uncba.readInt32LE(p)
@@ -154,30 +187,38 @@ export default class BamFile {
       p = p + 8 + lName
       if (p > uncba.length) {
         // eslint-disable-next-line no-console
-        console.warn(
-          `BAM header is very big.  Re-fetching ${refSeqBytes} bytes.`,
-        )
+        console.warn(`BAM header is very big.  Re-fetching ${refSeqBytes} bytes.`)
         return this._readRefSeqs(start, refSeqBytes * 2)
       }
     }
     return { chrToIndex, indexToChr }
   }
 
-  async getRecordsForRange(chr, min, max, opts = {}) {
-    let records = []
+  async getRecordsForRange(
+    chr: string,
+    min: number,
+    max: number,
+    opts: BamOpts = { viewAsPairs: false, pairAcrossChr: false, maxInsertSize: 200000 },
+  ) {
+    let records: BAMFeature[] = []
     for await (const chunk of this.streamRecordsForRange(chr, min, max, opts)) {
       records = records.concat(...chunk)
     }
     return records
   }
 
-  async *streamRecordsForRange(chr, min, max, opts) {
+  async *streamRecordsForRange(
+    chr: string,
+    min: number,
+    max: number,
+    opts: BamOpts = { viewAsPairs: false, pairAcrossChr: false, maxInsertSize: 200000 },
+  ) {
+    // todo regularize refseq names
     opts.viewAsPairs = opts.viewAsPairs || false
     opts.pairAcrossChr = opts.pairAcrossChr || false
-    opts.maxInsertSize = opts.maxInsertSize || 200000
-    // todo regularize refseq names
+    opts.maxInsertSize = opts.maxInsertSize !== undefined ? opts.maxInsertSize : 200000
     const chrId = this.chrToIndex && this.chrToIndex[chr]
-    let chunks
+    let chunks: Chunk[]
     if (!(chrId >= 0)) {
       chunks = []
     } else {
@@ -198,9 +239,7 @@ export default class BamFile {
       }
     }
 
-    const totalSize = chunks
-      .map(s => s.fetchedSize())
-      .reduce((a, b) => a + b, 0)
+    const totalSize = chunks.map((s: Chunk) => s.fetchedSize()).reduce((a: number, b: number) => a + b, 0)
     if (totalSize > this.fetchSizeLimit)
       throw new Error(
         `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
@@ -208,7 +247,7 @@ export default class BamFile {
     yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
-  async *_fetchChunkFeatures(chunks, chrId, min, max, opts = {}) {
+  async *_fetchChunkFeatures(chunks: Chunk[], chrId: number, min: number, max: number, opts: BamOpts) {
     const featPromises = chunks.map(async c => {
       const records = await this.featureCache.get(c.toString(), c, opts.signal)
       const recs = []
@@ -228,126 +267,102 @@ export default class BamFile {
     })
 
     checkAbortSignal(opts.signal)
-    let featuresRet = []
 
-    if (opts.viewAsPairs) {
-      const unmatedPairs = {}
-      const readIds = {}
-      await Promise.all(
-        featPromises.map(async f => {
-          const ret = await f
-          const readNames = {}
-          for (let i = 0; i < ret.length; i++) {
-            const name = ret[i].name()
-            const id = ret[i].id()
-            if (!readNames[name]) readNames[name] = 0
-            readNames[name]++
-            readIds[id] = 1
-          }
-          entries(readNames).forEach(([k, v]) => {
-            if (v === 1) unmatedPairs[k] = true
-          })
-        }),
-      )
-
-      const matePromises = []
-      await Promise.all(
-        featPromises.map(async f => {
-          const ret = await f
-          for (let i = 0; i < ret.length; i++) {
-            const name = ret[i].name()
-            if (
-              unmatedPairs[name] &&
-              (opts.pairAcrossChr ||
-                (ret[i]._next_refid() === chrId &&
-                  Math.abs(ret[i].get('start') - ret[i]._next_pos()) <
-                    opts.maxInsertSize))
-            ) {
-              matePromises.push(
-                this.index.blocksForRange(
-                  ret[i]._next_refid(),
-                  ret[i]._next_pos(),
-                  ret[i]._next_pos() + 1,
-                  opts,
-                ),
-              )
-            }
-          }
-        }),
-      )
-
-      const mateBlocks = await Promise.all(matePromises)
-      let mateChunks = []
-      for (let i = 0; i < mateBlocks.length; i++) {
-        mateChunks.push(...mateBlocks[i])
-      }
-      // filter out duplicate chunks (the blocks are lists of chunks, blocks are concatenated, then filter dup chunks)
-      mateChunks = mateChunks
-        .sort()
-        .filter(
-          (item, pos, ary) =>
-            !pos || item.toString() !== ary[pos - 1].toString(),
-        )
-
-      const mateRecordPromises = []
-      const mateFeatPromises = []
-
-      const mateTotalSize = mateChunks
-        .map(s => s.fetchedSize())
-        .reduce((a, b) => a + b, 0)
-      if (mateTotalSize > this.fetchSizeLimit) {
-        throw new Error(
-          `data size of ${mateTotalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
-        )
-      }
-      mateChunks.forEach(c => {
-        const recordPromise = this.featureCache.get(
-          c.toString(),
-          c,
-          opts.signal,
-        )
-        mateRecordPromises.push(recordPromise)
-        const featPromise = recordPromise.then(feats => {
-          const mateRecs = []
-          for (let i = 0; i < feats.length; i += 1) {
-            const feature = feats[i]
-            if (
-              unmatedPairs[feature.get('name')] &&
-              !readIds[feature.get('id')]
-            ) {
-              mateRecs.push(feature)
-            }
-          }
-          return mateRecs
-        })
-        mateFeatPromises.push(featPromise)
-      })
-      const newMateFeats = await Promise.all(mateFeatPromises)
-      if (newMateFeats.length) {
-        const newMates = newMateFeats.reduce((result, current) =>
-          result.concat(current),
-        )
-        featuresRet = featuresRet.concat(newMates)
-      }
-    }
     for (let i = 0; i < featPromises.length; i++) {
       yield featPromises[i]
     }
-    yield featuresRet
+    checkAbortSignal(opts.signal)
+    if (opts.viewAsPairs) {
+      yield this.fetchPairs(chrId, featPromises, opts)
+    }
   }
 
-  async _readChunk(chunk, abortSignal) {
+  async fetchPairs(chrId: number, featPromises: Promise<BAMFeature[]>[], opts: BamOpts) {
+    const unmatedPairs: { [key: string]: boolean } = {}
+    const readIds: { [key: string]: number } = {}
+    await Promise.all(
+      featPromises.map(async f => {
+        const ret = await f
+        const readNames: { [key: string]: number } = {}
+        for (let i = 0; i < ret.length; i++) {
+          const name = ret[i].name()
+          const id = ret[i].id()
+          if (!readNames[name]) readNames[name] = 0
+          readNames[name]++
+          readIds[id] = 1
+        }
+        entries(readNames).forEach(([k, v]: [string, number]) => {
+          if (v === 1) unmatedPairs[k] = true
+        })
+      }),
+    )
+
+    const matePromises: Promise<Chunk[]>[] = []
+    await Promise.all(
+      featPromises.map(async f => {
+        const ret = await f
+        for (let i = 0; i < ret.length; i++) {
+          const name = ret[i].name()
+          if (
+            unmatedPairs[name] &&
+            (opts.pairAcrossChr ||
+              (ret[i]._next_refid() === chrId &&
+                Math.abs(ret[i].get('start') - ret[i]._next_pos()) < opts.maxInsertSize))
+          ) {
+            matePromises.push(
+              this.index.blocksForRange(ret[i]._next_refid(), ret[i]._next_pos(), ret[i]._next_pos() + 1, opts),
+            )
+          }
+        }
+      }),
+    )
+
+    const mateBlocks = await Promise.all(matePromises)
+    let mateChunks = []
+    for (let i = 0; i < mateBlocks.length; i++) {
+      mateChunks.push(...mateBlocks[i])
+    }
+    // filter out duplicate chunks (the blocks are lists of chunks, blocks are concatenated, then filter dup chunks)
+    mateChunks = mateChunks.sort().filter((item, pos, ary) => !pos || item.toString() !== ary[pos - 1].toString())
+
+    const mateRecordPromises = []
+    const mateFeatPromises: Promise<BAMFeature[]>[] = []
+
+    const mateTotalSize = mateChunks.map(s => s.fetchedSize()).reduce((a, b) => a + b, 0)
+    if (mateTotalSize > this.fetchSizeLimit) {
+      throw new Error(
+        `data size of ${mateTotalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
+      )
+    }
+    mateChunks.forEach(c => {
+      const recordPromise = this.featureCache.get(c.toString(), c, opts.signal)
+      mateRecordPromises.push(recordPromise)
+      const featPromise = recordPromise.then((feats: BAMFeature[]) => {
+        const mateRecs = []
+        for (let i = 0; i < feats.length; i += 1) {
+          const feature = feats[i]
+          if (unmatedPairs[feature.get('name')] && !readIds[feature.get('id')]) {
+            mateRecs.push(feature)
+          }
+        }
+        return mateRecs
+      })
+      mateFeatPromises.push(featPromise)
+    })
+    const newMateFeats = await Promise.all(mateFeatPromises)
+    let featuresRet: BAMFeature[] = []
+    if (newMateFeats.length) {
+      const newMates = newMateFeats.reduce((result, current) => result.concat(current))
+      featuresRet = featuresRet.concat(newMates)
+    }
+    return featuresRet
+  }
+  async _readChunk(chunk: Chunk, abortSignal?: AbortSignal) {
     const bufsize = chunk.fetchedSize()
     let buf = Buffer.alloc(bufsize)
-    const { bytesRead } = await this.bam.read(
-      buf,
-      0,
-      bufsize,
-      chunk.minv.blockPosition,
-      {
-        signal: abortSignal,
-      },
-    )
+    const { bytesRead } = await this.bam.read(buf, 0, bufsize, chunk.minv.blockPosition, {
+      signal: abortSignal,
+    })
     checkAbortSignal(abortSignal)
     if (!bytesRead) {
       return []
@@ -363,7 +378,7 @@ export default class BamFile {
     return this.readBamFeatures(data, chunk)
   }
 
-  readBamFeatures(ba, chunk) {
+  readBamFeatures(ba: Buffer, chunk: Chunk) {
     let blockStart = 0
     const sink = []
 
@@ -379,10 +394,7 @@ export default class BamFile {
             start: blockStart,
             end: blockEnd,
           },
-          fileOffset:
-            chunk.minv.blockPosition * 2 ** 16 +
-            chunk.minv.dataPosition +
-            blockStart, // synthesized fileoffset from virtual offset
+          fileOffset: chunk.minv.blockPosition * 2 ** 16 + chunk.minv.dataPosition + blockStart, // synthesized fileoffset from virtual offset
         })
         sink.push(feature)
       }
@@ -392,22 +404,25 @@ export default class BamFile {
     return sink
   }
 
-  async hasRefSeq(seqName) {
+  async hasRefSeq(seqName: string) {
     const refId = this.chrToIndex && this.chrToIndex[seqName]
     return this.index.hasRefSeq(refId)
   }
 
-  async lineCount(seqName) {
+  async lineCount(seqName: string) {
     const refId = this.chrToIndex && this.chrToIndex[seqName]
     return this.index.lineCount(refId)
   }
 
-  async indexCov(seqName, start, end) {
+  async indexCov(seqName: string, start: number, end: number) {
     await this.index.parse()
     const range = start !== undefined
     const seqId = this.chrToIndex && this.chrToIndex[seqName]
-    return range
-      ? this.index.indexCov(seqId, start, end)
-      : this.index.indexCovTotal(seqId)
+    //@ts-ignore
+    if (!this.index.indexCov || !this.index.indexCovTotal) {
+      throw new Error('cannot perform IndexCov on non-BAI index types')
+    }
+    //@ts-ignore
+    return range ? this.index.indexCov(seqId, start, end) : this.index.indexCovTotal(seqId)
   }
 }

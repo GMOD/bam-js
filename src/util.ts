@@ -1,9 +1,10 @@
-function longToNumber(long) {
+import Chunk from "./chunk"
+export function longToNumber(long: Long) {
   if (
     long.greaterThan(Number.MAX_SAFE_INTEGER) ||
     long.lessThan(Number.MIN_SAFE_INTEGER)
   ) {
-    throw new Error('integer overflow')
+    throw new Error("integer overflow")
   }
   return long.toNumber()
 }
@@ -19,17 +20,18 @@ function longToNumber(long) {
  * @param {AbortSignal} [signal] an AbortSignal, or anything with an `aborted` attribute
  * @returns nothing
  */
-function checkAbortSignal(signal) {
+export function checkAbortSignal(signal?: AbortSignal) {
   if (!signal) return
 
   if (signal.aborted) {
     // console.log('bam aborted!')
-    if (typeof DOMException !== 'undefined')
+    if (typeof DOMException !== "undefined")
       // eslint-disable-next-line  no-undef
-      throw new DOMException('aborted', 'AbortError')
+      throw new DOMException("aborted", "AbortError")
     else {
-      const e = new Error('aborted')
-      e.code = 'ERR_ABORTED'
+      const e = new Error("aborted")
+      //@ts-ignore
+      e.code = "ERR_ABORTED"
       throw e
     }
   }
@@ -41,22 +43,15 @@ function checkAbortSignal(signal) {
  * provide a place to break when an abort signal is received.
  * @param {AbortSignal} signal
  */
-async function abortBreakPoint(signal) {
+export async function abortBreakPoint(signal?: AbortSignal) {
   await Promise.resolve()
   checkAbortSignal(signal)
 }
 
-function canMergeBlocks(block1, block2) {
+export function canMergeBlocks(block1: Chunk, block2: Chunk) {
   return (
     block1.minv.blockPosition === block1.maxv.blockPosition &&
     block1.maxv.blockPosition === block2.minv.blockPosition &&
     block2.minv.blockPosition === block2.maxv.blockPosition
   )
-}
-
-module.exports = {
-  longToNumber,
-  checkAbortSignal,
-  abortBreakPoint,
-  canMergeBlocks,
 }
