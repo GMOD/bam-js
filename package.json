@@ -50,7 +50,7 @@
     "long": "^4.0.0",
     "object.entries-ponyfill": "^1.0.1",
     "pako": "^1.0.10",
-    "quick-lru": "^4.0.0"
+    "quick-lru": "2"
   },
   "devDependencies": {
     "@babel/cli": "^7.2.3",
