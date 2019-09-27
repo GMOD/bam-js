@@ -1,3 +1,8 @@
+<a name="1.0.24"></a>
+## [1.0.24](https://github.com/GMOD/bam-js/compare/v1.0.22...v1.0.24) (2019-09-27)
+
+
+
 <a name="1.0.22"></a>
 ## [1.0.22](https://github.com/GMOD/bam-js/compare/v1.0.20...v1.0.22) (2019-09-03)
 
