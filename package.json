@@ -19,7 +19,7 @@
   "scripts": {
     "test": "jest",
     "coverage": "npm test -- --coverage",
-    "lint": "eslint src test",
+    "lint": "eslint --ext .js,.ts src test",
     "clean": "rimraf dist",
     "prebuild": "npm run clean && npm run lint",
     "build:types": "tsc --emitDeclarationOnly",

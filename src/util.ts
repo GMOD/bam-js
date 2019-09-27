@@ -1,10 +1,7 @@
-import Chunk from "./chunk"
+import Chunk from './chunk'
 export function longToNumber(long: Long) {
-  if (
-    long.greaterThan(Number.MAX_SAFE_INTEGER) ||
-    long.lessThan(Number.MIN_SAFE_INTEGER)
-  ) {
-    throw new Error("integer overflow")
+  if (long.greaterThan(Number.MAX_SAFE_INTEGER) || long.lessThan(Number.MIN_SAFE_INTEGER)) {
+    throw new Error('integer overflow')
   }
   return long.toNumber()
 }
@@ -25,13 +22,13 @@ export function checkAbortSignal(signal?: AbortSignal) {
 
   if (signal.aborted) {
     // console.log('bam aborted!')
-    if (typeof DOMException !== "undefined")
+    if (typeof DOMException !== 'undefined')
       // eslint-disable-next-line  no-undef
-      throw new DOMException("aborted", "AbortError")
+      throw new DOMException('aborted', 'AbortError')
     else {
-      const e = new Error("aborted")
+      const e = new Error('aborted')
       //@ts-ignore
-      e.code = "ERR_ABORTED"
+      e.code = 'ERR_ABORTED'
       throw e
     }
   }
