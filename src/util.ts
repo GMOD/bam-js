@@ -27,6 +27,7 @@ export function checkAbortSignal(signal?: AbortSignal) {
       throw new DOMException('aborted', 'AbortError')
     else {
       const e = new Error('aborted')
+      // eslint-disable-next-line  @typescript-eslint/ban-ts-ignore
       //@ts-ignore
       e.code = 'ERR_ABORTED'
       throw e

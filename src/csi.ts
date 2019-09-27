@@ -36,6 +36,10 @@ export default class CSI extends IndexFile {
     if (stats) return stats.lineCount
     return -1
   }
+  async indexCov() {
+    throw new Error('CSI indexes do not support indexcov')
+    return []
+  }
 
   parseAuxData(bytes: Buffer, offset: number, auxLength: number) {
     if (auxLength < 30) return {}

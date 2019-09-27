@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-ignore */
 //@ts-ignore
 import { Inflate, Z_SYNC_FLUSH } from 'pako'
 import Chunk from './chunk'
