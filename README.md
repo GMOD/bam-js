@@ -66,8 +66,8 @@ The getRecordsForRange simply wraps this process by concatenating chunks into an
 ### async indexCov(refName, start, end)
 
 * refName - a string for the chrom to fetch from
-* start - a 0 based half open start coordinate (optional, will fetch whole chromosome without)
-* end - a 0 based half open end coordinate (optional, will fetch whole chromosome without even if start is specified)
+* start - a 0 based half open start coordinate (optional)
+* end - a 0 based half open end coordinate (optional)
 
 Returns features of the form {start, end, score} containing estimated feature density across 16kb windows in the genome
 

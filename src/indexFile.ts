@@ -25,6 +25,11 @@ export default abstract class IndexFile {
   }
   public abstract async lineCount(refId: number): Promise<number>
   protected abstract async _parse(signal?: AbortSignal): Promise<any>
+  public abstract async indexCov(
+    refId: number,
+    start?: number,
+    end?: number,
+  ): Promise<{ start: number; end: number; score: number }[]>
   public abstract async blocksForRange(
     chrId: number,
     start: number,

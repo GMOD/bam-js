@@ -377,7 +377,7 @@ describe('large indexcov', () => {
     })
     const ret = await ti.indexCov(10, 0, 1000000)
     expect(ret).toMatchSnapshot()
-    const empty = await ti.indexCovTotal(0)
+    const empty = await ti.indexCov(0)
     expect(empty).toEqual([])
   })
 })

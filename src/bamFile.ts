@@ -414,15 +414,9 @@ export default class BamFile {
     return this.index.lineCount(refId)
   }
 
-  async indexCov(seqName: string, start: number, end: number) {
+  async indexCov(seqName: string, start?: number, end?: number) {
     await this.index.parse()
-    const range = start !== undefined
     const seqId = this.chrToIndex && this.chrToIndex[seqName]
-    //@ts-ignore
-    if (!this.index.indexCov || !this.index.indexCovTotal) {
-      throw new Error('cannot perform IndexCov on non-BAI index types')
-    }
-    //@ts-ignore
-    return range ? this.index.indexCov(seqId, start, end) : this.index.indexCovTotal(seqId)
+    return this.index.indexCov(seqId, start, end)
   }
 }

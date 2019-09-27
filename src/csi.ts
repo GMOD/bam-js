@@ -1,4 +1,4 @@
-import * as Long from 'long'
+import Long from 'long'
 import { unzip } from './unzip'
 
 import { fromBytes } from './virtualOffset'
@@ -149,8 +149,7 @@ export default class CSI extends IndexFile {
     // const three = longToNumber(
     //   Long.fromBytesLE(bytes.slice(offset + 20, offset + 28), true),
     // )
-    // @ts-ignore
-    const lineCount = longToNumber(Long.fromBytesLE(bytes.slice(offset + 28, offset + 36), true))
+    const lineCount = longToNumber(Long.fromBytesLE(Array.prototype.slice.call(bytes, offset + 28, offset + 36), true))
     return { lineCount }
   }
 
