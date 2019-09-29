@@ -1,3 +1,8 @@
+<a name="1.0.25"></a>
+## [1.0.25](https://github.com/GMOD/bam-js/compare/v1.0.24...v1.0.25) (2019-09-29)
+
+
+
 - Fixed some typescript typings
 
 <a name="1.0.24"></a>
