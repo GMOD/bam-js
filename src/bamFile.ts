@@ -19,9 +19,9 @@ const blockLen = 1 << 16
 type G = GenericFilehandle
 
 interface BamOpts {
-  viewAsPairs: boolean
-  pairAcrossChr: boolean
-  maxInsertSize: number
+  viewAsPairs?: boolean
+  pairAcrossChr?: boolean
+  maxInsertSize?: number
   signal?: AbortSignal
 }
 export default class BamFile {
@@ -57,18 +57,18 @@ export default class BamFile {
     chunkSizeLimit,
     renameRefSeqs = n => n,
   }: {
-    bamFilehandle: G
-    bamPath: string
-    bamUrl: string
-    baiPath: string
-    baiFilehandle: G
-    baiUrl: string
-    csiPath: string
-    csiFilehandle: G
-    csiUrl: string
-    cacheSize: number
-    fetchSizeLimit: number
-    chunkSizeLimit: number
+    bamFilehandle?: G
+    bamPath?: string
+    bamUrl?: string
+    baiPath?: string
+    baiFilehandle?: G
+    baiUrl?: string
+    csiPath?: string
+    csiFilehandle?: G
+    csiUrl?: string
+    cacheSize?: number
+    fetchSizeLimit?: number
+    chunkSizeLimit?: number
     renameRefSeqs?: (a: string) => string
   }) {
     this.renameRefSeq = renameRefSeqs
@@ -307,7 +307,7 @@ export default class BamFile {
             unmatedPairs[name] &&
             (opts.pairAcrossChr ||
               (ret[i]._next_refid() === chrId &&
-                Math.abs(ret[i].get('start') - ret[i]._next_pos()) < opts.maxInsertSize))
+                Math.abs(ret[i].get('start') - ret[i]._next_pos()) < (opts.maxInsertSize || 200000)))
           ) {
             matePromises.push(
               this.index.blocksForRange(ret[i]._next_refid(), ret[i]._next_pos(), ret[i]._next_pos() + 1, opts),
