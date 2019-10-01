@@ -1,3 +1,7 @@
+- Restore issue with getRecordsForRange not returning all features (#44)
+- Fix compatibility with electron (#43)
+- Fix usage of feature.get('seq')
+
 <a name="1.0.25"></a>
 ## [1.0.25](https://github.com/GMOD/bam-js/compare/v1.0.24...v1.0.25) (2019-09-29)
 
