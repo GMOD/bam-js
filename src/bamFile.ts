@@ -115,26 +115,26 @@ export default class BamFile {
   async getHeader(abortSignal?: AbortSignal) {
     const indexData = await this.index.parse(abortSignal)
     const ret = indexData.firstDataLine ? indexData.firstDataLine.blockPosition + 65535 : undefined
-    let buf
+    let buffer
     if (ret) {
-      buf = Buffer.alloc(ret + blockLen)
-      const res = await this.bam.read(buf, 0, ret + blockLen, 0, {
+      const res = await this.bam.read(Buffer.alloc(ret + blockLen), 0, ret + blockLen, 0, {
         signal: abortSignal,
       })
       const { bytesRead } = res
+      ;({ buffer } = res)
       if (!bytesRead) {
         throw new Error('Error reading header')
       }
       if (bytesRead < ret) {
-        buf = buf.slice(0, bytesRead)
+        buffer = buffer.slice(0, bytesRead)
       } else {
-        buf = buf.slice(0, ret)
+        buffer = buffer.slice(0, ret)
       }
     } else {
-      buf = (await this.bam.readFile({ signal: abortSignal })) as Buffer
+      buffer = (await this.bam.readFile({ signal: abortSignal })) as Buffer
     }
 
-    const uncba = unzip(buf)
+    const uncba = unzip(buffer)
 
     if (uncba.readInt32LE(0) !== BAM_MAGIC) throw new Error('Not a BAM file')
     const headLen = uncba.readInt32LE(4)
@@ -154,22 +154,23 @@ export default class BamFile {
     refSeqBytes: number,
     abortSignal?: AbortSignal,
   ): Promise<{ chrToIndex: { [key: string]: number }; indexToChr: { refName: string; length: number }[] }> {
-    let buf = Buffer.alloc(refSeqBytes + blockLen)
     if (start > refSeqBytes) {
       return this._readRefSeqs(start, refSeqBytes * 2)
     }
-    const { bytesRead } = await this.bam.read(buf, 0, refSeqBytes, 0, {
+    const res = await this.bam.read(Buffer.alloc(refSeqBytes + blockLen), 0, refSeqBytes, 0, {
       signal: abortSignal,
     })
+    const { bytesRead } = res
+    let { buffer } = res
     if (!bytesRead) {
       throw new Error('Error reading refseqs from header')
     }
     if (bytesRead < refSeqBytes) {
-      buf = buf.slice(0, bytesRead)
+      buffer = buffer.slice(0, bytesRead)
     } else {
-      buf = buf.slice(0, refSeqBytes)
+      buffer = buffer.slice(0, refSeqBytes)
     }
-    const uncba = unzip(buf)
+    const uncba = unzip(buffer)
     const nRef = uncba.readInt32LE(start)
     let p = start + 4
     const chrToIndex: { [key: string]: number } = {}
@@ -359,21 +360,22 @@ export default class BamFile {
   }
   async _readChunk(chunk: Chunk, abortSignal?: AbortSignal) {
     const bufsize = chunk.fetchedSize()
-    let buf = Buffer.alloc(bufsize)
-    const { bytesRead } = await this.bam.read(buf, 0, bufsize, chunk.minv.blockPosition, {
+    const res = await this.bam.read(Buffer.alloc(bufsize), 0, bufsize, chunk.minv.blockPosition, {
       signal: abortSignal,
     })
+    const { bytesRead } = res
+    let { buffer } = res
     checkAbortSignal(abortSignal)
     if (!bytesRead) {
       return []
     }
     if (bytesRead < bufsize) {
-      buf = buf.slice(0, bytesRead)
+      buffer = buffer.slice(0, bytesRead)
     } else {
-      buf = buf.slice(0, bufsize)
+      buffer = buffer.slice(0, bufsize)
     }
 
-    const data = unzipChunk(buf, chunk)
+    const data = unzipChunk(buffer, chunk)
     checkAbortSignal(abortSignal)
     return this.readBamFeatures(data)
   }
