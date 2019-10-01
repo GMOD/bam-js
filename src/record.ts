@@ -405,6 +405,10 @@ export default class BamRecord {
   }
 
   getReadBases() {
+    return this._get_seq()
+  }
+
+  _get_seq() {
     let seq = ''
     const { byteArray } = this.bytes
     const p = this.bytes.start + 36 + this._get('_l_read_name') + this._get('_n_cigar_op') * 4
