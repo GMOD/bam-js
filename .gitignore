@@ -5,3 +5,4 @@ dist
 *.log
 *.swp
 .vscode/
+.eslintcache
