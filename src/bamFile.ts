@@ -203,7 +203,7 @@ export default class BamFile {
   ) {
     let records: BAMFeature[] = []
     for await (const chunk of this.streamRecordsForRange(chr, min, max, opts)) {
-      records = records.concat(...chunk)
+      records = records.concat(chunk)
     }
     return records
   }
@@ -319,9 +319,9 @@ export default class BamFile {
     )
 
     const mateBlocks = await Promise.all(matePromises)
-    let mateChunks = []
+    let mateChunks: Chunk[] = []
     for (let i = 0; i < mateBlocks.length; i++) {
-      mateChunks.push(...mateBlocks[i])
+      mateChunks = mateChunks.concat(mateBlocks[i])
     }
     // filter out duplicate chunks (the blocks are lists of chunks, blocks are concatenated, then filter dup chunks)
     mateChunks = mateChunks.sort().filter((item, pos, ary) => !pos || item.toString() !== ary[pos - 1].toString())
