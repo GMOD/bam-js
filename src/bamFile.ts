@@ -107,9 +107,8 @@ export default class BamFile {
       }),
       fill: this._readChunk.bind(this),
     })
-
-    this.fetchSizeLimit = fetchSizeLimit || 50000000
-    this.chunkSizeLimit = chunkSizeLimit || 10000000
+    this.fetchSizeLimit = fetchSizeLimit || 500000000 // 500MB
+    this.chunkSizeLimit = chunkSizeLimit || 300000000 // 300MB
   }
 
   async getHeader(abortSignal?: AbortSignal) {
