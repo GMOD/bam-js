@@ -107,9 +107,8 @@ export default class BamFile {
       }),
       fill: this._readChunk.bind(this),
     })
-
-    this.fetchSizeLimit = fetchSizeLimit || 50000000
-    this.chunkSizeLimit = chunkSizeLimit || 10000000
+    this.fetchSizeLimit = fetchSizeLimit || 500000000 // 500MB
+    this.chunkSizeLimit = chunkSizeLimit || 300000000 // 300MB
   }
 
   async getHeader(abortSignal?: AbortSignal) {
@@ -203,7 +202,7 @@ export default class BamFile {
   ) {
     let records: BAMFeature[] = []
     for await (const chunk of this.streamRecordsForRange(chr, min, max, opts)) {
-      records = records.concat(...chunk)
+      records = records.concat(chunk)
     }
     return records
   }
@@ -319,9 +318,9 @@ export default class BamFile {
     )
 
     const mateBlocks = await Promise.all(matePromises)
-    let mateChunks = []
+    let mateChunks: Chunk[] = []
     for (let i = 0; i < mateBlocks.length; i++) {
-      mateChunks.push(...mateBlocks[i])
+      mateChunks = mateChunks.concat(mateBlocks[i])
     }
     // filter out duplicate chunks (the blocks are lists of chunks, blocks are concatenated, then filter dup chunks)
     mateChunks = mateChunks.sort().filter((item, pos, ary) => !pos || item.toString() !== ary[pos - 1].toString())
