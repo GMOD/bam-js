@@ -42,3 +42,10 @@ export async function abortBreakPoint(signal?: AbortSignal) {
   await Promise.resolve()
   checkAbortSignal(signal)
 }
+
+export function canMergeBlocks(chunk1: Chunk, chunk2: Chunk) {
+  return (
+    chunk2.minv.blockPosition - chunk1.maxv.blockPosition < 65000 &&
+    chunk2.maxv.blockPosition - chunk1.minv.blockPosition < 5000000
+  )
+}

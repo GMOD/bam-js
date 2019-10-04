@@ -3,7 +3,7 @@ import VirtualOffset, { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 
 import IndexFile from './indexFile'
-import { longToNumber, abortBreakPoint } from './util'
+import { longToNumber, abortBreakPoint, canMergeBlocks } from './util'
 
 const BAI_MAGIC = 21578050 // BAI\1
 
@@ -213,7 +213,7 @@ export default class BAI extends IndexFile {
           mergedChunks.push(chunk)
           lastChunk = chunk
         } else {
-          if (this.canMerge(lastChunk, chunk)) {
+          if (canMergeBlocks(lastChunk, chunk)) {
             if (chunk.maxv.compareTo(lastChunk.maxv) > 0) {
               lastChunk.maxv = chunk.maxv
             }
@@ -229,12 +229,5 @@ export default class BAI extends IndexFile {
     })
 
     return mergedChunks
-  }
-
-  canMerge(chunk1: Chunk, chunk2: Chunk) {
-    return (
-      chunk2.minv.blockPosition - chunk1.maxv.blockPosition < 65000 &&
-      chunk2.maxv.blockPosition - chunk1.minv.blockPosition < 5000000
-    )
   }
 }
