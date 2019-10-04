@@ -47,9 +47,7 @@ export default class CSI extends IndexFile {
     const data: { [key: string]: any } = {}
     data.formatFlags = bytes.readInt32LE(offset)
     data.coordinateType = data.formatFlags & 0x10000 ? 'zero-based-half-open' : '1-based-closed'
-    data.format = ({ 0: 'generic', 1: 'SAM', 2: 'VCF' } as { [key: number]: string })[
-      data.formatFlags & 0xf
-    ]
+    data.format = ({ 0: 'generic', 1: 'SAM', 2: 'VCF' } as { [key: number]: string })[data.formatFlags & 0xf]
     if (!data.format) throw new Error(`invalid Tabix preset format flags ${data.formatFlags}`)
     data.columnNumbers = {
       ref: bytes.readInt32LE(offset + 4),
@@ -61,10 +59,7 @@ export default class CSI extends IndexFile {
     data.skipLines = bytes.readInt32LE(offset + 20)
     const nameSectionLength = bytes.readInt32LE(offset + 24)
 
-    Object.assign(
-      data,
-      this._parseNameBytes(bytes.slice(offset + 28, offset + 28 + nameSectionLength)),
-    )
+    Object.assign(data, this._parseNameBytes(bytes.slice(offset + 28, offset + 28 + nameSectionLength)))
     return data
   }
 
@@ -158,18 +153,11 @@ export default class CSI extends IndexFile {
     // const three = longToNumber(
     //   Long.fromBytesLE(bytes.slice(offset + 20, offset + 28), true),
     // )
-    const lineCount = longToNumber(
-      Long.fromBytesLE(Array.prototype.slice.call(bytes, offset + 28, offset + 36), true),
-    )
+    const lineCount = longToNumber(Long.fromBytesLE(Array.prototype.slice.call(bytes, offset + 28, offset + 36), true))
     return { lineCount }
   }
 
-  async blocksForRange(
-    refId: number,
-    beg: number,
-    end: number,
-    opts: Record<string, any> = {},
-  ): Promise<Chunk[]> {
+  async blocksForRange(refId: number, beg: number, end: number, opts: Record<string, any> = {}): Promise<Chunk[]> {
     if (beg < 0) beg = 0
 
     const indexData = await this.parse(opts.signal)
