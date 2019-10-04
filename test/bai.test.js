@@ -203,7 +203,9 @@ describe('BamFile with test_deletion_2_0.snps.bwa_align.sorted.grouped.bam', () 
   it('loads some data', async () => {
     const features = await b.getRecordsForRange('Chromosome', 17000, 18000)
     expect(features.length).toEqual(124)
-    expect(features.every(feature => feature.get('seq_length') === feature.getReadBases().length)).toBeTruthy()
+    expect(
+      features.every(feature => feature.get('seq_length') === feature.getReadBases().length),
+    ).toBeTruthy()
   })
 })
 
@@ -288,7 +290,9 @@ describe('BamFile with paired ends', () => {
     })
     const features2 = await p.getRecordsForRange('20', 0, 70000)
     //    expect(features.length).toEqual(features2.length)
-    expect(features.map(f => f.get('name')).sort()).toEqual(features2.map(f => f.get('name')).sort())
+    expect(features.map(f => f.get('name')).sort()).toEqual(
+      features2.map(f => f.get('name')).sort(),
+    )
     const f = features[features.length - 1]
     const f2 = features2[features2.length - 1]
     expect(f.get('start')).toEqual(f2.get('start'))
