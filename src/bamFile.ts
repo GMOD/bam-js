@@ -406,29 +406,6 @@ export default class BamFile {
             chunk.minv.dataPosition +
             blockStart, // synthesized fileoffset from virtual offset
         })
-        // if (feature.get('name') == 'm131004_105332_42213_c100572142530000001823103304021442_s1_p0/103296') {
-        //   console.log('HERE', pos, blockStart, dpositions[pos])
-        //   // console.log(
-        //   //   `             ${chunk.minv.blockPosition * (1 << 16)}+
-        //   //   ${cpositions[pos] * (1 << 16)}+
-        //   //   ${chunk.minv.dataPosition}-
-        //   //   ${dpositions[pos]}+
-        //   //   ${blockStart}\n`,
-        //   //   chunk.minv.blockPosition * (1 << 16) + cpositions[pos] * (1 << 16),
-        //   //   chunk.minv.blockPosition * (1 << 16) +
-        //   //     cpositions[pos] * (1 << 16) +
-        //   //     chunk.minv.dataPosition -
-        //   //     dpositions[pos] +
-        //   //     blockStart,
-        //   //   feature.id() - chunk.minv.blockPosition * (1 << 16) + cpositions[pos] * (1 << 16),
-        //   //   pos,
-        //   //   cpositions.length,
-        //   //   cpositions,
-        //   //   dpositions,
-        //   // )
-        //   // console.log(blockStart, dpositions[pos], cpositions[pos])
-        // }
-
         sink.push(feature)
       }
 
