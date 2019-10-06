@@ -2,7 +2,6 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 /* eslint-disable @typescript-eslint/ban-ts-ignore */
 import Constants from './constants'
-import crc32 from 'buffer-crc32'
 
 const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
 const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
@@ -14,18 +13,20 @@ export default class BamRecord {
   private data: any
   private bytes: any
   private flags: any
+  private _id: number
   private _refID: number
   private _tagOffset: number | undefined = undefined
   private _tagList: string[] = []
   private _allTagsParsed = false
   constructor(args: any) {
-    const { start, end, byteArray } = args.bytes
     this.data = {}
     this.bytes = {
-      start,
-      end,
-      byteArray,
+      start: args.bytes.start,
+      end: args.bytes.end,
+      byteArray: args.bytes.byteArray,
     }
+    this._id = args.fileOffset
+    const { start, byteArray } = this.bytes
     this._refID = byteArray.readInt32LE(start + 4)
     this.data.start = byteArray.readInt32LE(start + 8)
     this.flags = (byteArray.readInt32LE(start + 16) & 0xffff0000) >> 16
@@ -113,7 +114,7 @@ export default class BamRecord {
   }
 
   id() {
-    return crc32.signed(this.bytes.byteArray.slice(this.bytes.start, this.bytes.end))
+    return this._id
   }
 
   multi_segment_all_aligned() {

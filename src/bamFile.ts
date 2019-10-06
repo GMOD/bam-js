@@ -377,10 +377,10 @@ export default class BamFile {
 
     const data = unzipChunk(buffer, chunk)
     checkAbortSignal(abortSignal)
-    return this.readBamFeatures(data)
+    return this.readBamFeatures(data, chunk)
   }
 
-  readBamFeatures(ba: Buffer) {
+  readBamFeatures(ba: Buffer, chunk: Chunk) {
     let blockStart = 0
     const sink = []
 
@@ -396,6 +396,7 @@ export default class BamFile {
             start: blockStart,
             end: blockEnd,
           },
+          fileOffset: chunk.minv.blockPosition * 2 ** 16 + chunk.minv.dataPosition + blockStart, // synthesized fileoffset from virtual offset
         })
         sink.push(feature)
       }
