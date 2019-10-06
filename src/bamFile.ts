@@ -401,8 +401,14 @@ export default class BamFile {
             start: blockStart,
             end: blockEnd,
           },
-          fileOffset: chunk.minv.blockPosition * (1 << 16) + cpositions[pos] * (1 << 16), // synthesized fileoffset from virtual offset
+          fileOffset: chunk.minv.blockPosition * (1 << 16) + cpositions[pos] * (1 << 16) + blockStart - dpositions[pos], //chunk.minv.dataPosition, // synthesized fileoffset from virtual offset
         })
+        // console.log(
+        //   feature.id(),
+        //   chunk.toString(),
+        //   blockStart,
+        //   chunk.minv.blockPosition * (1 << 16) + cpositions[pos] * (1 << 16),
+        // )
 
         sink.push(feature)
       }
