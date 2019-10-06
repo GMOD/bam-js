@@ -388,9 +388,8 @@ export default class BamFile {
     while (blockStart + 4 < ba.length) {
       const blockSize = ba.readInt32LE(blockStart)
       const blockEnd = blockStart + 4 + blockSize - 1
-      while (blockStart > dpositions[pos] && pos < dpositions.length) {
-        pos++
-      }
+
+      for (pos = 0; blockStart > dpositions[pos] - chunk.minv.dataPosition; pos++);
 
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
@@ -402,11 +401,33 @@ export default class BamFile {
           },
           fileOffset:
             chunk.minv.blockPosition * (1 << 16) +
-            cpositions[pos] * (1 << 16) +
-            blockStart -
+            cpositions[pos] * (1 << 16) -
             dpositions[pos] +
-            chunk.minv.dataPosition, // synthesized fileoffset from virtual offset
+            chunk.minv.dataPosition +
+            blockStart, // synthesized fileoffset from virtual offset
         })
+        // if (feature.get('name') == 'm131004_105332_42213_c100572142530000001823103304021442_s1_p0/103296') {
+        //   console.log('HERE', pos, blockStart, dpositions[pos])
+        //   // console.log(
+        //   //   `             ${chunk.minv.blockPosition * (1 << 16)}+
+        //   //   ${cpositions[pos] * (1 << 16)}+
+        //   //   ${chunk.minv.dataPosition}-
+        //   //   ${dpositions[pos]}+
+        //   //   ${blockStart}\n`,
+        //   //   chunk.minv.blockPosition * (1 << 16) + cpositions[pos] * (1 << 16),
+        //   //   chunk.minv.blockPosition * (1 << 16) +
+        //   //     cpositions[pos] * (1 << 16) +
+        //   //     chunk.minv.dataPosition -
+        //   //     dpositions[pos] +
+        //   //     blockStart,
+        //   //   feature.id() - chunk.minv.blockPosition * (1 << 16) + cpositions[pos] * (1 << 16),
+        //   //   pos,
+        //   //   cpositions.length,
+        //   //   cpositions,
+        //   //   dpositions,
+        //   // )
+        //   // console.log(blockStart, dpositions[pos], cpositions[pos])
+        // }
 
         sink.push(feature)
       }
