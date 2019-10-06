@@ -34,12 +34,14 @@ export function unzip(inputData: Buffer) {
 // range specified in the chunk
 export function unzipChunk(inputData: Buffer, chunk: Chunk) {
   let strm
-  let pos = 0
+  let cpos = 0
+  let dpos = 0
   const decompressedBlocks = []
-  const positions = []
+  const cpositions = []
+  const dpositions = []
   let inflator
   do {
-    const remainingInput = inputData.slice(pos)
+    const remainingInput = inputData.slice(cpos)
     inflator = new Inflate()
     //@ts-ignore
     ;({ strm } = inflator)
@@ -48,14 +50,16 @@ export function unzipChunk(inputData: Buffer, chunk: Chunk) {
     if (inflator.err) throw new Error(inflator.msg)
 
     //@ts-ignore
-    decompressedBlocks.push(Buffer.from(inflator.result))
-    positions.push(pos)
+    const buffer = Buffer.from(inflator.result)
+    decompressedBlocks.push(buffer)
+    cpositions.push(cpos)
+    dpositions.push(dpos)
 
     if (decompressedBlocks.length === 1 && chunk.minv.dataPosition) {
       // this is the first chunk, trim it
       decompressedBlocks[0] = decompressedBlocks[0].slice(chunk.minv.dataPosition)
     }
-    if (chunk.minv.blockPosition + pos >= chunk.maxv.blockPosition) {
+    if (chunk.minv.blockPosition + cpos >= chunk.maxv.blockPosition) {
       // this is the last chunk, trim it and stop decompressing
       // note if it is the same block is minv it subtracts that already
       // trimmed part of the slice length
@@ -68,9 +72,10 @@ export function unzipChunk(inputData: Buffer, chunk: Chunk) {
       )
       break
     }
-    pos += strm.next_in
+    cpos += strm.next_in
+    dpos += buffer.length
   } while (strm.avail_in)
 
   const buffer = Buffer.concat(decompressedBlocks)
-  return { buffer, positions }
+  return { buffer, cpositions, dpositions }
 }

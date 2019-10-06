@@ -186,10 +186,26 @@ export default class BAI extends IndexFile {
     numOffsets = l + 1
 
     // resolve overlaps between adjacent blocks; this may happen due to the merge in indexing
-    for (let i = 1; i < numOffsets; i += 1)
-      if (off[i - 1].maxv.compareTo(off[i].minv) >= 0) off[i - 1].maxv = off[i].minv
+    for (let i = 1; i < numOffsets; i += 1) {
+      if (off[i - 1].maxv.compareTo(off[i].minv) >= 0) {
+        off[i - 1].maxv = off[i].minv
+      }
+    }
 
-    return off.slice(0, numOffsets)
+    // merge adjacent blocks
+    l = 0
+    for (let i = 1; i < numOffsets; i += 1) {
+      if (off[l].maxv.blockPosition === off[i].minv.blockPosition) off[l].maxv = off[i].maxv
+      else {
+        l += 1
+        off[l].minv = off[i].minv
+        off[l].maxv = off[i].maxv
+      }
+    }
+    numOffsets = l + 1
+
+    const ret = off.slice(0, numOffsets)
+    return ret
   }
 
   /**

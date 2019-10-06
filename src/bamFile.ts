@@ -375,30 +375,35 @@ export default class BamFile {
       buffer = buffer.slice(0, bufsize)
     }
 
-    const { buffer: data, positions } = unzipChunk(buffer, chunk)
+    const { buffer: data, cpositions, dpositions } = unzipChunk(buffer, chunk)
     checkAbortSignal(abortSignal)
-    return this.readBamFeatures(data, positions, chunk)
+    return this.readBamFeatures(data, cpositions, dpositions, chunk)
   }
 
-  readBamFeatures(ba: Buffer, positions: number[], chunk: Chunk) {
+  readBamFeatures(ba: Buffer, cpositions: number[], dpositions: number[], chunk: Chunk) {
     let blockStart = 0
     const sink = []
-    console.log(positions)
+    let pos = 0
 
     while (blockStart + 4 < ba.length) {
       const blockSize = ba.readInt32LE(blockStart)
       const blockEnd = blockStart + 4 + blockSize - 1
+      while (blockStart > dpositions[pos] && pos < dpositions.length - 2) {
+        pos++
+      }
 
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
+        // console.log('adding', cpositions[pos], dpositions[pos], pos)
         const feature = new BAMFeature({
           bytes: {
             byteArray: ba,
             start: blockStart,
             end: blockEnd,
           },
-          fileOffset: chunk.minv.blockPosition * 2 ** 16 + chunk.minv.dataPosition + blockStart, // synthesized fileoffset from virtual offset
+          fileOffset: chunk.minv.blockPosition * (1 << 16) + cpositions[pos] * (1 << 16), // synthesized fileoffset from virtual offset
         })
+
         sink.push(feature)
       }
 
