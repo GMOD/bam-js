@@ -1,3 +1,4 @@
+import Chunk from './chunk'
 export function longToNumber(long: Long) {
   if (long.greaterThan(Number.MAX_SAFE_INTEGER) || long.lessThan(Number.MIN_SAFE_INTEGER)) {
     throw new Error('integer overflow')
@@ -43,4 +44,12 @@ export function checkAbortSignal(signal?: AbortSignal) {
 export async function abortBreakPoint(signal?: AbortSignal) {
   await Promise.resolve()
   checkAbortSignal(signal)
+}
+
+export function canMergeBlocks(block1: Chunk, block2: Chunk) {
+  return (
+    block1.minv.blockPosition === block1.maxv.blockPosition &&
+    block1.maxv.blockPosition === block2.minv.blockPosition &&
+    block2.minv.blockPosition === block2.maxv.blockPosition
+  )
 }

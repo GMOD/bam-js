@@ -213,7 +213,7 @@ export default class CSI extends IndexFile {
     // merge adjacent blocks
     l = 0
     for (let i = 1; i < numOffsets; i += 1) {
-      if (off[l].maxv.blockPosition === off[i].minv.blockPosition) off[l].maxv = off[i].maxv
+      if (canMergeBlocks(off[l], off[i])) off[l].maxv = off[i].maxv
       else {
         l += 1
         off[l].minv = off[i].minv
