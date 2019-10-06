@@ -3,7 +3,7 @@ import { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 
 import IndexFile from './indexFile'
-import { longToNumber, abortBreakPoint, canMergeBlocks } from './util'
+import { longToNumber, abortBreakPoint } from './util'
 
 const BAI_MAGIC = 21578050 // BAI\1
 
@@ -204,8 +204,7 @@ export default class BAI extends IndexFile {
     }
     numOffsets = l + 1
 
-    const ret = off.slice(0, numOffsets)
-    return ret
+    return off.slice(0, numOffsets)
   }
 
   /**

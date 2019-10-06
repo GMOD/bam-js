@@ -45,11 +45,3 @@ export async function abortBreakPoint(signal?: AbortSignal) {
   await Promise.resolve()
   checkAbortSignal(signal)
 }
-
-export function canMergeBlocks(block1: Chunk, block2: Chunk) {
-  return (
-    block1.minv.blockPosition === block1.maxv.blockPosition &&
-    block1.maxv.blockPosition === block2.minv.blockPosition &&
-    block2.minv.blockPosition === block2.maxv.blockPosition
-  )
-}

@@ -397,9 +397,7 @@ test('usage of the chr22 ultralong nanopore', async () => {
   })
   await ti.getHeader()
   const ret1 = await ti.getRecordsForRange('22', 16559999, 16564499)
-  console.log('t1')
   const ret2 = await ti.getRecordsForRange('22', 16564499, 16564999)
-  console.log('t2')
   const findfeat = k => k.get('name') === '3d509937-5c54-46d7-8dec-c49c7165d2d5'
   const [r1, r2] = [ret1, ret2].map(x => x.find(findfeat))
   expect(r1.id()).toEqual(r2.id())
