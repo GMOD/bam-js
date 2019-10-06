@@ -423,3 +423,15 @@ test('too few', async () => {
   const ret1 = await ti.getRecordsForRange('1', 10000, 10600)
   expect(ret1.length).toBe(34)
 })
+
+test('long read consistent IDs', async () => {
+  const ti = new BamFile({
+    bamPath: require.resolve('./data/CHM1_pacbio_clip2.bam'),
+  })
+  await ti.getHeader()
+  const ret1 = await ti.getRecordsForRange('chr1', 110114999, 110117499)
+  const ret2 = await ti.getRecordsForRange('chr1', 110117499, 110119999)
+  const findfeat = k => k.get('name') === 'm131004_105332_42213_c100572142530000001823103304021442_s1_p0/103296'
+  const [r1, r2] = [ret1, ret2].map(x => x.find(findfeat))
+  expect(r1.id()).toEqual(r2.id())
+})
