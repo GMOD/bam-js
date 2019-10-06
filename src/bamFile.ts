@@ -375,14 +375,15 @@ export default class BamFile {
       buffer = buffer.slice(0, bufsize)
     }
 
-    const data = unzipChunk(buffer, chunk)
+    const { buffer: data, positions } = unzipChunk(buffer, chunk)
     checkAbortSignal(abortSignal)
-    return this.readBamFeatures(data, chunk)
+    return this.readBamFeatures(data, positions, chunk)
   }
 
-  readBamFeatures(ba: Buffer, chunk: Chunk) {
+  readBamFeatures(ba: Buffer, positions: number[], chunk: Chunk) {
     let blockStart = 0
     const sink = []
+    console.log(positions)
 
     while (blockStart + 4 < ba.length) {
       const blockSize = ba.readInt32LE(blockStart)

@@ -36,8 +36,8 @@ export function unzipChunk(inputData: Buffer, chunk: Chunk) {
   let strm
   let pos = 0
   const decompressedBlocks = []
+  const positions = []
   let inflator
-  const fileStartingOffset = chunk.minv.blockPosition
   do {
     const remainingInput = inputData.slice(pos)
     inflator = new Inflate()
@@ -49,12 +49,13 @@ export function unzipChunk(inputData: Buffer, chunk: Chunk) {
 
     //@ts-ignore
     decompressedBlocks.push(Buffer.from(inflator.result))
+    positions.push(pos)
 
     if (decompressedBlocks.length === 1 && chunk.minv.dataPosition) {
       // this is the first chunk, trim it
       decompressedBlocks[0] = decompressedBlocks[0].slice(chunk.minv.dataPosition)
     }
-    if (fileStartingOffset + pos >= chunk.maxv.blockPosition) {
+    if (chunk.minv.blockPosition + pos >= chunk.maxv.blockPosition) {
       // this is the last chunk, trim it and stop decompressing
       // note if it is the same block is minv it subtracts that already
       // trimmed part of the slice length
@@ -70,6 +71,6 @@ export function unzipChunk(inputData: Buffer, chunk: Chunk) {
     pos += strm.next_in
   } while (strm.avail_in)
 
-  const result = Buffer.concat(decompressedBlocks)
-  return result
+  const buffer = Buffer.concat(decompressedBlocks)
+  return { buffer, positions }
 }
