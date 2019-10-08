@@ -390,6 +390,7 @@ export default class BamFile {
       const blockEnd = blockStart + 4 + blockSize - 1
 
       for (pos = 0; blockStart > dpositions[pos] - chunk.minv.dataPosition; pos++);
+      pos = Math.min(dpositions.length - 1, pos)
 
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
