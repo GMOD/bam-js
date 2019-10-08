@@ -435,3 +435,15 @@ test('long read consistent IDs', async () => {
   const [r1, r2] = [ret1, ret2].map(x => x.find(findfeat))
   expect(r1.id()).toEqual(r2.id())
 })
+
+test('long read consistent IDs chm1 pacbio', async () => {
+  const ti = new BamFile({
+    bamPath: require.resolve('./data/another_chm1_id_difference.bam'),
+  })
+  await ti.getHeader()
+  const ret1 = await ti.getRecordsForRange('chr1', 116473849, 116473874)
+  const ret2 = await ti.getRecordsForRange('chr1', 116473874, 116473899)
+  const findfeat = k => k.get('name') === 'm131009_195631_42213_c100579462550000001823095604021430_s1_p0/145814'
+  const [r1, r2] = [ret1, ret2].map(x => x.find(findfeat))
+  expect(r1.id()).toEqual(r2.id())
+})
