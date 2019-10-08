@@ -3,7 +3,7 @@ import { unzip } from './unzip'
 
 import { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
-import { longToNumber, abortBreakPoint } from './util'
+import { longToNumber, abortBreakPoint, canMergeBlocks } from './util'
 
 import IndexFile from './indexFile'
 
