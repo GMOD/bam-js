@@ -153,7 +153,10 @@ export default class BamFile {
     start: number,
     refSeqBytes: number,
     abortSignal?: AbortSignal,
-  ): Promise<{ chrToIndex: { [key: string]: number }; indexToChr: { refName: string; length: number }[] }> {
+  ): Promise<{
+    chrToIndex: { [key: string]: number }
+    indexToChr: { refName: string; length: number }[]
+  }> {
     if (start > refSeqBytes) {
       return this._readRefSeqs(start, refSeqBytes * 2)
     }
@@ -240,7 +243,9 @@ export default class BamFile {
       }
     }
 
-    const totalSize = chunks.map((s: Chunk) => s.fetchedSize()).reduce((a: number, b: number) => a + b, 0)
+    const totalSize = chunks
+      .map((s: Chunk) => s.fetchedSize())
+      .reduce((a: number, b: number) => a + b, 0)
     if (totalSize > this.fetchSizeLimit)
       throw new Error(
         `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
@@ -248,7 +253,13 @@ export default class BamFile {
     yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
-  async *_fetchChunkFeatures(chunks: Chunk[], chrId: number, min: number, max: number, opts: BamOpts) {
+  async *_fetchChunkFeatures(
+    chunks: Chunk[],
+    chrId: number,
+    min: number,
+    max: number,
+    opts: BamOpts,
+  ) {
     const featPromises = chunks.map(async c => {
       const records = await this.featureCache.get(c.toString(), c, opts.signal)
       const recs = []
@@ -308,10 +319,16 @@ export default class BamFile {
             unmatedPairs[name] &&
             (opts.pairAcrossChr ||
               (ret[i]._next_refid() === chrId &&
-                Math.abs(ret[i].get('start') - ret[i]._next_pos()) < (opts.maxInsertSize || 200000)))
+                Math.abs(ret[i].get('start') - ret[i]._next_pos()) <
+                  (opts.maxInsertSize || 200000)))
           ) {
             matePromises.push(
-              this.index.blocksForRange(ret[i]._next_refid(), ret[i]._next_pos(), ret[i]._next_pos() + 1, opts),
+              this.index.blocksForRange(
+                ret[i]._next_refid(),
+                ret[i]._next_pos(),
+                ret[i]._next_pos() + 1,
+                opts,
+              ),
             )
           }
         }
@@ -324,7 +341,9 @@ export default class BamFile {
       mateChunks.push(...mateBlocks[i])
     }
     // filter out duplicate chunks (the blocks are lists of chunks, blocks are concatenated, then filter dup chunks)
-    mateChunks = mateChunks.sort().filter((item, pos, ary) => !pos || item.toString() !== ary[pos - 1].toString())
+    mateChunks = mateChunks
+      .sort()
+      .filter((item, pos, ary) => !pos || item.toString() !== ary[pos - 1].toString())
 
     const mateRecordPromises = []
     const mateFeatPromises: Promise<BAMFeature[]>[] = []
@@ -406,7 +425,11 @@ export default class BamFile {
             start: blockStart,
             end: blockEnd,
           },
-          fileOffset: chunk.minv.blockPosition * (1 << 16) + cpositions[pos] * (1 << 16) + blockStart - dpositions[pos],
+          fileOffset:
+            chunk.minv.blockPosition * (1 << 16) +
+            cpositions[pos] * (1 << 16) +
+            blockStart -
+            dpositions[pos],
           //chunk.minv.dataPosition, // synthesized fileoffset from virtual offset
         })
         //console.log('wtf', feature.id(), feature.get('name'))

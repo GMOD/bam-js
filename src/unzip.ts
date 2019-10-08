@@ -67,7 +67,9 @@ export function unzipChunk(inputData: Buffer, chunk: Chunk) {
       // note if it is the same block is minv it subtracts that already
       // trimmed part of the slice length
 
-      decompressedBlocks[decompressedBlocks.length - 1] = decompressedBlocks[decompressedBlocks.length - 1].slice(
+      decompressedBlocks[decompressedBlocks.length - 1] = decompressedBlocks[
+        decompressedBlocks.length - 1
+      ].slice(
         0,
         chunk.maxv.blockPosition === chunk.minv.blockPosition
           ? chunk.maxv.dataPosition - chunk.minv.dataPosition + 1
