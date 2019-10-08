@@ -389,8 +389,14 @@ export default class BamFile {
       const blockSize = ba.readInt32LE(blockStart)
       const blockEnd = blockStart + 4 + blockSize - 1
 
-      for (pos = 0; blockStart > dpositions[pos] - chunk.minv.dataPosition; pos++);
+      for (pos = 0; blockStart > dpositions[pos]; pos++);
+      // if (pos > dpositions.length - 1) {
+      //   throw new Error('wtf')
+      // }
       pos = Math.min(dpositions.length - 1, pos)
+
+      // console.log(pos, dpositions.length)
+      // console.log(dpositions[pos])
 
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
@@ -400,13 +406,10 @@ export default class BamFile {
             start: blockStart,
             end: blockEnd,
           },
-          fileOffset:
-            chunk.minv.blockPosition * (1 << 16) +
-            cpositions[pos] * (1 << 16) -
-            dpositions[pos] +
-            chunk.minv.dataPosition +
-            blockStart, // synthesized fileoffset from virtual offset
+          fileOffset: chunk.minv.blockPosition * (1 << 16) + cpositions[pos] * (1 << 16) + blockStart - dpositions[pos],
+          //chunk.minv.dataPosition, // synthesized fileoffset from virtual offset
         })
+        //console.log('wtf', feature.id(), feature.get('name'))
         sink.push(feature)
       }
 

@@ -53,11 +53,14 @@ export function unzipChunk(inputData: Buffer, chunk: Chunk) {
     const buffer = Buffer.from(inflator.result)
     decompressedBlocks.push(buffer)
     cpositions.push(cpos)
-    dpositions.push(dpos)
 
     if (decompressedBlocks.length === 1 && chunk.minv.dataPosition) {
       // this is the first chunk, trim it
       decompressedBlocks[0] = decompressedBlocks[0].slice(chunk.minv.dataPosition)
+      dpos -= chunk.minv.dataPosition
+      dpositions.push(dpos)
+    } else {
+      dpositions.push(dpos)
     }
     if (chunk.minv.blockPosition + cpos >= chunk.maxv.blockPosition) {
       // this is the last chunk, trim it and stop decompressing

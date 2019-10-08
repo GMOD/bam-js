@@ -4,6 +4,10 @@ exports[`1000 genomes bam check deep check 1000 genomes 1`] = `Array []`;
 
 exports[`1000 genomes bam check deep check 1000 genomes bai 1`] = `Array []`;
 
+exports[`BamFile tiny loads some data 1`] = `Array []`;
+
+exports[`BamFile tiny loads some data 2`] = `Array []`;
+
 exports[`bam deep record check deep check volvox-sorted.bam 1`] = `
 Array [
   Object {
