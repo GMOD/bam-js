@@ -43,14 +43,12 @@
     "@gmod/bgzf-filehandle": "^1.2.4",
     "@types/long": "^4.0.0",
     "@types/node": "^12.7.8",
-    "@types/pako": "^1.0.1",
     "abortable-promise-cache": "^1.0.1",
     "cross-fetch": "^3.0.2",
     "es6-promisify": "^6.0.1",
     "generic-filehandle": "^2.0.0",
     "long": "^4.0.0",
     "object.entries-ponyfill": "^1.0.1",
-    "pako": "^1.0.10",
     "quick-lru": "^2.0.0"
   },
   "devDependencies": {
