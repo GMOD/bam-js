@@ -430,7 +430,6 @@ export default class BamFile {
             cpositions[pos] * (1 << 16) +
             blockStart -
             dpositions[pos],
-          //chunk.minv.dataPosition, // synthesized fileoffset from virtual offset
         })
         //console.log('wtf', feature.id(), feature.get('name'))
         sink.push(feature)
