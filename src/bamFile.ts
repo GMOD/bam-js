@@ -378,7 +378,7 @@ export default class BamFile {
       buffer = buffer.slice(0, bufsize)
     }
 
-    const { buffer: data, cpositions, dpositions } = unzipChunk(buffer)
+    const { buffer: data, cpositions, dpositions } = await unzipChunk(buffer)
     checkAbortSignal(abortSignal)
     return this.readBamFeatures(data, cpositions, dpositions, chunk)
   }

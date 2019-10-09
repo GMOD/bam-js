@@ -1,5 +1,5 @@
 import Long from 'long'
-import { unzip } from './unzip'
+import { unzip } from '@gmod/bgzf-filehandle'
 
 import { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
