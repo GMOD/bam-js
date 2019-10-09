@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/ban-ts-ignore */
 //@ts-ignore
 import { Inflate, Z_SYNC_FLUSH } from 'pako'
-import Chunk from './chunk'
 
 export function unzip(inputData: Buffer) {
   let strm
@@ -31,14 +30,13 @@ export function unzip(inputData: Buffer) {
 // similar to pakounzip, except it does extra counting and
 // trimming to make sure to return only exactly the data
 // range specified in the chunk
-export function unzipChunk(inputData: Buffer, chunk: Chunk) {
+export function unzipChunk(inputData: Buffer) {
   let strm
   let cpos = 0
   let dpos = 0
   const blocks = []
   const cpositions = []
   const dpositions = []
-  let i = 0
   do {
     const remainingInput = inputData.slice(cpos)
     const inflator = new Inflate()
@@ -78,7 +76,6 @@ export function unzipChunk(inputData: Buffer, chunk: Chunk) {
     //     }
     cpos += strm.next_in
     dpos += buffer.length
-    i++
   } while (strm.avail_in)
 
   const buffer = Buffer.concat(blocks)

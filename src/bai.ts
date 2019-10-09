@@ -3,7 +3,7 @@ import { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 
 import IndexFile from './indexFile'
-import { longToNumber, abortBreakPoint, canMergeBlocks } from './util'
+import { longToNumber, abortBreakPoint } from './util'
 
 const BAI_MAGIC = 21578050 // BAI\1
 
@@ -16,9 +16,7 @@ function roundUp(n: number, multiple: number) {
 
 export default class BAI extends IndexFile {
   parsePseudoBin(bytes: Buffer, offset: number) {
-    const lineCount = longToNumber(
-      Long.fromBytesLE(Array.prototype.slice.call(bytes, offset + 16, offset + 24), true),
-    )
+    const lineCount = longToNumber(Long.fromBytesLE(Array.prototype.slice.call(bytes, offset + 16, offset + 24), true))
     return { lineCount }
   }
 
