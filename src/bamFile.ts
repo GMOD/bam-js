@@ -3,7 +3,7 @@ import BAI from './bai'
 import CSI from './csi'
 import Chunk from './chunk'
 
-import { unzip, unzipChunk } from './unzip'
+import { unzip, unzipChunk } from '@gmod/bgzf-filehandle'
 
 import entries from 'object.entries-ponyfill'
 import LRU from 'quick-lru'
@@ -133,7 +133,7 @@ export default class BamFile {
       buffer = (await this.bam.readFile({ signal: abortSignal })) as Buffer
     }
 
-    const uncba = unzip(buffer)
+    const uncba = await unzip(buffer)
 
     if (uncba.readInt32LE(0) !== BAM_MAGIC) throw new Error('Not a BAM file')
     const headLen = uncba.readInt32LE(4)
@@ -152,7 +152,10 @@ export default class BamFile {
     start: number,
     refSeqBytes: number,
     abortSignal?: AbortSignal,
-  ): Promise<{ chrToIndex: { [key: string]: number }; indexToChr: { refName: string; length: number }[] }> {
+  ): Promise<{
+    chrToIndex: { [key: string]: number }
+    indexToChr: { refName: string; length: number }[]
+  }> {
     if (start > refSeqBytes) {
       return this._readRefSeqs(start, refSeqBytes * 2)
     }
@@ -169,7 +172,7 @@ export default class BamFile {
     } else {
       buffer = buffer.slice(0, refSeqBytes)
     }
-    const uncba = unzip(buffer)
+    const uncba = await unzip(buffer)
     const nRef = uncba.readInt32LE(start)
     let p = start + 4
     const chrToIndex: { [key: string]: number } = {}
@@ -374,18 +377,22 @@ export default class BamFile {
       buffer = buffer.slice(0, bufsize)
     }
 
-    const data = unzipChunk(buffer, chunk)
+    const { buffer: data, cpositions, dpositions } = await unzipChunk(buffer)
     checkAbortSignal(abortSignal)
-    return this.readBamFeatures(data)
+    return this.readBamFeatures(data, cpositions, dpositions, chunk)
   }
 
-  readBamFeatures(ba: Buffer) {
-    let blockStart = 0
+  readBamFeatures(ba: Buffer, cpositions: number[], dpositions: number[], chunk: Chunk) {
+    let blockStart = chunk.minv.dataPosition
     const sink = []
+    let pos = 0
 
     while (blockStart + 4 < ba.length) {
       const blockSize = ba.readInt32LE(blockStart)
       const blockEnd = blockStart + 4 + blockSize - 1
+
+      for (pos = 0; blockStart > dpositions[pos]; pos++);
+      pos = Math.min(dpositions.length - 1, pos)
 
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
@@ -395,7 +402,9 @@ export default class BamFile {
             start: blockStart,
             end: blockEnd,
           },
+          fileOffset: chunk.minv.blockPosition * (1 << 16) + cpositions[pos] * (1 << 16) + blockStart - dpositions[pos],
         })
+
         sink.push(feature)
       }
 

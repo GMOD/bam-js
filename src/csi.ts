@@ -1,5 +1,5 @@
 import Long from 'long'
-import { unzip } from './unzip'
+import { unzip } from '@gmod/bgzf-filehandle'
 
 import { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
@@ -204,8 +204,11 @@ export default class CSI extends IndexFile {
     numOffsets = l + 1
 
     // resolve overlaps between adjacent blocks; this may happen due to the merge in indexing
-    for (let i = 1; i < numOffsets; i += 1)
-      if (off[i - 1].maxv.compareTo(off[i].minv) >= 0) off[i - 1].maxv = off[i].minv
+    for (let i = 1; i < numOffsets; i += 1) {
+      if (off[i - 1].maxv.compareTo(off[i].minv) >= 0) {
+        off[i - 1].maxv = off[i].minv
+      }
+    }
 
     // merge adjacent blocks
     l = 0

@@ -3,8 +3,10 @@ node_js:
   - v8
   - stable
 script:
-  - npm run lint
-  - npm test -- --coverage
+  - yarn lint
+  - yarn test --coverage
+  - yarn tsc
+  - yarn build
 cache:
   - yarn
 after_success:
