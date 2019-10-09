@@ -3,7 +3,7 @@ import BAI from './bai'
 import CSI from './csi'
 import Chunk from './chunk'
 
-import { unzip, unzipChunk } from './unzip'
+import { unzip, unzipChunk } from '@gmod/bgzf-filehandle'
 
 import entries from 'object.entries-ponyfill'
 import LRU from 'quick-lru'
@@ -134,7 +134,7 @@ export default class BamFile {
       buffer = (await this.bam.readFile({ signal: abortSignal })) as Buffer
     }
 
-    const uncba = unzip(buffer)
+    const uncba = await unzip(buffer)
 
     if (uncba.readInt32LE(0) !== BAM_MAGIC) throw new Error('Not a BAM file')
     const headLen = uncba.readInt32LE(4)
@@ -173,7 +173,7 @@ export default class BamFile {
     } else {
       buffer = buffer.slice(0, refSeqBytes)
     }
-    const uncba = unzip(buffer)
+    const uncba = await unzip(buffer)
     const nRef = uncba.readInt32LE(start)
     let p = start + 4
     const chrToIndex: { [key: string]: number } = {}

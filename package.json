@@ -40,6 +40,7 @@
   ],
   "dependencies": {
     "@babel/runtime-corejs2": "^7.5.5",
+    "@gmod/bgzf-filehandle": "^1.2.4",
     "@types/long": "^4.0.0",
     "@types/node": "^12.7.8",
     "@types/pako": "^1.0.1",
