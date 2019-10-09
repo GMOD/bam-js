@@ -400,9 +400,11 @@ export default class BamFile {
   }
 
   readBamFeatures(ba: Buffer, cpositions: number[], dpositions: number[], chunk: Chunk) {
-    let blockStart = 0
+    let blockStart = chunk.minv.dataPosition
     const sink = []
     let pos = 0
+    //ba = ba.slice(chunk.minv.dataPosition)
+    //console.log('ba', ba, ba.length)
 
     while (blockStart + 4 < ba.length) {
       const blockSize = ba.readInt32LE(blockStart)
@@ -412,11 +414,13 @@ export default class BamFile {
       // if (pos > dpositions.length - 1) {
       //   throw new Error('wtf')
       // }
+      //console.log(pos, dpositions.length)
       pos = Math.min(dpositions.length - 1, pos)
 
       // console.log(pos, dpositions.length)
       // console.log(dpositions[pos])
 
+      //console.log(blockEnd, ba.length)
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
         const feature = new BAMFeature({
@@ -431,7 +435,23 @@ export default class BamFile {
             blockStart -
             dpositions[pos],
         })
-        //console.log('wtf', feature.id(), feature.get('name'))
+        // console.log(
+        //   feature.get('name'),
+        //   feature.get('start'),
+        //   feature.get('seq_id'),
+        //   this.indexToChr[feature.get('seq_id')],
+        // )
+
+        if (Number.isNaN(feature.id())) {
+          throw new Error('no nans allowed')
+        }
+        //console.log(feature.id())
+        //if (
+        //  feature.get('name') ==
+        //  'm131009_195631_42213_c100579462550000001823095604021430_s1_p0/145814'
+        //) {
+        //  //console.log('wtf', pos, dpositions.length, feature.id(), feature.get('name'))
+        //}
         sink.push(feature)
       }
 

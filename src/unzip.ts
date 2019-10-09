@@ -8,11 +8,10 @@ export function unzip(inputData: Buffer) {
   let pos = 0
   let i = 0
   const chunks = []
-  let inflator
   do {
     const remainingInput = inputData.slice(pos)
-    inflator = new Inflate()
-    //@ts-ignore
+    const inflator = new Inflate()
+      //@ts-ignore
     ;({ strm } = inflator)
     //@ts-ignore
     inflator.push(remainingInput, Z_SYNC_FLUSH)
@@ -36,14 +35,14 @@ export function unzipChunk(inputData: Buffer, chunk: Chunk) {
   let strm
   let cpos = 0
   let dpos = 0
-  const decompressedBlocks = []
+  const blocks = []
   const cpositions = []
   const dpositions = []
-  let inflator
+  let i = 0
   do {
     const remainingInput = inputData.slice(cpos)
-    inflator = new Inflate()
-    //@ts-ignore
+    const inflator = new Inflate()
+      //@ts-ignore
     ;({ strm } = inflator)
     //@ts-ignore
     inflator.push(remainingInput, Z_SYNC_FLUSH)
@@ -51,36 +50,37 @@ export function unzipChunk(inputData: Buffer, chunk: Chunk) {
 
     //@ts-ignore
     const buffer = Buffer.from(inflator.result)
-    decompressedBlocks.push(buffer)
+    blocks.push(buffer)
+
+    //     if (i == 0) {
+    //       // this is the first chunk, trim it
+    //       buffer = buffer.slice(chunk.minv.dataPosition)
+    //       dpos += chunk.minv.dataPosition
     cpositions.push(cpos)
+    dpositions.push(dpos)
+    //       blocks.push(buffer)
+    //     }
+    //     if (chunk.minv.blockPosition + cpos >= chunk.maxv.blockPosition) {
+    //       // this is the last chunk, trim it and stop decompressing
+    //       // note if it is the same block is minv it subtracts that already
+    //       // trimmed part of the slice length
 
-    if (decompressedBlocks.length === 1 && chunk.minv.dataPosition) {
-      // this is the first chunk, trim it
-      decompressedBlocks[0] = decompressedBlocks[0].slice(chunk.minv.dataPosition)
-      dpos -= chunk.minv.dataPosition
-      dpositions.push(dpos)
-    } else {
-      dpositions.push(dpos)
-    }
-    if (chunk.minv.blockPosition + cpos >= chunk.maxv.blockPosition) {
-      // this is the last chunk, trim it and stop decompressing
-      // note if it is the same block is minv it subtracts that already
-      // trimmed part of the slice length
-
-      decompressedBlocks[decompressedBlocks.length - 1] = decompressedBlocks[
-        decompressedBlocks.length - 1
-      ].slice(
-        0,
-        chunk.maxv.blockPosition === chunk.minv.blockPosition
-          ? chunk.maxv.dataPosition - chunk.minv.dataPosition + 1
-          : chunk.maxv.dataPosition + 1,
-      )
-      break
-    }
+    //       buffer = buffer.slice(
+    //         0,
+    //         chunk.maxv.blockPosition === chunk.minv.blockPosition
+    //           ? chunk.maxv.dataPosition - chunk.minv.dataPosition + 1
+    //           : chunk.maxv.dataPosition + 1,
+    //       )
+    //       cpositions.push(cpos)
+    //       dpositions.push(dpos)
+    //       blocks.push(buffer)
+    //       break
+    //     }
     cpos += strm.next_in
     dpos += buffer.length
+    i++
   } while (strm.avail_in)
 
-  const buffer = Buffer.concat(decompressedBlocks)
+  const buffer = Buffer.concat(blocks)
   return { buffer, cpositions, dpositions }
 }
