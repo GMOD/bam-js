@@ -1,3 +1,8 @@
+<a name="1.0.27"></a>
+## [1.0.27](https://github.com/GMOD/bam-js/compare/v1.0.26...v1.0.27) (2019-10-10)
+
+
+
 - Make feature IDs become generated based relative to the exact bgzip block
 
 <a name="1.0.26"></a>
