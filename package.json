@@ -20,7 +20,7 @@
     "test": "jest",
     "coverage": "npm test -- --coverage",
     "lint": "eslint --ext .js,.ts src test",
-    "clean": "echo hi",
+    "clean": "rimraf dist",
     "prebuild": "npm run clean && npm run lint",
     "build:types": "tsc --emitDeclarationOnly",
     "build:js": "babel src --out-dir dist --extensions \".ts,.tsx\" --source-maps inline",
