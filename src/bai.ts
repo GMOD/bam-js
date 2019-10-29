@@ -104,7 +104,7 @@ export default class BAI extends IndexFile {
     start?: number,
     end?: number,
   ): Promise<{ start: number; end: number; score: number }[]> {
-    const v = 16384
+    const v = 1 << 14
     const range = start !== undefined
     const indexData = await this.parse()
     const seqIdx = indexData.indices[seqId]
