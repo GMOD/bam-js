@@ -402,7 +402,11 @@ export default class BamFile {
             start: blockStart,
             end: blockEnd,
           },
-          fileOffset: chunk.minv.blockPosition * (1 << 16) + cpositions[pos] * (1 << 16) + blockStart - dpositions[pos],
+          // multipying 1 << 8 helps with hitting the 1<<53 MAX_SAFE_INT limit
+          //  for generating unique ID
+          // this is based on the assumption that the compressed block size * 1<<8
+          //  is greater than the decompressed size
+          fileOffset: chunk.minv.blockPosition * (1 << 8) + cpositions[pos] * (1 << 8) + blockStart - dpositions[pos],
         })
 
         sink.push(feature)
