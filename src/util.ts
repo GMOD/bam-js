@@ -22,9 +22,7 @@ export function checkAbortSignal(signal?: AbortSignal) {
 
   if (signal.aborted) {
     // console.log('bam aborted!')
-    if (typeof DOMException !== 'undefined')
-      // eslint-disable-next-line  no-undef
-      throw new DOMException('aborted', 'AbortError')
+    if (typeof DOMException !== 'undefined') throw new DOMException('aborted', 'AbortError')
     else {
       const e = new Error('aborted')
       // eslint-disable-next-line  @typescript-eslint/ban-ts-ignore
@@ -44,12 +42,4 @@ export function checkAbortSignal(signal?: AbortSignal) {
 export async function abortBreakPoint(signal?: AbortSignal) {
   await Promise.resolve()
   checkAbortSignal(signal)
-}
-
-export function canMergeBlocks(block1: Chunk, block2: Chunk) {
-  return (
-    block1.minv.blockPosition === block1.maxv.blockPosition &&
-    block1.maxv.blockPosition === block2.minv.blockPosition &&
-    block2.minv.blockPosition === block2.maxv.blockPosition
-  )
 }
