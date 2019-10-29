@@ -1,3 +1,8 @@
+<a name="1.0.28"></a>
+## [1.0.28](https://github.com/GMOD/bam-js/compare/v1.0.27...v1.0.28) (2019-10-29)
+
+
+
 - Add CSI index block merging
 - Change unique ID generator to be smaller numeric IDs
 
