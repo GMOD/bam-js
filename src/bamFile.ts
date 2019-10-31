@@ -258,21 +258,8 @@ export default class BamFile {
 
   async *_fetchChunkFeatures(chunks: Chunk[], chrId: number, min: number, max: number, opts: BamOpts) {
     const featPromises = chunks.map(async c => {
-      const records = await this.featureCache.get(c.toString(), c, opts.signal)
-      const recs = []
-      for (let i = 0; i < records.length; i += 1) {
-        const feature = records[i]
-        if (feature._refID === chrId) {
-          if (feature.get('start') >= max)
-            // past end of range, can stop iterating
-            break
-          else if (feature.get('end') >= min) {
-            // must be in range
-            recs.push(feature)
-          }
-        }
-      }
-      return recs
+      const { data, cpositions, dpositions, chunk } = await this.featureCache.get(c.toString(), c, opts.signal)
+      return this.readBamFeatures(data, cpositions, dpositions, chunk, chrId, min, max)
     })
 
     checkAbortSignal(opts.signal)
@@ -334,29 +321,23 @@ export default class BamFile {
     // filter out duplicate chunks (the blocks are lists of chunks, blocks are concatenated, then filter dup chunks)
     mateChunks = mateChunks.sort().filter((item, pos, ary) => !pos || item.toString() !== ary[pos - 1].toString())
 
-    const mateRecordPromises = []
-    const mateFeatPromises: Promise<BAMFeature[]>[] = []
-
     const mateTotalSize = mateChunks.map(s => s.fetchedSize()).reduce((a, b) => a + b, 0)
     if (mateTotalSize > this.fetchSizeLimit) {
       throw new Error(
         `data size of ${mateTotalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
       )
     }
-    mateChunks.forEach(c => {
-      const recordPromise = this.featureCache.get(c.toString(), c, opts.signal)
-      mateRecordPromises.push(recordPromise)
-      const featPromise = recordPromise.then((feats: BAMFeature[]) => {
-        const mateRecs = []
-        for (let i = 0; i < feats.length; i += 1) {
-          const feature = feats[i]
-          if (unmatedPairs[feature.get('name')] && !readIds[feature.get('id')]) {
-            mateRecs.push(feature)
-          }
+    const mateFeatPromises = mateChunks.map(async c => {
+      const { data, cpositions, dpositions, chunk } = await this.featureCache.get(c.toString(), c, opts.signal)
+      const feats = await this.readBamFeatures(data, cpositions, dpositions, chunk)
+      const mateRecs = []
+      for (let i = 0; i < feats.length; i += 1) {
+        const feature = feats[i]
+        if (unmatedPairs[feature.get('name')] && !readIds[feature.get('id')]) {
+          mateRecs.push(feature)
         }
-        return mateRecs
-      })
-      mateFeatPromises.push(featPromise)
+      }
+      return mateRecs
     })
     const newMateFeats = await Promise.all(mateFeatPromises)
     let featuresRet: BAMFeature[] = []
@@ -385,10 +366,18 @@ export default class BamFile {
 
     const { buffer: data, cpositions, dpositions } = await unzipChunk(buffer)
     checkAbortSignal(abortSignal)
-    return this.readBamFeatures(data, cpositions, dpositions, chunk)
+    return { data, cpositions, dpositions, chunk }
   }
 
-  async readBamFeatures(ba: Buffer, cpositions: number[], dpositions: number[], chunk: Chunk) {
+  async readBamFeatures(
+    ba: Buffer,
+    cpositions: number[],
+    dpositions: number[],
+    chunk: Chunk,
+    chrId?: number,
+    min?: number,
+    max?: number,
+  ) {
     let blockStart = chunk.minv.dataPosition
     const sink = []
     let pos = 0
@@ -416,7 +405,19 @@ export default class BamFile {
           fileOffset: chunk.minv.blockPosition * (1 << 8) + cpositions[pos] * (1 << 8) + blockStart - dpositions[pos],
         })
 
-        sink.push(feature)
+        if (min !== undefined && max !== undefined) {
+          if (feature.seq_id() === chrId) {
+            if (feature.get('start') >= max)
+              // past end of range, can stop iterating
+              break
+            else if (feature.get('end') >= min) {
+              // must be in range
+              sink.push(feature)
+            }
+          }
+        } else {
+          sink.push(feature)
+        }
         featsSinceLastTimeout++
         if (featsSinceLastTimeout > 500) {
           await timeout(1)

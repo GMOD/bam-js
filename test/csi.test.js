@@ -1,4 +1,4 @@
-import { BAI, BamFile } from '../src'
+import { csi, BamFile } from '../src'
 
 import { LocalFile } from 'generic-filehandle'
 import FakeRecord from './fakerecord'
@@ -13,50 +13,7 @@ class HalfAbortController {
   }
 }
 
-describe('index formats', () => {
-  it('loads volvox-sorted.bam.bai', async () => {
-    const ti = new BAI({
-      filehandle: new LocalFile(require.resolve('./data/volvox-sorted.bam.bai')),
-    })
-    const indexData = await ti.parse()
-    expect(indexData.bai).toEqual(true)
-    expect(await ti.lineCount(0)).toEqual(9596)
-    expect(await ti.hasRefSeq(0)).toEqual(true)
-  })
-  it('loads volvox-sorted.bam in similar test', async () => {
-    const ti = new BamFile({
-      bamPath: require.resolve('./data/volvox-sorted.bam'),
-    })
-    await ti.getHeader()
-    expect(await ti.lineCount('ctgA')).toEqual(9596)
-    expect(await ti.hasRefSeq('ctgA')).toEqual(true)
-  })
-})
 
-describe('index human data', () => {
-  it('loads 1000 genomes bai', async () => {
-    const ti = new BAI({
-      filehandle: new LocalFile(
-        require.resolve('./data/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam.bai'),
-      ),
-    })
-    const indexData = await ti.parse()
-    expect(indexData.bai).toEqual(true)
-    expect(await ti.hasRefSeq(19)).toEqual(true)
-    expect(await ti.lineCount(19)).toEqual(2924253)
-  })
-  it('can abort loading 1000 genomes bai', async () => {
-    const ti = new BAI({
-      filehandle: new LocalFile(
-        require.resolve('./data/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam.bai'),
-      ),
-    })
-    const aborter = new HalfAbortController()
-    const indexDataP = ti.parse(aborter.signal)
-    aborter.abort()
-    await expect(indexDataP).rejects.toThrow(/aborted/)
-  })
-})
 describe('bam header', () => {
   it('loads volvox-sorted.bam', async () => {
     const ti = new BamFile({
@@ -154,7 +111,7 @@ describe('1000 genomes bam check', () => {
     const records = await ti.getRecordsForRange('1', 0, 1000)
     expect(records).toMatchSnapshot()
   })
-  it('deep check 1000 genomes bai', async () => {
+  it('deep check 1000 genomes csi', async () => {
     const ti = new BamFile({
       bamPath: require.resolve('./data/1000genomes_hg00096_chr1.bam'),
     })
@@ -203,9 +160,7 @@ describe('BamFile with test_deletion_2_0.snps.bwa_align.sorted.grouped.bam', () 
   it('loads some data', async () => {
     const features = await b.getRecordsForRange('Chromosome', 17000, 18000)
     expect(features.length).toEqual(124)
-    expect(
-      features.every(feature => feature.get('seq_length') === feature.getReadBases().length),
-    ).toBeTruthy()
+    expect(features.every(feature => feature.get('seq_length') === feature.getReadBases().length)).toBeTruthy()
   })
 })
 
@@ -290,9 +245,7 @@ describe('BamFile with paired ends', () => {
     })
     const features2 = await p.getRecordsForRange('20', 0, 70000)
     //    expect(features.length).toEqual(features2.length)
-    expect(features.map(f => f.get('name')).sort()).toEqual(
-      features2.map(f => f.get('name')).sort(),
-    )
+    expect(features.map(f => f.get('name')).sort()).toEqual(features2.map(f => f.get('name')).sort())
     const f = features[features.length - 1]
     const f2 = features2[features2.length - 1]
     expect(f.get('start')).toEqual(f2.get('start'))
@@ -345,7 +298,7 @@ describe('SAM spec pdf', () => {
   it('check parse', async () => {
     const b = new BamFile({
       bamPath: 'test/data/samspec.bam',
-      baiPath: 'test/data/samspec.bam.bai',
+      csiPath: 'test/data/samspec.bam.csi',
     })
     await b.getHeader()
 
@@ -365,26 +318,7 @@ describe('trigger range out of bounds file', () => {
   })
 })
 
-describe('test too large of genome coordinates', () => {
-  it('test error', async () => {
-    const ti = new BAI({
-      filehandle: new LocalFile(require.resolve('./data/needs_csi.bai')),
-    })
-    await expect(ti.parse()).rejects.toThrow(/too many bins/)
-  })
-})
 
-describe('large indexcov', () => {
-  it('human 1000g', async () => {
-    const ti = new BAI({
-      filehandle: new LocalFile(require.resolve('./data/HG00096_illumina_lowcov.bam.bai')),
-    })
-    const ret = await ti.indexCov(10, 0, 1000000)
-    expect(ret).toMatchSnapshot()
-    const empty = await ti.indexCov(0)
-    expect(empty).toEqual([])
-  })
-})
 
 // we cannot determine duplicates as unique because we require dehashing
 test('unique id for duplicate features', async () => {
@@ -462,8 +396,8 @@ test('long read consistent IDs chm1 pacbio', async () => {
 })
 
 xtest('large chunks', async () => {
-  const ti = new BAI({
-    filehandle: new LocalFile(require.resolve('./data/out.marked.bai')),
+  const ti = new csi({
+    filehandle: new LocalFile(require.resolve('./data/out.marked.csi')),
   })
 
   const ret = await ti.parse()

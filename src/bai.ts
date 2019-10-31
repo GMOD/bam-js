@@ -1,9 +1,9 @@
 import Long from 'long'
-import { fromBytes } from './virtualOffset'
+import VirtualOffset, { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 
 import IndexFile from './indexFile'
-import { longToNumber, abortBreakPoint } from './util'
+import { longToNumber, abortBreakPoint, canMergeBlocks } from './util'
 
 const BAI_MAGIC = 21578050 // BAI\1
 
@@ -104,7 +104,7 @@ export default class BAI extends IndexFile {
     start?: number,
     end?: number,
   ): Promise<{ start: number; end: number; score: number }[]> {
-    const v = 1 << 14
+    const v = 16384
     const range = start !== undefined
     const indexData = await this.parse()
     const seqIdx = indexData.indices[seqId]
@@ -137,76 +137,6 @@ export default class BAI extends IndexFile {
     })
   }
 
-  async blocksForRange(refId: number, beg: number, end: number): Promise<Chunk[]> {
-    if (beg < 0) beg = 0
-
-    const indexData = await this.parse()
-    if (!indexData) return []
-    const indexes = indexData.indices[refId]
-    if (!indexes) return []
-
-    const binIndex: { [key: number]: any } = indexes.binIndex
-
-    const bins = this.reg2bins(beg, end)
-
-    let l
-    let numOffsets = 0
-    for (let i = 0; i < bins.length; i += 1) {
-      if (binIndex[bins[i]]) {
-        numOffsets += binIndex[bins[i]].length
-      }
-    }
-
-    if (numOffsets === 0) return []
-
-    let off = []
-    numOffsets = 0
-    for (let i = 0; i < bins.length; i += 1) {
-      const chunks = binIndex[bins[i]]
-      if (chunks)
-        for (let j = 0; j < chunks.length; j += 1) {
-          off[numOffsets] = new Chunk(chunks[j].minv, chunks[j].maxv, chunks[j].bin)
-          numOffsets += 1
-        }
-    }
-
-    if (!off.length) return []
-
-    off = off.sort((a, b) => a.compareTo(b))
-
-    // resolve completely contained adjacent blocks
-    l = 0
-    for (let i = 1; i < numOffsets; i += 1) {
-      if (off[l].maxv.compareTo(off[i].maxv) < 0) {
-        l += 1
-        off[l].minv = off[i].minv
-        off[l].maxv = off[i].maxv
-      }
-    }
-    numOffsets = l + 1
-
-    // resolve overlaps between adjacent blocks; this may happen due to the merge in indexing
-    for (let i = 1; i < numOffsets; i += 1) {
-      if (off[i - 1].maxv.compareTo(off[i].minv) >= 0) {
-        off[i - 1].maxv = off[i].minv
-      }
-    }
-
-    // merge adjacent blocks
-    l = 0
-    for (let i = 1; i < numOffsets; i += 1) {
-      if (off[l].maxv.blockPosition === off[i].minv.blockPosition) off[l].maxv = off[i].maxv
-      else {
-        l += 1
-        off[l].minv = off[i].minv
-        off[l].maxv = off[i].maxv
-      }
-    }
-    numOffsets = l + 1
-
-    return off.slice(0, numOffsets)
-  }
-
   /**
    * calculate the list of bins that may overlap with region [beg,end) (zero-based half-open)
    * @returns {Array[number]}
@@ -220,5 +150,82 @@ export default class BAI extends IndexFile {
     for (let k = 585 + (beg >> 17); k <= 585 + (end >> 17); k += 1) list.push(k)
     for (let k = 4681 + (beg >> 14); k <= 4681 + (end >> 14); k += 1) list.push(k)
     return list
+  }
+
+  async blocksForRange(refId: number, min: number, max: number) {
+    if (min < 0) min = 0
+
+    const indexData = await this.parse()
+    if (!indexData) return []
+    const ba = indexData.indices[refId]
+    if (!ba) return []
+
+    const overlappingBins = this.reg2bins(min, max) // List of bin #s that overlap min, max
+    const chunks: Chunk[] = []
+
+    // Find chunks in overlapping bins.  Leaf bins (< 4681) are not pruned
+    overlappingBins.forEach(function(bin) {
+      if (ba.binIndex[bin]) {
+        const binChunks = ba.binIndex[bin]
+        for (let c = 0; c < binChunks.length; ++c) {
+          chunks.push(new Chunk(binChunks[c].minv, binChunks[c].maxv, bin))
+        }
+      }
+    })
+
+    // Use the linear index to find minimum file position of chunks that could contain alignments in the region
+    const nintv = ba.linearIndex.length
+    let lowest = null
+    const minLin = Math.min(min >> 14, nintv - 1)
+    const maxLin = Math.min(max >> 14, nintv - 1)
+    for (let i = minLin; i <= maxLin; ++i) {
+      const vp = ba.linearIndex[i]
+      if (vp) {
+        if (!lowest || vp.compareTo(lowest) < 0) {
+          lowest = vp
+        }
+      }
+    }
+
+    return this.optimizeChunks(chunks, lowest)
+  }
+
+  optimizeChunks(chunks: Chunk[], lowest: VirtualOffset) {
+    const mergedChunks: Chunk[] = []
+    let lastChunk: Chunk | null = null
+
+    if (chunks.length === 0) return chunks
+
+    chunks.sort(function(c0, c1) {
+      const dif = c0.minv.blockPosition - c1.minv.blockPosition
+      if (dif !== 0) {
+        return dif
+      } else {
+        return c0.minv.dataPosition - c1.minv.dataPosition
+      }
+    })
+
+    chunks.forEach(chunk => {
+      if (!lowest || chunk.maxv.compareTo(lowest) > 0) {
+        if (lastChunk === null) {
+          mergedChunks.push(chunk)
+          lastChunk = chunk
+        } else {
+          if (canMergeBlocks(lastChunk, chunk)) {
+            if (chunk.maxv.compareTo(lastChunk.maxv) > 0) {
+              lastChunk.maxv = chunk.maxv
+            }
+          } else {
+            mergedChunks.push(chunk)
+            lastChunk = chunk
+          }
+        }
+      }
+      // else {
+      //   console.log(`skipping chunk ${chunk}`)
+      // }
+    })
+
+    return mergedChunks
   }
 }
