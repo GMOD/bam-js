@@ -1,3 +1,8 @@
+<a name="1.0.29"></a>
+## [1.0.29](https://github.com/GMOD/bam-js/compare/v1.0.28...v1.0.29) (2019-10-31)
+
+
+
 - Decoding of the BAM records at time of use instead of entire chunk decoded up front
 - Alternate chunk merging strategy inspired by igv.js code
 
