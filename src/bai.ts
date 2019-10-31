@@ -137,7 +137,7 @@ export default class BAI extends IndexFile {
     })
   }
 
- /**
+  /**
    * calculate the list of bins that may overlap with region [beg,end) (zero-based half-open)
    * @returns {Array[number]}
    */
