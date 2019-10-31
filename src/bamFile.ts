@@ -24,6 +24,13 @@ interface BamOpts {
   maxInsertSize?: number
   signal?: AbortSignal
 }
+
+function timeout(time: number) {
+  return new Promise(resolve => {
+    setTimeout(resolve, time)
+  })
+}
+
 export default class BamFile {
   private renameRefSeq: (a: string) => string
   private bam: GenericFilehandle
@@ -381,10 +388,11 @@ export default class BamFile {
     return this.readBamFeatures(data, cpositions, dpositions, chunk)
   }
 
-  readBamFeatures(ba: Buffer, cpositions: number[], dpositions: number[], chunk: Chunk) {
+  async readBamFeatures(ba: Buffer, cpositions: number[], dpositions: number[], chunk: Chunk) {
     let blockStart = chunk.minv.dataPosition
     const sink = []
     let pos = 0
+    let featsSinceLastTimeout = 0
 
     while (blockStart + 4 < ba.length) {
       const blockSize = ba.readInt32LE(blockStart)
@@ -409,6 +417,11 @@ export default class BamFile {
         })
 
         sink.push(feature)
+        featsSinceLastTimeout++
+        if (featsSinceLastTimeout > 500) {
+          await timeout(1)
+          featsSinceLastTimeout = 0
+        }
       }
 
       blockStart = blockEnd + 1
