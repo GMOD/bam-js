@@ -387,7 +387,7 @@ describe('large indexcov', () => {
 })
 
 // we cannot determine duplicates as unique because we require dehashing
-xtest('unique id for duplicate features', async () => {
+test('unique id for duplicate features', async () => {
   const ti = new BamFile({
     bamPath: require.resolve('./data/exact_duplicate.bam'),
   })
