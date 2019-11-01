@@ -11,7 +11,7 @@ import { LocalFile, RemoteFile, GenericFilehandle } from 'generic-filehandle'
 import BAMFeature from './record'
 import IndexFile from './indexFile'
 import { parseHeaderText } from './sam'
-import { abortBreakPoint, checkAbortSignal } from './util'
+import { abortBreakPoint, checkAbortSignal, timeout } from './util'
 
 const BAM_MAGIC = 21840194
 
@@ -23,12 +23,6 @@ interface BamOpts {
   pairAcrossChr?: boolean
   maxInsertSize?: number
   signal?: AbortSignal
-}
-
-function timeout(time: number) {
-  return new Promise(resolve => {
-    setTimeout(resolve, time)
-  })
 }
 
 export default class BamFile {
