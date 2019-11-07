@@ -33,11 +33,21 @@ export default class BamRecord {
   }
 
   get(field: string) {
+    //@ts-ignore
+    if (this[field]) {
+      //@ts-ignore
+      if (this.data[field]) {
+        return this.data[field]
+      }
+      //@ts-ignore
+      this.data[field] = this[field]()
+      return this.data[field]
+    }
     return this._get(field.toLowerCase())
   }
 
   end() {
-    return this._get('start') + (this._get('length_on_ref') || this._get('seq_length') || undefined)
+    return this.get('start') + (this.get('length_on_ref') || this.get('seq_length') || undefined)
   }
 
   seq_id() {
@@ -50,13 +60,7 @@ export default class BamRecord {
     if (field in this.data) {
       return this.data[field]
     }
-    //@ts-ignore
-    if (this[field]) {
-      //@ts-ignore
-      this.data[field] = this[field]()
-    } else {
-      this.data[field] = this._parseTag(field)
-    }
+    this.data[field] = this._parseTag(field)
     return this.data[field]
   }
 
@@ -110,7 +114,7 @@ export default class BamRecord {
   }
 
   children() {
-    return this._get('subfeatures')
+    return this.get('subfeatures')
   }
 
   id() {
@@ -118,7 +122,7 @@ export default class BamRecord {
   }
 
   multi_segment_all_aligned() {
-    return this._get('multi_segment_all_correctly_aligned')
+    return this.get('multi_segment_all_correctly_aligned')
   }
 
   // special parsers
@@ -126,12 +130,12 @@ export default class BamRecord {
    * Mapping quality score.
    */
   mq() {
-    const mq = (this._get('_bin_mq_nl') & 0xff00) >> 8
+    const mq = (this.get('_bin_mq_nl') & 0xff00) >> 8
     return mq === 255 ? undefined : mq
   }
 
   score() {
-    return this._get('mq')
+    return this.get('mq')
   }
 
   qual() {
@@ -139,8 +143,8 @@ export default class BamRecord {
 
     const qseq = []
     const { byteArray } = this.bytes
-    const p = this.bytes.start + 36 + this._get('_l_read_name') + this._get('_n_cigar_op') * 4 + this._get('_seq_bytes')
-    const lseq = this._get('seq_length')
+    const p = this.bytes.start + 36 + this.get('_l_read_name') + this.get('_n_cigar_op') * 4 + this.get('_seq_bytes')
+    const lseq = this.get('seq_length')
     for (let j = 0; j < lseq; ++j) {
       qseq.push(byteArray[p + j])
     }
@@ -157,11 +161,11 @@ export default class BamRecord {
   }
 
   name() {
-    return this._get('_read_name')
+    return this.get('_read_name')
   }
 
   _read_name() {
-    const nl = this._get('_l_read_name')
+    const nl = this.get('_l_read_name')
     return this.bytes.byteArray.toString('ascii', this.bytes.start + 36, this.bytes.start + 36 + nl - 1)
   }
 
@@ -180,10 +184,10 @@ export default class BamRecord {
       this._tagOffset ||
       this.bytes.start +
         36 +
-        this._get('_l_read_name') +
-        this._get('_n_cigar_op') * 4 +
-        this._get('_seq_bytes') +
-        this._get('seq_length')
+        this.get('_l_read_name') +
+        this.get('_n_cigar_op') * 4 +
+        this.get('_seq_bytes') +
+        this.get('seq_length')
 
     const blockEnd = this.bytes.end
     let lcTag
@@ -366,8 +370,8 @@ export default class BamRecord {
     if (this.isSegmentUnmapped()) return undefined
 
     const { byteArray, start } = this.bytes
-    const numCigarOps = this._get('_n_cigar_op')
-    let p = start + 36 + this._get('_l_read_name')
+    const numCigarOps = this.get('_n_cigar_op')
+    let p = start + 36 + this.get('_l_read_name')
     let cigar = ''
     let lref = 0
     for (let c = 0; c < numCigarOps; ++c) {
@@ -390,24 +394,24 @@ export default class BamRecord {
   _flags() {}
 
   length_on_ref() {
-    this._get('cigar') // the length_on_ref is set as a
+    this.get('cigar') // the length_on_ref is set as a
     // side effect of the CIGAR parsing
     return this.data.length_on_ref
   }
 
   _n_cigar_op() {
-    return this._get('_flag_nc') & 0xffff
+    return this.get('_flag_nc') & 0xffff
   }
 
   _l_read_name() {
-    return this._get('_bin_mq_nl') & 0xff
+    return this.get('_bin_mq_nl') & 0xff
   }
 
   /**
    * number of bytes in the sequence field
    */
   _seq_bytes() {
-    return (this._get('seq_length') + 1) >> 1
+    return (this.get('seq_length') + 1) >> 1
   }
 
   getReadBases() {
@@ -417,8 +421,8 @@ export default class BamRecord {
   _get_seq() {
     let seq = ''
     const { byteArray } = this.bytes
-    const p = this.bytes.start + 36 + this._get('_l_read_name') + this._get('_n_cigar_op') * 4
-    const seqBytes = this._get('_seq_bytes')
+    const p = this.bytes.start + 36 + this.get('_l_read_name') + this.get('_n_cigar_op') * 4
+    const seqBytes = this.get('_seq_bytes')
     for (let j = 0; j < seqBytes; ++j) {
       const sb = byteArray[p + j]
       seq += SEQRET_DECODER[(sb & 0xf0) >> 4]
