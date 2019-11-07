@@ -466,6 +466,23 @@ test('long tag list', async () => {
   expect(ret1[0]._tags().includes('SB')).toBeTruthy()
   expect(ret1[0]._tags()).toMatchSnapshot()
 })
+
+test('fix decoding error on ID', async () => {
+  const ti1 = new BamFile({
+    bamPath: require.resolve('./data/long_tag_list.bam'),
+  })
+  const ti2 = new BamFile({
+    bamPath: require.resolve('./data/long_tag_list2.bam'),
+  })
+  await ti1.getHeader()
+  await ti2.getHeader()
+  const ret1 = await ti1.getRecordsForRange('1', 0, 3000000)
+  const ret2 = await ti2.getRecordsForRange('1', 0, 3000000)
+  expect(ret2[0].get('DI')).toBe(78190)
+  expect(ret2[1].get('DI')).toBe(4440)
+  expect(ret1[0].get('ID')).toBe(78190)
+  expect(ret1[1].get('ID')).toBe(4440)
+})
 xtest('large chunks', async () => {
   const ti = new BAI({
     filehandle: new LocalFile(require.resolve('./data/out.marked.bai')),
