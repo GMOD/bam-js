@@ -1,3 +1,8 @@
+<a name="1.0.31"></a>
+## [1.0.31](https://github.com/GMOD/bam-js/compare/v1.0.30...v1.0.31) (2019-11-07)
+
+
+
 - Fix example of the "ID" field failing to return the right data
 
 <a name="1.0.30"></a>
