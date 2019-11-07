@@ -1,3 +1,8 @@
+<a name="1.0.30"></a>
+## [1.0.30](https://github.com/GMOD/bam-js/compare/v1.0.29...v1.0.30) (2019-11-07)
+
+
+
 - Add fix that was causing the parser to not return all tags from the _tags API
 
 <a name="1.0.29"></a>
