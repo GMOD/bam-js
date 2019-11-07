@@ -703,3 +703,39 @@ Array [
   },
 ]
 `;
+
+exports[`long tag list 1`] = `
+Array [
+  "seq",
+  "seq_reverse_complemented",
+  "unmapped",
+  "qc_failed",
+  "duplicate",
+  "secondary_alignment",
+  "supplementary_alignment",
+  "start",
+  "end",
+  "strand",
+  "score",
+  "qual",
+  "MQ",
+  "CIGAR",
+  "length_on_ref",
+  "template_length",
+  "AS",
+  "NM",
+  "XI",
+  "XS",
+  "XE",
+  "XR",
+  "MD",
+  "SV",
+  "QS",
+  "QE",
+  "CV",
+  "ID",
+  "KB",
+  "SB",
+  "seq_length",
+]
+`;

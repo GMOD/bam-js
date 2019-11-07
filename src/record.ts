@@ -287,7 +287,7 @@ export default class BamRecord {
   }
 
   _parseAllTags() {
-    this._parseTag()
+    this._parseTag('')
   }
 
   _parseCigar(cigar: string) {
