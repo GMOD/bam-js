@@ -1,3 +1,5 @@
+- Add a speed improvement for long reads by pre-allocating sequence/quality scores array
+
 <a name="1.0.31"></a>
 ## [1.0.31](https://github.com/GMOD/bam-js/compare/v1.0.30...v1.0.31) (2019-11-07)
 
