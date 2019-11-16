@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-ignore */
 import Constants from './constants'
 
-const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('').map((s, i) => s.charCodeAt(0))
+const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('').map(s => s.charCodeAt(0))
 const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
 
 /**
@@ -141,12 +141,12 @@ export default class BamRecord {
   qual() {
     if (this.isSegmentUnmapped()) return undefined
 
-    const qseq = []
     const { byteArray } = this.bytes
     const p = this.bytes.start + 36 + this.get('_l_read_name') + this.get('_n_cigar_op') * 4 + this.get('_seq_bytes')
     const lseq = this.get('seq_length')
+    const qseq = Buffer.allocUnsafe(lseq)
     for (let j = 0; j < lseq; ++j) {
-      qseq.push(byteArray[p + j])
+      qseq[j] = byteArray[p + j]
     }
     return qseq.join(' ')
   }
@@ -432,7 +432,7 @@ export default class BamRecord {
         buf[i++] = SEQRET_DECODER[sb & 0x0f]
       }
     }
-    return buf.toString()
+    return buf.toString('ascii')
   }
 
   // adapted from igv.js
