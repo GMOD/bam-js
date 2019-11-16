@@ -493,3 +493,16 @@ xtest('large chunks', async () => {
   const ret1 = await ti.blocksForRange(16, 41248671, 41337570)
   expect(ret1[0].fetchedSize()).toBe(10893136)
 })
+
+// use on any large long read data file
+xtest('speed test', async () => {
+  const ti = new BamFile({
+    bamPath: require.resolve('./data/pacbio_speed_test.bam'),
+  })
+
+  await ti.getHeader()
+  console.time('timerecord')
+  const rec = await ti.getRecordsForRange('8', 0, 2000000)
+  rec.map(r => r.getReadBases())
+  console.timeEnd('timerecord')
+})
