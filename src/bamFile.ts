@@ -2,6 +2,7 @@ import AbortablePromiseCache from 'abortable-promise-cache'
 import BAI from './bai'
 import CSI from './csi'
 import Chunk from './chunk'
+import crc32 from 'buffer-crc32'
 
 import { unzip, unzipChunk } from '@gmod/bgzf-filehandle'
 
@@ -16,7 +17,6 @@ import { abortBreakPoint, checkAbortSignal, timeout } from './util'
 const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
-type G = GenericFilehandle
 
 interface BamOpts {
   viewAsPairs?: boolean
@@ -35,6 +35,7 @@ export default class BamFile {
   private header: any
   private chrToIndex: any
   private indexToChr: any
+  private gzip = true
 
   /**
    * @param {object} args
@@ -58,14 +59,14 @@ export default class BamFile {
     chunkSizeLimit,
     renameRefSeqs = n => n,
   }: {
-    bamFilehandle?: G
+    bamFilehandle?: GenericFilehandle
     bamPath?: string
     bamUrl?: string
     baiPath?: string
-    baiFilehandle?: G
+    baiFilehandle?: GenericFilehandle
     baiUrl?: string
     csiPath?: string
-    csiFilehandle?: G
+    csiFilehandle?: GenericFilehandle
     csiUrl?: string
     cacheSize?: number
     fetchSizeLimit?: number
@@ -133,8 +134,8 @@ export default class BamFile {
     } else {
       buffer = (await this.bam.readFile({ signal: abortSignal })) as Buffer
     }
-
-    const uncba = await unzip(buffer)
+    const gzip = buffer[0] == 0x1f && buffer[1] == 0x8b
+    const uncba = gzip ? await unzip(buffer) : buffer
 
     if (uncba.readInt32LE(0) !== BAM_MAGIC) throw new Error('Not a BAM file')
     const headLen = uncba.readInt32LE(4)
@@ -143,6 +144,7 @@ export default class BamFile {
     const { chrToIndex, indexToChr } = await this._readRefSeqs(headLen + 8, 65535, abortSignal)
     this.chrToIndex = chrToIndex
     this.indexToChr = indexToChr
+    this.gzip = gzip
 
     return parseHeaderText(this.header)
   }
@@ -173,7 +175,7 @@ export default class BamFile {
     } else {
       buffer = buffer.slice(0, refSeqBytes)
     }
-    const uncba = await unzip(buffer)
+    const uncba = buffer[0] == 0x1f && buffer[1] == 0x8b ? await unzip(buffer) : buffer
     const nRef = uncba.readInt32LE(start)
     let p = start + 4
     const chrToIndex: { [key: string]: number } = {}
@@ -342,7 +344,8 @@ export default class BamFile {
     return featuresRet
   }
   async _readChunk(chunk: Chunk, abortSignal?: AbortSignal) {
-    const bufsize = chunk.fetchedSize()
+    let bufsize = chunk.fetchedSize()
+    if (!this.gzip) bufsize *= 3
     const res = await this.bam.read(Buffer.alloc(bufsize), 0, bufsize, chunk.minv.blockPosition, {
       signal: abortSignal,
     })
@@ -358,15 +361,16 @@ export default class BamFile {
       buffer = buffer.slice(0, bufsize)
     }
 
-    const { buffer: data, cpositions, dpositions } = await unzipChunk(buffer)
+    const { buffer: data, cpositions = undefined, dpositions = undefined } =
+      buffer[0] == 0x1f && buffer[1] == 0x8b ? await unzipChunk(buffer) : { buffer }
     checkAbortSignal(abortSignal)
     return { data, cpositions, dpositions, chunk }
   }
 
   async readBamFeatures(
     ba: Buffer,
-    cpositions: number[],
-    dpositions: number[],
+    cpositions: number[] | undefined,
+    dpositions: number[] | undefined,
     chunk: Chunk,
     chrId?: number,
     min?: number,
@@ -381,8 +385,10 @@ export default class BamFile {
       const blockSize = ba.readInt32LE(blockStart)
       const blockEnd = blockStart + 4 + blockSize - 1
 
-      for (pos = 0; blockStart > dpositions[pos]; pos++);
-      pos = Math.min(dpositions.length - 1, pos)
+      if (dpositions !== undefined) {
+        for (pos = 0; blockStart > dpositions[pos]; pos++);
+        pos = Math.min(dpositions.length - 1, pos)
+      }
 
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
@@ -396,7 +402,10 @@ export default class BamFile {
           //  for generating unique ID
           // this is based on the assumption that the compressed block size * 1<<8
           //  is greater than the decompressed size
-          fileOffset: chunk.minv.blockPosition * (1 << 8) + cpositions[pos] * (1 << 8) + blockStart - dpositions[pos],
+          fileOffset:
+            cpositions !== undefined && dpositions !== undefined
+              ? chunk.minv.blockPosition * (1 << 8) + cpositions[pos] * (1 << 8) + blockStart - dpositions[pos]
+              : crc32.signed(ba.slice(blockStart, blockEnd)),
         })
 
         if (min !== undefined && max !== undefined) {
