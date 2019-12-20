@@ -345,7 +345,7 @@ export default class BamFile {
   }
   async _readChunk(chunk: Chunk, abortSignal?: AbortSignal) {
     let bufsize = chunk.fetchedSize()
-    if (!this.gzip) bufsize *= 3
+    if (!this.gzip) bufsize *= 10
     const res = await this.bam.read(Buffer.alloc(bufsize), 0, bufsize, chunk.minv.blockPosition, {
       signal: abortSignal,
     })
