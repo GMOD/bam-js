@@ -342,7 +342,7 @@ export default class BamFile {
       const mateRecs = []
       for (let i = 0; i < feats.length; i += 1) {
         const feature = feats[i]
-        if (unmatedPairs[feature.get('name')] && !readIds[feature.get('id')]) {
+        if (unmatedPairs[feature.get('name')] && !readIds[feature.id()]) {
           mateRecs.push(feature)
         }
       }
