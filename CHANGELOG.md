@@ -1,3 +1,5 @@
+- Perform decoding of entire chunk up front to aid caching, reverts change in 1.0.29
+
 <a name="1.0.32"></a>
 ## [1.0.32](https://github.com/GMOD/bam-js/compare/v1.0.31...v1.0.32) (2019-11-16)
 
