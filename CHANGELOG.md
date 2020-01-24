@@ -1,3 +1,8 @@
+<a name="1.0.34"></a>
+## [1.0.34](https://github.com/GMOD/bam-js/compare/v1.0.33...v1.0.34) (2020-01-24)
+
+
+
 - Small fix for using id() instead of .get('id') for weird SAM records containing ID field
 
 <a name="1.0.33"></a>
