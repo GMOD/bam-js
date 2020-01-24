@@ -253,7 +253,22 @@ export default class BamFile {
   async *_fetchChunkFeatures(chunks: Chunk[], chrId: number, min: number, max: number, opts: BamOpts) {
     const featPromises = chunks.map(async c => {
       const { data, cpositions, dpositions, chunk } = await this.featureCache.get(c.toString(), c, opts.signal)
-      return this.readBamFeatures(data, cpositions, dpositions, chunk, chrId, min, max)
+      const records = await this.readBamFeatures(data, cpositions, dpositions, chunk)
+
+      const recs = []
+      for (let i = 0; i < records.length; i += 1) {
+        const feature = records[i]
+        if (feature.seq_id() === chrId) {
+          if (feature.get('start') >= max)
+            // past end of range, can stop iterating
+            break
+          else if (feature.get('end') >= min) {
+            // must be in range
+            recs.push(feature)
+          }
+        }
+      }
+      return recs
     })
 
     checkAbortSignal(opts.signal)
@@ -341,6 +356,7 @@ export default class BamFile {
     }
     return featuresRet
   }
+
   async _readChunk(chunk: Chunk, abortSignal?: AbortSignal) {
     const bufsize = chunk.fetchedSize()
     const res = await this.bam.read(Buffer.alloc(bufsize), 0, bufsize, chunk.minv.blockPosition, {
@@ -363,15 +379,7 @@ export default class BamFile {
     return { data, cpositions, dpositions, chunk }
   }
 
-  async readBamFeatures(
-    ba: Buffer,
-    cpositions: number[],
-    dpositions: number[],
-    chunk: Chunk,
-    chrId?: number,
-    min?: number,
-    max?: number,
-  ) {
+  async readBamFeatures(ba: Buffer, cpositions: number[], dpositions: number[], chunk: Chunk) {
     let blockStart = chunk.minv.dataPosition
     const sink = []
     let pos = 0
@@ -399,19 +407,7 @@ export default class BamFile {
           fileOffset: chunk.minv.blockPosition * (1 << 8) + cpositions[pos] * (1 << 8) + blockStart - dpositions[pos],
         })
 
-        if (min !== undefined && max !== undefined) {
-          if (feature.seq_id() === chrId) {
-            if (feature.get('start') >= max)
-              // past end of range, can stop iterating
-              break
-            else if (feature.get('end') >= min) {
-              // must be in range
-              sink.push(feature)
-            }
-          }
-        } else {
-          sink.push(feature)
-        }
+        sink.push(feature)
         featsSinceLastTimeout++
         if (featsSinceLastTimeout > 500) {
           await timeout(1)
