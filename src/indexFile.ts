@@ -29,10 +29,7 @@ export default abstract class IndexFile {
     this.renameRefSeq = renameRefSeq
     this._parseCache = new AbortablePromiseCache({
       cache: new QuickLRU({ maxSize: 1 }),
-      fill: (data: any, props: Props) => {
-        console.log('console.log', this._parse)
-        console.log('2', data)
-        console.log('3', props)
+      fill: (data: Props) => {
         return this._parse(data)
       },
     })
@@ -64,7 +61,6 @@ export default abstract class IndexFile {
   }
 
   parse(props: Props = {}) {
-    console.log('HERE', props)
     return this._parseCache.get('index', props, props.signal)
   }
 
