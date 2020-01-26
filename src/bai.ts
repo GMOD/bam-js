@@ -117,6 +117,8 @@ export default class BAI extends IndexFile {
     { seqId, start, end }: { seqId: number; start?: number; end?: number },
     props: Props,
   ): Promise<{ start: number; end: number; score: number }[]> {
+    if (seqId === undefined) throw new Error('No seqId specified')
+
     const v = 16384
     const range = start !== undefined
     const indexData = await this.parse(props)
