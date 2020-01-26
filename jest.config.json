@@ -1,0 +1,5 @@
+{
+  "transformIgnorePatterns": [
+    "/node_modules/(?!fetch-progress).+\\.js$"
+  ]
+}

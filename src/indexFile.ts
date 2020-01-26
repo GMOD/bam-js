@@ -4,6 +4,11 @@ import { GenericFilehandle } from 'generic-filehandle'
 import VirtualOffset from './virtualOffset'
 import Chunk from './chunk'
 
+export interface Props {
+  signal?: AbortSignal
+  statusCallback?: Function
+}
+
 export default abstract class IndexFile {
   public filehandle: GenericFilehandle
   public renameRefSeq: Function
@@ -24,45 +29,52 @@ export default abstract class IndexFile {
     this.renameRefSeq = renameRefSeq
     this._parseCache = new AbortablePromiseCache({
       cache: new QuickLRU({ maxSize: 1 }),
-      fill: (data: any, props: { signal?: AbortSignal; statusCallback?: Function }) => {
-        this._parse(props)
+      fill: (data: any, props: Props) => {
+        console.log('console.log', this._parse)
+        console.log('2', data)
+        console.log('3', props)
+        return this._parse(data)
       },
     })
   }
-  public abstract async lineCount(refId: number): Promise<number>
-  protected abstract async _parse(props: { signal?: AbortSignal; statusCallback?: Function }): Promise<any>
+  public abstract async lineCount(refId: number, props: Props): Promise<number>
+
+  protected abstract async _parse(props: Props): Promise<any>
+
   public abstract async indexCov(
-    refId: number,
-    start?: number,
-    end?: number,
+    query: { seqId: number; start?: number; end?: number },
+    props: Props,
   ): Promise<{ start: number; end: number; score: number }[]>
+
   public abstract async blocksForRange(
     chrId: number,
     start: number,
     end: number,
-    opts: Record<string, any>,
+    opts: Props,
   ): Promise<Chunk[]>
 
   _findFirstData(data: any, virtualOffset: VirtualOffset) {
     const currentFdl = data.firstDataLine
     if (currentFdl) {
-      data.firstDataLine = currentFdl.compareTo(virtualOffset) > 0 ? virtualOffset : currentFdl
+      data.firstDataLine =
+        currentFdl.compareTo(virtualOffset) > 0 ? virtualOffset : currentFdl
     } else {
       data.firstDataLine = virtualOffset
     }
   }
 
-  async parse(props: { abortSignal?: AbortSignal; statusCallback?: Function }) {
-    return this._parseCache.get('index', null, props)
+  parse(props: Props = {}) {
+    console.log('HERE', props)
+    return this._parseCache.get('index', props, props.signal)
   }
 
   /**
    * @param {number} seqId
-   * @param {AbortSignal} [abortSignal]
+   * @param {AbortSignal} [signal]
    * @returns {Promise} true if the index contains entries for
    * the given reference sequence ID, false otherwise
    */
-  async hasRefSeq(seqId: number, abortSignal?: AbortSignal) {
-    return !!((await this.parse({ abortSignal })).indices[seqId] || {}).binIndex
+  async hasRefSeq(seqId: number, props: Props) {
+    return !!((await this.parse(props)).indices[seqId] || {}).binIndex
   }
 }

@@ -47,7 +47,10 @@ export default class BamRecord {
   }
 
   end() {
-    return this.get('start') + (this.get('length_on_ref') || this.get('seq_length') || undefined)
+    return (
+      this.get('start') +
+      (this.get('length_on_ref') || this.get('seq_length') || undefined)
+    )
   }
 
   seq_id() {
@@ -78,7 +81,17 @@ export default class BamRecord {
     ]
 
     if (!this.isSegmentUnmapped())
-      tags.push('start', 'end', 'strand', 'score', 'qual', 'MQ', 'CIGAR', 'length_on_ref', 'template_length')
+      tags.push(
+        'start',
+        'end',
+        'strand',
+        'score',
+        'qual',
+        'MQ',
+        'CIGAR',
+        'length_on_ref',
+        'template_length',
+      )
     if (this.isPaired()) {
       tags.push(
         'multi_segment_all_correctly_aligned',
@@ -93,7 +106,12 @@ export default class BamRecord {
     tags = tags.concat(this._tagList || [])
 
     Object.keys(this.data).forEach(k => {
-      if (k[0] !== '_' && k !== 'multi_segment_all_aligned' && k !== 'next_seq_id') tags.push(k)
+      if (
+        k[0] !== '_' &&
+        k !== 'multi_segment_all_aligned' &&
+        k !== 'next_seq_id'
+      )
+        tags.push(k)
     })
 
     const seen: { [key: string]: boolean } = {}
@@ -142,7 +160,12 @@ export default class BamRecord {
     if (this.isSegmentUnmapped()) return undefined
 
     const { byteArray } = this.bytes
-    const p = this.bytes.start + 36 + this.get('_l_read_name') + this.get('_n_cigar_op') * 4 + this.get('_seq_bytes')
+    const p =
+      this.bytes.start +
+      36 +
+      this.get('_l_read_name') +
+      this.get('_n_cigar_op') * 4 +
+      this.get('_seq_bytes')
     const lseq = this.get('seq_length')
     const qseq = Buffer.allocUnsafe(lseq)
     for (let j = 0; j < lseq; ++j) {
@@ -166,7 +189,11 @@ export default class BamRecord {
 
   _read_name() {
     const nl = this.get('_l_read_name')
-    return this.bytes.byteArray.toString('ascii', this.bytes.start + 36, this.bytes.start + 36 + nl - 1)
+    return this.bytes.byteArray.toString(
+      'ascii',
+      this.bytes.start + 36,
+      this.bytes.start + 36 + nl - 1,
+    )
   }
 
   /**
@@ -300,7 +327,10 @@ export default class BamRecord {
       cigar
         .match(/\d+\D/g)
         //@ts-ignore
-        .map((op: string) => [op.match(/\D/)[0].toUpperCase(), parseInt(op, 10)])
+        .map((op: string) => [
+          op.match(/\D/)[0].toUpperCase(),
+          parseInt(op, 10),
+        ])
     )
   }
 
@@ -420,7 +450,11 @@ export default class BamRecord {
 
   _get_seq() {
     const { byteArray } = this.bytes
-    const p = this.bytes.start + 36 + this.get('_l_read_name') + this.get('_n_cigar_op') * 4
+    const p =
+      this.bytes.start +
+      36 +
+      this.get('_l_read_name') +
+      this.get('_n_cigar_op') * 4
     const seqBytes = this.get('_seq_bytes')
     const len = this.get('seq_length')
     const buf = Buffer.allocUnsafe(len)
@@ -437,7 +471,11 @@ export default class BamRecord {
 
   // adapted from igv.js
   getPairOrientation() {
-    if (!this.isSegmentUnmapped() && !this.isMateUnmapped() && this._refID === this._next_refid()) {
+    if (
+      !this.isSegmentUnmapped() &&
+      !this.isMateUnmapped() &&
+      this._refID === this._next_refid()
+    ) {
       const s1 = this.isReverseComplemented() ? 'R' : 'F'
       const s2 = this.isMateReverseComplemented() ? 'R' : 'F'
       let o1 = ' '

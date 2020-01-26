@@ -9,20 +9,21 @@ import entries from 'object.entries-ponyfill'
 import LRU from 'quick-lru'
 import { LocalFile, RemoteFile, GenericFilehandle } from 'generic-filehandle'
 import BAMFeature from './record'
-import IndexFile from './indexFile'
+import IndexFile, { Props } from './indexFile'
 import { parseHeaderText } from './sam'
 import { abortBreakPoint, checkAbortSignal, timeout } from './util'
 
+// BAI\0 encoded as integer
 const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
-type G = GenericFilehandle
 
 interface BamOpts {
   viewAsPairs?: boolean
   pairAcrossChr?: boolean
   maxInsertSize?: number
   signal?: AbortSignal
+  statusCallback?: Function
 }
 
 export default class BamFile {
@@ -58,14 +59,14 @@ export default class BamFile {
     chunkSizeLimit,
     renameRefSeqs = n => n,
   }: {
-    bamFilehandle?: G
+    bamFilehandle?: GenericFilehandle
     bamPath?: string
     bamUrl?: string
     baiPath?: string
-    baiFilehandle?: G
+    baiFilehandle?: GenericFilehandle
     baiUrl?: string
     csiPath?: string
-    csiFilehandle?: G
+    csiFilehandle?: GenericFilehandle
     csiUrl?: string
     cacheSize?: number
     fetchSizeLimit?: number
@@ -112,14 +113,20 @@ export default class BamFile {
     this.chunkSizeLimit = chunkSizeLimit || 300000000 // 300MB
   }
 
-  async getHeader(abortSignal?: AbortSignal) {
-    const indexData = await this.index.parse(abortSignal)
-    const ret = indexData.firstDataLine ? indexData.firstDataLine.blockPosition + 65535 : undefined
+  async getHeader(props: { signal?: AbortSignal; successCallback: Function }) {
+    const indexData = await this.index.parse(props)
+    const ret = indexData.firstDataLine
+      ? indexData.firstDataLine.blockPosition + 65535
+      : undefined
     let buffer
     if (ret) {
-      const res = await this.bam.read(Buffer.alloc(ret + blockLen), 0, ret + blockLen, 0, {
-        signal: abortSignal,
-      })
+      const res = await this.bam.read(
+        Buffer.alloc(ret + blockLen),
+        0,
+        ret + blockLen,
+        0,
+        props,
+      )
       const { bytesRead } = res
       ;({ buffer } = res)
       if (!bytesRead) {
@@ -131,7 +138,7 @@ export default class BamFile {
         buffer = buffer.slice(0, ret)
       }
     } else {
-      buffer = (await this.bam.readFile({ signal: abortSignal })) as Buffer
+      buffer = (await this.bam.readFile(props)) as Buffer
     }
 
     const uncba = await unzip(buffer)
@@ -140,7 +147,11 @@ export default class BamFile {
     const headLen = uncba.readInt32LE(4)
 
     this.header = uncba.toString('utf8', 8, 8 + headLen)
-    const { chrToIndex, indexToChr } = await this._readRefSeqs(headLen + 8, 65535, abortSignal)
+    const { chrToIndex, indexToChr } = await this._readRefSeqs(
+      headLen + 8,
+      65535,
+      props,
+    )
     this.chrToIndex = chrToIndex
     this.indexToChr = indexToChr
 
@@ -152,17 +163,21 @@ export default class BamFile {
   async _readRefSeqs(
     start: number,
     refSeqBytes: number,
-    abortSignal?: AbortSignal,
+    props: Props = {},
   ): Promise<{
     chrToIndex: { [key: string]: number }
     indexToChr: { refName: string; length: number }[]
   }> {
     if (start > refSeqBytes) {
-      return this._readRefSeqs(start, refSeqBytes * 2)
+      return this._readRefSeqs(start, refSeqBytes * 2, props)
     }
-    const res = await this.bam.read(Buffer.alloc(refSeqBytes + blockLen), 0, refSeqBytes, 0, {
-      signal: abortSignal,
-    })
+    const res = await this.bam.read(
+      Buffer.alloc(refSeqBytes + blockLen),
+      0,
+      refSeqBytes,
+      0,
+      props,
+    )
     const { bytesRead } = res
     let { buffer } = res
     if (!bytesRead) {
@@ -179,7 +194,7 @@ export default class BamFile {
     const chrToIndex: { [key: string]: number } = {}
     const indexToChr: { refName: string; length: number }[] = []
     for (let i = 0; i < nRef; i += 1) {
-      await abortBreakPoint(abortSignal)
+      await abortBreakPoint(props.signal)
       const lName = uncba.readInt32LE(p)
       let refName = uncba.toString('utf8', p + 4, p + 4 + lName - 1)
       refName = this.renameRefSeq(refName)
@@ -190,8 +205,10 @@ export default class BamFile {
 
       p = p + 8 + lName
       if (p > uncba.length) {
-        console.warn(`BAM header is very big.  Re-fetching ${refSeqBytes} bytes.`)
-        return this._readRefSeqs(start, refSeqBytes * 2)
+        console.warn(
+          `BAM header is very big.  Re-fetching ${refSeqBytes} bytes.`,
+        )
+        return this._readRefSeqs(start, refSeqBytes * 2, props)
       }
     }
     return { chrToIndex, indexToChr }
@@ -201,7 +218,11 @@ export default class BamFile {
     chr: string,
     min: number,
     max: number,
-    opts: BamOpts = { viewAsPairs: false, pairAcrossChr: false, maxInsertSize: 200000 },
+    opts: BamOpts = {
+      viewAsPairs: false,
+      pairAcrossChr: false,
+      maxInsertSize: 200000,
+    },
   ) {
     let records: BAMFeature[] = []
     for await (const chunk of this.streamRecordsForRange(chr, min, max, opts)) {
@@ -214,12 +235,17 @@ export default class BamFile {
     chr: string,
     min: number,
     max: number,
-    opts: BamOpts = { viewAsPairs: false, pairAcrossChr: false, maxInsertSize: 200000 },
+    opts: BamOpts = {
+      viewAsPairs: false,
+      pairAcrossChr: false,
+      maxInsertSize: 200000,
+    },
   ) {
     // todo regularize refseq names
     opts.viewAsPairs = opts.viewAsPairs || false
     opts.pairAcrossChr = opts.pairAcrossChr || false
-    opts.maxInsertSize = opts.maxInsertSize !== undefined ? opts.maxInsertSize : 200000
+    opts.maxInsertSize =
+      opts.maxInsertSize !== undefined ? opts.maxInsertSize : 200000
     const chrId = this.chrToIndex && this.chrToIndex[chr]
     let chunks: Chunk[]
     if (!(chrId >= 0)) {
@@ -242,7 +268,9 @@ export default class BamFile {
       }
     }
 
-    const totalSize = chunks.map((s: Chunk) => s.fetchedSize()).reduce((a: number, b: number) => a + b, 0)
+    const totalSize = chunks
+      .map((s: Chunk) => s.fetchedSize())
+      .reduce((a: number, b: number) => a + b, 0)
     if (totalSize > this.fetchSizeLimit)
       throw new Error(
         `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
@@ -250,10 +278,27 @@ export default class BamFile {
     yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
-  async *_fetchChunkFeatures(chunks: Chunk[], chrId: number, min: number, max: number, opts: BamOpts) {
+  async *_fetchChunkFeatures(
+    chunks: Chunk[],
+    chrId: number,
+    min: number,
+    max: number,
+    props: BamOpts,
+  ) {
     const featPromises = chunks.map(async c => {
-      const { data, cpositions, dpositions, chunk } = await this.featureCache.get(c.toString(), c, opts.signal)
-      const records = await this.readBamFeatures(data, cpositions, dpositions, chunk)
+      const {
+        data,
+        cpositions,
+        dpositions,
+        chunk,
+      } = await this.featureCache.get(c.toString(), c, props)
+      const records = await this.readBamFeatures(
+        data,
+        cpositions,
+        dpositions,
+        chunk,
+        props,
+      )
 
       const recs = []
       for (let i = 0; i < records.length; i += 1) {
@@ -271,18 +316,22 @@ export default class BamFile {
       return recs
     })
 
-    checkAbortSignal(opts.signal)
+    checkAbortSignal(props.signal)
 
     for (let i = 0; i < featPromises.length; i++) {
       yield featPromises[i]
     }
-    checkAbortSignal(opts.signal)
-    if (opts.viewAsPairs) {
-      yield this.fetchPairs(chrId, featPromises, opts)
+
+    if (props.viewAsPairs) {
+      yield this.fetchPairs(chrId, featPromises, props)
     }
   }
 
-  async fetchPairs(chrId: number, featPromises: Promise<BAMFeature[]>[], opts: BamOpts) {
+  async fetchPairs(
+    chrId: number,
+    featPromises: Promise<BAMFeature[]>[],
+    opts: BamOpts,
+  ) {
     const unmatedPairs: { [key: string]: boolean } = {}
     const readIds: { [key: string]: number } = {}
     await Promise.all(
@@ -312,10 +361,16 @@ export default class BamFile {
             unmatedPairs[name] &&
             (opts.pairAcrossChr ||
               (ret[i]._next_refid() === chrId &&
-                Math.abs(ret[i].get('start') - ret[i]._next_pos()) < (opts.maxInsertSize || 200000)))
+                Math.abs(ret[i].get('start') - ret[i]._next_pos()) <
+                  (opts.maxInsertSize || 200000)))
           ) {
             matePromises.push(
-              this.index.blocksForRange(ret[i]._next_refid(), ret[i]._next_pos(), ret[i]._next_pos() + 1, opts),
+              this.index.blocksForRange(
+                ret[i]._next_refid(),
+                ret[i]._next_pos(),
+                ret[i]._next_pos() + 1,
+                opts,
+              ),
             )
           }
         }
@@ -328,17 +383,34 @@ export default class BamFile {
       mateChunks = mateChunks.concat(mateBlocks[i])
     }
     // filter out duplicate chunks (the blocks are lists of chunks, blocks are concatenated, then filter dup chunks)
-    mateChunks = mateChunks.sort().filter((item, pos, ary) => !pos || item.toString() !== ary[pos - 1].toString())
+    mateChunks = mateChunks
+      .sort()
+      .filter(
+        (item, pos, ary) => !pos || item.toString() !== ary[pos - 1].toString(),
+      )
 
-    const mateTotalSize = mateChunks.map(s => s.fetchedSize()).reduce((a, b) => a + b, 0)
+    const mateTotalSize = mateChunks
+      .map(s => s.fetchedSize())
+      .reduce((a, b) => a + b, 0)
     if (mateTotalSize > this.fetchSizeLimit) {
       throw new Error(
         `data size of ${mateTotalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
       )
     }
     const mateFeatPromises = mateChunks.map(async c => {
-      const { data, cpositions, dpositions, chunk } = await this.featureCache.get(c.toString(), c, opts.signal)
-      const feats = await this.readBamFeatures(data, cpositions, dpositions, chunk)
+      const {
+        data,
+        cpositions,
+        dpositions,
+        chunk,
+      } = await this.featureCache.get(c.toString(), c, opts.signal)
+      const feats = await this.readBamFeatures(
+        data,
+        cpositions,
+        dpositions,
+        chunk,
+        opts,
+      )
       const mateRecs = []
       for (let i = 0; i < feats.length; i += 1) {
         const feature = feats[i]
@@ -351,7 +423,9 @@ export default class BamFile {
     const newMateFeats = await Promise.all(mateFeatPromises)
     let featuresRet: BAMFeature[] = []
     if (newMateFeats.length) {
-      const newMates = newMateFeats.reduce((result, current) => result.concat(current))
+      const newMates = newMateFeats.reduce((result, current) =>
+        result.concat(current),
+      )
       featuresRet = featuresRet.concat(newMates)
     }
     return featuresRet
@@ -359,9 +433,15 @@ export default class BamFile {
 
   async _readChunk(chunk: Chunk, abortSignal?: AbortSignal) {
     const bufsize = chunk.fetchedSize()
-    const res = await this.bam.read(Buffer.alloc(bufsize), 0, bufsize, chunk.minv.blockPosition, {
-      signal: abortSignal,
-    })
+    const res = await this.bam.read(
+      Buffer.alloc(bufsize),
+      0,
+      bufsize,
+      chunk.minv.blockPosition,
+      {
+        signal: abortSignal,
+      },
+    )
     const { bytesRead } = res
     let { buffer } = res
     checkAbortSignal(abortSignal)
@@ -379,7 +459,13 @@ export default class BamFile {
     return { data, cpositions, dpositions, chunk }
   }
 
-  async readBamFeatures(ba: Buffer, cpositions: number[], dpositions: number[], chunk: Chunk) {
+  async readBamFeatures(
+    ba: Buffer,
+    cpositions: number[],
+    dpositions: number[],
+    chunk: Chunk,
+    props: Props,
+  ) {
     let blockStart = chunk.minv.dataPosition
     const sink = []
     let pos = 0
@@ -404,13 +490,19 @@ export default class BamFile {
           //  for generating unique ID
           // this is based on the assumption that the compressed block size * 1<<8
           //  is greater than the decompressed size
-          fileOffset: chunk.minv.blockPosition * (1 << 8) + cpositions[pos] * (1 << 8) + blockStart - dpositions[pos],
+          fileOffset:
+            chunk.minv.blockPosition * (1 << 8) +
+            cpositions[pos] * (1 << 8) +
+            blockStart -
+            dpositions[pos],
         })
 
         sink.push(feature)
         featsSinceLastTimeout++
         if (featsSinceLastTimeout > 500) {
           await timeout(1)
+          await checkAbortSignal(props.signal)
+          if (props.statusCallback) props.statusCallback(3, 500)
           featsSinceLastTimeout = 0
         }
       }
@@ -420,19 +512,22 @@ export default class BamFile {
     return sink
   }
 
-  async hasRefSeq(seqName: string) {
+  async hasRefSeq(seqName: string, props: Props = {}) {
     const refId = this.chrToIndex && this.chrToIndex[seqName]
-    return this.index.hasRefSeq(refId)
+    return this.index.hasRefSeq(refId, props)
   }
 
-  async lineCount(seqName: string) {
+  async lineCount(seqName: string, props: Props = {}) {
     const refId = this.chrToIndex && this.chrToIndex[seqName]
-    return this.index.lineCount(refId)
+    return this.index.lineCount(refId, props)
   }
 
-  async indexCov(seqName: string, start?: number, end?: number) {
-    await this.index.parse()
+  async indexCov(
+    { seqName, start, end }: { seqName: string; start?: number; end?: number },
+    props: Props = {},
+  ) {
+    await this.index.parse(props)
     const seqId = this.chrToIndex && this.chrToIndex[seqName]
-    return this.index.indexCov(seqId, start, end)
+    return this.index.indexCov({ seqId, start, end }, props)
   }
 }

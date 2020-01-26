@@ -5,7 +5,7 @@ import { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 import { longToNumber, abortBreakPoint } from './util'
 
-import IndexFile from './indexFile'
+import IndexFile, { Props } from './indexFile'
 
 const CSI1_MAGIC = 21582659 // CSI\1
 const CSI2_MAGIC = 38359875 // CSI\2
@@ -27,7 +27,10 @@ export default class CSI extends IndexFile {
     this.depth = 0
     this.minShift = 0
   }
-  async lineCount(refId: number, opts: { abortSignal?: AbortSignal } = {}): Promise<number> {
+  async lineCount(
+    refId: number,
+    opts: { signal?: AbortSignal } = {},
+  ): Promise<number> {
     const indexData = await this.parse(opts)
     if (!indexData) return -1
     const idx = indexData.indices[refId]
@@ -46,9 +49,13 @@ export default class CSI extends IndexFile {
 
     const data: { [key: string]: any } = {}
     data.formatFlags = bytes.readInt32LE(offset)
-    data.coordinateType = data.formatFlags & 0x10000 ? 'zero-based-half-open' : '1-based-closed'
-    data.format = ({ 0: 'generic', 1: 'SAM', 2: 'VCF' } as { [key: number]: string })[data.formatFlags & 0xf]
-    if (!data.format) throw new Error(`invalid Tabix preset format flags ${data.formatFlags}`)
+    data.coordinateType =
+      data.formatFlags & 0x10000 ? 'zero-based-half-open' : '1-based-closed'
+    data.format = ({ 0: 'generic', 1: 'SAM', 2: 'VCF' } as {
+      [key: number]: string
+    })[data.formatFlags & 0xf]
+    if (!data.format)
+      throw new Error(`invalid Tabix preset format flags ${data.formatFlags}`)
     data.columnNumbers = {
       ref: bytes.readInt32LE(offset + 4),
       start: bytes.readInt32LE(offset + 8),
@@ -59,7 +66,12 @@ export default class CSI extends IndexFile {
     data.skipLines = bytes.readInt32LE(offset + 20)
     const nameSectionLength = bytes.readInt32LE(offset + 24)
 
-    Object.assign(data, this._parseNameBytes(bytes.slice(offset + 28, offset + 28 + nameSectionLength)))
+    Object.assign(
+      data,
+      this._parseNameBytes(
+        bytes.slice(offset + 28, offset + 28 + nameSectionLength),
+      ),
+    )
     return data
   }
 
@@ -84,15 +96,20 @@ export default class CSI extends IndexFile {
   }
 
   // fetch and parse the index
-  async _parse({ abortSignal, statusCallback }: { abortSignal?: AbortSignal; statusCallback?: Function }) {
+  async _parse(props: Props = {}) {
     const data: { [key: string]: any } = { csi: true, maxBlockSize: 1 << 16 }
+    const { signal, statusCallback } = props
     //eslint-disable-next-line @typescript-eslint/no-empty-function
-    const status = statusCallback || (() => {})
 
-    status(1, 'Downloading file')
-    const bytes = await unzip((await this.filehandle.readFile({ signal: abortSignal, statusCallback })) as Buffer)
+    if (statusCallback) {
+      statusCallback(1, 'Downloading file')
+    }
+    const bytes = await unzip((await this.filehandle.readFile(props)) as Buffer)
 
-    status(1, 'Parsing index')
+    if (statusCallback) {
+      statusCallback(1, 'Parsing index')
+    }
+
     // check TBI magic numbers
     if (bytes.readUInt32LE(0) === CSI1_MAGIC) {
       data.csiVersion = 1
@@ -116,7 +133,7 @@ export default class CSI extends IndexFile {
     data.indices = new Array(data.refCount)
     let currOffset = 16 + auxLength + 4
     for (let i = 0; i < data.refCount; i += 1) {
-      await abortBreakPoint(abortSignal)
+      await abortBreakPoint(signal)
       // the binning index
       const binCount = bytes.readInt32LE(currOffset)
       currOffset += 4
@@ -148,7 +165,9 @@ export default class CSI extends IndexFile {
 
       data.indices[i] = { binIndex, stats }
     }
-    status(1, 'Done parsing index')
+    if (statusCallback) {
+      statusCallback(1, 'Done parsing index')
+    }
 
     return data
   }
@@ -159,7 +178,12 @@ export default class CSI extends IndexFile {
     // const three = longToNumber(
     //   Long.fromBytesLE(bytes.slice(offset + 20, offset + 28), true),
     // )
-    const lineCount = longToNumber(Long.fromBytesLE(Array.prototype.slice.call(bytes, offset + 28, offset + 36), true))
+    const lineCount = longToNumber(
+      Long.fromBytesLE(
+        Array.prototype.slice.call(bytes, offset + 28, offset + 36),
+        true,
+      ),
+    )
     return { lineCount }
   }
 
@@ -167,7 +191,7 @@ export default class CSI extends IndexFile {
     refId: number,
     beg: number,
     end: number,
-    opts: { abortSignal?: AbortSignal } = {},
+    opts: { signal?: AbortSignal } = {},
   ): Promise<Chunk[]> {
     if (beg < 0) beg = 0
 
@@ -194,7 +218,11 @@ export default class CSI extends IndexFile {
       const chunks = binIndex[bins[i]]
       if (chunks)
         for (let j = 0; j < chunks.length; j += 1) {
-          off[numOffsets] = new Chunk(chunks[j].minv, chunks[j].maxv, chunks[j].bin)
+          off[numOffsets] = new Chunk(
+            chunks[j].minv,
+            chunks[j].maxv,
+            chunks[j].bin,
+          )
           numOffsets += 1
         }
     }
@@ -224,7 +252,8 @@ export default class CSI extends IndexFile {
     // merge adjacent blocks
     l = 0
     for (let i = 1; i < numOffsets; i += 1) {
-      if (off[l].maxv.blockPosition === off[i].minv.blockPosition) off[l].maxv = off[i].maxv
+      if (off[l].maxv.blockPosition === off[i].minv.blockPosition)
+        off[l].maxv = off[i].maxv
       else {
         l += 1
         off[l].minv = off[i].minv

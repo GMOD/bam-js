@@ -11,7 +11,9 @@ export default class VirtualOffset {
   }
 
   compareTo(b: VirtualOffset) {
-    return this.blockPosition - b.blockPosition || this.dataPosition - b.dataPosition
+    return (
+      this.blockPosition - b.blockPosition || this.dataPosition - b.dataPosition
+    )
   }
 
   static min(...args: VirtualOffset[]) {
@@ -25,7 +27,8 @@ export default class VirtualOffset {
   }
 }
 export function fromBytes(bytes: Buffer, offset = 0, bigendian = false) {
-  if (bigendian) throw new Error('big-endian virtual file offsets not implemented')
+  if (bigendian)
+    throw new Error('big-endian virtual file offsets not implemented')
 
   return new VirtualOffset(
     bytes[offset + 7] * 0x10000000000 +

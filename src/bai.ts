@@ -2,7 +2,7 @@ import Long from 'long'
 import VirtualOffset, { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 
-import IndexFile from './indexFile'
+import IndexFile, { Props } from './indexFile'
 import { longToNumber, abortBreakPoint, canMergeBlocks } from './util'
 
 const BAI_MAGIC = 21578050 // BAI\1
@@ -16,11 +16,16 @@ function roundUp(n: number, multiple: number) {
 
 export default class BAI extends IndexFile {
   parsePseudoBin(bytes: Buffer, offset: number) {
-    const lineCount = longToNumber(Long.fromBytesLE(Array.prototype.slice.call(bytes, offset + 16, offset + 24), true))
+    const lineCount = longToNumber(
+      Long.fromBytesLE(
+        Array.prototype.slice.call(bytes, offset + 16, offset + 24),
+        true,
+      ),
+    )
     return { lineCount }
   }
 
-  async lineCount(refId: number, props: { abortSignal?: AbortSignal } = {}) {
+  async lineCount(refId: number, props: { signal?: AbortSignal } = {}) {
     const index = (await this.parse(props)).indices[refId]
     if (!index) {
       return -1
@@ -30,16 +35,16 @@ export default class BAI extends IndexFile {
   }
 
   // fetch and parse the index
-  async _parse(props: { abortSignal?: AbortSignal; statusCallback?: Function }) {
-    const { abortSignal, statusCallback } = props
+  async _parse(
+    props: { signal?: AbortSignal; statusCallback?: Function } = {},
+  ) {
+    const { signal, statusCallback } = props
     const data: { [key: string]: any } = { bai: true, maxBlockSize: 1 << 16 }
     if (statusCallback) {
       statusCallback('Downloading index')
     }
 
-    const bytes = (await this.filehandle.readFile({
-      signal: abortSignal,
-    })) as Buffer
+    const bytes = (await this.filehandle.readFile(props)) as Buffer
 
     if (statusCallback) {
       statusCallback('Parsing index')
@@ -58,7 +63,7 @@ export default class BAI extends IndexFile {
     data.indices = new Array(data.refCount)
     let currOffset = 8
     for (let i = 0; i < data.refCount; i += 1) {
-      await abortBreakPoint(abortSignal)
+      await abortBreakPoint(signal)
 
       // the binning index
       const binCount = bytes.readInt32LE(currOffset)
@@ -109,10 +114,8 @@ export default class BAI extends IndexFile {
   }
 
   async indexCov(
-    seqId: number,
-    start?: number,
-    end?: number,
-    props: { abortSignal?: AbortSignal } = {},
+    { seqId, start, end }: { seqId: number; start?: number; end?: number },
+    props: Props,
   ): Promise<{ start: number; end: number; score: number }[]> {
     const v = 16384
     const range = start !== undefined
@@ -158,11 +161,17 @@ export default class BAI extends IndexFile {
     for (let k = 9 + (beg >> 23); k <= 9 + (end >> 23); k += 1) list.push(k)
     for (let k = 73 + (beg >> 20); k <= 73 + (end >> 20); k += 1) list.push(k)
     for (let k = 585 + (beg >> 17); k <= 585 + (end >> 17); k += 1) list.push(k)
-    for (let k = 4681 + (beg >> 14); k <= 4681 + (end >> 14); k += 1) list.push(k)
+    for (let k = 4681 + (beg >> 14); k <= 4681 + (end >> 14); k += 1)
+      list.push(k)
     return list
   }
 
-  async blocksForRange(refId: number, min: number, max: number, props: { abortSignal?: AbortSignal } = {}) {
+  async blocksForRange(
+    refId: number,
+    min: number,
+    max: number,
+    props: { signal?: AbortSignal } = {},
+  ) {
     if (min < 0) min = 0
 
     const indexData = await this.parse(props)
