@@ -20,8 +20,8 @@ export default class BAI extends IndexFile {
     return { lineCount }
   }
 
-  async lineCount(refId: number) {
-    const index = (await this.parse()).indices[refId]
+  async lineCount(refId: number, props: { abortSignal?: AbortSignal } = {}) {
+    const index = (await this.parse(props)).indices[refId]
     if (!index) {
       return -1
     }
@@ -30,11 +30,20 @@ export default class BAI extends IndexFile {
   }
 
   // fetch and parse the index
-  async _parse(abortSignal?: AbortSignal) {
+  async _parse(props: { abortSignal?: AbortSignal; statusCallback?: Function }) {
+    const { abortSignal, statusCallback } = props
     const data: { [key: string]: any } = { bai: true, maxBlockSize: 1 << 16 }
+    if (statusCallback) {
+      statusCallback('Downloading index')
+    }
+
     const bytes = (await this.filehandle.readFile({
       signal: abortSignal,
     })) as Buffer
+
+    if (statusCallback) {
+      statusCallback('Parsing index')
+    }
 
     // check BAI magic numbers
     if (bytes.readUInt32LE(0) !== BAI_MAGIC) {
@@ -103,10 +112,11 @@ export default class BAI extends IndexFile {
     seqId: number,
     start?: number,
     end?: number,
+    props: { abortSignal?: AbortSignal } = {},
   ): Promise<{ start: number; end: number; score: number }[]> {
     const v = 16384
     const range = start !== undefined
-    const indexData = await this.parse()
+    const indexData = await this.parse(props)
     const seqIdx = indexData.indices[seqId]
     if (!seqIdx) return []
     const { linearIndex = [], stats } = seqIdx
@@ -152,10 +162,10 @@ export default class BAI extends IndexFile {
     return list
   }
 
-  async blocksForRange(refId: number, min: number, max: number) {
+  async blocksForRange(refId: number, min: number, max: number, props: { abortSignal?: AbortSignal } = {}) {
     if (min < 0) min = 0
 
-    const indexData = await this.parse()
+    const indexData = await this.parse(props)
     if (!indexData) return []
     const ba = indexData.indices[refId]
     if (!ba) return []

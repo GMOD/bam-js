@@ -22,9 +22,15 @@ export default abstract class IndexFile {
   }) {
     this.filehandle = filehandle
     this.renameRefSeq = renameRefSeq
+    this._parseCache = new AbortablePromiseCache({
+      cache: new QuickLRU({ maxSize: 1 }),
+      fill: (data: any, props: { signal?: AbortSignal; statusCallback?: Function }) => {
+        this._parse(props)
+      },
+    })
   }
   public abstract async lineCount(refId: number): Promise<number>
-  protected abstract async _parse(signal?: AbortSignal): Promise<any>
+  protected abstract async _parse(props: { signal?: AbortSignal; statusCallback?: Function }): Promise<any>
   public abstract async indexCov(
     refId: number,
     start?: number,
@@ -46,13 +52,8 @@ export default abstract class IndexFile {
     }
   }
 
-  async parse(abortSignal?: AbortSignal) {
-    if (!this._parseCache)
-      this._parseCache = new AbortablePromiseCache({
-        cache: new QuickLRU({ maxSize: 1 }),
-        fill: (data: any, signal: AbortSignal) => this._parse(signal),
-      })
-    return this._parseCache.get('index', null, abortSignal)
+  async parse(props: { abortSignal?: AbortSignal; statusCallback?: Function }) {
+    return this._parseCache.get('index', null, props)
   }
 
   /**
@@ -62,6 +63,6 @@ export default abstract class IndexFile {
    * the given reference sequence ID, false otherwise
    */
   async hasRefSeq(seqId: number, abortSignal?: AbortSignal) {
-    return !!((await this.parse(abortSignal)).indices[seqId] || {}).binIndex
+    return !!((await this.parse({ abortSignal })).indices[seqId] || {}).binIndex
   }
 }

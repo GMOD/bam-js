@@ -27,8 +27,8 @@ export default class CSI extends IndexFile {
     this.depth = 0
     this.minShift = 0
   }
-  async lineCount(refId: number): Promise<number> {
-    const indexData = await this.parse()
+  async lineCount(refId: number, opts: { abortSignal?: AbortSignal } = {}): Promise<number> {
+    const indexData = await this.parse(opts)
     if (!indexData) return -1
     const idx = indexData.indices[refId]
     if (!idx) return -1
@@ -84,10 +84,15 @@ export default class CSI extends IndexFile {
   }
 
   // fetch and parse the index
-  async _parse(abortSignal?: AbortSignal) {
+  async _parse({ abortSignal, statusCallback }: { abortSignal?: AbortSignal; statusCallback?: Function }) {
     const data: { [key: string]: any } = { csi: true, maxBlockSize: 1 << 16 }
-    const bytes = await unzip((await this.filehandle.readFile({ signal: abortSignal })) as Buffer)
+    //eslint-disable-next-line @typescript-eslint/no-empty-function
+    const status = statusCallback || (() => {})
 
+    status(1, 'Downloading file')
+    const bytes = await unzip((await this.filehandle.readFile({ signal: abortSignal, statusCallback })) as Buffer)
+
+    status(1, 'Parsing index')
     // check TBI magic numbers
     if (bytes.readUInt32LE(0) === CSI1_MAGIC) {
       data.csiVersion = 1
@@ -143,6 +148,7 @@ export default class CSI extends IndexFile {
 
       data.indices[i] = { binIndex, stats }
     }
+    status(1, 'Done parsing index')
 
     return data
   }
@@ -157,10 +163,15 @@ export default class CSI extends IndexFile {
     return { lineCount }
   }
 
-  async blocksForRange(refId: number, beg: number, end: number, opts: Record<string, any> = {}): Promise<Chunk[]> {
+  async blocksForRange(
+    refId: number,
+    beg: number,
+    end: number,
+    opts: { abortSignal?: AbortSignal } = {},
+  ): Promise<Chunk[]> {
     if (beg < 0) beg = 0
 
-    const indexData = await this.parse(opts.signal)
+    const indexData = await this.parse(opts)
     if (!indexData) return []
     const indexes = indexData.indices[refId]
     if (!indexes) return []
