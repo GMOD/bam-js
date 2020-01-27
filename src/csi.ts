@@ -99,7 +99,6 @@ export default class CSI extends IndexFile {
   async _parse(props: Props = {}) {
     const data: { [key: string]: any } = { csi: true, maxBlockSize: 1 << 16 }
     const { signal, statusCallback } = props
-    //eslint-disable-next-line @typescript-eslint/no-empty-function
 
     if (statusCallback) {
       statusCallback(1, 'Downloading file')

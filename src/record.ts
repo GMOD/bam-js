@@ -324,13 +324,11 @@ export default class BamRecord {
   _parseCigar(cigar: string) {
     return (
       //@ts-ignore
-      cigar
-        .match(/\d+\D/g)
+      cigar.match(/\d+\D/g).map((op: string) => [
         //@ts-ignore
-        .map((op: string) => [
-          op.match(/\D/)[0].toUpperCase(),
-          parseInt(op, 10),
-        ])
+        op.match(/\D/)[0].toUpperCase(),
+        parseInt(op, 10),
+      ])
     )
   }
 
