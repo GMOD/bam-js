@@ -112,7 +112,9 @@ describe('bam records', () => {
   })
   it('gets features from the end of volvox-sorted.bam', async () => {
     const records = await ti.getRecordsForRange('ctgA', 47457, 50001, {
-      statusCallback: props => console.log(props),
+      statusCallback: props => {
+        console.log(props)
+      },
     })
     expect(records.length).toEqual(473)
   })
