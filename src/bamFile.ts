@@ -384,6 +384,7 @@ export default class BamFile {
     const sink = []
     let pos = 0
     let featsSinceLastTimeout = 0
+    console.log(dpositions, cpositions)
 
     while (blockStart + 4 < ba.length) {
       const blockSize = ba.readInt32LE(blockStart)
@@ -404,8 +405,8 @@ export default class BamFile {
           // this is based on the assumption that the compressed block size * 1<<8
           //  is greater than the decompressed size
           fileOffset:
-            chunk.minv.blockPosition * (1 << 8) +
-            cpositions[pos] * (1 << 8) -
+            chunk.minv.blockPosition * (1 << 12) +
+            cpositions[pos] * (1 << 12) -
             dpositions[pos] +
             blockStart +
             chunk.minv.dataPosition,
