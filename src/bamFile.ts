@@ -384,7 +384,6 @@ export default class BamFile {
     const sink = []
     let pos = 0
     let featsSinceLastTimeout = 0
-    console.log(dpositions, cpositions)
 
     while (blockStart + 4 < ba.length) {
       const blockSize = ba.readInt32LE(blockStart)
