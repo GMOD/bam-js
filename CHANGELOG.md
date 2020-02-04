@@ -1,3 +1,8 @@
+<a name="1.0.35"></a>
+## [1.0.35](https://github.com/GMOD/bam-js/compare/v1.0.34...v1.0.35) (2020-02-04)
+
+
+
 - Update scheme used to calculate unique fileOffset based IDs using @gmod/bgzf-filehandle updates
 
 <a name="1.0.34"></a>
