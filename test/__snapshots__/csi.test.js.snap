@@ -4,6 +4,39 @@ exports[`1000 genomes bam check deep check 1000 genomes 1`] = `Array []`;
 
 exports[`1000 genomes bam check deep check 1000 genomes csi 1`] = `Array []`;
 
+exports[`1000 genomes bam check start to deep check 1000 genomes but abort instead 1`] = `Array []`;
+
+exports[`BamFile with test_deletion_2_0.snps.bwa_align.sorted.grouped.bam loads some data 1`] = `
+Array [
+  Object {
+    "data": Object {
+      "_bin_mq_nl": 306783516,
+      "_flag_nc": 1,
+      "_l_read_name": 28,
+      "_n_cigar_op": 1,
+      "cigar": "100M",
+      "end": 102,
+      "length_on_ref": 100,
+      "start": 2,
+    },
+    "flags": 0,
+  },
+  Object {
+    "data": Object {
+      "_bin_mq_nl": 306783516,
+      "_flag_nc": 1,
+      "_l_read_name": 28,
+      "_n_cigar_op": 1,
+      "cigar": "100M",
+      "end": 107,
+      "length_on_ref": 100,
+      "start": 7,
+    },
+    "flags": 0,
+  },
+]
+`;
+
 exports[`bam deep record check deep check volvox-sorted.bam 1`] = `
 Array [
   Object {

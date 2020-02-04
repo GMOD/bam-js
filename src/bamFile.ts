@@ -393,6 +393,7 @@ export default class BamFile {
 
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
+        //console.log(cpositions[pos] * (1 << 3), dpositions[pos], blockStart, chunk.minv.dataPosition)
         const feature = new BAMFeature({
           bytes: {
             byteArray: ba,
@@ -403,7 +404,7 @@ export default class BamFile {
           //  for generating unique ID
           // this is based on the assumption that the compressed block size * 1<<8
           //  is greater than the decompressed size
-          fileOffset: cpositions[pos] * (1 << 8) - dpositions[pos] + blockStart + chunk.minv.dataPosition,
+          fileOffset: cpositions[pos] * (1 << 3) - dpositions[pos] + blockStart + chunk.minv.dataPosition + 1,
         })
 
         sink.push(feature)
