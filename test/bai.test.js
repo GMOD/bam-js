@@ -457,6 +457,30 @@ test('long read consistent IDs chm1 pacbio', async () => {
   expect(r1.id()).toEqual(r2.id())
 })
 
+test('long read consistent IDs hg002 nanopore', async () => {
+  const ti = new BamFile({
+    bamPath: require.resolve('./data/out.bam'),
+  })
+  await ti.getHeader()
+  const ret1 = await ti.getRecordsForRange('1', 200000, 700000)
+  const ret2 = await ti.getRecordsForRange('1', 700000, 900000)
+  const findfeat = k => k.get('name') === '901e456a-b7cf-4624-bd27-e2981a6c7ca5'
+  const [r1, r2] = [ret1, ret2].map(x => x.find(findfeat))
+  expect(r1.id()).toEqual(r2.id())
+})
+
+test('long read consistent IDs hg002 nanopore 2', async () => {
+  const ti = new BamFile({
+    bamPath: require.resolve('./data/out.bam'),
+  })
+  await ti.getHeader()
+  const ret3 = await ti.getRecordsForRange('1', 200000, 560000)
+  const ret4 = await ti.getRecordsForRange('1', 500000, 700000)
+  const findfeat2 = k => k.get('name') === '7c318bae-cae9-4cf9-8efc-c761304aa0da'
+  const [r3, r4] = [ret3, ret4].map(x => x.find(findfeat2))
+  expect(r3.id()).toEqual(r4.id())
+})
+
 test('long tag list', async () => {
   const ti = new BamFile({
     bamPath: require.resolve('./data/long_tag_list.bam'),
@@ -483,6 +507,24 @@ test('fix decoding error on ID', async () => {
   expect(ret1[0].get('ID')).toBe(78190)
   expect(ret1[1].get('ID')).toBe(4440)
 })
+
+test('fix decoding error on ID', async () => {
+  const ti1 = new BamFile({
+    bamPath: require.resolve('./data/out.bam'),
+  })
+  const ti2 = new BamFile({
+    bamPath: require.resolve('./data/out.bam'),
+  })
+  await ti1.getHeader()
+  await ti2.getHeader()
+  const ret1 = await ti1.getRecordsForRange('1', 0, 3000000)
+  const ret2 = await ti2.getRecordsForRange('1', 0, 3000000)
+  expect(ret2[0].get('DI')).toBe(78190)
+  expect(ret2[1].get('DI')).toBe(4440)
+  expect(ret1[0].get('ID')).toBe(78190)
+  expect(ret1[1].get('ID')).toBe(4440)
+})
+
 xtest('large chunks', async () => {
   const ti = new BAI({
     filehandle: new LocalFile(require.resolve('./data/out.marked.bai')),

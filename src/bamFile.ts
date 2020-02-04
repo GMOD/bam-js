@@ -389,7 +389,7 @@ export default class BamFile {
       const blockSize = ba.readInt32LE(blockStart)
       const blockEnd = blockStart + 4 + blockSize - 1
 
-      for (pos = 0; blockStart >= dpositions[pos]; pos++);
+      for (pos = 0; blockStart + chunk.minv.dataPosition > dpositions[pos]; pos++);
 
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
@@ -403,12 +403,7 @@ export default class BamFile {
           //  for generating unique ID
           // this is based on the assumption that the compressed block size * 1<<8
           //  is greater than the decompressed size
-          fileOffset:
-            chunk.minv.blockPosition * (1 << 12) +
-            cpositions[pos] * (1 << 12) -
-            dpositions[pos] +
-            blockStart +
-            chunk.minv.dataPosition,
+          fileOffset: cpositions[pos] * (1 << 8) - dpositions[pos] + blockStart + chunk.minv.dataPosition,
         })
 
         sink.push(feature)
