@@ -502,6 +502,8 @@ test('fix decoding error on ID', async () => {
   await ti2.getHeader()
   const ret1 = await ti1.getRecordsForRange('1', 0, 3000000)
   const ret2 = await ti2.getRecordsForRange('1', 0, 3000000)
+  console.log(ret1)
+  console.log(ret2)
   expect(ret2[0].get('DI')).toBe(78190)
   expect(ret2[1].get('DI')).toBe(4440)
   expect(ret1[0].get('ID')).toBe(78190)
