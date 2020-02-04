@@ -3,7 +3,7 @@ import BAI from './bai'
 import CSI from './csi'
 import Chunk from './chunk'
 
-import { unzip, unzipChunk } from '@gmod/bgzf-filehandle'
+import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
 
 import entries from 'object.entries-ponyfill'
 import LRU from 'quick-lru'
@@ -374,13 +374,13 @@ export default class BamFile {
       buffer = buffer.slice(0, bufsize)
     }
 
-    const { buffer: data, cpositions, dpositions } = await unzipChunk(buffer)
+    const { buffer: data, cpositions, dpositions } = await unzipChunkSlice(buffer, chunk)
     checkAbortSignal(abortSignal)
     return { data, cpositions, dpositions, chunk }
   }
 
   async readBamFeatures(ba: Buffer, cpositions: number[], dpositions: number[], chunk: Chunk) {
-    let blockStart = chunk.minv.dataPosition
+    let blockStart = 0
     const sink = []
     let pos = 0
     let featsSinceLastTimeout = 0
@@ -389,8 +389,7 @@ export default class BamFile {
       const blockSize = ba.readInt32LE(blockStart)
       const blockEnd = blockStart + 4 + blockSize - 1
 
-      for (pos = 0; blockStart > dpositions[pos]; pos++);
-      pos = Math.min(dpositions.length - 1, pos)
+      for (pos = 0; blockStart + chunk.minv.dataPosition >= dpositions[pos]; pos++);
 
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
@@ -404,7 +403,7 @@ export default class BamFile {
           //  for generating unique ID
           // this is based on the assumption that the compressed block size * 1<<8
           //  is greater than the decompressed size
-          fileOffset: chunk.minv.blockPosition * (1 << 8) + cpositions[pos] * (1 << 8) + blockStart - dpositions[pos],
+          fileOffset: cpositions[pos] * (1 << 8) - dpositions[pos] + blockStart + chunk.minv.dataPosition + 1,
         })
 
         sink.push(feature)
