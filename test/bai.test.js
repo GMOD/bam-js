@@ -151,7 +151,7 @@ describe('1000 genomes bam check', () => {
       csiPath: require.resolve('./data/1000genomes_hg00096_chr1.bam.csi'),
     })
     await ti.getHeader()
-    const records = await ti.getRecordsForRange('1', 0, 1000)
+    const records = await ti.getRecordsForRange('1', 0, 10000)
     expect(records).toMatchSnapshot()
   })
   it('deep check 1000 genomes bai', async () => {
@@ -159,7 +159,7 @@ describe('1000 genomes bam check', () => {
       bamPath: require.resolve('./data/1000genomes_hg00096_chr1.bam'),
     })
     await ti.getHeader()
-    const records = await ti.getRecordsForRange('1', 0, 1000)
+    const records = await ti.getRecordsForRange('1', 0, 10000)
     expect(records).toMatchSnapshot()
   })
   it('start to deep check 1000 genomes but abort instead', async () => {
