@@ -399,11 +399,20 @@ export default class BamFile {
             start: blockStart,
             end: blockEnd,
           },
-          // multipying 1 << 8 helps with hitting the 1<<53 MAX_SAFE_INT limit
-          //  for generating unique ID
-          // this is based on the assumption that the compressed block size * 1<<8
-          //  is greater than the decompressed size
-          fileOffset: cpositions[pos] * (1 << 8) - dpositions[pos] + blockStart + chunk.minv.dataPosition + 1,
+          // cpositions[pos] refers to actual file offset of a bgzip block boundaries
+          //
+          // we multiply by (1 <<8) in order to make sure each block has a "unique"
+          // address space so that data in that block could never overlap
+          //
+          // then the blockStart-dpositions is an uncompressed file offset from
+          // that bgzip block boundary, and since the cpositions are multiplied by
+          // (1 << 8) these uncompressed offsets get a unique space
+          //
+          // this has an extra chunk.minv.dataPosition added on because it blockStart
+          // starts at 0 instead of chunk.minv.dataPosition
+          //
+          // the +1 is just to avoid any possible uniqueId 0 but this does not realistically happen
+          fileOffset: cpositions[pos] * (1 << 8) + (blockStart - dpositions[pos]) + chunk.minv.dataPosition + 1,
         })
 
         sink.push(feature)
