@@ -516,11 +516,12 @@ xtest('large chunks', async () => {
     filehandle: new LocalFile(require.resolve('./data/out.marked.bai')),
   })
 
-  const ret = await ti.parse()
+  await ti.parse()
   //index 16 == 'chr17'
   const ret1 = await ti.blocksForRange(16, 41248671, 41337570)
   expect(ret1[0].fetchedSize()).toBe(10893136)
 })
+
 
 // use on any large long read data file
 xtest('speed test', async () => {

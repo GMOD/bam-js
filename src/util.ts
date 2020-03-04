@@ -23,12 +23,15 @@ export function longToNumber(long: Long) {
  * @returns nothing
  */
 export function checkAbortSignal(signal?: AbortSignal) {
-  if (!signal) return
+  if (!signal) {
+    return
+  }
 
   if (signal.aborted) {
     // console.log('bam aborted!')
-    if (typeof DOMException !== 'undefined') throw new DOMException('aborted', 'AbortError')
-    else {
+    if (typeof DOMException !== 'undefined') {
+      throw new DOMException('aborted', 'AbortError')
+    } else {
       const e = new Error('aborted')
       // eslint-disable-next-line  @typescript-eslint/ban-ts-ignore
       //@ts-ignore

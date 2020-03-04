@@ -58,14 +58,14 @@ export default class BamFile {
     chunkSizeLimit,
     renameRefSeqs = n => n,
   }: {
-    bamFilehandle?: G
+    bamFilehandle?: GenericFilehandle
     bamPath?: string
     bamUrl?: string
     baiPath?: string
-    baiFilehandle?: G
+    baiFilehandle?: GenericFilehandle
     baiUrl?: string
     csiPath?: string
-    csiFilehandle?: G
+    csiFilehandle?: GenericFilehandle
     csiUrl?: string
     cacheSize?: number
     fetchSizeLimit?: number
@@ -136,7 +136,9 @@ export default class BamFile {
 
     const uncba = await unzip(buffer)
 
-    if (uncba.readInt32LE(0) !== BAM_MAGIC) throw new Error('Not a BAM file')
+    if (uncba.readInt32LE(0) !== BAM_MAGIC) {
+      throw new Error('Not a BAM file')
+    }
     const headLen = uncba.readInt32LE(4)
 
     this.header = uncba.toString('utf8', 8, 8 + headLen)
@@ -243,10 +245,11 @@ export default class BamFile {
     }
 
     const totalSize = chunks.map((s: Chunk) => s.fetchedSize()).reduce((a: number, b: number) => a + b, 0)
-    if (totalSize > this.fetchSizeLimit)
+    if (totalSize > this.fetchSizeLimit) {
       throw new Error(
         `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
       )
+    }
     yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
@@ -259,10 +262,10 @@ export default class BamFile {
       for (let i = 0; i < records.length; i += 1) {
         const feature = records[i]
         if (feature.seq_id() === chrId) {
-          if (feature.get('start') >= max)
+          if (feature.get('start') >= max) {
             // past end of range, can stop iterating
             break
-          else if (feature.get('end') >= min) {
+          } else if (feature.get('end') >= min) {
             // must be in range
             recs.push(feature)
           }
@@ -292,12 +295,16 @@ export default class BamFile {
         for (let i = 0; i < ret.length; i++) {
           const name = ret[i].name()
           const id = ret[i].id()
-          if (!readNames[name]) readNames[name] = 0
+          if (!readNames[name]) {
+            readNames[name] = 0
+          }
           readNames[name]++
           readIds[id] = 1
         }
         entries(readNames).forEach(([k, v]: [string, number]) => {
-          if (v === 1) unmatedPairs[k] = true
+          if (v === 1) {
+            unmatedPairs[k] = true
+          }
         })
       }),
     )
@@ -389,7 +396,7 @@ export default class BamFile {
       const blockSize = ba.readInt32LE(blockStart)
       const blockEnd = blockStart + 4 + blockSize - 1
 
-      for (pos = 0; blockStart + chunk.minv.dataPosition >= dpositions[pos]; pos++);
+      for (pos = 0; blockStart + chunk.minv.dataPosition >= dpositions[pos]; pos++) {}
 
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {

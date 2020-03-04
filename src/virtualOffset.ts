@@ -17,15 +17,21 @@ export default class VirtualOffset {
   static min(...args: VirtualOffset[]) {
     let min
     let i = 0
-    for (; !min; i += 1) min = args[i]
+    for (; !min; i += 1) {
+      min = args[i]
+    }
     for (; i < args.length; i += 1) {
-      if (min.compareTo(args[i]) > 0) min = args[i]
+      if (min.compareTo(args[i]) > 0) {
+        min = args[i]
+      }
     }
     return min
   }
 }
 export function fromBytes(bytes: Buffer, offset = 0, bigendian = false) {
-  if (bigendian) throw new Error('big-endian virtual file offsets not implemented')
+  if (bigendian) {
+    throw new Error('big-endian virtual file offsets not implemented')
+  }
 
   return new VirtualOffset(
     bytes[offset + 7] * 0x10000000000 +
