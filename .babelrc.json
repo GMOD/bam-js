@@ -21,7 +21,7 @@
       {
         "regenerator": true,
         "helpers": true,
-        "corejs": 2
+        "corejs": 3
       }
     ],
     "@babel/proposal-class-properties"
