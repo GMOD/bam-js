@@ -254,25 +254,35 @@ export default class BamFile {
   }
 
   async *_fetchChunkFeatures(chunks: Chunk[], chrId: number, min: number, max: number, opts: BamOpts) {
-    const featPromises = chunks.map(async c => {
-      const { data, cpositions, dpositions, chunk } = await this.featureCache.get(c.toString(), c, opts.signal)
-      const records = await this.readBamFeatures(data, cpositions, dpositions, chunk)
+    const featPromises = []
+    let done = false
 
-      const recs = []
-      for (let i = 0; i < records.length; i += 1) {
-        const feature = records[i]
-        if (feature.seq_id() === chrId) {
-          if (feature.get('start') >= max) {
-            // past end of range, can stop iterating
-            break
-          } else if (feature.get('end') >= min) {
-            // must be in range
-            recs.push(feature)
+    for (let i = 0; i < chunks.length; i++) {
+      const c = chunks[i]
+      const { data, cpositions, dpositions, chunk } = await this.featureCache.get(c.toString(), c, opts.signal)
+      const promise = this.readBamFeatures(data, cpositions, dpositions, chunk).then(records => {
+        const recs = []
+        for (let i = 0; i < records.length; i += 1) {
+          const feature = records[i]
+          if (feature.seq_id() === chrId) {
+            if (feature.get('start') >= max) {
+              // past end of range, can stop iterating
+              done = true
+              break
+            } else if (feature.get('end') >= min) {
+              // must be in range
+              recs.push(feature)
+            }
           }
         }
+        return recs
+      })
+      featPromises.push(promise)
+      await promise
+      if (done) {
+        break
       }
-      return recs
-    })
+    }
 
     checkAbortSignal(opts.signal)
 

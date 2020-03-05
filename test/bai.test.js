@@ -522,7 +522,6 @@ xtest('large chunks', async () => {
   expect(ret1[0].fetchedSize()).toBe(10893136)
 })
 
-
 // use on any large long read data file
 xtest('speed test', async () => {
   const ti = new BamFile({
