@@ -77,8 +77,9 @@ export default class BamRecord {
       'supplementary_alignment',
     ]
 
-    if (!this.isSegmentUnmapped())
+    if (!this.isSegmentUnmapped()) {
       tags.push('start', 'end', 'strand', 'score', 'qual', 'MQ', 'CIGAR', 'length_on_ref', 'template_length')
+    }
     if (this.isPaired()) {
       tags.push(
         'multi_segment_all_correctly_aligned',
@@ -93,12 +94,16 @@ export default class BamRecord {
     tags = tags.concat(this._tagList || [])
 
     Object.keys(this.data).forEach(k => {
-      if (k[0] !== '_' && k !== 'multi_segment_all_aligned' && k !== 'next_seq_id') tags.push(k)
+      if (k[0] !== '_' && k !== 'multi_segment_all_aligned' && k !== 'next_seq_id') {
+        tags.push(k)
+      }
     })
 
     const seen: { [key: string]: boolean } = {}
     tags = tags.filter(t => {
-      if (t in this.data && this.data[t] === undefined) return false
+      if (t in this.data && this.data[t] === undefined) {
+        return false
+      }
 
       const lt = t.toLowerCase()
       const s = seen[lt]
@@ -139,7 +144,9 @@ export default class BamRecord {
   }
 
   qual() {
-    if (this.isSegmentUnmapped()) return undefined
+    if (this.isSegmentUnmapped()) {
+      return undefined
+    }
 
     const { byteArray } = this.bytes
     const p = this.bytes.start + 36 + this.get('_l_read_name') + this.get('_n_cigar_op') * 4 + this.get('_seq_bytes')
@@ -156,7 +163,9 @@ export default class BamRecord {
   }
 
   multi_segment_next_segment_strand() {
-    if (this.isMateUnmapped()) return undefined
+    if (this.isMateUnmapped()) {
+      return undefined
+    }
     return this.isMateReverseComplemented() ? -1 : 1
   }
 
@@ -177,7 +186,9 @@ export default class BamRecord {
     // if all of the tags have been parsed and we're still being
     // called, we already know that we have no such tag, because
     // it would already have been cached.
-    if (this._allTagsParsed) return undefined
+    if (this._allTagsParsed) {
+      return undefined
+    }
 
     const { byteArray } = this.bytes
     let p =
@@ -240,7 +251,9 @@ export default class BamRecord {
             p += 4
             for (let k = 0; k < limit; k++) {
               value += byteArray.readInt32LE(p)
-              if (k + 1 < limit) value += ','
+              if (k + 1 < limit) {
+                value += ','
+              }
               p += 4
             }
           }
@@ -249,7 +262,9 @@ export default class BamRecord {
             p += 4
             for (let k = 0; k < limit; k++) {
               value += byteArray.readInt16LE(p)
-              if (k + 1 < limit) value += ','
+              if (k + 1 < limit) {
+                value += ','
+              }
               p += 2
             }
           }
@@ -258,7 +273,9 @@ export default class BamRecord {
             p += 4
             for (let k = 0; k < limit; k++) {
               value += byteArray.readInt8(p)
-              if (k + 1 < limit) value += ','
+              if (k + 1 < limit) {
+                value += ','
+              }
               p += 1
             }
           }
@@ -267,7 +284,9 @@ export default class BamRecord {
             p += 4
             for (let k = 0; k < limit; k++) {
               value += byteArray.readFloatLE(p)
-              if (k + 1 < limit) value += ','
+              if (k + 1 < limit) {
+                value += ','
+              }
               p += 4
             }
           }
@@ -282,7 +301,9 @@ export default class BamRecord {
       this._tagOffset = p
 
       this._tagList.push(tag)
-      if (lcTag === tagName) return value
+      if (lcTag === tagName) {
+        return value
+      }
 
       this.data[lcTag] = value
     }
@@ -367,7 +388,9 @@ export default class BamRecord {
   }
 
   cigar() {
-    if (this.isSegmentUnmapped()) return undefined
+    if (this.isSegmentUnmapped()) {
+      return undefined
+    }
 
     const { byteArray, start } = this.bytes
     const numCigarOps = this.get('_n_cigar_op')
@@ -382,7 +405,9 @@ export default class BamRecord {
 
       // soft clip, hard clip, and insertion don't count toward
       // the length on the reference
-      if (op !== 'H' && op !== 'S' && op !== 'I') lref += lop
+      if (op !== 'H' && op !== 'S' && op !== 'I') {
+        lref += lop
+      }
 
       p += 4
     }
@@ -495,7 +520,9 @@ export default class BamRecord {
   toJSON() {
     const data: { [key: string]: any } = {}
     Object.keys(this).forEach(k => {
-      if (k.charAt(0) === '_' || k === 'bytes') return
+      if (k.charAt(0) === '_' || k === 'bytes') {
+        return
+      }
       //@ts-ignore
       data[k] = this[k]
     })

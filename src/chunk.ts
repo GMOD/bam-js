@@ -33,7 +33,9 @@ export default class Chunk {
   }
 
   fetchedSize() {
-    if (this._fetchedSize !== undefined) return this._fetchedSize
+    if (this._fetchedSize !== undefined) {
+      return this._fetchedSize
+    }
     return this.maxv.blockPosition + (1 << 16) - this.minv.blockPosition
   }
 }

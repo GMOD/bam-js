@@ -13,7 +13,6 @@ class HalfAbortController {
   }
 }
 
-
 describe('bam header', () => {
   it('loads volvox-sorted.bam', async () => {
     const ti = new BamFile({
@@ -318,8 +317,6 @@ describe('trigger range out of bounds file', () => {
   })
 })
 
-
-
 // we cannot determine duplicates as unique because we require dehashing
 test('unique id for duplicate features', async () => {
   const ti = new BamFile({
@@ -400,7 +397,7 @@ xtest('large chunks', async () => {
     filehandle: new LocalFile(require.resolve('./data/out.marked.csi')),
   })
 
-  const ret = await ti.parse()
+  await ti.parse()
   //index 16 == 'chr17'
   const ret1 = await ti.blocksForRange(16, 41248671, 41337570)
   expect(ret1[0].fetchedSize()).toBe(10893136)
