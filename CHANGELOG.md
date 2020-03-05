@@ -1,3 +1,8 @@
+<a name="1.0.36"></a>
+## [1.0.36](https://github.com/GMOD/bam-js/compare/v1.0.35...v1.0.36) (2020-03-05)
+
+
+
 - Adds a shortcut to stop parsing chunks after a record is detected to be outside the requested range while decoding
 
 <a name="1.0.35"></a>
