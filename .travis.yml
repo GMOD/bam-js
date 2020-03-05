@@ -1,7 +1,7 @@
 language: node_js
 node_js:
   - v8
-  - stable
+  - v12
 script:
   - yarn lint
   - yarn test --coverage
