@@ -5,10 +5,7 @@ export function timeout(ms: number) {
 }
 
 export function longToNumber(long: Long) {
-  if (
-    long.greaterThan(Number.MAX_SAFE_INTEGER) ||
-    long.lessThan(Number.MIN_SAFE_INTEGER)
-  ) {
+  if (long.greaterThan(Number.MAX_SAFE_INTEGER) || long.lessThan(Number.MIN_SAFE_INTEGER)) {
     throw new Error('integer overflow')
   }
   return long.toNumber()
@@ -26,13 +23,15 @@ export function longToNumber(long: Long) {
  * @returns nothing
  */
 export function checkAbortSignal(signal?: AbortSignal) {
-  if (!signal) return
+  if (!signal) {
+    return
+  }
 
   if (signal.aborted) {
     // console.log('bam aborted!')
-    if (typeof DOMException !== 'undefined')
+    if (typeof DOMException !== 'undefined') {
       throw new DOMException('aborted', 'AbortError')
-    else {
+    } else {
       const e = new Error('aborted')
       // eslint-disable-next-line  @typescript-eslint/ban-ts-ignore
       //@ts-ignore

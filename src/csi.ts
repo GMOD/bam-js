@@ -32,11 +32,17 @@ export default class CSI extends IndexFile {
     opts: { signal?: AbortSignal } = {},
   ): Promise<number> {
     const indexData = await this.parse(opts)
-    if (!indexData) return -1
+    if (!indexData) {
+      return -1
+    }
     const idx = indexData.indices[refId]
-    if (!idx) return -1
+    if (!idx) {
+      return -1
+    }
     const { stats } = indexData.indices[refId]
-    if (stats) return stats.lineCount
+    if (stats) {
+      return stats.lineCount
+    }
     return -1
   }
   async indexCov() {
@@ -45,17 +51,17 @@ export default class CSI extends IndexFile {
   }
 
   parseAuxData(bytes: Buffer, offset: number, auxLength: number) {
-    if (auxLength < 30) return {}
+    if (auxLength < 30) {
+      return {}
+    }
 
     const data: { [key: string]: any } = {}
     data.formatFlags = bytes.readInt32LE(offset)
-    data.coordinateType =
-      data.formatFlags & 0x10000 ? 'zero-based-half-open' : '1-based-closed'
-    data.format = ({ 0: 'generic', 1: 'SAM', 2: 'VCF' } as {
-      [key: number]: string
-    })[data.formatFlags & 0xf]
-    if (!data.format)
+    data.coordinateType = data.formatFlags & 0x10000 ? 'zero-based-half-open' : '1-based-closed'
+    data.format = ({ 0: 'generic', 1: 'SAM', 2: 'VCF' } as { [key: number]: string })[data.formatFlags & 0xf]
+    if (!data.format) {
       throw new Error(`invalid Tabix preset format flags ${data.formatFlags}`)
+    }
     data.columnNumbers = {
       ref: bytes.readInt32LE(offset + 4),
       start: bytes.readInt32LE(offset + 8),
@@ -66,12 +72,7 @@ export default class CSI extends IndexFile {
     data.skipLines = bytes.readInt32LE(offset + 20)
     const nameSectionLength = bytes.readInt32LE(offset + 24)
 
-    Object.assign(
-      data,
-      this._parseNameBytes(
-        bytes.slice(offset + 28, offset + 28 + nameSectionLength),
-      ),
-    )
+    Object.assign(data, this._parseNameBytes(bytes.slice(offset + 28, offset + 28 + nameSectionLength)))
     return data
   }
 
@@ -192,12 +193,18 @@ export default class CSI extends IndexFile {
     end: number,
     opts: { signal?: AbortSignal } = {},
   ): Promise<Chunk[]> {
-    if (beg < 0) beg = 0
+    if (beg < 0) {
+      beg = 0
+    }
 
     const indexData = await this.parse(opts)
-    if (!indexData) return []
+    if (!indexData) {
+      return []
+    }
     const indexes = indexData.indices[refId]
-    if (!indexes) return []
+    if (!indexes) {
+      return []
+    }
 
     const { binIndex } = indexes
 
@@ -206,27 +213,30 @@ export default class CSI extends IndexFile {
     let l
     let numOffsets = 0
     for (let i = 0; i < bins.length; i += 1) {
-      if (binIndex[bins[i]]) numOffsets += binIndex[bins[i]].length
+      if (binIndex[bins[i]]) {
+        numOffsets += binIndex[bins[i]].length
+      }
     }
 
-    if (numOffsets === 0) return []
+    if (numOffsets === 0) {
+      return []
+    }
 
     let off = []
     numOffsets = 0
     for (let i = 0; i < bins.length; i += 1) {
       const chunks = binIndex[bins[i]]
-      if (chunks)
+      if (chunks) {
         for (let j = 0; j < chunks.length; j += 1) {
-          off[numOffsets] = new Chunk(
-            chunks[j].minv,
-            chunks[j].maxv,
-            chunks[j].bin,
-          )
+          off[numOffsets] = new Chunk(chunks[j].minv, chunks[j].maxv, chunks[j].bin)
           numOffsets += 1
         }
+      }
     }
 
-    if (!off.length) return []
+    if (!off.length) {
+      return []
+    }
 
     off = off.sort((a, b) => a.compareTo(b))
 
@@ -251,9 +261,9 @@ export default class CSI extends IndexFile {
     // merge adjacent blocks
     l = 0
     for (let i = 1; i < numOffsets; i += 1) {
-      if (off[l].maxv.blockPosition === off[i].minv.blockPosition)
+      if (off[l].maxv.blockPosition === off[i].minv.blockPosition) {
         off[l].maxv = off[i].maxv
-      else {
+      } else {
         l += 1
         off[l].minv = off[i].minv
         off[l].maxv = off[i].maxv
@@ -270,8 +280,12 @@ export default class CSI extends IndexFile {
    */
   reg2bins(beg: number, end: number) {
     beg -= 1 // < convert to 1-based closed
-    if (beg < 1) beg = 1
-    if (end > 2 ** 50) end = 2 ** 34 // 17 GiB ought to be enough for anybody
+    if (beg < 1) {
+      beg = 1
+    }
+    if (end > 2 ** 50) {
+      end = 2 ** 34
+    } // 17 GiB ought to be enough for anybody
     end -= 1
     let l = 0
     let t = 0
@@ -280,11 +294,14 @@ export default class CSI extends IndexFile {
     for (; l <= this.depth; s -= 3, t += lshift(1, l * 3), l += 1) {
       const b = t + rshift(beg, s)
       const e = t + rshift(end, s)
-      if (e - b + bins.length > this.maxBinNumber)
+      if (e - b + bins.length > this.maxBinNumber) {
         throw new Error(
           `query ${beg}-${end} is too large for current binning scheme (shift ${this.minShift}, depth ${this.depth}), try a smaller query or a coarser index binning scheme`,
         )
-      for (let i = b; i <= e; i += 1) bins.push(i)
+      }
+      for (let i = b; i <= e; i += 1) {
+        bins.push(i)
+      }
     }
     return bins
   }

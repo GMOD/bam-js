@@ -7,7 +7,9 @@ export function parseHeaderText(text: string) {
       const [fieldTag, value] = f.split(':', 2)
       return { tag: fieldTag, value }
     })
-    if (tag) data.push({ tag: tag.substr(1), data: parsedFields })
+    if (tag) {
+      data.push({ tag: tag.substr(1), data: parsedFields })
+    }
   })
   return data
 }

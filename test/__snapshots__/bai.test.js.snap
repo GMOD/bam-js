@@ -1,8 +1,40 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`1000 genomes bam check deep check 1000 genomes 1`] = `Array []`;
+exports[`1000 genomes bam check deep check 1000 genomes 1`] = `
+Array [
+  Object {
+    "data": Object {
+      "_bin_mq_nl": 306774051,
+      "_flag_nc": 9502722,
+      "_l_read_name": 35,
+      "_n_cigar_op": 2,
+      "cigar": "183S67M",
+      "end": 10066,
+      "length_on_ref": 67,
+      "start": 9999,
+    },
+    "flags": 145,
+  },
+]
+`;
 
-exports[`1000 genomes bam check deep check 1000 genomes bai 1`] = `Array []`;
+exports[`1000 genomes bam check deep check 1000 genomes bai 1`] = `
+Array [
+  Object {
+    "data": Object {
+      "_bin_mq_nl": 306774051,
+      "_flag_nc": 9502722,
+      "_l_read_name": 35,
+      "_n_cigar_op": 2,
+      "cigar": "183S67M",
+      "end": 10066,
+      "length_on_ref": 67,
+      "start": 9999,
+    },
+    "flags": 145,
+  },
+]
+`;
 
 exports[`bam deep record check deep check volvox-sorted.bam 1`] = `
 Array [

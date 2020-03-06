@@ -4,11 +4,6 @@ import { GenericFilehandle } from 'generic-filehandle'
 import VirtualOffset from './virtualOffset'
 import Chunk from './chunk'
 
-export interface Props {
-  signal?: AbortSignal
-  statusCallback?: Function
-}
-
 export default abstract class IndexFile {
   public filehandle: GenericFilehandle
   public renameRefSeq: Function
@@ -27,21 +22,16 @@ export default abstract class IndexFile {
   }) {
     this.filehandle = filehandle
     this.renameRefSeq = renameRefSeq
-    this._parseCache = new AbortablePromiseCache({
-      cache: new QuickLRU({ maxSize: 1 }),
-      fill: (data: Props) => {
-        return this._parse(data)
-      },
-    })
   }
   public abstract async lineCount(refId: number, props: Props): Promise<number>
 
   protected abstract async _parse(props: Props): Promise<any>
 
-  public abstract async indexCov(
+   public abstract async indexCov(
     query: { seqId: number; start?: number; end?: number },
     props: Props,
   ): Promise<{ start: number; end: number; score: number }[]>
+
 
   public abstract async blocksForRange(
     chrId: number,
@@ -53,8 +43,7 @@ export default abstract class IndexFile {
   _findFirstData(data: any, virtualOffset: VirtualOffset) {
     const currentFdl = data.firstDataLine
     if (currentFdl) {
-      data.firstDataLine =
-        currentFdl.compareTo(virtualOffset) > 0 ? virtualOffset : currentFdl
+      data.firstDataLine = currentFdl.compareTo(virtualOffset) > 0 ? virtualOffset : currentFdl
     } else {
       data.firstDataLine = virtualOffset
     }
@@ -66,7 +55,7 @@ export default abstract class IndexFile {
 
   /**
    * @param {number} seqId
-   * @param {AbortSignal} [signal]
+   * @param {props} signal/statusCallback
    * @returns {Promise} true if the index contains entries for
    * the given reference sequence ID, false otherwise
    */

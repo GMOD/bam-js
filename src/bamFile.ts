@@ -3,7 +3,7 @@ import BAI from './bai'
 import CSI from './csi'
 import Chunk from './chunk'
 
-import { unzip, unzipChunk } from '@gmod/bgzf-filehandle'
+import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
 
 import entries from 'object.entries-ponyfill'
 import LRU from 'quick-lru'
@@ -143,7 +143,9 @@ export default class BamFile {
 
     const uncba = await unzip(buffer)
 
-    if (uncba.readInt32LE(0) !== BAM_MAGIC) throw new Error('Not a BAM file')
+    if (uncba.readInt32LE(0) !== BAM_MAGIC) {
+      throw new Error('Not a BAM file')
+    }
     const headLen = uncba.readInt32LE(4)
 
     this.header = uncba.toString('utf8', 8, 8 + headLen)
@@ -194,7 +196,7 @@ export default class BamFile {
     const chrToIndex: { [key: string]: number } = {}
     const indexToChr: { refName: string; length: number }[] = []
     for (let i = 0; i < nRef; i += 1) {
-      await abortBreakPoint(props.signal)
+      await abortBreakPoint(abortSignal)
       const lName = uncba.readInt32LE(p)
       let refName = uncba.toString('utf8', p + 4, p + 4 + lName - 1)
       refName = this.renameRefSeq(refName)
@@ -205,10 +207,8 @@ export default class BamFile {
 
       p = p + 8 + lName
       if (p > uncba.length) {
-        console.warn(
-          `BAM header is very big.  Re-fetching ${refSeqBytes} bytes.`,
-        )
-        return this._readRefSeqs(start, refSeqBytes * 2, props)
+        console.warn(`BAM header is very big.  Re-fetching ${refSeqBytes} bytes.`)
+        return this._readRefSeqs(start, refSeqBytes * 2)
       }
     }
     return { chrToIndex, indexToChr }
@@ -218,11 +218,7 @@ export default class BamFile {
     chr: string,
     min: number,
     max: number,
-    opts: BamOpts = {
-      viewAsPairs: false,
-      pairAcrossChr: false,
-      maxInsertSize: 200000,
-    },
+    opts: BamOpts = { viewAsPairs: false, pairAcrossChr: false, maxInsertSize: 200000 },
   ) {
     let records: BAMFeature[] = []
     for await (const chunk of this.streamRecordsForRange(chr, min, max, opts)) {
@@ -235,17 +231,12 @@ export default class BamFile {
     chr: string,
     min: number,
     max: number,
-    opts: BamOpts = {
-      viewAsPairs: false,
-      pairAcrossChr: false,
-      maxInsertSize: 200000,
-    },
+    opts: BamOpts = { viewAsPairs: false, pairAcrossChr: false, maxInsertSize: 200000 },
   ) {
     // todo regularize refseq names
     opts.viewAsPairs = opts.viewAsPairs || false
     opts.pairAcrossChr = opts.pairAcrossChr || false
-    opts.maxInsertSize =
-      opts.maxInsertSize !== undefined ? opts.maxInsertSize : 200000
+    opts.maxInsertSize = opts.maxInsertSize !== undefined ? opts.maxInsertSize : 200000
     const chrId = this.chrToIndex && this.chrToIndex[chr]
     let chunks: Chunk[]
     if (!(chrId >= 0)) {
@@ -271,10 +262,11 @@ export default class BamFile {
     const totalSize = chunks
       .map((s: Chunk) => s.fetchedSize())
       .reduce((a: number, b: number) => a + b, 0)
-    if (totalSize > this.fetchSizeLimit)
+    if (totalSize > this.fetchSizeLimit) {
       throw new Error(
         `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
       )
+    }
     yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
@@ -285,43 +277,42 @@ export default class BamFile {
     max: number,
     props: BamOpts,
   ) {
-    const featPromises = chunks.map(async c => {
-      const {
-        data,
-        cpositions,
-        dpositions,
-        chunk,
-      } = await this.featureCache.get(c.toString(), c, props)
-      const records = await this.readBamFeatures(
-        data,
-        cpositions,
-        dpositions,
-        chunk,
-        props,
-      )
+    const featPromises = []
+    let done = false
 
-      const recs = []
-      for (let i = 0; i < records.length; i += 1) {
-        const feature = records[i]
-        if (feature.seq_id() === chrId) {
-          if (feature.get('start') >= max)
-            // past end of range, can stop iterating
-            break
-          else if (feature.get('end') >= min) {
-            // must be in range
-            recs.push(feature)
+    for (let i = 0; i < chunks.length; i++) {
+      const c = chunks[i]
+      const { data, cpositions, dpositions, chunk } = await this.featureCache.get(c.toString(), c, props)
+      const promise = this.readBamFeatures(data, cpositions, dpositions, chunk).then(records => {
+        const recs = []
+        for (let i = 0; i < records.length; i += 1) {
+          const feature = records[i]
+          if (feature.seq_id() === chrId) {
+            if (feature.get('start') >= max) {
+              // past end of range, can stop iterating
+              done = true
+              break
+            } else if (feature.get('end') >= min) {
+              // must be in range
+              recs.push(feature)
+            }
           }
         }
+        return recs
+      })
+      featPromises.push(promise)
+      await promise
+      if (done) {
+        break
       }
-      return recs
-    })
+    }
 
     checkAbortSignal(props.signal)
 
     for (let i = 0; i < featPromises.length; i++) {
       yield featPromises[i]
     }
-
+    checkAbortSignal(props.signal)
     if (props.viewAsPairs) {
       yield this.fetchPairs(chrId, featPromises, props)
     }
@@ -341,12 +332,16 @@ export default class BamFile {
         for (let i = 0; i < ret.length; i++) {
           const name = ret[i].name()
           const id = ret[i].id()
-          if (!readNames[name]) readNames[name] = 0
+          if (!readNames[name]) {
+            readNames[name] = 0
+          }
           readNames[name]++
           readIds[id] = 1
         }
         entries(readNames).forEach(([k, v]: [string, number]) => {
-          if (v === 1) unmatedPairs[k] = true
+          if (v === 1) {
+            unmatedPairs[k] = true
+          }
         })
       }),
     )
@@ -454,7 +449,7 @@ export default class BamFile {
       buffer = buffer.slice(0, bufsize)
     }
 
-    const { buffer: data, cpositions, dpositions } = await unzipChunk(buffer)
+    const { buffer: data, cpositions, dpositions } = await unzipChunkSlice(buffer, chunk)
     checkAbortSignal(abortSignal)
     return { data, cpositions, dpositions, chunk }
   }
@@ -466,7 +461,7 @@ export default class BamFile {
     chunk: Chunk,
     props: Props,
   ) {
-    let blockStart = chunk.minv.dataPosition
+    let blockStart = 0
     const sink = []
     let pos = 0
     let featsSinceLastTimeout = 0
@@ -475,8 +470,7 @@ export default class BamFile {
       const blockSize = ba.readInt32LE(blockStart)
       const blockEnd = blockStart + 4 + blockSize - 1
 
-      for (pos = 0; blockStart > dpositions[pos]; pos++);
-      pos = Math.min(dpositions.length - 1, pos)
+      for (pos = 0; blockStart + chunk.minv.dataPosition >= dpositions[pos]; pos++) {}
 
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
@@ -486,15 +480,20 @@ export default class BamFile {
             start: blockStart,
             end: blockEnd,
           },
-          // multipying 1 << 8 helps with hitting the 1<<53 MAX_SAFE_INT limit
-          //  for generating unique ID
-          // this is based on the assumption that the compressed block size * 1<<8
-          //  is greater than the decompressed size
-          fileOffset:
-            chunk.minv.blockPosition * (1 << 8) +
-            cpositions[pos] * (1 << 8) +
-            blockStart -
-            dpositions[pos],
+          // cpositions[pos] refers to actual file offset of a bgzip block boundaries
+          //
+          // we multiply by (1 <<8) in order to make sure each block has a "unique"
+          // address space so that data in that block could never overlap
+          //
+          // then the blockStart-dpositions is an uncompressed file offset from
+          // that bgzip block boundary, and since the cpositions are multiplied by
+          // (1 << 8) these uncompressed offsets get a unique space
+          //
+          // this has an extra chunk.minv.dataPosition added on because it blockStart
+          // starts at 0 instead of chunk.minv.dataPosition
+          //
+          // the +1 is just to avoid any possible uniqueId 0 but this does not realistically happen
+          fileOffset: cpositions[pos] * (1 << 8) + (blockStart - dpositions[pos]) + chunk.minv.dataPosition + 1,
         })
 
         sink.push(feature)

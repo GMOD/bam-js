@@ -123,9 +123,13 @@ export default class BAI extends IndexFile {
     const range = start !== undefined
     const indexData = await this.parse(props)
     const seqIdx = indexData.indices[seqId]
-    if (!seqIdx) return []
+    if (!seqIdx) {
+      return []
+    }
     const { linearIndex = [], stats } = seqIdx
-    if (!linearIndex.length) return []
+    if (!linearIndex.length) {
+      return []
+    }
     const e = end !== undefined ? roundUp(end, v) : (linearIndex.length - 1) * v
     const s = start !== undefined ? roundDown(start, v) : 0
     let depths
@@ -159,12 +163,21 @@ export default class BAI extends IndexFile {
   reg2bins(beg: number, end: number) {
     const list = [0]
     end -= 1
-    for (let k = 1 + (beg >> 26); k <= 1 + (end >> 26); k += 1) list.push(k)
-    for (let k = 9 + (beg >> 23); k <= 9 + (end >> 23); k += 1) list.push(k)
-    for (let k = 73 + (beg >> 20); k <= 73 + (end >> 20); k += 1) list.push(k)
-    for (let k = 585 + (beg >> 17); k <= 585 + (end >> 17); k += 1) list.push(k)
-    for (let k = 4681 + (beg >> 14); k <= 4681 + (end >> 14); k += 1)
+    for (let k = 1 + (beg >> 26); k <= 1 + (end >> 26); k += 1) {
       list.push(k)
+    }
+    for (let k = 9 + (beg >> 23); k <= 9 + (end >> 23); k += 1) {
+      list.push(k)
+    }
+    for (let k = 73 + (beg >> 20); k <= 73 + (end >> 20); k += 1) {
+      list.push(k)
+    }
+    for (let k = 585 + (beg >> 17); k <= 585 + (end >> 17); k += 1) {
+      list.push(k)
+    }
+    for (let k = 4681 + (beg >> 14); k <= 4681 + (end >> 14); k += 1) {
+      list.push(k)
+    }
     return list
   }
 
@@ -174,12 +187,18 @@ export default class BAI extends IndexFile {
     max: number,
     props: { signal?: AbortSignal } = {},
   ) {
-    if (min < 0) min = 0
+    if (min < 0) {
+      min = 0
+    }
 
-    const indexData = await this.parse(props)
-    if (!indexData) return []
+    const indexData = await this.parse()
+    if (!indexData) {
+      return []
+    }
     const ba = indexData.indices[refId]
-    if (!ba) return []
+    if (!ba) {
+      return []
+    }
 
     const overlappingBins = this.reg2bins(min, max) // List of bin #s that overlap min, max
     const chunks: Chunk[] = []
@@ -215,7 +234,9 @@ export default class BAI extends IndexFile {
     const mergedChunks: Chunk[] = []
     let lastChunk: Chunk | null = null
 
-    if (chunks.length === 0) return chunks
+    if (chunks.length === 0) {
+      return chunks
+    }
 
     chunks.sort(function(c0, c1) {
       const dif = c0.minv.blockPosition - c1.minv.blockPosition
