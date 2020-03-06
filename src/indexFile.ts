@@ -42,18 +42,12 @@ export default abstract class IndexFile {
     props: Props,
   ): Promise<{ start: number; end: number; score: number }[]>
 
-  public abstract async blocksForRange(
-    chrId: number,
-    start: number,
-    end: number,
-    opts: Props,
-  ): Promise<Chunk[]>
+  public abstract async blocksForRange(chrId: number, start: number, end: number, opts: Props): Promise<Chunk[]>
 
   _findFirstData(data: any, virtualOffset: VirtualOffset) {
     const currentFdl = data.firstDataLine
     if (currentFdl) {
-      data.firstDataLine =
-        currentFdl.compareTo(virtualOffset) > 0 ? virtualOffset : currentFdl
+      data.firstDataLine = currentFdl.compareTo(virtualOffset) > 0 ? virtualOffset : currentFdl
     } else {
       data.firstDataLine = virtualOffset
     }

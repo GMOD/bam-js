@@ -16,12 +16,7 @@ function roundUp(n: number, multiple: number) {
 
 export default class BAI extends IndexFile {
   parsePseudoBin(bytes: Buffer, offset: number) {
-    const lineCount = longToNumber(
-      Long.fromBytesLE(
-        Array.prototype.slice.call(bytes, offset + 16, offset + 24),
-        true,
-      ),
-    )
+    const lineCount = longToNumber(Long.fromBytesLE(Array.prototype.slice.call(bytes, offset + 16, offset + 24), true))
     return { lineCount }
   }
 
@@ -35,9 +30,7 @@ export default class BAI extends IndexFile {
   }
 
   // fetch and parse the index
-  async _parse(
-    props: { signal?: AbortSignal; statusCallback?: Function } = {},
-  ) {
+  async _parse(props: { signal?: AbortSignal; statusCallback?: Function } = {}) {
     const { signal, statusCallback } = props
     const data: { [key: string]: any } = { bai: true, maxBlockSize: 1 << 16 }
     if (statusCallback) {
@@ -117,7 +110,9 @@ export default class BAI extends IndexFile {
     { seqId, start, end }: { seqId: number; start?: number; end?: number },
     props: Props,
   ): Promise<{ start: number; end: number; score: number }[]> {
-    if (seqId === undefined) throw new Error('No seqId specified')
+    if (seqId === undefined) {
+      throw new Error('No seqId specified')
+    }
 
     const v = 16384
     const range = start !== undefined
@@ -181,12 +176,7 @@ export default class BAI extends IndexFile {
     return list
   }
 
-  async blocksForRange(
-    refId: number,
-    min: number,
-    max: number,
-    props: { signal?: AbortSignal } = {},
-  ) {
+  async blocksForRange(refId: number, min: number, max: number, props: { signal?: AbortSignal } = {}) {
     if (min < 0) {
       min = 0
     }

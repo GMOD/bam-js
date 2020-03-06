@@ -27,10 +27,7 @@ export default class CSI extends IndexFile {
     this.depth = 0
     this.minShift = 0
   }
-  async lineCount(
-    refId: number,
-    opts: { signal?: AbortSignal } = {},
-  ): Promise<number> {
+  async lineCount(refId: number, opts: { signal?: AbortSignal } = {}): Promise<number> {
     const indexData = await this.parse(opts)
     if (!indexData) {
       return -1
@@ -178,21 +175,11 @@ export default class CSI extends IndexFile {
     // const three = longToNumber(
     //   Long.fromBytesLE(bytes.slice(offset + 20, offset + 28), true),
     // )
-    const lineCount = longToNumber(
-      Long.fromBytesLE(
-        Array.prototype.slice.call(bytes, offset + 28, offset + 36),
-        true,
-      ),
-    )
+    const lineCount = longToNumber(Long.fromBytesLE(Array.prototype.slice.call(bytes, offset + 28, offset + 36), true))
     return { lineCount }
   }
 
-  async blocksForRange(
-    refId: number,
-    beg: number,
-    end: number,
-    opts: { signal?: AbortSignal } = {},
-  ): Promise<Chunk[]> {
+  async blocksForRange(refId: number, beg: number, end: number, opts: { signal?: AbortSignal } = {}): Promise<Chunk[]> {
     if (beg < 0) {
       beg = 0
     }

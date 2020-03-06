@@ -16,9 +16,7 @@ class HalfAbortController {
 describe('index formats', () => {
   it('loads volvox-sorted.bam.bai', async () => {
     const ti = new BAI({
-      filehandle: new LocalFile(
-        require.resolve('./data/volvox-sorted.bam.bai'),
-      ),
+      filehandle: new LocalFile(require.resolve('./data/volvox-sorted.bam.bai')),
     })
     const indexData = await ti.parse()
     expect(indexData.bai).toEqual(true)
@@ -39,9 +37,7 @@ describe('index human data', () => {
   it('loads 1000 genomes bai', async () => {
     const ti = new BAI({
       filehandle: new LocalFile(
-        require.resolve(
-          './data/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam.bai',
-        ),
+        require.resolve('./data/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam.bai'),
       ),
     })
     const indexData = await ti.parse()
@@ -52,9 +48,7 @@ describe('index human data', () => {
   it('can abort loading 1000 genomes bai', async () => {
     const ti = new BAI({
       filehandle: new LocalFile(
-        require.resolve(
-          './data/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam.bai',
-        ),
+        require.resolve('./data/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam.bai'),
       ),
     })
     const aborter = new HalfAbortController()
@@ -180,9 +174,7 @@ describe('1000 genomes bam check', () => {
     })
     const recordsP = ti
       .getHeader(aborter.signal)
-      .then(() =>
-        ti.getRecordsForRange('1', 0, 1000, { signal: aborter.signal }),
-      )
+      .then(() => ti.getRecordsForRange('1', 0, 1000, { signal: aborter.signal }))
     aborter.abort()
     await expect(recordsP).rejects.toThrow(/aborted/)
   })
@@ -215,11 +207,7 @@ describe('BamFile with test_deletion_2_0.snps.bwa_align.sorted.grouped.bam', () 
   it('loads some data', async () => {
     const features = await b.getRecordsForRange('Chromosome', 17000, 18000)
     expect(features.length).toEqual(124)
-    expect(
-      features.every(
-        feature => feature.get('seq_length') === feature.getReadBases().length,
-      ),
-    ).toBeTruthy()
+    expect(features.every(feature => feature.get('seq_length') === feature.getReadBases().length)).toBeTruthy()
   })
 })
 
@@ -304,9 +292,7 @@ describe('BamFile with paired ends', () => {
     })
     const features2 = await p.getRecordsForRange('20', 0, 70000)
     //    expect(features.length).toEqual(features2.length)
-    expect(features.map(f => f.get('name')).sort()).toEqual(
-      features2.map(f => f.get('name')).sort(),
-    )
+    expect(features.map(f => f.get('name')).sort()).toEqual(features2.map(f => f.get('name')).sort())
     const f = features[features.length - 1]
     const f2 = features2[features2.length - 1]
     expect(f.get('start')).toEqual(f2.get('start'))
@@ -321,11 +307,7 @@ describe('BamFile+CSI with large coordinates', () => {
     })
     await b.getHeader()
 
-    const features = await b.getRecordsForRange(
-      'ctgA',
-      1073741824,
-      1073741824 + 50000,
-    )
+    const features = await b.getRecordsForRange('ctgA', 1073741824, 1073741824 + 50000)
     expect(features.length).toEqual(9596)
   })
 })
@@ -395,9 +377,7 @@ describe('test too large of genome coordinates', () => {
 describe('large indexcov', () => {
   it('human 1000g', async () => {
     const ti = new BAI({
-      filehandle: new LocalFile(
-        require.resolve('./data/HG00096_illumina_lowcov.bam.bai'),
-      ),
+      filehandle: new LocalFile(require.resolve('./data/HG00096_illumina_lowcov.bam.bai')),
     })
     const ret = await ti.indexCov({ seqId: 10, start: 0, end: 1000000 })
     expect(ret).toMatchSnapshot()
@@ -464,9 +444,7 @@ test('long read consistent IDs', async () => {
   await ti.getHeader()
   const ret1 = await ti.getRecordsForRange('chr1', 110114999, 110117499)
   const ret2 = await ti.getRecordsForRange('chr1', 110117499, 110119999)
-  const findfeat = k =>
-    k.get('name') ===
-    'm131004_105332_42213_c100572142530000001823103304021442_s1_p0/103296'
+  const findfeat = k => k.get('name') === 'm131004_105332_42213_c100572142530000001823103304021442_s1_p0/103296'
   const [r1, r2] = [ret1, ret2].map(x => x.find(findfeat))
   expect(r1.id()).toEqual(r2.id())
 })
@@ -478,9 +456,7 @@ test('long read consistent IDs chm1 pacbio', async () => {
   await ti.getHeader()
   const ret1 = await ti.getRecordsForRange('chr1', 116473849, 116473874)
   const ret2 = await ti.getRecordsForRange('chr1', 116473874, 116473899)
-  const findfeat = k =>
-    k.get('name') ===
-    'm131009_195631_42213_c100579462550000001823095604021430_s1_p0/145814'
+  const findfeat = k => k.get('name') === 'm131009_195631_42213_c100579462550000001823095604021430_s1_p0/145814'
   const [r1, r2] = [ret1, ret2].map(x => x.find(findfeat))
   expect(r1.id()).toEqual(r2.id())
 })
