@@ -22,7 +22,7 @@ describe('bam header', () => {
     expect(ti.header).toEqual('@SQ	SN:ctgA	LN:50001\n')
     expect(ti.chrToIndex.ctgA).toEqual(0)
     expect(ti.indexToChr[0]).toEqual({ refName: 'ctgA', length: 50001 })
-    const ret = await ti.indexCov('ctgA')
+    const ret = await ti.indexCov({ seqName: 'ctgA' })
     expect(ret).toMatchSnapshot()
   })
   it('loads volvox-sorted.bam with csi index', async () => {

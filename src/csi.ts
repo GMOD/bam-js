@@ -5,7 +5,7 @@ import { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 import { longToNumber, abortBreakPoint } from './util'
 
-import IndexFile from './indexFile'
+import IndexFile, { Props } from './indexFile'
 
 const CSI1_MAGIC = 21582659 // CSI\1
 const CSI2_MAGIC = 38359875 // CSI\2
@@ -27,8 +27,8 @@ export default class CSI extends IndexFile {
     this.depth = 0
     this.minShift = 0
   }
-  async lineCount(refId: number): Promise<number> {
-    const indexData = await this.parse()
+  async lineCount(refId: number, opts: { signal?: AbortSignal } = {}): Promise<number> {
+    const indexData = await this.parse(opts)
     if (!indexData) {
       return -1
     }
@@ -94,9 +94,18 @@ export default class CSI extends IndexFile {
   }
 
   // fetch and parse the index
-  async _parse(abortSignal?: AbortSignal) {
+  async _parse(props: Props = {}) {
     const data: { [key: string]: any } = { csi: true, maxBlockSize: 1 << 16 }
-    const bytes = await unzip((await this.filehandle.readFile({ signal: abortSignal })) as Buffer)
+    const { signal, statusCallback } = props
+
+    if (statusCallback) {
+      statusCallback(1, 'Downloading file')
+    }
+    const bytes = await unzip((await this.filehandle.readFile(props)) as Buffer)
+
+    if (statusCallback) {
+      statusCallback(1, 'Parsing index')
+    }
 
     // check TBI magic numbers
     if (bytes.readUInt32LE(0) === CSI1_MAGIC) {
@@ -121,7 +130,7 @@ export default class CSI extends IndexFile {
     data.indices = new Array(data.refCount)
     let currOffset = 16 + auxLength + 4
     for (let i = 0; i < data.refCount; i += 1) {
-      await abortBreakPoint(abortSignal)
+      await abortBreakPoint(signal)
       // the binning index
       const binCount = bytes.readInt32LE(currOffset)
       currOffset += 4
@@ -153,6 +162,9 @@ export default class CSI extends IndexFile {
 
       data.indices[i] = { binIndex, stats }
     }
+    if (statusCallback) {
+      statusCallback(1, 'Done parsing index')
+    }
 
     return data
   }
@@ -167,12 +179,12 @@ export default class CSI extends IndexFile {
     return { lineCount }
   }
 
-  async blocksForRange(refId: number, beg: number, end: number, opts: Record<string, any> = {}): Promise<Chunk[]> {
+  async blocksForRange(refId: number, beg: number, end: number, opts: { signal?: AbortSignal } = {}): Promise<Chunk[]> {
     if (beg < 0) {
       beg = 0
     }
 
-    const indexData = await this.parse(opts.signal)
+    const indexData = await this.parse(opts)
     if (!indexData) {
       return []
     }

@@ -52,7 +52,7 @@ describe('index human data', () => {
       ),
     })
     const aborter = new HalfAbortController()
-    const indexDataP = ti.parse(aborter.signal)
+    const indexDataP = ti.parse({ signal: aborter.signal })
     aborter.abort()
     await expect(indexDataP).rejects.toThrow(/aborted/)
   })
@@ -66,7 +66,7 @@ describe('bam header', () => {
     expect(ti.header).toEqual('@SQ	SN:ctgA	LN:50001\n')
     expect(ti.chrToIndex.ctgA).toEqual(0)
     expect(ti.indexToChr[0]).toEqual({ refName: 'ctgA', length: 50001 })
-    const ret = await ti.indexCov('ctgA')
+    const ret = await ti.indexCov({ seqName: 'ctgA' })
     expect(ret).toMatchSnapshot()
   })
   it('loads volvox-sorted.bam with csi index', async () => {
@@ -105,7 +105,11 @@ describe('bam records', () => {
     )
   })
   it('gets features from the end of volvox-sorted.bam', async () => {
-    const records = await ti.getRecordsForRange('ctgA', 47457, 50001)
+    const records = await ti.getRecordsForRange('ctgA', 47457, 50001, {
+      statusCallback: props => {
+        console.log(props)
+      },
+    })
     expect(records.length).toEqual(473)
   })
   it('gets out of bounds from volvox-sorted.bam', async () => {
@@ -375,9 +379,9 @@ describe('large indexcov', () => {
     const ti = new BAI({
       filehandle: new LocalFile(require.resolve('./data/HG00096_illumina_lowcov.bam.bai')),
     })
-    const ret = await ti.indexCov(10, 0, 1000000)
+    const ret = await ti.indexCov({ seqId: 10, start: 0, end: 1000000 })
     expect(ret).toMatchSnapshot()
-    const empty = await ti.indexCov(0)
+    const empty = await ti.indexCov({ seqId: 0 })
     expect(empty).toEqual([])
   })
 })

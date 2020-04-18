@@ -2,7 +2,7 @@ import Long from 'long'
 import VirtualOffset, { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 
-import IndexFile from './indexFile'
+import IndexFile, { Props } from './indexFile'
 import { longToNumber, abortBreakPoint, canMergeBlocks } from './util'
 
 const BAI_MAGIC = 21578050 // BAI\1
@@ -20,8 +20,8 @@ export default class BAI extends IndexFile {
     return { lineCount }
   }
 
-  async lineCount(refId: number) {
-    const index = (await this.parse()).indices[refId]
+  async lineCount(refId: number, props: { signal?: AbortSignal } = {}) {
+    const index = (await this.parse(props)).indices[refId]
     if (!index) {
       return -1
     }
@@ -30,11 +30,18 @@ export default class BAI extends IndexFile {
   }
 
   // fetch and parse the index
-  async _parse(abortSignal?: AbortSignal) {
+  async _parse(props: { signal?: AbortSignal; statusCallback?: Function } = {}) {
+    const { signal, statusCallback } = props
     const data: { [key: string]: any } = { bai: true, maxBlockSize: 1 << 16 }
-    const bytes = (await this.filehandle.readFile({
-      signal: abortSignal,
-    })) as Buffer
+    if (statusCallback) {
+      statusCallback('Downloading index')
+    }
+
+    const bytes = (await this.filehandle.readFile(props)) as Buffer
+
+    if (statusCallback) {
+      statusCallback('Parsing index')
+    }
 
     // check BAI magic numbers
     if (bytes.readUInt32LE(0) !== BAI_MAGIC) {
@@ -49,7 +56,7 @@ export default class BAI extends IndexFile {
     data.indices = new Array(data.refCount)
     let currOffset = 8
     for (let i = 0; i < data.refCount; i += 1) {
-      await abortBreakPoint(abortSignal)
+      await abortBreakPoint(signal)
 
       // the binning index
       const binCount = bytes.readInt32LE(currOffset)
@@ -100,13 +107,16 @@ export default class BAI extends IndexFile {
   }
 
   async indexCov(
-    seqId: number,
-    start?: number,
-    end?: number,
+    { seqId, start, end }: { seqId: number; start?: number; end?: number },
+    props: Props,
   ): Promise<{ start: number; end: number; score: number }[]> {
+    if (seqId === undefined) {
+      throw new Error('No seqId specified')
+    }
+
     const v = 16384
     const range = start !== undefined
-    const indexData = await this.parse()
+    const indexData = await this.parse(props)
     const seqIdx = indexData.indices[seqId]
     if (!seqIdx) {
       return []
@@ -166,7 +176,7 @@ export default class BAI extends IndexFile {
     return list
   }
 
-  async blocksForRange(refId: number, min: number, max: number) {
+  async blocksForRange(refId: number, min: number, max: number, props: { signal?: AbortSignal } = {}) {
     if (min < 0) {
       min = 0
     }

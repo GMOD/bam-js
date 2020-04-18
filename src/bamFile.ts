@@ -9,20 +9,21 @@ import entries from 'object.entries-ponyfill'
 import LRU from 'quick-lru'
 import { LocalFile, RemoteFile, GenericFilehandle } from 'generic-filehandle'
 import BAMFeature from './record'
-import IndexFile from './indexFile'
+import IndexFile, { Props } from './indexFile'
 import { parseHeaderText } from './sam'
 import { abortBreakPoint, checkAbortSignal, timeout } from './util'
 
+// BAI\0 encoded as integer
 const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
-type G = GenericFilehandle
 
 interface BamOpts {
   viewAsPairs?: boolean
   pairAcrossChr?: boolean
   maxInsertSize?: number
   signal?: AbortSignal
+  statusCallback?: Function
 }
 
 export default class BamFile {
@@ -112,14 +113,12 @@ export default class BamFile {
     this.chunkSizeLimit = chunkSizeLimit || 300000000 // 300MB
   }
 
-  async getHeader(abortSignal?: AbortSignal) {
-    const indexData = await this.index.parse(abortSignal)
+  async getHeader(props: { signal?: AbortSignal; successCallback: Function }) {
+    const indexData = await this.index.parse(props)
     const ret = indexData.firstDataLine ? indexData.firstDataLine.blockPosition + 65535 : undefined
     let buffer
     if (ret) {
-      const res = await this.bam.read(Buffer.alloc(ret + blockLen), 0, ret + blockLen, 0, {
-        signal: abortSignal,
-      })
+      const res = await this.bam.read(Buffer.alloc(ret + blockLen), 0, ret + blockLen, 0, props)
       const { bytesRead } = res
       ;({ buffer } = res)
       if (!bytesRead) {
@@ -131,7 +130,7 @@ export default class BamFile {
         buffer = buffer.slice(0, ret)
       }
     } else {
-      buffer = (await this.bam.readFile({ signal: abortSignal })) as Buffer
+      buffer = (await this.bam.readFile(props)) as Buffer
     }
 
     const uncba = await unzip(buffer)
@@ -142,7 +141,7 @@ export default class BamFile {
     const headLen = uncba.readInt32LE(4)
 
     this.header = uncba.toString('utf8', 8, 8 + headLen)
-    const { chrToIndex, indexToChr } = await this._readRefSeqs(headLen + 8, 65535, abortSignal)
+    const { chrToIndex, indexToChr } = await this._readRefSeqs(headLen + 8, 65535, props)
     this.chrToIndex = chrToIndex
     this.indexToChr = indexToChr
 
@@ -154,17 +153,15 @@ export default class BamFile {
   async _readRefSeqs(
     start: number,
     refSeqBytes: number,
-    abortSignal?: AbortSignal,
+    props: Props = {},
   ): Promise<{
     chrToIndex: { [key: string]: number }
     indexToChr: { refName: string; length: number }[]
   }> {
     if (start > refSeqBytes) {
-      return this._readRefSeqs(start, refSeqBytes * 2)
+      return this._readRefSeqs(start, refSeqBytes * 2, props)
     }
-    const res = await this.bam.read(Buffer.alloc(refSeqBytes + blockLen), 0, refSeqBytes, 0, {
-      signal: abortSignal,
-    })
+    const res = await this.bam.read(Buffer.alloc(refSeqBytes + blockLen), 0, refSeqBytes, 0, props)
     const { bytesRead } = res
     let { buffer } = res
     if (!bytesRead) {
@@ -253,13 +250,13 @@ export default class BamFile {
     yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
-  async *_fetchChunkFeatures(chunks: Chunk[], chrId: number, min: number, max: number, opts: BamOpts) {
+  async *_fetchChunkFeatures(chunks: Chunk[], chrId: number, min: number, max: number, props: BamOpts) {
     const featPromises = []
     let done = false
 
     for (let i = 0; i < chunks.length; i++) {
       const c = chunks[i]
-      const { data, cpositions, dpositions, chunk } = await this.featureCache.get(c.toString(), c, opts.signal)
+      const { data, cpositions, dpositions, chunk } = await this.featureCache.get(c.toString(), c, props)
       const promise = this.readBamFeatures(data, cpositions, dpositions, chunk).then(records => {
         const recs = []
         for (let i = 0; i < records.length; i += 1) {
@@ -284,14 +281,14 @@ export default class BamFile {
       }
     }
 
-    checkAbortSignal(opts.signal)
+    checkAbortSignal(props.signal)
 
     for (let i = 0; i < featPromises.length; i++) {
       yield featPromises[i]
     }
-    checkAbortSignal(opts.signal)
-    if (opts.viewAsPairs) {
-      yield this.fetchPairs(chrId, featPromises, opts)
+    checkAbortSignal(props.signal)
+    if (props.viewAsPairs) {
+      yield this.fetchPairs(chrId, featPromises, props)
     }
   }
 
@@ -355,7 +352,7 @@ export default class BamFile {
     }
     const mateFeatPromises = mateChunks.map(async c => {
       const { data, cpositions, dpositions, chunk } = await this.featureCache.get(c.toString(), c, opts.signal)
-      const feats = await this.readBamFeatures(data, cpositions, dpositions, chunk)
+      const feats = await this.readBamFeatures(data, cpositions, dpositions, chunk, opts)
       const mateRecs = []
       for (let i = 0; i < feats.length; i += 1) {
         const feature = feats[i]
@@ -396,7 +393,7 @@ export default class BamFile {
     return { data, cpositions, dpositions, chunk }
   }
 
-  async readBamFeatures(ba: Buffer, cpositions: number[], dpositions: number[], chunk: Chunk) {
+  async readBamFeatures(ba: Buffer, cpositions: number[], dpositions: number[], chunk: Chunk, props: Props) {
     let blockStart = 0
     const sink = []
     let pos = 0
@@ -436,6 +433,10 @@ export default class BamFile {
         featsSinceLastTimeout++
         if (featsSinceLastTimeout > 500) {
           await timeout(1)
+          await checkAbortSignal(props.signal)
+          if (props.statusCallback) {
+            props.statusCallback(3, 500)
+          }
           featsSinceLastTimeout = 0
         }
       }
@@ -445,19 +446,19 @@ export default class BamFile {
     return sink
   }
 
-  async hasRefSeq(seqName: string) {
+  async hasRefSeq(seqName: string, props: Props = {}) {
     const refId = this.chrToIndex && this.chrToIndex[seqName]
-    return this.index.hasRefSeq(refId)
+    return this.index.hasRefSeq(refId, props)
   }
 
-  async lineCount(seqName: string) {
+  async lineCount(seqName: string, props: Props = {}) {
     const refId = this.chrToIndex && this.chrToIndex[seqName]
-    return this.index.lineCount(refId)
+    return this.index.lineCount(refId, props)
   }
 
-  async indexCov(seqName: string, start?: number, end?: number) {
-    await this.index.parse()
+  async indexCov({ seqName, start, end }: { seqName: string; start?: number; end?: number }, props: Props = {}) {
+    await this.index.parse(props)
     const seqId = this.chrToIndex && this.chrToIndex[seqName]
-    return this.index.indexCov(seqId, start, end)
+    return this.index.indexCov({ seqId, start, end }, props)
   }
 }
