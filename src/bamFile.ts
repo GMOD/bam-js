@@ -11,7 +11,7 @@ import { LocalFile, RemoteFile, GenericFilehandle } from 'generic-filehandle'
 import BAMFeature from './record'
 import IndexFile from './indexFile'
 import { parseHeaderText } from './sam'
-import { abortBreakPoint, checkAbortSignal, timeout } from './util'
+import { abortBreakPoint, checkAbortSignal } from './util'
 
 const BAM_MAGIC = 21840194
 
@@ -400,7 +400,6 @@ export default class BamFile {
     let blockStart = 0
     const sink = []
     let pos = 0
-    let featsSinceLastTimeout = 0
 
     while (blockStart + 4 < ba.length) {
       const blockSize = ba.readInt32LE(blockStart)
@@ -433,11 +432,6 @@ export default class BamFile {
         })
 
         sink.push(feature)
-        featsSinceLastTimeout++
-        if (featsSinceLastTimeout > 500) {
-          await timeout(1)
-          featsSinceLastTimeout = 0
-        }
       }
 
       blockStart = blockEnd + 1
