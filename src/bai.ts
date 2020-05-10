@@ -184,7 +184,7 @@ export default class BAI extends IndexFile {
     const chunks: Chunk[] = []
 
     // Find chunks in overlapping bins.  Leaf bins (< 4681) are not pruned
-    overlappingBins.forEach(function(bin) {
+    overlappingBins.forEach(function (bin) {
       if (ba.binIndex[bin]) {
         const binChunks = ba.binIndex[bin]
         for (let c = 0; c < binChunks.length; ++c) {
@@ -218,7 +218,7 @@ export default class BAI extends IndexFile {
       return chunks
     }
 
-    chunks.sort(function(c0, c1) {
+    chunks.sort(function (c0, c1) {
       const dif = c0.minv.blockPosition - c1.minv.blockPosition
       if (dif !== 0) {
         return dif
