@@ -63,6 +63,9 @@ export default class BamFile {
     bamUrl?: string
     baiPath?: string
     baiFilehandle?: GenericFilehandle
+    baiIndexFilehandle?: GenericFilehandle
+    baiIndexPath?: string
+    baiIndexUrl?: string
     baiUrl?: string
     csiPath?: string
     csiFilehandle?: GenericFilehandle
@@ -81,8 +84,9 @@ export default class BamFile {
     } else if (bamUrl) {
       this.bam = new RemoteFile(bamUrl)
     } else {
-      throw new Error('unable to initialize bam')
+      throw new Error('filehandle, path, or url to bam file not provided')
     }
+
     if (csiFilehandle) {
       this.index = new CSI({ filehandle: csiFilehandle })
     } else if (csiPath) {
