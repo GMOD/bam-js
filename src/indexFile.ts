@@ -50,7 +50,7 @@ export default abstract class IndexFile {
     if (!this._parseCache) {
       this._parseCache = new AbortablePromiseCache({
         cache: new QuickLRU({ maxSize: 1 }),
-        fill: (data: any, signal: AbortSignal) => this._parse(signal),
+        fill: (data: any, signal?: AbortSignal) => this._parse(signal),
       })
     }
     return this._parseCache.get('index', null, abortSignal)
