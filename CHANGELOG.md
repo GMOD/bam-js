@@ -1,3 +1,5 @@
+- Typescript only release: export BamRecord types
+
 <a name="1.0.36"></a>
 ## [1.0.36](https://github.com/GMOD/bam-js/compare/v1.0.35...v1.0.36) (2020-03-05)
 
