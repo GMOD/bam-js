@@ -448,16 +448,18 @@ export default class BamRecord {
     const p = this.bytes.start + 36 + this.get('_l_read_name') + this.get('_n_cigar_op') * 4
     const seqBytes = this.get('_seq_bytes')
     const len = this.get('seq_length')
-    const buf = Buffer.allocUnsafe(len)
+    let buf = ''
     let i = 0
     for (let j = 0; j < seqBytes; ++j) {
       const sb = byteArray[p + j]
-      buf[i++] = SEQRET_DECODER[(sb & 0xf0) >> 4]
+      buf += String.fromCharCode(SEQRET_DECODER[(sb & 0xf0) >> 4])
+      i++
       if (i < len) {
-        buf[i++] = SEQRET_DECODER[sb & 0x0f]
+        buf += String.fromCharCode(SEQRET_DECODER[sb & 0x0f])
+        i++
       }
     }
-    return buf.toString('ascii')
+    return buf
   }
 
   // adapted from igv.js
