@@ -78,7 +78,17 @@ export default class BamRecord {
     ]
 
     if (!this.isSegmentUnmapped()) {
-      tags.push('start', 'end', 'strand', 'score', 'qual', 'MQ', 'CIGAR', 'length_on_ref', 'template_length')
+      tags.push(
+        'start',
+        'end',
+        'strand',
+        'score',
+        'qual',
+        'MQ',
+        'CIGAR',
+        'length_on_ref',
+        'template_length',
+      )
     }
     if (this.isPaired()) {
       tags.push(
@@ -149,7 +159,12 @@ export default class BamRecord {
     }
 
     const { byteArray } = this.bytes
-    const p = this.bytes.start + 36 + this.get('_l_read_name') + this.get('_n_cigar_op') * 4 + this.get('_seq_bytes')
+    const p =
+      this.bytes.start +
+      36 +
+      this.get('_l_read_name') +
+      this.get('_n_cigar_op') * 4 +
+      this.get('_seq_bytes')
     const lseq = this.get('seq_length')
     const qseq = Buffer.allocUnsafe(lseq)
     for (let j = 0; j < lseq; ++j) {
@@ -175,7 +190,11 @@ export default class BamRecord {
 
   _read_name() {
     const nl = this.get('_l_read_name')
-    return this.bytes.byteArray.toString('ascii', this.bytes.start + 36, this.bytes.start + 36 + nl - 1)
+    return this.bytes.byteArray.toString(
+      'ascii',
+      this.bytes.start + 36,
+      this.bytes.start + 36 + nl - 1,
+    )
   }
 
   /**

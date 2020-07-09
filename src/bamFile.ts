@@ -244,7 +244,9 @@ export default class BamFile {
       }
     }
 
-    const totalSize = chunks.map((s: Chunk) => s.fetchedSize()).reduce((a: number, b: number) => a + b, 0)
+    const totalSize = chunks
+      .map((s: Chunk) => s.fetchedSize())
+      .reduce((a: number, b: number) => a + b, 0)
     if (totalSize > this.fetchSizeLimit) {
       throw new Error(
         `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
@@ -253,13 +255,23 @@ export default class BamFile {
     yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
-  async *_fetchChunkFeatures(chunks: Chunk[], chrId: number, min: number, max: number, opts: BamOpts) {
+  async *_fetchChunkFeatures(
+    chunks: Chunk[],
+    chrId: number,
+    min: number,
+    max: number,
+    opts: BamOpts,
+  ) {
     const featPromises = []
     let done = false
 
     for (let i = 0; i < chunks.length; i++) {
       const c = chunks[i]
-      const { data, cpositions, dpositions, chunk } = await this.featureCache.get(c.toString(), c, opts.signal)
+      const { data, cpositions, dpositions, chunk } = await this.featureCache.get(
+        c.toString(),
+        c,
+        opts.signal,
+      )
       const promise = this.readBamFeatures(data, cpositions, dpositions, chunk).then(records => {
         const recs = []
         for (let i = 0; i < records.length; i += 1) {
@@ -329,10 +341,16 @@ export default class BamFile {
             unmatedPairs[name] &&
             (opts.pairAcrossChr ||
               (ret[i]._next_refid() === chrId &&
-                Math.abs(ret[i].get('start') - ret[i]._next_pos()) < (opts.maxInsertSize || 200000)))
+                Math.abs(ret[i].get('start') - ret[i]._next_pos()) <
+                  (opts.maxInsertSize || 200000)))
           ) {
             matePromises.push(
-              this.index.blocksForRange(ret[i]._next_refid(), ret[i]._next_pos(), ret[i]._next_pos() + 1, opts),
+              this.index.blocksForRange(
+                ret[i]._next_refid(),
+                ret[i]._next_pos(),
+                ret[i]._next_pos() + 1,
+                opts,
+              ),
             )
           }
         }
@@ -345,7 +363,9 @@ export default class BamFile {
       mateChunks = mateChunks.concat(mateBlocks[i])
     }
     // filter out duplicate chunks (the blocks are lists of chunks, blocks are concatenated, then filter dup chunks)
-    mateChunks = mateChunks.sort().filter((item, pos, ary) => !pos || item.toString() !== ary[pos - 1].toString())
+    mateChunks = mateChunks
+      .sort()
+      .filter((item, pos, ary) => !pos || item.toString() !== ary[pos - 1].toString())
 
     const mateTotalSize = mateChunks.map(s => s.fetchedSize()).reduce((a, b) => a + b, 0)
     if (mateTotalSize > this.fetchSizeLimit) {
@@ -354,7 +374,11 @@ export default class BamFile {
       )
     }
     const mateFeatPromises = mateChunks.map(async c => {
-      const { data, cpositions, dpositions, chunk } = await this.featureCache.get(c.toString(), c, opts.signal)
+      const { data, cpositions, dpositions, chunk } = await this.featureCache.get(
+        c.toString(),
+        c,
+        opts.signal,
+      )
       const feats = await this.readBamFeatures(data, cpositions, dpositions, chunk)
       const mateRecs = []
       for (let i = 0; i < feats.length; i += 1) {
@@ -431,7 +455,11 @@ export default class BamFile {
           // starts at 0 instead of chunk.minv.dataPosition
           //
           // the +1 is just to avoid any possible uniqueId 0 but this does not realistically happen
-          fileOffset: cpositions[pos] * (1 << 8) + (blockStart - dpositions[pos]) + chunk.minv.dataPosition + 1,
+          fileOffset:
+            cpositions[pos] * (1 << 8) +
+            (blockStart - dpositions[pos]) +
+            chunk.minv.dataPosition +
+            1,
         })
 
         sink.push(feature)
