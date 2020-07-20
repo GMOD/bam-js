@@ -319,7 +319,7 @@ export default class BamFile {
           readNames[name]++
           readIds[id] = 1
         }
-        entries(readNames).forEach(([k, v]) => {
+        entries(readNames).forEach(([k, v]: [string, number]) => {
           if (v === 1) {
             unmatedPairs[k] = true
           }
@@ -394,15 +394,10 @@ export default class BamFile {
     return featuresRet
   }
 
-  async _readChunk({ chunk, opts }: { chunk: Chunk; opts: BaseOpts }, abortSignal?: AbortSignal) {
-    const bufsize = chunk.fetchedSize()
-    const res = await this.bam.read(
-      Buffer.alloc(bufsize),
-      0,
-      bufsize,
-      chunk.minv.blockPosition,
-      opts,
-    )
+  async _readChunk({ chunk, opts }: { chunk: unknown; opts: BaseOpts }, abortSignal?: AbortSignal) {
+    const c = chunk as Chunk
+    const bufsize = c.fetchedSize()
+    const res = await this.bam.read(Buffer.alloc(bufsize), 0, bufsize, c.minv.blockPosition, opts)
     const { bytesRead } = res
     let { buffer } = res
     checkAbortSignal(abortSignal)

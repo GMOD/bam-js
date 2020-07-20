@@ -1,7 +1,7 @@
 import { BaseOpts } from './indexFile'
 import BamFile, { BamOpts, BAM_MAGIC } from './bamFile'
 import fetch from 'cross-fetch'
-import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
+import { unzip } from '@gmod/bgzf-filehandle'
 import { parseHeaderText } from './sam'
 import parseRange from 'range-parser'
 
@@ -41,8 +41,8 @@ export default class Htsget extends BamFile {
   }
 
   //@ts-ignore
-  async _readChunk({ chunk, opts }: { chunk: Chunk; opts: BaseOpts }, signal?: AbortSignal) {
-    const { url, headers } = chunk
+  async _readChunk({ chunk, opts }: { chunk: unknown; opts: BaseOpts }, signal?: AbortSignal) {
+    const { url, headers } = chunk as { url: string; headers: Record<string, string> }
     if (url.startsWith('data:')) {
       console.log('here')
       return
@@ -53,6 +53,7 @@ export default class Htsget extends BamFile {
     const slice = await unzip(buffer, chunk)
     const range = parseRange(Number.MAX_SAFE_INTEGER, headers.range)
 
+    //@ts-ignore
     chunk.minv = { dataPosition: range[0].start }
     return { data: slice, cpositions: [0], dpositions: [0], chunk }
   }

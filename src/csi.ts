@@ -99,9 +99,10 @@ export default class CSI extends IndexFile {
   }
 
   // fetch and parse the index
-  async _parse(abortSignal?: AbortSignal) {
+  async _parse(opts: { signal?: AbortSignal }) {
     const data: { [key: string]: any } = { csi: true, maxBlockSize: 1 << 16 }
-    const bytes = await unzip((await this.filehandle.readFile({ signal: abortSignal })) as Buffer)
+    const buffer = (await this.filehandle.readFile(opts)) as Buffer
+    const bytes = await unzip(buffer)
 
     // check TBI magic numbers
     if (bytes.readUInt32LE(0) === CSI1_MAGIC) {
@@ -126,7 +127,7 @@ export default class CSI extends IndexFile {
     data.indices = new Array(data.refCount)
     let currOffset = 16 + auxLength + 4
     for (let i = 0; i < data.refCount; i += 1) {
-      await abortBreakPoint(abortSignal)
+      await abortBreakPoint(opts.signal)
       // the binning index
       const binCount = bytes.readInt32LE(currOffset)
       currOffset += 4
@@ -184,7 +185,7 @@ export default class CSI extends IndexFile {
       beg = 0
     }
 
-    const indexData = await this.parse(opts.signal)
+    const indexData = await this.parse(opts)
     if (!indexData) {
       return []
     }
