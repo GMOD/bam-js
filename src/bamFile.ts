@@ -17,7 +17,7 @@ const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
 
-interface BamOpts {
+export interface BamOpts {
   viewAsPairs?: boolean
   pairAcrossChr?: boolean
   maxInsertSize?: number
@@ -111,7 +111,7 @@ export default class BamFile {
     this.chunkSizeLimit = chunkSizeLimit || 300000000 // 300MB
   }
 
-  async getHeader(opts?: BaseOpts) {
+  async getHeader(opts: BaseOpts = {}) {
     const indexData = await this.index.parse(opts)
     const ret = indexData.firstDataLine ? indexData.firstDataLine.blockPosition + 65535 : undefined
     let buffer
@@ -319,7 +319,7 @@ export default class BamFile {
           readNames[name]++
           readIds[id] = 1
         }
-        entries(readNames).forEach(([k, v]: [string, number]) => {
+        entries(readNames).forEach(([k, v]) => {
           if (v === 1) {
             unmatedPairs[k] = true
           }
