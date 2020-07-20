@@ -3,7 +3,9 @@ import QuickLRU from 'quick-lru'
 import { GenericFilehandle } from 'generic-filehandle'
 import VirtualOffset from './virtualOffset'
 import Chunk from './chunk'
-
+export interface BaseOpts {
+  signal?: AbortSignal
+}
 export default abstract class IndexFile {
   public filehandle: GenericFilehandle
   public renameRefSeq: Function
@@ -24,7 +26,7 @@ export default abstract class IndexFile {
     this.renameRefSeq = renameRefSeq
   }
   public abstract async lineCount(refId: number): Promise<number>
-  protected abstract async _parse(signal?: AbortSignal): Promise<any>
+  protected abstract async _parse(opts?: BaseOpts): Promise<any>
   public abstract async indexCov(
     refId: number,
     start?: number,
@@ -34,7 +36,7 @@ export default abstract class IndexFile {
     chrId: number,
     start: number,
     end: number,
-    opts: Record<string, any>,
+    opts: BaseOpts,
   ): Promise<Chunk[]>
 
   _findFirstData(data: any, virtualOffset: VirtualOffset) {
@@ -46,23 +48,19 @@ export default abstract class IndexFile {
     }
   }
 
-  async parse(abortSignal?: AbortSignal) {
+  async parse(opts: BaseOpts = {}) {
     if (!this._parseCache) {
       this._parseCache = new AbortablePromiseCache({
         cache: new QuickLRU({ maxSize: 1 }),
-        fill: (data: any, signal?: AbortSignal) => this._parse(signal),
+        fill: (opts: BaseOpts, signal?: AbortSignal) => {
+          return this._parse({ ...opts, signal })
+        },
       })
     }
-    return this._parseCache.get('index', null, abortSignal)
+    return this._parseCache.get('index', opts, opts.signal)
   }
 
-  /**
-   * @param {number} seqId
-   * @param {AbortSignal} [abortSignal]
-   * @returns {Promise} true if the index contains entries for
-   * the given reference sequence ID, false otherwise
-   */
-  async hasRefSeq(seqId: number, abortSignal?: AbortSignal) {
-    return !!((await this.parse(abortSignal)).indices[seqId] || {}).binIndex
+  async hasRefSeq(seqId: number, opts: BaseOpts = {}) {
+    return !!((await this.parse(opts)).indices[seqId] || {}).binIndex
   }
 }
