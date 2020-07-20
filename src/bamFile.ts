@@ -13,7 +13,7 @@ import IndexFile, { BaseOpts } from './indexFile'
 import { parseHeaderText } from './sam'
 import { abortBreakPoint, checkAbortSignal, timeout } from './util'
 
-const BAM_MAGIC = 21840194
+export const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
 
@@ -32,8 +32,8 @@ export default class BamFile {
   private chunkSizeLimit: number
   private fetchSizeLimit: number
   private header: any
-  private chrToIndex: any
-  private indexToChr: any
+  protected chrToIndex: any
+  protected indexToChr: any
 
   /**
    * @param {object} args

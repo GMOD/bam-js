@@ -17,7 +17,7 @@ describe('htsspec dnanexus', () => {
       baseUrl: 'http://htsnexus.rnd.dnanex.us/v1/reads',
       trackId: 'BroadHiSeqX_b37/NA12878',
     })
-    await ti.getHeader()
-    console.log(ti)
+    const header = await ti.getHeader()
+    expect(header).toBeTruthy()
   })
 })
