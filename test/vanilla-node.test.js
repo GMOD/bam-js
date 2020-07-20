@@ -6,21 +6,23 @@ describe('using vanilla node filehandles', () => {
   const t = fs.promises ? it : xit
 
   t('loads volvox-sorted.bam.bai', async () => {
-    if (fs.promises) {
-      const ti = new BAI({
-        filehandle: await fs.promises.open(require.resolve('./data/volvox-sorted.bam.bai')),
-      })
-      const indexData = await ti.parse()
-      expect(indexData.bai).toEqual(true)
-      expect(await ti.lineCount(0)).toEqual(9596)
-      expect(await ti.hasRefSeq(0)).toEqual(true)
-    }
+    const filehandle = await fs.promises.open(require.resolve('./data/volvox-sorted.bam.bai'))
+    const ti = new BAI({
+      filehandle,
+    })
+    const indexData = await ti.parse()
+    expect(indexData.bai).toEqual(true)
+    expect(await ti.lineCount(0)).toEqual(9596)
+    expect(await ti.hasRefSeq(0)).toEqual(true)
+    filehandle.close()
   })
 
   t('gets features from volvox-sorted.bam', async () => {
+    const bam = await fs.promises.open(require.resolve('./data/volvox-sorted.bam'))
+    const bai = await fs.promises.open(require.resolve('./data/volvox-sorted.bam.bai'))
     const ti = new BamFile({
-      bamFilehandle: await fs.promises.open(require.resolve('./data/volvox-sorted.bam')),
-      baiFilehandle: await fs.promises.open(require.resolve('./data/volvox-sorted.bam.bai')),
+      bamFilehandle: bam,
+      baiFilehandle: bai,
     })
     await ti.getHeader()
     const records = await ti.getRecordsForRange('ctgA', 0, 1000)
@@ -36,5 +38,7 @@ describe('using vanilla node filehandles', () => {
     expect(records[0].getReadBases()).toEqual(
       'TTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG',
     )
+    bam.close()
+    bai.close()
   })
 })
