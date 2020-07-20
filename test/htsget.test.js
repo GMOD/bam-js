@@ -19,5 +19,7 @@ describe('htsspec dnanexus', () => {
     })
     const header = await ti.getHeader()
     expect(header).toBeTruthy()
+    const records = await ti.getRecordsForRange(1, 10000, 20000)
+    expect(records.length).toBe(8578)
   })
 })

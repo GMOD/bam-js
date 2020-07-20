@@ -28,10 +28,10 @@ export default class BamFile {
   private renameRefSeq: (a: string) => string
   private bam: GenericFilehandle
   private index: IndexFile
-  private featureCache: any
   private chunkSizeLimit: number
   private fetchSizeLimit: number
   private header: any
+  protected featureCache: any
   protected chrToIndex: any
   protected indexToChr: any
 
