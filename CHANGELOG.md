@@ -1,3 +1,8 @@
+<a name="1.0.39"></a>
+## [1.0.39](https://github.com/GMOD/bam-js/compare/v1.0.38...v1.0.39) (2020-07-30)
+
+
+
 - Don't use origin master in the follow-tags postpublish command for cleaner version publishing
 
 <a name="1.0.38"></a>
