@@ -26,8 +26,7 @@
     "build:js": "babel src --out-dir dist --extensions \".ts,.tsx\" --source-maps inline",
     "build": "npm run build:types && npm run build:js",
     "preversion": "npm run lint && npm test && npm run build",
-    "version": "standard-changelog && git add CHANGELOG.md",
-    "postpublish": "git push origin master --follow-tags"
+    "version": "standard-changelog && git add CHANGELOG.md"
   },
   "jest": {
     "testEnvironment": "node"
