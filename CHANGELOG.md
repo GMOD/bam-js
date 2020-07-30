@@ -1,3 +1,8 @@
+<a name="1.0.38"></a>
+## [1.0.38](https://github.com/GMOD/bam-js/compare/v1.0.37...v1.0.38) (2020-07-30)
+
+
+
 - Direct construction of qual/seq toString
 - Improve performance of the uniqueID calculation for pathological cases where there are tons of bins
 
