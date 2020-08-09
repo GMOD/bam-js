@@ -1,32 +1,41 @@
 import { BaseOpts } from './indexFile'
 import BamFile, { BamOpts, BAM_MAGIC } from './bamFile'
 import fetch from 'cross-fetch'
+import Chunk from './chunk'
 import { unzip } from '@gmod/bgzf-filehandle'
 import { parseHeaderText } from './sam'
-import parseRange from 'range-parser'
 
 interface HeaderLine {
   tag: string
   value: string
 }
 
-function concat(arr, opts) {
-  return arr.reduce(async (buf: Promise<Buffer>, chunk: any) => {
+interface HtsgetChunk {
+  url: string
+  headers?: Record<string, string>
+}
+function concat(arr: { url: string }[], opts: Record<string, any>) {
+  return arr.reduce(async (buf: Promise<Buffer>, chunk: HtsgetChunk) => {
     let dat
     const { url, headers } = chunk
     if (url.startsWith('data:')) {
-      dat = await unzip(Buffer.from(url.split(',')[1], 'base64'))
+      dat = Buffer.from(url.split(',')[1], 'base64')
     } else {
-      const res = await fetch(url, { ...opts, headers })
-      const arrayBuffer = await res.arrayBuffer()
-      const buffer = Buffer.from(arrayBuffer)
-      dat = await unzip(buffer, url)
+      //@ts-ignore
+      //eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { referer, ...rest } = headers
+      console.log({ headers })
+      const res = await fetch(url, { ...opts, headers: rest })
+      if (!res.ok) {
+        throw new Error(`Failed to fetch ${res.statusText}`)
+      }
+      dat = Buffer.from(await res.arrayBuffer())
     }
-    return Buffer.concat([await buf, dat])
-  }, Buffer.alloc(0))
+    return Buffer.concat([await buf, await unzip(dat)])
+  }, Promise.resolve(Buffer.alloc(0)))
 }
 
-export default class Htsget extends BamFile {
+export default class HtsgetFile extends BamFile {
   private baseUrl: string
 
   private trackId: string
@@ -52,10 +61,11 @@ export default class Htsget extends BamFile {
       throw new Error(result.statusText)
     }
     const data = await result.json()
-    const uncba = await concat(data.htsget.urls.slice(1))
+    const uncba = await concat(data.htsget.urls.slice(1), opts)
 
     yield* this._fetchChunkFeatures(
-      [{ buffer: uncba, chunk: { minv: { dataPosition: 0 } } }],
+      // @ts-ignore
+      [{ buffer: uncba, chunk: { minv: { dataPosition: 1 } } }],
       chrId,
       min,
       max,
@@ -64,22 +74,10 @@ export default class Htsget extends BamFile {
   }
 
   //@ts-ignore
-  async _readChunk(params: { chunk: Buffer; opts: BaseOpts }, signal?: AbortSignal) {
-    const { chunk, opts } = params
+  async _readChunk(params: { chunk: { buffer: Buffer; chunk: Chunk }; opts: BaseOpts }) {
+    const { chunk } = params
     const { buffer, chunk: c2 } = chunk
-    // if (url.startsWith('data:')) {
-    //   console.log('here')
-    //   return
-    // }
-    // const res = await fetch(url, { ...opts, signal, headers })
-    // const arrayBuffer = await res.arrayBuffer()
-    // const buffer = Buffer.from(arrayBuffer)
-    // const slice = await unzip(buffer, chunk)
-    // const range = parseRange(Number.MAX_SAFE_INTEGER, headers.range)
-
-    //@ts-ignore
-    // chunk.minv = { dataPosition: range[0].start }
-    return { data: buffer, cpositions: [0], dpositions: [0], chunk: c2 }
+    return { data: buffer, cpositions: null, dpositions: null, chunk: c2 }
   }
 
   async getHeader(opts: BaseOpts = {}) {

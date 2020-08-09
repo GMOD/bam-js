@@ -2,6 +2,7 @@ import AbortablePromiseCache from 'abortable-promise-cache'
 import BAI from './bai'
 import CSI from './csi'
 import Chunk from './chunk'
+import crc32 from 'buffer-crc32'
 
 import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
 
@@ -426,8 +427,10 @@ export default class BamFile {
       const blockEnd = blockStart + 4 + blockSize - 1
 
       // increment position to the current decompressed status
-      while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]) {}
-      pos--
+      if (dpositions) {
+        while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]) {}
+        pos--
+      }
 
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
@@ -450,11 +453,12 @@ export default class BamFile {
           // starts at 0 instead of chunk.minv.dataPosition
           //
           // the +1 is just to avoid any possible uniqueId 0 but this does not realistically happen
-          fileOffset:
-            cpositions[pos] * (1 << 8) +
-            (blockStart - dpositions[pos]) +
-            chunk.minv.dataPosition +
-            1,
+          fileOffset: cpositions
+            ? cpositions[pos] * (1 << 8) +
+              (blockStart - dpositions[pos]) +
+              chunk.minv.dataPosition +
+              1
+            : crc32.signed(ba.slice(blockStart, blockEnd)),
         })
 
         sink.push(feature)
