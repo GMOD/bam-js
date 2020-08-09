@@ -49,7 +49,8 @@
     "long": "^4.0.0",
     "object.entries-ponyfill": "^1.0.1",
     "quick-lru": "^2.0.0",
-    "range-parser": "^1.2.1"
+    "range-parser": "^1.2.1",
+    "wasm-flate": "1.0.2"
   },
   "devDependencies": {
     "@babel/cli": "^7.2.3",

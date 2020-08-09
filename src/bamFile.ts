@@ -127,7 +127,7 @@ export default class BamFile {
       buffer = (await this.bam.readFile(opts)) as Buffer
     }
 
-    const uncba = await unzip(buffer)
+    const uncba = Buffer.from(await unzip(buffer))
 
     if (uncba.readInt32LE(0) !== BAM_MAGIC) {
       throw new Error('Not a BAM file')
@@ -405,9 +405,9 @@ export default class BamFile {
       buffer = buffer.slice(0, bufsize)
     }
 
-    const { buffer: data, cpositions, dpositions } = await unzipChunkSlice(buffer, chunk)
+    const data = await unzip(buffer)
     checkAbortSignal(abortSignal)
-    return { data, cpositions, dpositions, chunk }
+    return { data: data.slice(c.minv.dataPosition), cpositions: null, dpositions: null, chunk }
   }
 
   async readBamFeatures(ba: Buffer, cpositions: number[], dpositions: number[], chunk: Chunk) {
@@ -421,10 +421,10 @@ export default class BamFile {
       const blockEnd = blockStart + 4 + blockSize - 1
 
       // increment position to the current decompressed status
-      if (dpositions) {
-        while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]) {}
-        pos--
-      }
+      // if (dpositions) {
+      //   while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]) {}
+      //   pos--
+      // }
 
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
@@ -459,11 +459,11 @@ export default class BamFile {
         })
 
         sink.push(feature)
-        featsSinceLastTimeout++
-        if (featsSinceLastTimeout > 500) {
-          await timeout(1)
-          featsSinceLastTimeout = 0
-        }
+        // featsSinceLastTimeout++
+        // if (featsSinceLastTimeout > 500) {
+        //   await timeout(1)
+        //   featsSinceLastTimeout = 0
+        // }
       }
 
       blockStart = blockEnd + 1

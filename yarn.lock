@@ -5579,6 +5579,11 @@ walker@^1.0.7, walker@~1.0.5:
   dependencies:
     makeerror "1.0.x"
 
+wasm-flate@1.0.2:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/wasm-flate/-/wasm-flate-1.0.2.tgz#7fa2d50f1fdfa2b8abf51f5abce31bb9a93b0878"
+  integrity sha512-bL5ziZMr9nIda8LPBWmzMfTZk/yuK2lPJ3Wrp3TCA5UR3NXxvA6mIIkdMG+SVmvp9kCk0VZ2tgV15OVgdvQ+pw==
+
 webidl-conversions@^4.0.2:
   version "4.0.2"
   resolved "https://registry.yarnpkg.com/webidl-conversions/-/webidl-conversions-4.0.2.tgz#a855980b1f0b6b359ba1d5d9fb39ae941faa63ad"
