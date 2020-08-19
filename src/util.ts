@@ -33,7 +33,6 @@ export function checkAbortSignal(signal?: AbortSignal) {
       throw new DOMException('aborted', 'AbortError')
     } else {
       const e = new Error('aborted')
-      // eslint-disable-next-line  @typescript-eslint/ban-ts-ignore
       //@ts-ignore
       e.code = 'ERR_ABORTED'
       throw e
@@ -57,4 +56,19 @@ export function canMergeBlocks(chunk1: Chunk, chunk2: Chunk) {
     chunk2.minv.blockPosition - chunk1.maxv.blockPosition < 65000 &&
     chunk2.maxv.blockPosition - chunk1.minv.blockPosition < 5000000
   )
+}
+
+export interface BamOpts {
+  viewAsPairs?: boolean
+  pairAcrossChr?: boolean
+  maxInsertSize?: number
+  signal?: AbortSignal
+}
+
+export interface BaseOpts {
+  signal?: AbortSignal
+}
+
+export function makeOpts(obj: AbortSignal | BaseOpts = {}): BaseOpts {
+  return 'aborted' in obj ? ({ signal: obj } as BaseOpts) : (obj as BaseOpts)
 }

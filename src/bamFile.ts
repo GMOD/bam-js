@@ -2,6 +2,7 @@ import AbortablePromiseCache from 'abortable-promise-cache'
 import BAI from './bai'
 import CSI from './csi'
 import Chunk from './chunk'
+import crc32 from 'buffer-crc32'
 
 import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
 
@@ -11,30 +12,22 @@ import { LocalFile, RemoteFile, GenericFilehandle } from 'generic-filehandle'
 import BAMFeature from './record'
 import IndexFile from './indexFile'
 import { parseHeaderText } from './sam'
-import { abortBreakPoint, checkAbortSignal, timeout } from './util'
+import { abortBreakPoint, checkAbortSignal, timeout, makeOpts, BamOpts, BaseOpts } from './util'
 
-const BAM_MAGIC = 21840194
+export const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
-type G = GenericFilehandle
-
-interface BamOpts {
-  viewAsPairs?: boolean
-  pairAcrossChr?: boolean
-  maxInsertSize?: number
-  signal?: AbortSignal
-}
 
 export default class BamFile {
   private renameRefSeq: (a: string) => string
   private bam: GenericFilehandle
   private index: IndexFile
-  private featureCache: any
   private chunkSizeLimit: number
   private fetchSizeLimit: number
   private header: any
-  private chrToIndex: any
-  private indexToChr: any
+  protected featureCache: any
+  protected chrToIndex: any
+  protected indexToChr: any
 
   /**
    * @param {object} args
@@ -112,14 +105,14 @@ export default class BamFile {
     this.chunkSizeLimit = chunkSizeLimit || 300000000 // 300MB
   }
 
-  async getHeader(abortSignal?: AbortSignal) {
-    const indexData = await this.index.parse(abortSignal)
+  async getHeader(origOpts: AbortSignal | BaseOpts = {}) {
+    const opts = makeOpts(origOpts)
+    const indexData = await this.index.parse(opts)
     const ret = indexData.firstDataLine ? indexData.firstDataLine.blockPosition + 65535 : undefined
     let buffer
     if (ret) {
-      const res = await this.bam.read(Buffer.alloc(ret + blockLen), 0, ret + blockLen, 0, {
-        signal: abortSignal,
-      })
+      const res = await this.bam.read(Buffer.alloc(ret + blockLen), 0, ret + blockLen, 0, opts)
+
       const { bytesRead } = res
       ;({ buffer } = res)
       if (!bytesRead) {
@@ -131,7 +124,7 @@ export default class BamFile {
         buffer = buffer.slice(0, ret)
       }
     } else {
-      buffer = (await this.bam.readFile({ signal: abortSignal })) as Buffer
+      buffer = (await this.bam.readFile(opts)) as Buffer
     }
 
     const uncba = await unzip(buffer)
@@ -142,7 +135,7 @@ export default class BamFile {
     const headLen = uncba.readInt32LE(4)
 
     this.header = uncba.toString('utf8', 8, 8 + headLen)
-    const { chrToIndex, indexToChr } = await this._readRefSeqs(headLen + 8, 65535, abortSignal)
+    const { chrToIndex, indexToChr } = await this._readRefSeqs(headLen + 8, 65535, opts)
     this.chrToIndex = chrToIndex
     this.indexToChr = indexToChr
 
@@ -154,17 +147,15 @@ export default class BamFile {
   async _readRefSeqs(
     start: number,
     refSeqBytes: number,
-    abortSignal?: AbortSignal,
+    opts: BaseOpts = {},
   ): Promise<{
     chrToIndex: { [key: string]: number }
     indexToChr: { refName: string; length: number }[]
   }> {
     if (start > refSeqBytes) {
-      return this._readRefSeqs(start, refSeqBytes * 2)
+      return this._readRefSeqs(start, refSeqBytes * 2, opts)
     }
-    const res = await this.bam.read(Buffer.alloc(refSeqBytes + blockLen), 0, refSeqBytes, 0, {
-      signal: abortSignal,
-    })
+    const res = await this.bam.read(Buffer.alloc(refSeqBytes + blockLen), 0, refSeqBytes, 0, opts)
     const { bytesRead } = res
     let { buffer } = res
     if (!bytesRead) {
@@ -181,7 +172,7 @@ export default class BamFile {
     const chrToIndex: { [key: string]: number } = {}
     const indexToChr: { refName: string; length: number }[] = []
     for (let i = 0; i < nRef; i += 1) {
-      await abortBreakPoint(abortSignal)
+      await abortBreakPoint(opts.signal)
       const lName = uncba.readInt32LE(p)
       let refName = uncba.toString('utf8', p + 4, p + 4 + lName - 1)
       refName = this.renameRefSeq(refName)
@@ -193,7 +184,7 @@ export default class BamFile {
       p = p + 8 + lName
       if (p > uncba.length) {
         console.warn(`BAM header is very big.  Re-fetching ${refSeqBytes} bytes.`)
-        return this._readRefSeqs(start, refSeqBytes * 2)
+        return this._readRefSeqs(start, refSeqBytes * 2, opts)
       }
     }
     return { chrToIndex, indexToChr }
@@ -269,7 +260,7 @@ export default class BamFile {
       const c = chunks[i]
       const { data, cpositions, dpositions, chunk } = await this.featureCache.get(
         c.toString(),
-        c,
+        { chunk: c, opts },
         opts.signal,
       )
       const promise = this.readBamFeatures(data, cpositions, dpositions, chunk).then(records => {
@@ -376,7 +367,7 @@ export default class BamFile {
     const mateFeatPromises = mateChunks.map(async c => {
       const { data, cpositions, dpositions, chunk } = await this.featureCache.get(
         c.toString(),
-        c,
+        { chunk: c, opts },
         opts.signal,
       )
       const feats = await this.readBamFeatures(data, cpositions, dpositions, chunk)
@@ -398,11 +389,10 @@ export default class BamFile {
     return featuresRet
   }
 
-  async _readChunk(chunk: Chunk, abortSignal?: AbortSignal) {
-    const bufsize = chunk.fetchedSize()
-    const res = await this.bam.read(Buffer.alloc(bufsize), 0, bufsize, chunk.minv.blockPosition, {
-      signal: abortSignal,
-    })
+  async _readChunk({ chunk, opts }: { chunk: unknown; opts: BaseOpts }, abortSignal?: AbortSignal) {
+    const c = chunk as Chunk
+    const bufsize = c.fetchedSize()
+    const res = await this.bam.read(Buffer.alloc(bufsize), 0, bufsize, c.minv.blockPosition, opts)
     const { bytesRead } = res
     let { buffer } = res
     checkAbortSignal(abortSignal)
@@ -431,8 +421,10 @@ export default class BamFile {
       const blockEnd = blockStart + 4 + blockSize - 1
 
       // increment position to the current decompressed status
-      while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]) {}
-      pos--
+      if (dpositions) {
+        while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]) {}
+        pos--
+      }
 
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
@@ -442,6 +434,9 @@ export default class BamFile {
             start: blockStart,
             end: blockEnd,
           },
+          // the below results in an automatically calculated file-offset based ID
+          // if the info for that is available, otherwise crc32 of the features
+          //
           // cpositions[pos] refers to actual file offset of a bgzip block boundaries
           //
           // we multiply by (1 <<8) in order to make sure each block has a "unique"
@@ -455,11 +450,12 @@ export default class BamFile {
           // starts at 0 instead of chunk.minv.dataPosition
           //
           // the +1 is just to avoid any possible uniqueId 0 but this does not realistically happen
-          fileOffset:
-            cpositions[pos] * (1 << 8) +
-            (blockStart - dpositions[pos]) +
-            chunk.minv.dataPosition +
-            1,
+          fileOffset: cpositions
+            ? cpositions[pos] * (1 << 8) +
+              (blockStart - dpositions[pos]) +
+              chunk.minv.dataPosition +
+              1
+            : crc32.signed(ba.slice(blockStart, blockEnd)),
         })
 
         sink.push(feature)

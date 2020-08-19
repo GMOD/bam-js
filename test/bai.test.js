@@ -52,7 +52,7 @@ describe('index human data', () => {
       ),
     })
     const aborter = new HalfAbortController()
-    const indexDataP = ti.parse(aborter.signal)
+    const indexDataP = ti.parse({ signal: aborter.signal })
     aborter.abort()
     await expect(indexDataP).rejects.toThrow(/aborted/)
   })
