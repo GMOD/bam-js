@@ -57,3 +57,18 @@ export function canMergeBlocks(chunk1: Chunk, chunk2: Chunk) {
     chunk2.maxv.blockPosition - chunk1.minv.blockPosition < 5000000
   )
 }
+
+export interface BamOpts {
+  viewAsPairs?: boolean
+  pairAcrossChr?: boolean
+  maxInsertSize?: number
+  signal?: AbortSignal
+}
+
+export interface BaseOpts {
+  signal?: AbortSignal
+}
+
+export function makeOpts(obj: AbortSignal | BaseOpts = {}): BaseOpts {
+  return 'aborted' in obj ? ({ signal: obj } as BaseOpts) : (obj as BaseOpts)
+}

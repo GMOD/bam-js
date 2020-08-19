@@ -10,20 +10,13 @@ import entries from 'object.entries-ponyfill'
 import LRU from 'quick-lru'
 import { LocalFile, RemoteFile, GenericFilehandle } from 'generic-filehandle'
 import BAMFeature from './record'
-import IndexFile, { BaseOpts } from './indexFile'
+import IndexFile from './indexFile'
 import { parseHeaderText } from './sam'
-import { abortBreakPoint, checkAbortSignal, timeout } from './util'
+import { abortBreakPoint, checkAbortSignal, timeout, makeOpts, BamOpts, BaseOpts } from './util'
 
 export const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
-
-export interface BamOpts {
-  viewAsPairs?: boolean
-  pairAcrossChr?: boolean
-  maxInsertSize?: number
-  signal?: AbortSignal
-}
 
 export default class BamFile {
   private renameRefSeq: (a: string) => string
@@ -112,8 +105,8 @@ export default class BamFile {
     this.chunkSizeLimit = chunkSizeLimit || 300000000 // 300MB
   }
 
-  async getHeader(opts: BaseOpts = {}) {
-    const indexData = await this.index.parse(opts)
+  async getHeader(opts: AbortSignal | BaseOpts = {}) {
+    const indexData = await this.index.parse(makeOpts(opts))
     const ret = indexData.firstDataLine ? indexData.firstDataLine.blockPosition + 65535 : undefined
     let buffer
     if (ret) {
