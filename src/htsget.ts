@@ -21,9 +21,9 @@ async function concat(arr: { url: string }[], opts: Record<string, any>) {
       if (url.startsWith('data:')) {
         return Buffer.from(url.split(',')[1], 'base64')
       } else {
+        //remove referer header, it is not even allowed to be specified
         //@ts-ignore
         //eslint-disable-next-line @typescript-eslint/no-unused-vars
-        //remove referer header, it is not even allowed to be specified
         const { referer, ...rest } = headers
         const res = await fetch(url, { ...opts, headers: { ...opts.headers, ...rest } })
         if (!res.ok) {

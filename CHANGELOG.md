@@ -1,7 +1,8 @@
+- Small bugfix for Htsget specifically
+
 <a name="1.0.41"></a>
+
 ## [1.0.41](https://github.com/GMOD/bam-js/compare/v1.0.40...v1.0.41) (2020-08-19)
-
-
 
 - Add htsget example
 - Support opts object to getHeader allowing things like auth headers to be passed right off the bat
