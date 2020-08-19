@@ -1,6 +1,6 @@
 import { BaseOpts } from './indexFile'
 import BamFile, { BamOpts, BAM_MAGIC } from './bamFile'
-import fetch from 'cross-fetch'
+import 'cross-fetch/polyfill'
 import Chunk from './chunk'
 import { unzip } from '@gmod/bgzf-filehandle'
 import { parseHeaderText } from './sam'
@@ -24,7 +24,6 @@ function concat(arr: { url: string }[], opts: Record<string, any>) {
       //@ts-ignore
       //eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { referer, ...rest } = headers
-      console.log({ headers })
       const res = await fetch(url, { ...opts, headers: rest })
       if (!res.ok) {
         throw new Error(`Failed to fetch ${res.statusText}`)
