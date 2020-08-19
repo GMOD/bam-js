@@ -1,12 +1,13 @@
+- Add htsget example
+- Support opts object to getHeader allowing things like auth headers to be passed right off the bat
+
 <a name="1.0.40"></a>
+
 ## [1.0.40](https://github.com/GMOD/bam-js/compare/v1.0.39...v1.0.40) (2020-07-30)
 
-
-
 <a name="1.0.39"></a>
+
 ## [1.0.39](https://github.com/GMOD/bam-js/compare/v1.0.38...v1.0.39) (2020-07-30)
-
-
 
 - Don't use origin master in the follow-tags postpublish command for cleaner version publishing
 
