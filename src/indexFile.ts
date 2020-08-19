@@ -3,6 +3,7 @@ import QuickLRU from 'quick-lru'
 import { GenericFilehandle } from 'generic-filehandle'
 import VirtualOffset from './virtualOffset'
 import Chunk from './chunk'
+import { BaseOpts } from './util'
 
 export default abstract class IndexFile {
   public filehandle: GenericFilehandle

@@ -105,8 +105,9 @@ export default class BamFile {
     this.chunkSizeLimit = chunkSizeLimit || 300000000 // 300MB
   }
 
-  async getHeader(opts: AbortSignal | BaseOpts = {}) {
-    const indexData = await this.index.parse(makeOpts(opts))
+  async getHeader(origOpts: AbortSignal | BaseOpts = {}) {
+    const opts = makeOpts(origOpts)
+    const indexData = await this.index.parse(opts)
     const ret = indexData.firstDataLine ? indexData.firstDataLine.blockPosition + 65535 : undefined
     let buffer
     if (ret) {
@@ -433,6 +434,9 @@ export default class BamFile {
             start: blockStart,
             end: blockEnd,
           },
+          // the below results in an automatically calculated file-offset based ID
+          // if the info for that is available, otherwise crc32 of the features
+          //
           // cpositions[pos] refers to actual file offset of a bgzip block boundaries
           //
           // we multiply by (1 <<8) in order to make sure each block has a "unique"
