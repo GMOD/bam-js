@@ -23,8 +23,9 @@ async function concat(arr: { url: string }[], opts: Record<string, any>) {
       } else {
         //@ts-ignore
         //eslint-disable-next-line @typescript-eslint/no-unused-vars
+        //remove referer header, it is not even allowed to be specified
         const { referer, ...rest } = headers
-        const res = await fetch(url, { ...opts, headers: rest })
+        const res = await fetch(url, { ...opts, headers: { ...opts.headers, ...rest } })
         if (!res.ok) {
           throw new Error(`Failed to fetch ${res.statusText}`)
         }
@@ -63,10 +64,17 @@ export default class HtsgetFile extends BamFile {
     }
     const data = await result.json()
     const uncba = await concat(data.htsget.urls.slice(1), opts)
+    const chunk = {
+      buffer: uncba,
+      chunk: { minv: { dataPosition: 0 } },
+      toString() {
+        return `${chr}_${min}_${max}`
+      },
+    }
 
     yield* this._fetchChunkFeatures(
       // @ts-ignore
-      [{ buffer: uncba, chunk: { minv: { dataPosition: 1 } } }],
+      [chunk],
       chrId,
       min,
       max,
