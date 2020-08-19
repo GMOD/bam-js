@@ -14,24 +14,26 @@ interface HtsgetChunk {
   url: string
   headers?: Record<string, string>
 }
-function concat(arr: { url: string }[], opts: Record<string, any>) {
-  return arr.reduce(async (buf: Promise<Buffer>, chunk: HtsgetChunk) => {
-    let dat
-    const { url, headers } = chunk
-    if (url.startsWith('data:')) {
-      dat = Buffer.from(url.split(',')[1], 'base64')
-    } else {
-      //@ts-ignore
-      //eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { referer, ...rest } = headers
-      const res = await fetch(url, { ...opts, headers: rest })
-      if (!res.ok) {
-        throw new Error(`Failed to fetch ${res.statusText}`)
+async function concat(arr: { url: string }[], opts: Record<string, any>) {
+  const res = await Promise.all(
+    arr.map(async (chunk: HtsgetChunk) => {
+      const { url, headers } = chunk
+      if (url.startsWith('data:')) {
+        return Buffer.from(url.split(',')[1], 'base64')
+      } else {
+        //@ts-ignore
+        //eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { referer, ...rest } = headers
+        const res = await fetch(url, { ...opts, headers: rest })
+        if (!res.ok) {
+          throw new Error(`Failed to fetch ${res.statusText}`)
+        }
+        return Buffer.from(await res.arrayBuffer())
       }
-      dat = Buffer.from(await res.arrayBuffer())
-    }
-    return Buffer.concat([await buf, await unzip(dat)])
-  }, Promise.resolve(Buffer.alloc(0)))
+    }),
+  )
+
+  return Buffer.concat(await Promise.all(res.map(elt => unzip(elt))))
 }
 
 export default class HtsgetFile extends BamFile {
