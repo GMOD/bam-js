@@ -110,7 +110,7 @@ export default class BamRecord {
 
     const seen: { [key: string]: boolean } = {}
     tags = tags.filter(t => {
-      if (t in this.data && this.data[t] === undefined) {
+      if ((t in this.data && this.data[t] === undefined) || t === 'CG' || t === 'cg') {
         return false
       }
 
