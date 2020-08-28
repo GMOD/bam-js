@@ -1,7 +1,8 @@
+- Add support for the CG tag for long CIGAR strings
+
 <a name="1.0.42"></a>
+
 ## [1.0.42](https://github.com/GMOD/bam-js/compare/v1.0.41...v1.0.42) (2020-08-19)
-
-
 
 - Small bugfix for Htsget specifically
 
