@@ -110,7 +110,7 @@ export default class BamRecord {
 
     const seen: { [key: string]: boolean } = {}
     tags = tags.filter(t => {
-      if (t in this.data && this.data[t] === undefined) {
+      if ((t in this.data && this.data[t] === undefined) || t === 'CG' || t === 'cg') {
         return false
       }
 
@@ -267,12 +267,22 @@ export default class BamRecord {
           if (Btype === 'i' || Btype === 'I') {
             const limit = byteArray.readInt32LE(p)
             p += 4
-            for (let k = 0; k < limit; k++) {
-              value += byteArray.readInt32LE(p)
-              if (k + 1 < limit) {
-                value += ','
+            if (tag === 'CG') {
+              for (let k = 0; k < limit; k++) {
+                const cigop = byteArray.readInt32LE(p)
+                const lop = cigop >> 4
+                const op = CIGAR_DECODER[cigop & 0xf]
+                value += lop + op
+                p += 4
               }
-              p += 4
+            } else {
+              for (let k = 0; k < limit; k++) {
+                value += byteArray.readInt32LE(p)
+                if (k + 1 < limit) {
+                  value += ','
+                }
+                p += 4
+              }
             }
           }
           if (Btype === 's' || Btype === 'S') {
@@ -413,25 +423,46 @@ export default class BamRecord {
     const { byteArray, start } = this.bytes
     const numCigarOps = this.get('_n_cigar_op')
     let p = start + 36 + this.get('_l_read_name')
+    const seqLen = this.get('seq_length')
     let cigar = ''
     let lref = 0
-    for (let c = 0; c < numCigarOps; ++c) {
-      const cigop = byteArray.readInt32LE(p)
-      const lop = cigop >> 4
-      const op = CIGAR_DECODER[cigop & 0xf]
-      cigar += lop + op
 
-      // soft clip, hard clip, and insertion don't count toward
-      // the length on the reference
-      if (op !== 'H' && op !== 'S' && op !== 'I') {
-        lref += lop
+    // check for CG tag by inspecting whether the CIGAR field
+    // contains a clip that consumes entire seqLen
+    let cigop = byteArray.readInt32LE(p)
+    let lop = cigop >> 4
+    let op = CIGAR_DECODER[cigop & 0xf]
+    if (op === 'S' && lop === seqLen) {
+      // if there is a CG the second CIGAR field will
+      // be a N tag the represents the length on ref
+      p += 4
+      cigop = byteArray.readInt32LE(p)
+      lop = cigop >> 4
+      op = CIGAR_DECODER[cigop & 0xf]
+      if (op !== 'N') {
+        console.warn('CG tag with no N tag')
+      }
+      this.data.length_on_ref = lop
+      return this.get('CG')
+    } else {
+      for (let c = 0; c < numCigarOps; ++c) {
+        cigop = byteArray.readInt32LE(p)
+        lop = cigop >> 4
+        op = CIGAR_DECODER[cigop & 0xf]
+        cigar += lop + op
+
+        // soft clip, hard clip, and insertion don't count toward
+        // the length on the reference
+        if (op !== 'H' && op !== 'S' && op !== 'I') {
+          lref += lop
+        }
+
+        p += 4
       }
 
-      p += 4
+      this.data.length_on_ref = lref
+      return cigar
     }
-
-    this.data.length_on_ref = lref
-    return cigar
   }
 
   _flags() {}

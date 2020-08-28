@@ -517,6 +517,15 @@ test('fix decoding error for DI tag', async () => {
   expect(ret1[1].get('DI')).toBe(4440)
 })
 
+test('get CIGAR from a CG long tag', async () => {
+  const ti1 = new BamFile({
+    bamPath: require.resolve('./data/cg.bam'),
+  })
+  await ti1.getHeader()
+  const ret1 = await ti1.getRecordsForRange('chr1', 0, 3000000)
+  expect(ret1[0].get('CIGAR').slice(0, 4)).toBe('1M1D')
+})
+
 xtest('large chunks', async () => {
   const ti = new BAI({
     filehandle: new LocalFile(require.resolve('./data/out.marked.bai')),
