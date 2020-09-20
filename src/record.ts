@@ -66,15 +66,7 @@ export default class BamRecord {
   _tags() {
     this._parseAllTags()
 
-    let tags = [
-      'seq',
-      'seq_reverse_complemented',
-      'unmapped',
-      'qc_failed',
-      'duplicate',
-      'secondary_alignment',
-      'supplementary_alignment',
-    ]
+    let tags = ['seq', 'seq_reverse_complemented']
 
     if (!this.isSegmentUnmapped()) {
       tags.push(
@@ -90,20 +82,12 @@ export default class BamRecord {
       )
     }
     if (this.isPaired()) {
-      tags.push(
-        'multi_segment_all_correctly_aligned',
-        'multi_segment_next_segment_unmapped',
-        'multi_segment_next_segment_reversed',
-        'multi_segment_first',
-        'multi_segment_last',
-        'next_segment_position',
-        'pair_orientation',
-      )
+      tags.push('next_segment_position', 'pair_orientation')
     }
     tags = tags.concat(this._tagList || [])
 
     Object.keys(this.data).forEach(k => {
-      if (k[0] !== '_' && k !== 'multi_segment_all_aligned' && k !== 'next_seq_id') {
+      if (k[0] !== '_' && k !== 'next_seq_id') {
         tags.push(k)
       }
     })
@@ -133,10 +117,6 @@ export default class BamRecord {
 
   id() {
     return this._id
-  }
-
-  multi_segment_all_aligned() {
-    return this.get('multi_segment_all_correctly_aligned')
   }
 
   // special parsers
