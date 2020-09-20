@@ -762,7 +762,6 @@ Array [
 exports[`long tag list 1`] = `
 Array [
   "seq",
-  "seq_reverse_complemented",
   "start",
   "end",
   "strand",

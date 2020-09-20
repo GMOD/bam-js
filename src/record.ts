@@ -66,7 +66,7 @@ export default class BamRecord {
   _tags() {
     this._parseAllTags()
 
-    let tags = ['seq', 'seq_reverse_complemented']
+    let tags = ['seq']
 
     if (!this.isSegmentUnmapped()) {
       tags.push(

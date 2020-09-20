@@ -101,7 +101,8 @@ Returns whether we have this refName in the sample
 
 ### Returned features
 
-The returned features from BAM are lazy features meaning that it delays processing of all the feature tags until necessary.
+The returned features from BAM are lazy features meaning that it delays
+processing of all the feature tags until necessary.
 
 You can access data feature.get('field') to get the value of a feature attribute
 
@@ -124,12 +125,7 @@ Example
 
 #### Flags
 
-    feature.get('seq_reverse_complemented')
-    feature.get('unmapped')
-    feature.get('qc_failed')
-    feature.get('duplicate')
-    feature.get('secondary_alignment')
-    feature.get('supplementary_alignment')
+    feature.get('flags') // see https://broadinstitute.github.io/picard/explain-flags.html
 
 #### Tags
 
