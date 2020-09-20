@@ -1,3 +1,8 @@
+<a name="1.1.1"></a>
+## [1.1.1](https://github.com/GMOD/bam-js/compare/v1.1.0...v1.1.1) (2020-09-20)
+
+
+
 - Remove JBrowse specific results from tags
 
 <a name="1.1.0"></a>
