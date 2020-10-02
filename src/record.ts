@@ -207,8 +207,8 @@ export default class BamRecord {
       p += 3
 
       let value
-      switch (type.toLowerCase()) {
-        case 'a':
+      switch (type) {
+        case 'A':
           value = String.fromCharCode(byteArray[p])
           p += 1
           break
@@ -216,20 +216,32 @@ export default class BamRecord {
           value = byteArray.readInt32LE(p)
           p += 4
           break
+        case 'I':
+          value = byteArray.readUInt32LE(p)
+          p += 4
+          break
         case 'c':
           value = byteArray.readInt8(p)
+          p += 1
+          break
+        case 'C':
+          value = byteArray.readUInt8(p)
           p += 1
           break
         case 's':
           value = byteArray.readInt16LE(p)
           p += 2
           break
+        case 'S':
+          value = byteArray.readUInt16LE(p)
+          p += 2
+          break
         case 'f':
           value = byteArray.readFloatLE(p)
           p += 4
           break
-        case 'z':
-        case 'h':
+        case 'Z':
+        case 'H':
           value = ''
           while (p <= blockEnd) {
             const cc = byteArray[p++]
@@ -240,13 +252,13 @@ export default class BamRecord {
             }
           }
           break
-        case 'b': {
+        case 'B': {
           value = ''
           const cc = byteArray[p++]
           const Btype = String.fromCharCode(cc)
-          if (Btype === 'i' || Btype === 'I') {
-            const limit = byteArray.readInt32LE(p)
-            p += 4
+          const limit = byteArray.readInt32LE(p)
+          p += 4
+          if (Btype === 'i') {
             if (tag === 'CG') {
               for (let k = 0; k < limit; k++) {
                 const cigop = byteArray.readInt32LE(p)
@@ -265,9 +277,26 @@ export default class BamRecord {
               }
             }
           }
-          if (Btype === 's' || Btype === 'S') {
-            const limit = byteArray.readInt32LE(p)
-            p += 4
+          if (Btype === 'I') {
+            if (tag === 'CG') {
+              for (let k = 0; k < limit; k++) {
+                const cigop = byteArray.readUInt32LE(p)
+                const lop = cigop >> 4
+                const op = CIGAR_DECODER[cigop & 0xf]
+                value += lop + op
+                p += 4
+              }
+            } else {
+              for (let k = 0; k < limit; k++) {
+                value += byteArray.readUInt32LE(p)
+                if (k + 1 < limit) {
+                  value += ','
+                }
+                p += 4
+              }
+            }
+          }
+          if (Btype === 's') {
             for (let k = 0; k < limit; k++) {
               value += byteArray.readInt16LE(p)
               if (k + 1 < limit) {
@@ -276,9 +305,16 @@ export default class BamRecord {
               p += 2
             }
           }
-          if (Btype === 'c' || Btype === 'C') {
-            const limit = byteArray.readInt32LE(p)
-            p += 4
+          if (Btype === 'S') {
+            for (let k = 0; k < limit; k++) {
+              value += byteArray.readUInt16LE(p)
+              if (k + 1 < limit) {
+                value += ','
+              }
+              p += 2
+            }
+          }
+          if (Btype === 'c') {
             for (let k = 0; k < limit; k++) {
               value += byteArray.readInt8(p)
               if (k + 1 < limit) {
@@ -287,9 +323,16 @@ export default class BamRecord {
               p += 1
             }
           }
+          if (Btype === 'C') {
+            for (let k = 0; k < limit; k++) {
+              value += byteArray.readUInt8(p)
+              if (k + 1 < limit) {
+                value += ','
+              }
+              p += 1
+            }
+          }
           if (Btype === 'f') {
-            const limit = byteArray.readInt32LE(p)
-            p += 4
             for (let k = 0; k < limit; k++) {
               value += byteArray.readFloatLE(p)
               if (k + 1 < limit) {
