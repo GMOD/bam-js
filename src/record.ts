@@ -256,9 +256,9 @@ export default class BamRecord {
           value = ''
           const cc = byteArray[p++]
           const Btype = String.fromCharCode(cc)
+          const limit = byteArray.readInt32LE(p)
+          p += 4
           if (Btype === 'i') {
-            const limit = byteArray.readUInt32LE(p)
-            p += 4
             if (tag === 'CG') {
               for (let k = 0; k < limit; k++) {
                 const cigop = byteArray.readInt32LE(p)
@@ -278,8 +278,6 @@ export default class BamRecord {
             }
           }
           if (Btype === 'I') {
-            const limit = byteArray.readUInt32LE(p)
-            p += 4
             if (tag === 'CG') {
               for (let k = 0; k < limit; k++) {
                 const cigop = byteArray.readUInt32LE(p)
@@ -299,8 +297,6 @@ export default class BamRecord {
             }
           }
           if (Btype === 's') {
-            const limit = byteArray.readUInt32LE(p)
-            p += 4
             for (let k = 0; k < limit; k++) {
               value += byteArray.readInt16LE(p)
               if (k + 1 < limit) {
@@ -310,8 +306,6 @@ export default class BamRecord {
             }
           }
           if (Btype === 'S') {
-            const limit = byteArray.readUInt32LE(p)
-            p += 4
             for (let k = 0; k < limit; k++) {
               value += byteArray.readUInt16LE(p)
               if (k + 1 < limit) {
@@ -321,8 +315,6 @@ export default class BamRecord {
             }
           }
           if (Btype === 'c') {
-            const limit = byteArray.readUInt32LE(p)
-            p += 4
             for (let k = 0; k < limit; k++) {
               value += byteArray.readInt8(p)
               if (k + 1 < limit) {
@@ -332,8 +324,6 @@ export default class BamRecord {
             }
           }
           if (Btype === 'C') {
-            const limit = byteArray.readUInt32LE(p)
-            p += 4
             for (let k = 0; k < limit; k++) {
               value += byteArray.readUInt8(p)
               if (k + 1 < limit) {
@@ -343,8 +333,6 @@ export default class BamRecord {
             }
           }
           if (Btype === 'f') {
-            const limit = byteArray.readUInt32LE(p)
-            p += 4
             for (let k = 0; k < limit; k++) {
               value += byteArray.readFloatLE(p)
               if (k + 1 < limit) {
