@@ -1,3 +1,8 @@
+<a name="1.1.2"></a>
+## [1.1.2](https://github.com/GMOD/bam-js/compare/v1.1.1...v1.1.2) (2020-10-02)
+
+
+
 - Fix signedness in BAM tags (#65)
 - Remove unused seq_reverse_complemented tag from \_tags()
 
