@@ -1,3 +1,8 @@
+<a name="1.1.3"></a>
+## [1.1.3](https://github.com/GMOD/bam-js/compare/v1.1.2...v1.1.3) (2020-10-29)
+
+
+
 - Fix usage of feature.get('seq'), was using feature.getReadBases before this
 
 <a name="1.1.2"></a>
