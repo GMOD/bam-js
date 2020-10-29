@@ -103,6 +103,9 @@ describe('bam records', () => {
     expect(records[0].getReadBases()).toEqual(
       'TTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG',
     )
+    expect(records[0].get('seq')).toEqual(
+      'TTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG',
+    )
   })
   it('gets features from the end of volvox-sorted.bam', async () => {
     const records = await ti.getRecordsForRange('ctgA', 47457, 50001)
