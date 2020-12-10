@@ -3,7 +3,7 @@ import VirtualOffset, { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 
 import IndexFile from './indexFile'
-import { longToNumber, abortBreakPoint, canMergeBlocks, BaseOpts } from './util'
+import { longToNumber, abortBreakPoint, canMergeBlocks, optimizeChunks, BaseOpts } from './util'
 
 const BAI_MAGIC = 21578050 // BAI\1
 
@@ -209,47 +209,6 @@ export default class BAI extends IndexFile {
       }
     }
 
-    return this.optimizeChunks(chunks, lowest)
-  }
-
-  optimizeChunks(chunks: Chunk[], lowest: VirtualOffset) {
-    const mergedChunks: Chunk[] = []
-    let lastChunk: Chunk | null = null
-
-    if (chunks.length === 0) {
-      return chunks
-    }
-
-    chunks.sort(function(c0, c1) {
-      const dif = c0.minv.blockPosition - c1.minv.blockPosition
-      if (dif !== 0) {
-        return dif
-      } else {
-        return c0.minv.dataPosition - c1.minv.dataPosition
-      }
-    })
-
-    chunks.forEach(chunk => {
-      if (!lowest || chunk.maxv.compareTo(lowest) > 0) {
-        if (lastChunk === null) {
-          mergedChunks.push(chunk)
-          lastChunk = chunk
-        } else {
-          if (canMergeBlocks(lastChunk, chunk)) {
-            if (chunk.maxv.compareTo(lastChunk.maxv) > 0) {
-              lastChunk.maxv = chunk.maxv
-            }
-          } else {
-            mergedChunks.push(chunk)
-            lastChunk = chunk
-          }
-        }
-      }
-      // else {
-      //   console.log(`skipping chunk ${chunk}`)
-      // }
-    })
-
-    return mergedChunks
+    return optimizeChunks(chunks, lowest)
   }
 }
