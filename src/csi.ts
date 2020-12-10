@@ -1,9 +1,8 @@
 import Long from 'long'
 import { unzip } from '@gmod/bgzf-filehandle'
-
-import { fromBytes } from './virtualOffset'
+import VirtualOffset, { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
-import { longToNumber, abortBreakPoint } from './util'
+import { longToNumber, abortBreakPoint, optimizeChunks, BaseOpts } from './util'
 
 import IndexFile from './indexFile'
 
@@ -42,8 +41,8 @@ export default class CSI extends IndexFile {
     }
     return -1
   }
+
   async indexCov() {
-    throw new Error('CSI indexes do not support indexcov')
     return []
   }
 
@@ -175,91 +174,36 @@ export default class CSI extends IndexFile {
     return { lineCount }
   }
 
-  async blocksForRange(
-    refId: number,
-    beg: number,
-    end: number,
-    opts: Record<string, any> = {},
-  ): Promise<Chunk[]> {
-    if (beg < 0) {
-      beg = 0
+  async blocksForRange(refId: number, min: number, max: number, opts: BaseOpts = {}) {
+    if (min < 0) {
+      min = 0
     }
 
     const indexData = await this.parse(opts)
     if (!indexData) {
       return []
     }
-    const indexes = indexData.indices[refId]
-    if (!indexes) {
+    const ba = indexData.indices[refId]
+    if (!ba) {
       return []
     }
 
-    const { binIndex } = indexes
+    const overlappingBins = this.reg2bins(min, max) // List of bin #s that overlap min, max
+    const chunks: Chunk[] = []
 
-    const bins = this.reg2bins(beg, end)
-
-    let l
-    let numOffsets = 0
-    for (let i = 0; i < bins.length; i += 1) {
-      if (binIndex[bins[i]]) {
-        numOffsets += binIndex[bins[i]].length
-      }
-    }
-
-    if (numOffsets === 0) {
-      return []
-    }
-
-    let off = []
-    numOffsets = 0
-    for (let i = 0; i < bins.length; i += 1) {
-      const chunks = binIndex[bins[i]]
-      if (chunks) {
-        for (let j = 0; j < chunks.length; j += 1) {
-          off[numOffsets] = new Chunk(chunks[j].minv, chunks[j].maxv, chunks[j].bin)
-          numOffsets += 1
+    // Find chunks in overlapping bins.  Leaf bins (< 4681) are not pruned
+    for (const [start, end] of overlappingBins) {
+      for (let bin = start; bin <= end; bin++) {
+        if (ba.binIndex[bin]) {
+          const binChunks = ba.binIndex[bin]
+          for (let c = 0; c < binChunks.length; ++c) {
+            chunks.push(new Chunk(binChunks[c].minv, binChunks[c].maxv, bin))
+          }
         }
       }
     }
 
-    if (!off.length) {
-      return []
-    }
-
-    off = off.sort((a, b) => a.compareTo(b))
-
-    // resolve completely contained adjacent blocks
-    l = 0
-    for (let i = 1; i < numOffsets; i += 1) {
-      if (off[l].maxv.compareTo(off[i].maxv) < 0) {
-        l += 1
-        off[l].minv = off[i].minv
-        off[l].maxv = off[i].maxv
-      }
-    }
-    numOffsets = l + 1
-
-    // resolve overlaps between adjacent blocks; this may happen due to the merge in indexing
-    for (let i = 1; i < numOffsets; i += 1) {
-      if (off[i - 1].maxv.compareTo(off[i].minv) >= 0) {
-        off[i - 1].maxv = off[i].minv
-      }
-    }
-
-    // merge adjacent blocks
-    l = 0
-    for (let i = 1; i < numOffsets; i += 1) {
-      if (off[l].maxv.blockPosition === off[i].minv.blockPosition) {
-        off[l].maxv = off[i].maxv
-      } else {
-        l += 1
-        off[l].minv = off[i].minv
-        off[l].maxv = off[i].maxv
-      }
-    }
-    numOffsets = l + 1
-
-    return off.slice(0, numOffsets)
+    return optimizeChunks(chunks, new VirtualOffset(0, 0))
   }
 
   /**
@@ -287,9 +231,7 @@ export default class CSI extends IndexFile {
           `query ${beg}-${end} is too large for current binning scheme (shift ${this.minShift}, depth ${this.depth}), try a smaller query or a coarser index binning scheme`,
         )
       }
-      for (let i = b; i <= e; i += 1) {
-        bins.push(i)
-      }
+      bins.push([b, e])
     }
     return bins
   }

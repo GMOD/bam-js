@@ -1,9 +1,9 @@
 import Long from 'long'
-import VirtualOffset, { fromBytes } from './virtualOffset'
+import { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 
 import IndexFile from './indexFile'
-import { longToNumber, abortBreakPoint, canMergeBlocks, BaseOpts } from './util'
+import { longToNumber, abortBreakPoint, optimizeChunks, BaseOpts } from './util'
 
 const BAI_MAGIC = 21578050 // BAI\1
 
@@ -148,24 +148,15 @@ export default class BAI extends IndexFile {
    * @returns {Array[number]}
    */
   reg2bins(beg: number, end: number) {
-    const list = [0]
     end -= 1
-    for (let k = 1 + (beg >> 26); k <= 1 + (end >> 26); k += 1) {
-      list.push(k)
-    }
-    for (let k = 9 + (beg >> 23); k <= 9 + (end >> 23); k += 1) {
-      list.push(k)
-    }
-    for (let k = 73 + (beg >> 20); k <= 73 + (end >> 20); k += 1) {
-      list.push(k)
-    }
-    for (let k = 585 + (beg >> 17); k <= 585 + (end >> 17); k += 1) {
-      list.push(k)
-    }
-    for (let k = 4681 + (beg >> 14); k <= 4681 + (end >> 14); k += 1) {
-      list.push(k)
-    }
-    return list
+    return [
+      [0, 0],
+      [1 + (beg >> 26), 1 + (end >> 26)],
+      [9 + (beg >> 23), 9 + (end >> 23)],
+      [73 + (beg >> 20), 73 + (end >> 20)],
+      [585 + (beg >> 17), 585 + (end >> 17)],
+      [4681 + (beg >> 14), 4681 + (end >> 14)],
+    ]
   }
 
   async blocksForRange(refId: number, min: number, max: number, opts: BaseOpts = {}) {
@@ -186,14 +177,16 @@ export default class BAI extends IndexFile {
     const chunks: Chunk[] = []
 
     // Find chunks in overlapping bins.  Leaf bins (< 4681) are not pruned
-    overlappingBins.forEach(function(bin) {
-      if (ba.binIndex[bin]) {
-        const binChunks = ba.binIndex[bin]
-        for (let c = 0; c < binChunks.length; ++c) {
-          chunks.push(new Chunk(binChunks[c].minv, binChunks[c].maxv, bin))
+    for (const [start, end] of overlappingBins) {
+      for (let bin = start; bin <= end; bin++) {
+        if (ba.binIndex[bin]) {
+          const binChunks = ba.binIndex[bin]
+          for (let c = 0; c < binChunks.length; ++c) {
+            chunks.push(new Chunk(binChunks[c].minv, binChunks[c].maxv, bin))
+          }
         }
       }
-    })
+    }
 
     // Use the linear index to find minimum file position of chunks that could contain alignments in the region
     const nintv = ba.linearIndex.length
@@ -209,47 +202,6 @@ export default class BAI extends IndexFile {
       }
     }
 
-    return this.optimizeChunks(chunks, lowest)
-  }
-
-  optimizeChunks(chunks: Chunk[], lowest: VirtualOffset) {
-    const mergedChunks: Chunk[] = []
-    let lastChunk: Chunk | null = null
-
-    if (chunks.length === 0) {
-      return chunks
-    }
-
-    chunks.sort(function(c0, c1) {
-      const dif = c0.minv.blockPosition - c1.minv.blockPosition
-      if (dif !== 0) {
-        return dif
-      } else {
-        return c0.minv.dataPosition - c1.minv.dataPosition
-      }
-    })
-
-    chunks.forEach(chunk => {
-      if (!lowest || chunk.maxv.compareTo(lowest) > 0) {
-        if (lastChunk === null) {
-          mergedChunks.push(chunk)
-          lastChunk = chunk
-        } else {
-          if (canMergeBlocks(lastChunk, chunk)) {
-            if (chunk.maxv.compareTo(lastChunk.maxv) > 0) {
-              lastChunk.maxv = chunk.maxv
-            }
-          } else {
-            mergedChunks.push(chunk)
-            lastChunk = chunk
-          }
-        }
-      }
-      // else {
-      //   console.log(`skipping chunk ${chunk}`)
-      // }
-    })
-
-    return mergedChunks
+    return optimizeChunks(chunks, lowest)
   }
 }

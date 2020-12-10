@@ -1,4 +1,5 @@
 import Chunk from './chunk'
+import VirtualOffset from './virtualOffset'
 
 export function timeout(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -71,4 +72,42 @@ export interface BaseOpts {
 
 export function makeOpts(obj: AbortSignal | BaseOpts = {}): BaseOpts {
   return 'aborted' in obj ? ({ signal: obj } as BaseOpts) : (obj as BaseOpts)
+}
+
+export function optimizeChunks(chunks: Chunk[], lowest: VirtualOffset) {
+  const mergedChunks: Chunk[] = []
+  let lastChunk: Chunk | null = null
+
+  if (chunks.length === 0) {
+    return chunks
+  }
+
+  chunks.sort(function(c0, c1) {
+    const dif = c0.minv.blockPosition - c1.minv.blockPosition
+    if (dif !== 0) {
+      return dif
+    } else {
+      return c0.minv.dataPosition - c1.minv.dataPosition
+    }
+  })
+
+  chunks.forEach(chunk => {
+    if (!lowest || chunk.maxv.compareTo(lowest) > 0) {
+      if (lastChunk === null) {
+        mergedChunks.push(chunk)
+        lastChunk = chunk
+      } else {
+        if (canMergeBlocks(lastChunk, chunk)) {
+          if (chunk.maxv.compareTo(lastChunk.maxv) > 0) {
+            lastChunk.maxv = chunk.maxv
+          }
+        } else {
+          mergedChunks.push(chunk)
+          lastChunk = chunk
+        }
+      }
+    }
+  })
+
+  return mergedChunks
 }
