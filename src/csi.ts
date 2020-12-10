@@ -192,14 +192,16 @@ export default class CSI extends IndexFile {
     const chunks: Chunk[] = []
 
     // Find chunks in overlapping bins.  Leaf bins (< 4681) are not pruned
-    overlappingBins.forEach(function(bin) {
-      if (ba.binIndex[bin]) {
-        const binChunks = ba.binIndex[bin]
-        for (let c = 0; c < binChunks.length; ++c) {
-          chunks.push(new Chunk(binChunks[c].minv, binChunks[c].maxv, bin))
+    for (const [start, end] of overlappingBins) {
+      for (let bin = start; bin <= end; bin++) {
+        if (ba.binIndex[bin]) {
+          const binChunks = ba.binIndex[bin]
+          for (let c = 0; c < binChunks.length; ++c) {
+            chunks.push(new Chunk(binChunks[c].minv, binChunks[c].maxv, bin))
+          }
         }
       }
-    })
+    }
 
     return optimizeChunks(chunks, new VirtualOffset(0, 0))
   }
@@ -229,9 +231,7 @@ export default class CSI extends IndexFile {
           `query ${beg}-${end} is too large for current binning scheme (shift ${this.minShift}, depth ${this.depth}), try a smaller query or a coarser index binning scheme`,
         )
       }
-      for (let i = b; i <= e; i += 1) {
-        bins.push(i)
-      }
+      bins.push([b, e])
     }
     return bins
   }
