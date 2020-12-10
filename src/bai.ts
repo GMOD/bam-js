@@ -1,9 +1,9 @@
 import Long from 'long'
-import VirtualOffset, { fromBytes } from './virtualOffset'
+import { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 
 import IndexFile from './indexFile'
-import { longToNumber, abortBreakPoint, canMergeBlocks, optimizeChunks, BaseOpts } from './util'
+import { longToNumber, abortBreakPoint, optimizeChunks, BaseOpts } from './util'
 
 const BAI_MAGIC = 21578050 // BAI\1
 
