@@ -1,7 +1,10 @@
+- Add canMergeBlocks to CSI code (already existed in BAI)
+- Add suggestion from @jrobinso about reg2bins modification for memory saving (Thanks!)
+- Add getHeaderText() method for getting a text string of the header data
+
 <a name="1.1.3"></a>
+
 ## [1.1.3](https://github.com/GMOD/bam-js/compare/v1.1.2...v1.1.3) (2020-10-29)
-
-
 
 - Fix usage of feature.get('seq'), was using feature.getReadBases before this
 
