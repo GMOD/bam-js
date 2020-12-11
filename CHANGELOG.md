@@ -1,3 +1,8 @@
+<a name="1.1.5"></a>
+## [1.1.5](https://github.com/GMOD/bam-js/compare/v1.1.4...v1.1.5) (2020-12-11)
+
+
+
 - Allow getHeaderText to accept cancellation options
 
 <a name="1.1.4"></a>
