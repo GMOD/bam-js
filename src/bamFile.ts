@@ -142,7 +142,7 @@ export default class BamFile {
     return parseHeaderText(this.header)
   }
 
-  async getRawHeader() {
+  async getHeaderText() {
     await this.getHeader()
     return this.header
   }
