@@ -529,6 +529,14 @@ test('get CIGAR from a CG long tag', async () => {
   expect(ret1[0].get('CIGAR').slice(0, 4)).toBe('1M1D')
 })
 
+test('get header text', async () => {
+  const ti1 = new BamFile({
+    bamPath: require.resolve('./data/cg.bam'),
+  })
+  const ret = await ti1.getHeaderText()
+  expect(ret.startsWith('@HD')).toBeTruthy()
+})
+
 xtest('large chunks', async () => {
   const ti = new BAI({
     filehandle: new LocalFile(require.resolve('./data/out.marked.bai')),

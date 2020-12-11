@@ -142,6 +142,11 @@ export default class BamFile {
     return parseHeaderText(this.header)
   }
 
+  async getHeaderText() {
+    await this.getHeader()
+    return this.header
+  }
+
   // the full length of the refseq block is not given in advance so this grabs a chunk and
   // doubles it if all refseqs haven't been processed
   async _readRefSeqs(
