@@ -1,7 +1,8 @@
+- Allow getHeaderText to accept cancellation options
+
 <a name="1.1.4"></a>
+
 ## [1.1.4](https://github.com/GMOD/bam-js/compare/v1.1.3...v1.1.4) (2020-12-11)
-
-
 
 - Add canMergeBlocks to CSI code (already existed in BAI)
 - Add suggestion from @jrobinso about reg2bins modification for memory saving (Thanks!)
