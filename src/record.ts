@@ -133,6 +133,10 @@ export default class BamRecord {
   }
 
   qual() {
+    return this.qualRaw()?.join(' ')
+  }
+
+  qualRaw() {
     if (this.isSegmentUnmapped()) {
       return undefined
     }
@@ -149,7 +153,7 @@ export default class BamRecord {
     for (let j = 0; j < lseq; ++j) {
       qseq[j] = byteArray[p + j]
     }
-    return qseq.join(' ')
+    return qseq
   }
 
   strand() {
@@ -369,10 +373,11 @@ export default class BamRecord {
   _parseCigar(cigar: string) {
     return (
       //@ts-ignore
-      cigar
-        .match(/\d+\D/g)
+      cigar.match(/\d+\D/g).map((op: string) => [
         //@ts-ignore
-        .map((op: string) => [op.match(/\D/)[0].toUpperCase(), parseInt(op, 10)])
+        op.match(/\D/)[0].toUpperCase(),
+        parseInt(op, 10),
+      ])
     )
   }
 
