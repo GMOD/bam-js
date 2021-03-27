@@ -1194,10 +1194,10 @@ abab@^2.0.0:
   resolved "https://registry.yarnpkg.com/abab/-/abab-2.0.3.tgz#623e2075e02eb2d3f2475e49f99c91846467907a"
   integrity sha512-tsFzPpcttalNjFBCFMqsKYQcWxxen1pgJR56by//QwvJc4/OUS3kPOOttx2tSIfjsylB0pYu7f5D3K1RCxUnUg==
 
-abortable-promise-cache@^1.2.0:
-  version "1.2.0"
-  resolved "https://registry.yarnpkg.com/abortable-promise-cache/-/abortable-promise-cache-1.2.0.tgz#cb48bc5583654383d23709cf5d0d5b56d9c8146f"
-  integrity sha512-kKEN5e569SV8br+gqDwMmpglTD2wlJshaBfU97o+5OCYMUQx5terlWTfgb0a0uq1bvt82SrwzEium5gR0n2frQ==
+abortable-promise-cache@^1.4.0:
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/abortable-promise-cache/-/abortable-promise-cache-1.4.0.tgz#9c71ce279222790c66b0028255edcf5b6ebb8c3b"
+  integrity sha512-21Gtkd2bR9fgiomUMixnUwkV8m0kUsd3VZUXjz2scNLKv8j0esrmQgDj6LfDwUhlJidJvoFsmYX0snVFvE3j6g==
   dependencies:
     "@babel/runtime" "^7.0.0"
     abortcontroller-polyfill "^1.2.9"
