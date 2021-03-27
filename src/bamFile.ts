@@ -28,6 +28,7 @@ export default class BamFile {
   protected featureCache: any
   protected chrToIndex: any
   protected indexToChr: any
+  private yieldThreadTime: number
 
   /**
    * @param {object} args
@@ -49,6 +50,7 @@ export default class BamFile {
     cacheSize,
     fetchSizeLimit,
     chunkSizeLimit,
+    yieldThreadTime = 0,
     renameRefSeqs = n => n,
   }: {
     bamFilehandle?: GenericFilehandle
@@ -64,6 +66,7 @@ export default class BamFile {
     fetchSizeLimit?: number
     chunkSizeLimit?: number
     renameRefSeqs?: (a: string) => string
+    yieldThreadTime: number
   }) {
     this.renameRefSeq = renameRefSeqs
 
@@ -103,6 +106,7 @@ export default class BamFile {
     })
     this.fetchSizeLimit = fetchSizeLimit || 500000000 // 500MB
     this.chunkSizeLimit = chunkSizeLimit || 300000000 // 300MB
+    this.yieldThreadTime = yieldThreadTime
   }
 
   async getHeader(origOpts: AbortSignal | BaseOpts = {}) {
@@ -419,7 +423,7 @@ export default class BamFile {
     let blockStart = 0
     const sink = []
     let pos = 0
-    let featsSinceLastTimeout = 0
+    let last = +Date.now()
 
     while (blockStart + 4 < ba.length) {
       const blockSize = ba.readInt32LE(blockStart)
@@ -464,10 +468,9 @@ export default class BamFile {
         })
 
         sink.push(feature)
-        featsSinceLastTimeout++
-        if (featsSinceLastTimeout > 500) {
+        if (this.yieldThreadTime && +Date.now() - last > this.yieldThreadTime) {
           await timeout(1)
-          featsSinceLastTimeout = 0
+          last = +Date.now()
         }
       }
 
