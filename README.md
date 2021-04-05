@@ -53,6 +53,7 @@ The BAM class constructor accepts arguments
 - fetchSizeLimit - total size of the number of chunks being fetched at once. default: ~50MB
 - chunkSizeLimit - size limit on any individual chunk. default: ~10MB
 - cacheSize - limit on number of chunks to cache. default: 50
+- yieldThreadTime - the interval at which the code yields to the main thread when it is parsing a lot of data. default: 100ms. Set to 0 to performed no yielding
 
 Note: filehandles implement the Filehandle interface from https://www.npmjs.com/package/generic-filehandle. This module offers the path and url arguments as convenience methods for supplying the LocalFile and RemoteFile
 

@@ -50,7 +50,7 @@ export default class BamFile {
     cacheSize,
     fetchSizeLimit,
     chunkSizeLimit,
-    yieldThreadTime = 0,
+    yieldThreadTime = 100,
     renameRefSeqs = n => n,
   }: {
     bamFilehandle?: GenericFilehandle
