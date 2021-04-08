@@ -1,7 +1,8 @@
+- New param yieldThreadTime to constructor to yield while processing
+
 <a name="1.1.6"></a>
+
 ## [1.1.6](https://github.com/GMOD/bam-js/compare/v1.1.5...v1.1.6) (2021-02-20)
-
-
 
 - Add qualRaw function on records for getting raw qual score array instead of string
 
