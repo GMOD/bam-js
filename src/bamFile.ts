@@ -66,7 +66,7 @@ export default class BamFile {
     fetchSizeLimit?: number
     chunkSizeLimit?: number
     renameRefSeqs?: (a: string) => string
-    yieldThreadTime: number
+    yieldThreadTime?: number
   }) {
     this.renameRefSeq = renameRefSeqs
 
