@@ -1,3 +1,8 @@
+<a name="1.1.8"></a>
+## [1.1.8](https://github.com/GMOD/bam-js/compare/v1.1.7...v1.1.8) (2021-05-21)
+
+
+
 - Fix types for yieldThreadTime
 
 <a name="1.1.7"></a>
