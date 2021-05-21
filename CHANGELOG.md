@@ -1,3 +1,8 @@
+<a name="1.1.7"></a>
+## [1.1.7](https://github.com/GMOD/bam-js/compare/v1.1.6...v1.1.7) (2021-05-21)
+
+
+
 - New param yieldThreadTime to constructor to yield while processing
 
 <a name="1.1.6"></a>
