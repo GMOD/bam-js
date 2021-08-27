@@ -47,7 +47,7 @@ const records = await ti.getRecordsForRange(1, 2000000, 2000001)
 
 The BAM class constructor accepts arguments
 
-- bamPath/baiUrl/bamFilehandle - a string file path to a local file or a class object with a read method
+- bamPath/bamUrl/bamFilehandle - a string file path to a local file or a class object with a read method
 - csiPath/csiUrl/csiFilehandle - a CSI index for the BAM file, required for long chromosomes greater than 2^29 in length
 - baiPath/baiUrl/baiFilehandle - a BAI index for the BAM file
 - fetchSizeLimit - total size of the number of chunks being fetched at once. default: ~50MB
