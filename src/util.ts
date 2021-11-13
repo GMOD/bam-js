@@ -82,7 +82,7 @@ export function optimizeChunks(chunks: Chunk[], lowest: VirtualOffset) {
     return chunks
   }
 
-  chunks.sort(function(c0, c1) {
+  chunks.sort((c0, c1) => {
     const dif = c0.minv.blockPosition - c1.minv.blockPosition
     if (dif !== 0) {
       return dif

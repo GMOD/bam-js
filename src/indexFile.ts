@@ -7,7 +7,7 @@ import { BaseOpts } from './util'
 
 export default abstract class IndexFile {
   public filehandle: GenericFilehandle
-  public renameRefSeq: Function
+  public renameRefSeq: (s: string) => string
   private _parseCache: any
 
   /**
@@ -24,14 +24,14 @@ export default abstract class IndexFile {
     this.filehandle = filehandle
     this.renameRefSeq = renameRefSeq
   }
-  public abstract async lineCount(refId: number): Promise<number>
-  protected abstract async _parse(opts?: BaseOpts): Promise<any>
-  public abstract async indexCov(
+  public abstract lineCount(refId: number): Promise<number>
+  protected abstract _parse(opts?: BaseOpts): Promise<any>
+  public abstract indexCov(
     refId: number,
     start?: number,
     end?: number,
   ): Promise<{ start: number; end: number; score: number }[]>
-  public abstract async blocksForRange(
+  public abstract blocksForRange(
     chrId: number,
     start: number,
     end: number,
