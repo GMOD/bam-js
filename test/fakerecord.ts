@@ -1,3 +1,4 @@
+// @ts-nocheck
 import Record from '../src/record'
 
 class FakeRecord extends Record {

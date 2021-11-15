@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { BAI, BamFile } from '../src'
 
 import { LocalFile } from 'generic-filehandle'

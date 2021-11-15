@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { csi, BamFile } from '../src'
 
 import { LocalFile } from 'generic-filehandle'

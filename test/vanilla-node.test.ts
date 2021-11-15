@@ -1,3 +1,4 @@
+// @ts-nocheck
 import fs from 'fs'
 import { BAI, BamFile } from '../src'
 

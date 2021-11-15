@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { HtsgetFile } from '../src'
 import * as fs from 'fs'
 
@@ -29,7 +30,7 @@ xdescribe('htsspec htsget wtsi', () => {
   it('wtsi', async () => {
     const ti = new HtsgetFile({
       baseUrl: 'https://htsget.wtsi-npg-test.co.uk:9090/npg_ranger',
-      baseUrl: 'ga4gh/sample/NA12878',
+      trackId: 'ga4gh/sample/NA12878',
     })
     await ti.getHeader()
     console.log(ti)
