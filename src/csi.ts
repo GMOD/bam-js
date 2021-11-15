@@ -55,9 +55,9 @@ export default class CSI extends IndexFile {
     data.formatFlags = bytes.readInt32LE(offset)
     data.coordinateType =
       data.formatFlags & 0x10000 ? 'zero-based-half-open' : '1-based-closed'
-    data.format = (
-      { 0: 'generic', 1: 'SAM', 2: 'VCF' } as { [key: number]: string }
-    )[data.formatFlags & 0xf]
+    data.format = ({ 0: 'generic', 1: 'SAM', 2: 'VCF' } as {
+      [key: number]: string
+    })[data.formatFlags & 0xf]
     if (!data.format) {
       throw new Error(`invalid Tabix preset format flags ${data.formatFlags}`)
     }

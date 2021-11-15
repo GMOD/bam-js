@@ -2,13 +2,11 @@ import fs from 'fs'
 import { BAI, BamFile } from '../src'
 
 describe('using vanilla node filehandles', () => {
-  // skip these tests if we don't have fs.promises
-  const t = fs.promises ? it : xit
-
-  t('loads volvox-sorted.bam.bai', async () => {
+  it('loads volvox-sorted.bam.bai', async () => {
     const filehandle = await fs.promises.open(
       require.resolve('./data/volvox-sorted.bam.bai'),
     )
+
     const ti = new BAI({
       filehandle,
     })
@@ -19,7 +17,7 @@ describe('using vanilla node filehandles', () => {
     filehandle.close()
   })
 
-  t('gets features from volvox-sorted.bam', async () => {
+  it('gets features from volvox-sorted.bam', async () => {
     const bam = await fs.promises.open(
       require.resolve('./data/volvox-sorted.bam'),
     )

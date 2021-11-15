@@ -15,6 +15,8 @@ function roundUp(n: number, multiple: number) {
 }
 
 export default class BAI extends IndexFile {
+  baiP?: Promise<Buffer>
+
   parsePseudoBin(bytes: Buffer, offset: number) {
     const lineCount = longToNumber(
       Long.fromBytesLE(
@@ -35,10 +37,20 @@ export default class BAI extends IndexFile {
     return ret.lineCount === undefined ? -1 : ret.lineCount
   }
 
+  fetchBai(opts: BaseOpts = {}) {
+    if (!this.baiP) {
+      this.baiP = this.filehandle.readFile(opts).catch(e => {
+        this.baiP = undefined
+        throw e
+      }) as Promise<Buffer>
+    }
+    return this.baiP
+  }
+
   // fetch and parse the index
   async _parse(opts: BaseOpts = {}) {
     const data: { [key: string]: any } = { bai: true, maxBlockSize: 1 << 16 }
-    const bytes = (await this.filehandle.readFile(opts)) as Buffer
+    const bytes = await this.fetchBai()
 
     // check BAI magic numbers
     if (bytes.readUInt32LE(0) !== BAI_MAGIC) {

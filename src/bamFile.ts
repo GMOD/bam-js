@@ -455,19 +455,16 @@ export default class BamFile {
     let { buffer } = res
     checkAbortSignal(signal)
 
-    console.log(bytesRead)
-
     if (bytesRead < bufsize) {
       buffer = buffer.slice(0, bytesRead)
     } else {
       buffer = buffer.slice(0, bufsize)
     }
 
-    const {
-      buffer: data,
-      cpositions,
-      dpositions,
-    } = await unzipChunkSlice(buffer, chunk)
+    const { buffer: data, cpositions, dpositions } = await unzipChunkSlice(
+      buffer,
+      chunk,
+    )
     checkAbortSignal(signal)
     return { data, cpositions, dpositions, chunk }
   }
