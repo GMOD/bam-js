@@ -5,6 +5,7 @@
   "license": "MIT",
   "repository": "GMOD/bam-js",
   "main": "dist/index.js",
+  "module": "esm/index.js",
   "author": {
     "name": "Colin Diesh",
     "email": "colin.diesh@gmail.com",
@@ -14,23 +15,19 @@
     "node": ">=6"
   },
   "files": [
-    "dist"
+    "dist",
+    "esm"
   ],
   "scripts": {
     "test": "jest",
     "coverage": "npm test -- --coverage",
     "lint": "eslint --report-unused-disable-directives --max-warnings 0 --ext .js,.ts src test",
     "clean": "rimraf dist",
+    "build": "tsc --target es2018 --outDir esm && tsc --target es5 --outDir dist",
     "prebuild": "npm run clean && npm run lint",
-    "build:types": "tsc --emitDeclarationOnly",
-    "build:js": "babel src --out-dir dist --extensions \".ts,.tsx\" --source-maps inline",
-    "build": "npm run build:types && npm run build:js",
     "preversion": "npm run lint && npm test && npm run build",
     "version": "standard-changelog && git add CHANGELOG.md",
     "postversion": "git push --follow-tags"
-  },
-  "jest": {
-    "testEnvironment": "node"
   },
   "keywords": [
     "bionode",
@@ -39,7 +36,6 @@
     "genomics"
   ],
   "dependencies": {
-    "@babel/runtime-corejs3": "^7.5.5",
     "@gmod/bgzf-filehandle": "^1.3.3",
     "abortable-promise-cache": "^1.4.0",
     "buffer-crc32": "^0.2.13",
@@ -52,30 +48,25 @@
     "range-parser": "^1.2.1"
   },
   "devDependencies": {
-    "@babel/cli": "^7.2.3",
-    "@babel/core": "^7.3.3",
-    "@babel/plugin-proposal-class-properties": "^7.5.5",
-    "@babel/plugin-transform-runtime": "^7.2.0",
-    "@babel/preset-env": "^7.3.1",
-    "@babel/preset-typescript": "^7.6.0",
     "@types/buffer-crc32": "^0.2.0",
+    "@types/jest": "^27.0.2",
     "@types/long": "^4.0.0",
     "@types/node": "^12.7.8",
     "@types/range-parser": "^1.2.3",
-    "@typescript-eslint/eslint-plugin": "^2.3.1",
-    "@typescript-eslint/parser": "^2.3.1",
-    "babel-jest": "^24.1.0",
-    "eslint": "^5.12.0",
-    "eslint-config-airbnb-base": "^13.1.0",
-    "eslint-config-prettier": "^4.1.0",
-    "eslint-plugin-import": "^2.10.0",
-    "eslint-plugin-jest": "^22.17.0",
-    "eslint-plugin-prettier": "^3.0.1",
-    "jest": "^24.3.1",
-    "prettier": "^1.11.1",
-    "rimraf": "^2.6.2",
+    "@typescript-eslint/eslint-plugin": "^5.3.1",
+    "@typescript-eslint/parser": "^5.3.1",
+    "eslint": "^8.2.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-import": "^2.25.3",
+    "eslint-plugin-jest": "^25.2.4",
+    "eslint-plugin-prettier": "^4.0.0",
+    "jest": "^27.3.1",
+    "prettier": "^2.4.1",
+    "rimraf": "^3.0.2",
     "standard-changelog": "^1.0.0",
-    "typescript": "^3.6.3"
+    "ts-jest": "^27.0.7",
+    "typescript": "^4.4.4"
   },
   "publishConfig": {
     "access": "public"

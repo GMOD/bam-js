@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/camelcase */
 import Record from '../src/record'
 
 class FakeRecord extends Record {
@@ -7,29 +6,7 @@ class FakeRecord extends Record {
       bytes: {
         start: 0,
         byteArray: Buffer.from([
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ]),
       },
     })
