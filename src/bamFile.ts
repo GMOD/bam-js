@@ -461,10 +461,11 @@ export default class BamFile {
       buffer = buffer.slice(0, bufsize)
     }
 
-    const { buffer: data, cpositions, dpositions } = await unzipChunkSlice(
-      buffer,
-      chunk,
-    )
+    const {
+      buffer: data,
+      cpositions,
+      dpositions,
+    } = await unzipChunkSlice(buffer, chunk)
     checkAbortSignal(signal)
     return { data, cpositions, dpositions, chunk }
   }
