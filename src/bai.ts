@@ -17,7 +17,10 @@ function roundUp(n: number, multiple: number) {
 export default class BAI extends IndexFile {
   parsePseudoBin(bytes: Buffer, offset: number) {
     const lineCount = longToNumber(
-      Long.fromBytesLE(Array.prototype.slice.call(bytes, offset + 16, offset + 24), true),
+      Long.fromBytesLE(
+        Array.prototype.slice.call(bytes, offset + 16, offset + 24),
+        true,
+      ),
     )
     return { lineCount }
   }
@@ -159,7 +162,12 @@ export default class BAI extends IndexFile {
     ]
   }
 
-  async blocksForRange(refId: number, min: number, max: number, opts: BaseOpts = {}) {
+  async blocksForRange(
+    refId: number,
+    min: number,
+    max: number,
+    opts: BaseOpts = {},
+  ) {
     if (min < 0) {
       min = 0
     }

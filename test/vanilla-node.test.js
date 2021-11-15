@@ -6,7 +6,9 @@ describe('using vanilla node filehandles', () => {
   const t = fs.promises ? it : xit
 
   t('loads volvox-sorted.bam.bai', async () => {
-    const filehandle = await fs.promises.open(require.resolve('./data/volvox-sorted.bam.bai'))
+    const filehandle = await fs.promises.open(
+      require.resolve('./data/volvox-sorted.bam.bai'),
+    )
     const ti = new BAI({
       filehandle,
     })
@@ -18,8 +20,12 @@ describe('using vanilla node filehandles', () => {
   })
 
   t('gets features from volvox-sorted.bam', async () => {
-    const bam = await fs.promises.open(require.resolve('./data/volvox-sorted.bam'))
-    const bai = await fs.promises.open(require.resolve('./data/volvox-sorted.bam.bai'))
+    const bam = await fs.promises.open(
+      require.resolve('./data/volvox-sorted.bam'),
+    )
+    const bai = await fs.promises.open(
+      require.resolve('./data/volvox-sorted.bam.bai'),
+    )
     const ti = new BamFile({
       bamFilehandle: bam,
       baiFilehandle: bai,

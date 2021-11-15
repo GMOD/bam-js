@@ -25,7 +25,10 @@ async function concat(arr: { url: string }[], opts: Record<string, any>) {
         //@ts-ignore
         //eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { referer, ...rest } = headers
-        const res = await fetch(url, { ...opts, headers: { ...opts.headers, ...rest } })
+        const res = await fetch(url, {
+          ...opts,
+          headers: { ...opts.headers, ...rest },
+        })
         if (!res.ok) {
           throw new Error(`Failed to fetch ${res.statusText}`)
         }
@@ -53,7 +56,11 @@ export default class HtsgetFile extends BamFile {
     chr: string,
     min: number,
     max: number,
-    opts: BamOpts = { viewAsPairs: false, pairAcrossChr: false, maxInsertSize: 200000 },
+    opts: BamOpts = {
+      viewAsPairs: false,
+      pairAcrossChr: false,
+      maxInsertSize: 200000,
+    },
   ) {
     const base = `${this.baseUrl}/${this.trackId}`
     const url = `${base}?referenceName=${chr}&start=${min}&end=${max}&format=BAM`
@@ -83,7 +90,10 @@ export default class HtsgetFile extends BamFile {
   }
 
   //@ts-ignore
-  async _readChunk(params: { chunk: { buffer: Buffer; chunk: Chunk }; opts: BaseOpts }) {
+  async _readChunk(params: {
+    chunk: { buffer: Buffer; chunk: Chunk }
+    opts: BaseOpts
+  }) {
     const { chunk } = params
     const { buffer, chunk: c2 } = chunk
     return { data: buffer, cpositions: null, dpositions: null, chunk: c2 }

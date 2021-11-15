@@ -6,7 +6,10 @@ export function timeout(ms: number) {
 }
 
 export function longToNumber(long: Long) {
-  if (long.greaterThan(Number.MAX_SAFE_INTEGER) || long.lessThan(Number.MIN_SAFE_INTEGER)) {
+  if (
+    long.greaterThan(Number.MAX_SAFE_INTEGER) ||
+    long.lessThan(Number.MIN_SAFE_INTEGER)
+  ) {
     throw new Error('integer overflow')
   }
   return long.toNumber()

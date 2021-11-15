@@ -11,7 +11,9 @@ export default class VirtualOffset {
   }
 
   compareTo(b: VirtualOffset) {
-    return this.blockPosition - b.blockPosition || this.dataPosition - b.dataPosition
+    return (
+      this.blockPosition - b.blockPosition || this.dataPosition - b.dataPosition
+    )
   }
 
   static min(...args: VirtualOffset[]) {

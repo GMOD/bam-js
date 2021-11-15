@@ -2,7 +2,10 @@ import { HtsgetFile } from '../src'
 import * as fs from 'fs'
 
 const fetch = req => {
-  const result = fs.readFileSync(require.resolve('./htsget/result.json'), 'utf8')
+  const result = fs.readFileSync(
+    require.resolve('./htsget/result.json'),
+    'utf8',
+  )
   if (
     req ===
     'http://htsnexus.rnd.dnanex.us/v1/reads/BroadHiSeqX_b37/NA12878?referenceName=na&class=header'
