@@ -22,7 +22,7 @@
     "test": "jest",
     "coverage": "npm test -- --coverage",
     "lint": "eslint --report-unused-disable-directives --max-warnings 0 --ext .js,.ts src test",
-    "clean": "rimraf dist",
+    "clean": "rimraf dist esm",
     "build": "tsc --target es2018 --outDir esm && tsc --target es5 --outDir dist",
     "prebuild": "npm run clean && npm run lint",
     "preversion": "npm run lint && npm test && npm run build",
