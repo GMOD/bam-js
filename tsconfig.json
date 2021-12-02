@@ -1,14 +1,15 @@
 {
+  "include": ["src"],
   "compilerOptions": {
-    "target": "es5",
-    "module": "commonjs",
-    "lib": ["es2017", "es7", "es6", "dom"],
-    "declaration": true,
     "outDir": "dist",
+    "types": ["node", "jest"],
+    "lib": ["dom", "esnext"],
+    "declaration": true,
+    "moduleResolution": "node",
+    "sourceMap": true,
     "strict": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true
-  },
-  "include": [
-    "src"
-  ]
+  }
 }
