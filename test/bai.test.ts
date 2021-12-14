@@ -1,4 +1,5 @@
-import { csi, BamFile } from '../src'
+// @ts-nocheck
+import { BAI, BamFile } from '../src'
 
 import { LocalFile } from 'generic-filehandle'
 import FakeRecord from './fakerecord'
@@ -13,6 +14,56 @@ class HalfAbortController {
   }
 }
 
+describe('index formats', () => {
+  it('loads volvox-sorted.bam.bai', async () => {
+    const ti = new BAI({
+      filehandle: new LocalFile(
+        require.resolve('./data/volvox-sorted.bam.bai'),
+      ),
+    })
+    const indexData = await ti.parse()
+    expect(indexData.bai).toEqual(true)
+    expect(await ti.lineCount(0)).toEqual(9596)
+    expect(await ti.hasRefSeq(0)).toEqual(true)
+  })
+  it('loads volvox-sorted.bam in similar test', async () => {
+    const ti = new BamFile({
+      bamPath: require.resolve('./data/volvox-sorted.bam'),
+    })
+    await ti.getHeader()
+    expect(await ti.lineCount('ctgA')).toEqual(9596)
+    expect(await ti.hasRefSeq('ctgA')).toEqual(true)
+  })
+})
+
+describe('index human data', () => {
+  it('loads 1000 genomes bai', async () => {
+    const ti = new BAI({
+      filehandle: new LocalFile(
+        require.resolve(
+          './data/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam.bai',
+        ),
+      ),
+    })
+    const indexData = await ti.parse()
+    expect(indexData.bai).toEqual(true)
+    expect(await ti.hasRefSeq(19)).toEqual(true)
+    expect(await ti.lineCount(19)).toEqual(2924253)
+  })
+  it('can abort loading 1000 genomes bai', async () => {
+    const ti = new BAI({
+      filehandle: new LocalFile(
+        require.resolve(
+          './data/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam.bai',
+        ),
+      ),
+    })
+    const aborter = new HalfAbortController()
+    const indexDataP = ti.parse({ signal: aborter.signal })
+    aborter.abort()
+    await expect(indexDataP).rejects.toThrow(/aborted/)
+  })
+})
 describe('bam header', () => {
   it('loads volvox-sorted.bam', async () => {
     const ti = new BamFile({
@@ -57,6 +108,9 @@ describe('bam records', () => {
     )
     expect(records[0].get('md')).toEqual('100')
     expect(records[0].getReadBases()).toEqual(
+      'TTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG',
+    )
+    expect(records[0].get('seq')).toEqual(
       'TTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG',
     )
   })
@@ -107,15 +161,15 @@ describe('1000 genomes bam check', () => {
       csiPath: require.resolve('./data/1000genomes_hg00096_chr1.bam.csi'),
     })
     await ti.getHeader()
-    const records = await ti.getRecordsForRange('1', 0, 1000)
+    const records = await ti.getRecordsForRange('1', 0, 10000)
     expect(records).toMatchSnapshot()
   })
-  it('deep check 1000 genomes csi', async () => {
+  it('deep check 1000 genomes bai', async () => {
     const ti = new BamFile({
       bamPath: require.resolve('./data/1000genomes_hg00096_chr1.bam'),
     })
     await ti.getHeader()
-    const records = await ti.getRecordsForRange('1', 0, 1000)
+    const records = await ti.getRecordsForRange('1', 0, 10000)
     expect(records).toMatchSnapshot()
   })
   it('start to deep check 1000 genomes but abort instead', async () => {
@@ -126,7 +180,9 @@ describe('1000 genomes bam check', () => {
     })
     const recordsP = ti
       .getHeader(aborter.signal)
-      .then(() => ti.getRecordsForRange('1', 0, 1000, { signal: aborter.signal }))
+      .then(() =>
+        ti.getRecordsForRange('1', 0, 1000, { signal: aborter.signal }),
+      )
     aborter.abort()
     await expect(recordsP).rejects.toThrow(/aborted/)
   })
@@ -160,7 +216,9 @@ describe('BamFile with test_deletion_2_0.snps.bwa_align.sorted.grouped.bam', () 
     const features = await b.getRecordsForRange('Chromosome', 17000, 18000)
     expect(features.length).toEqual(124)
     expect(
-      features.every(feature => feature.get('seq_length') === feature.getReadBases().length),
+      features.every(
+        feature => feature.get('seq_length') === feature.getReadBases().length,
+      ),
     ).toBeTruthy()
   })
 })
@@ -263,7 +321,11 @@ describe('BamFile+CSI with large coordinates', () => {
     })
     await b.getHeader()
 
-    const features = await b.getRecordsForRange('ctgA', 1073741824, 1073741824 + 50000)
+    const features = await b.getRecordsForRange(
+      'ctgA',
+      1073741824,
+      1073741824 + 50000,
+    )
     expect(features.length).toEqual(9596)
   })
 })
@@ -301,7 +363,7 @@ describe('SAM spec pdf', () => {
   it('check parse', async () => {
     const b = new BamFile({
       bamPath: 'test/data/samspec.bam',
-      csiPath: 'test/data/samspec.bam.csi',
+      baiPath: 'test/data/samspec.bam.bai',
     })
     await b.getHeader()
 
@@ -318,6 +380,29 @@ describe('trigger range out of bounds file', () => {
     })
     await b.getHeader()
     expect(Object.keys(b.chrToIndex).length).toEqual(28751)
+  })
+})
+
+describe('test too large of genome coordinates', () => {
+  it('test error', async () => {
+    const ti = new BAI({
+      filehandle: new LocalFile(require.resolve('./data/needs_csi.bai')),
+    })
+    await expect(ti.parse()).rejects.toThrow(/too many bins/)
+  })
+})
+
+describe('large indexcov', () => {
+  it('human 1000g', async () => {
+    const ti = new BAI({
+      filehandle: new LocalFile(
+        require.resolve('./data/HG00096_illumina_lowcov.bam.bai'),
+      ),
+    })
+    const ret = await ti.indexCov(10, 0, 1000000)
+    expect(ret).toMatchSnapshot()
+    const empty = await ti.indexCov(0)
+    expect(empty).toEqual([])
   })
 })
 
@@ -380,7 +465,8 @@ test('long read consistent IDs', async () => {
   const ret1 = await ti.getRecordsForRange('chr1', 110114999, 110117499)
   const ret2 = await ti.getRecordsForRange('chr1', 110117499, 110119999)
   const findfeat = k =>
-    k.get('name') === 'm131004_105332_42213_c100572142530000001823103304021442_s1_p0/103296'
+    k.get('name') ===
+    'm131004_105332_42213_c100572142530000001823103304021442_s1_p0/103296'
   const [r1, r2] = [ret1, ret2].map(x => x.find(findfeat))
   expect(r1.id()).toEqual(r2.id())
 })
@@ -393,18 +479,104 @@ test('long read consistent IDs chm1 pacbio', async () => {
   const ret1 = await ti.getRecordsForRange('chr1', 116473849, 116473874)
   const ret2 = await ti.getRecordsForRange('chr1', 116473874, 116473899)
   const findfeat = k =>
-    k.get('name') === 'm131009_195631_42213_c100579462550000001823095604021430_s1_p0/145814'
+    k.get('name') ===
+    'm131009_195631_42213_c100579462550000001823095604021430_s1_p0/145814'
   const [r1, r2] = [ret1, ret2].map(x => x.find(findfeat))
   expect(r1.id()).toEqual(r2.id())
 })
 
+test('long read consistent IDs hg002 nanopore', async () => {
+  const ti = new BamFile({
+    bamPath: require.resolve('./data/out.bam'),
+  })
+  await ti.getHeader()
+  const ret1 = await ti.getRecordsForRange('1', 200000, 700000)
+  const ret2 = await ti.getRecordsForRange('1', 700000, 900000)
+  const findfeat = k => k.get('name') === '901e456a-b7cf-4624-bd27-e2981a6c7ca5'
+  const [r1, r2] = [ret1, ret2].map(x => x.find(findfeat))
+  expect(r1.id()).toEqual(r2.id())
+})
+
+test('long read consistent IDs hg002 nanopore 2', async () => {
+  const ti = new BamFile({
+    bamPath: require.resolve('./data/out.bam'),
+  })
+  await ti.getHeader()
+  const ret3 = await ti.getRecordsForRange('1', 200000, 560000)
+  const ret4 = await ti.getRecordsForRange('1', 500000, 700000)
+  const findfeat2 = k =>
+    k.get('name') === '7c318bae-cae9-4cf9-8efc-c761304aa0da'
+  const [r3, r4] = [ret3, ret4].map(x => x.find(findfeat2))
+  expect(r3.id()).toEqual(r4.id())
+})
+
+test('long tag list', async () => {
+  const ti = new BamFile({
+    bamPath: require.resolve('./data/long_tag_list.bam'),
+  })
+  await ti.getHeader()
+  const ret1 = await ti.getRecordsForRange('1', 0, 3000000)
+  expect(ret1[0]._tags().includes('SB')).toBeTruthy()
+  expect(ret1[0]._tags()).toMatchSnapshot()
+})
+
+test('fix decoding error for ID tag', async () => {
+  const ti1 = new BamFile({
+    bamPath: require.resolve('./data/long_tag_list.bam'),
+  })
+
+  await ti1.getHeader()
+  const ret1 = await ti1.getRecordsForRange('1', 0, 3000000)
+  expect(ret1[0].get('ID')).toBe(78190)
+  expect(ret1[1].get('ID')).toBe(4440)
+})
+test('fix decoding error for DI tag', async () => {
+  const ti1 = new BamFile({
+    bamPath: require.resolve('./data/long_tag_list2.bam'),
+  })
+  await ti1.getHeader()
+  const ret1 = await ti1.getRecordsForRange('1', 0, 3000000)
+  expect(ret1[0].get('DI')).toBe(78190)
+  expect(ret1[1].get('DI')).toBe(4440)
+})
+
+test('get CIGAR from a CG long tag', async () => {
+  const ti1 = new BamFile({
+    bamPath: require.resolve('./data/cg.bam'),
+  })
+  await ti1.getHeader()
+  const ret1 = await ti1.getRecordsForRange('chr1', 0, 3000000)
+  expect(ret1[0].get('CIGAR').slice(0, 4)).toBe('1M1D')
+})
+
+test('get header text', async () => {
+  const ti1 = new BamFile({
+    bamPath: require.resolve('./data/cg.bam'),
+  })
+  const ret = await ti1.getHeaderText()
+  expect(ret.startsWith('@HD')).toBeTruthy()
+})
+
 xtest('large chunks', async () => {
-  const ti = new csi({
-    filehandle: new LocalFile(require.resolve('./data/out.marked.csi')),
+  const ti = new BAI({
+    filehandle: new LocalFile(require.resolve('./data/out.marked.bai')),
   })
 
   await ti.parse()
   //index 16 == 'chr17'
   const ret1 = await ti.blocksForRange(16, 41248671, 41337570)
   expect(ret1[0].fetchedSize()).toBe(10893136)
+})
+
+// use on any large long read data file
+xtest('speed test', async () => {
+  const ti = new BamFile({
+    bamPath: require.resolve('./data/pacbio_speed_test.bam'),
+  })
+
+  await ti.getHeader()
+  console.time('timerecord')
+  const rec = await ti.getRecordsForRange('8', 0, 2000000)
+  rec.map(r => r.getReadBases())
+  console.timeEnd('timerecord')
 })

@@ -1,8 +1,12 @@
+// @ts-nocheck
 import { HtsgetFile } from '../src'
 import * as fs from 'fs'
 
 const fetch = req => {
-  const result = fs.readFileSync(require.resolve('./htsget/result.json'), 'utf8')
+  const result = fs.readFileSync(
+    require.resolve('./htsget/result.json'),
+    'utf8',
+  )
   if (
     req ===
     'http://htsnexus.rnd.dnanex.us/v1/reads/BroadHiSeqX_b37/NA12878?referenceName=na&class=header'
@@ -26,7 +30,7 @@ xdescribe('htsspec htsget wtsi', () => {
   it('wtsi', async () => {
     const ti = new HtsgetFile({
       baseUrl: 'https://htsget.wtsi-npg-test.co.uk:9090/npg_ranger',
-      baseUrl: 'ga4gh/sample/NA12878',
+      trackId: 'ga4gh/sample/NA12878',
     })
     await ti.getHeader()
     console.log(ti)

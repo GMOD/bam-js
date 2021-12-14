@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/camelcase */
 /* eslint-disable @typescript-eslint/no-empty-function */
 import Constants from './constants'
 
@@ -46,7 +45,10 @@ export default class BamRecord {
   }
 
   end() {
-    return this.get('start') + (this.get('length_on_ref') || this.get('seq_length') || undefined)
+    return (
+      this.get('start') +
+      (this.get('length_on_ref') || this.get('seq_length') || undefined)
+    )
   }
 
   seq_id() {
@@ -94,7 +96,11 @@ export default class BamRecord {
 
     const seen: { [key: string]: boolean } = {}
     tags = tags.filter(t => {
-      if ((t in this.data && this.data[t] === undefined) || t === 'CG' || t === 'cg') {
+      if (
+        (t in this.data && this.data[t] === undefined) ||
+        t === 'CG' ||
+        t === 'cg'
+      ) {
         return false
       }
 
@@ -373,7 +379,10 @@ export default class BamRecord {
   _parseCigar(cigar: string) {
     return (
       //@ts-ignore
-      cigar.match(/\d+\D/g).map((op: string) => [op.match(/\D/)[0].toUpperCase(), parseInt(op, 10)])
+      cigar
+        .match(/\d+\D/g)
+        //@ts-ignore
+        .map(op => [op.match(/\D/)[0].toUpperCase(), parseInt(op, 10)])
     )
   }
 
@@ -518,7 +527,11 @@ export default class BamRecord {
 
   seq() {
     const { byteArray } = this.bytes
-    const p = this.bytes.start + 36 + this.get('_l_read_name') + this.get('_n_cigar_op') * 4
+    const p =
+      this.bytes.start +
+      36 +
+      this.get('_l_read_name') +
+      this.get('_n_cigar_op') * 4
     const seqBytes = this.get('_seq_bytes')
     const len = this.get('seq_length')
     let buf = ''
@@ -537,7 +550,11 @@ export default class BamRecord {
 
   // adapted from igv.js
   getPairOrientation() {
-    if (!this.isSegmentUnmapped() && !this.isMateUnmapped() && this._refID === this._next_refid()) {
+    if (
+      !this.isSegmentUnmapped() &&
+      !this.isMateUnmapped() &&
+      this._refID === this._next_refid()
+    ) {
       const s1 = this.isReverseComplemented() ? 'R' : 'F'
       const s2 = this.isMateReverseComplemented() ? 'R' : 'F'
       let o1 = ' '

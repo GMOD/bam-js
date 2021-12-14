@@ -6,7 +6,10 @@ export function timeout(ms: number) {
 }
 
 export function longToNumber(long: Long) {
-  if (long.greaterThan(Number.MAX_SAFE_INTEGER) || long.lessThan(Number.MIN_SAFE_INTEGER)) {
+  if (
+    long.greaterThan(Number.MAX_SAFE_INTEGER) ||
+    long.lessThan(Number.MIN_SAFE_INTEGER)
+  ) {
     throw new Error('integer overflow')
   }
   return long.toNumber()
@@ -82,7 +85,7 @@ export function optimizeChunks(chunks: Chunk[], lowest: VirtualOffset) {
     return chunks
   }
 
-  chunks.sort(function(c0, c1) {
+  chunks.sort((c0, c1) => {
     const dif = c0.minv.blockPosition - c1.minv.blockPosition
     if (dif !== 0) {
       return dif
