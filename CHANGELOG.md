@@ -1,5 +1,5 @@
 - Add ESM module export in package.json (smaller bundle size for consumers)
-- Change BAI readFile result
+- Cache BAI readFile result for compatibility with node.js native filehandles (which otherwise fail if re-reading the filehandle twice)
 
 <a name="1.1.8"></a>
 ## [1.1.8](https://github.com/GMOD/bam-js/compare/v1.1.7...v1.1.8) (2021-05-21)
