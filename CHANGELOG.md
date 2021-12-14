@@ -1,3 +1,8 @@
+<a name="1.1.9"></a>
+## [1.1.9](https://github.com/GMOD/bam-js/compare/v1.1.8...v1.1.9) (2021-12-14)
+
+
+
 - Add ESM module export in package.json (smaller bundle size for consumers)
 - Cache BAI readFile result for compatibility with node.js native filehandles (which otherwise fail if re-reading the filehandle twice)
 
