@@ -237,17 +237,9 @@ export default class BamFile {
     chr: string,
     min: number,
     max: number,
-    opts: BamOpts = {
-      viewAsPairs: false,
-      pairAcrossChr: false,
-      maxInsertSize: 200000,
-    },
+    opts: BamOpts = {},
   ) {
-    // todo regularize refseq names
-    opts.viewAsPairs = opts.viewAsPairs || false
-    opts.pairAcrossChr = opts.pairAcrossChr || false
-    opts.maxInsertSize =
-      opts.maxInsertSize !== undefined ? opts.maxInsertSize : 200000
+    const { signal } = opts
     const chrId = this.chrToIndex && this.chrToIndex[chr]
     let chunks: Chunk[]
     if (!(chrId >= 0)) {
@@ -261,7 +253,7 @@ export default class BamFile {
     }
 
     for (let i = 0; i < chunks.length; i += 1) {
-      await abortBreakPoint(opts.signal)
+      await abortBreakPoint(signal)
       const size = chunks[i].fetchedSize()
       if (size > this.chunkSizeLimit) {
         throw new Error(
@@ -288,6 +280,7 @@ export default class BamFile {
     max: number,
     opts: BamOpts,
   ) {
+    const { viewAsPairs = false } = opts
     const featPromises = []
     let done = false
 
@@ -331,7 +324,7 @@ export default class BamFile {
       yield featPromises[i]
     }
     checkAbortSignal(opts.signal)
-    if (opts.viewAsPairs) {
+    if (viewAsPairs) {
       yield this.fetchPairs(chrId, featPromises, opts)
     }
   }
@@ -341,6 +334,7 @@ export default class BamFile {
     featPromises: Promise<BAMFeature[]>[],
     opts: BamOpts,
   ) {
+    const { pairAcrossChr = false, maxInsertSize = 200000 } = opts
     const unmatedPairs: { [key: string]: boolean } = {}
     const readIds: { [key: string]: number } = {}
     await Promise.all(
@@ -372,10 +366,10 @@ export default class BamFile {
           const name = ret[i].name()
           if (
             unmatedPairs[name] &&
-            (opts.pairAcrossChr ||
+            (pairAcrossChr ||
               (ret[i]._next_refid() === chrId &&
                 Math.abs(ret[i].get('start') - ret[i]._next_pos()) <
-                  (opts.maxInsertSize || 200000)))
+                  maxInsertSize))
           ) {
             matePromises.push(
               this.index.blocksForRange(
@@ -395,7 +389,8 @@ export default class BamFile {
     for (let i = 0; i < mateBlocks.length; i++) {
       mateChunks = mateChunks.concat(mateBlocks[i])
     }
-    // filter out duplicate chunks (the blocks are lists of chunks, blocks are concatenated, then filter dup chunks)
+    // filter out duplicate chunks (the blocks are lists of chunks, blocks are
+    // concatenated, then filter dup chunks)
     mateChunks = mateChunks
       .sort()
       .filter(
