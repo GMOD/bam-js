@@ -10,12 +10,13 @@ const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
 export default class BamRecord {
   private data: any
   private bytes: any
-  private flags: any
   private _id: number
-  private _refID: number
   private _tagOffset: number | undefined = undefined
   private _tagList: string[] = []
   private _allTagsParsed = false
+
+  public flags: any
+  public _refID: number
   constructor(args: any) {
     this.data = {}
     this.bytes = {
