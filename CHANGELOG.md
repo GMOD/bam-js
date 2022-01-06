@@ -1,3 +1,5 @@
+- Make _refID and flags public fields
+
 <a name="1.1.9"></a>
 ## [1.1.9](https://github.com/GMOD/bam-js/compare/v1.1.8...v1.1.9) (2021-12-14)
 
