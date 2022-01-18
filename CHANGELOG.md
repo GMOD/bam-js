@@ -1,3 +1,8 @@
+<a name="1.1.10"></a>
+## [1.1.10](https://github.com/GMOD/bam-js/compare/v1.1.9...v1.1.10) (2022-01-18)
+
+
+
 - Make _refID and flags public fields
 - Small internal changes to the handling of opts
 
