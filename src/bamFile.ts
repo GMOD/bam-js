@@ -263,8 +263,8 @@ export default class BamFile {
     }
 
     const totalSize = chunks
-      .map((s: Chunk) => s.fetchedSize())
-      .reduce((a: number, b: number) => a + b, 0)
+      .map(s => s.fetchedSize())
+      .reduce((a, b) => a + b, 0)
     if (totalSize > this.fetchSizeLimit) {
       throw new Error(
         `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
