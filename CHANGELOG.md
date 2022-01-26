@@ -1,3 +1,8 @@
+<a name="1.1.11"></a>
+## [1.1.11](https://github.com/GMOD/bam-js/compare/v1.1.10...v1.1.11) (2022-01-26)
+
+
+
 - Cache setup of index file parsing
 
 <a name="1.1.10"></a>
