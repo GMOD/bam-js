@@ -6,6 +6,7 @@ import { BaseOpts } from './util'
 export default abstract class IndexFile {
   public filehandle: GenericFilehandle
   public renameRefSeq: (s: string) => string
+  public setupP?: Promise<any>
 
   /**
    * @param {filehandle} filehandle
@@ -28,6 +29,7 @@ export default abstract class IndexFile {
     start?: number,
     end?: number,
   ): Promise<{ start: number; end: number; score: number }[]>
+
   public abstract blocksForRange(
     chrId: number,
     start: number,
@@ -46,7 +48,13 @@ export default abstract class IndexFile {
   }
 
   async parse(opts: BaseOpts = {}) {
-    return this._parse(opts)
+    if (!this.setupP) {
+      this.setupP = this._parse(opts).catch(e => {
+        this.setupP = undefined
+        throw e
+      })
+    }
+    return this.setupP
   }
 
   async hasRefSeq(seqId: number, opts: BaseOpts = {}) {
