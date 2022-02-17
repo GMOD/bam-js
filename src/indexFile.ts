@@ -34,7 +34,7 @@ export default abstract class IndexFile {
     chrId: number,
     start: number,
     end: number,
-    opts: BaseOpts,
+    opts?: BaseOpts,
   ): Promise<Chunk[]>
 
   _findFirstData(data: any, virtualOffset: VirtualOffset) {

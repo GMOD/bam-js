@@ -193,7 +193,8 @@ export default class BAI extends IndexFile {
       return []
     }
 
-    const overlappingBins = this.reg2bins(min, max) // List of bin #s that overlap min, max
+    // List of bin #s that overlap min, max
+    const overlappingBins = this.reg2bins(min, max)
     const chunks: Chunk[] = []
 
     // Find chunks in overlapping bins.  Leaf bins (< 4681) are not pruned
@@ -208,7 +209,8 @@ export default class BAI extends IndexFile {
       }
     }
 
-    // Use the linear index to find minimum file position of chunks that could contain alignments in the region
+    // Use the linear index to find minimum file position of chunks that could
+    // contain alignments in the region
     const nintv = ba.linearIndex.length
     let lowest = null
     const minLin = Math.min(min >> 14, nintv - 1)
