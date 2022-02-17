@@ -1,3 +1,8 @@
+<a name="1.1.12"></a>
+## [1.1.12](https://github.com/GMOD/bam-js/compare/v1.1.11...v1.1.12) (2022-02-17)
+
+
+
 - Add blocksForRange method to BamFile class to help stats estimation in JBrowse 2
 
 <a name="1.1.11"></a>
