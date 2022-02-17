@@ -545,4 +545,15 @@ export default class BamFile {
     const seqId = this.chrToIndex && this.chrToIndex[seqName]
     return this.index.indexCov(seqId, start, end)
   }
+
+  async blocksForRange(
+    seqName: string,
+    start: number,
+    end: number,
+    opts?: BaseOpts,
+  ) {
+    await this.index.parse()
+    const seqId = this.chrToIndex && this.chrToIndex[seqName]
+    return this.index.blocksForRange(seqId, start, end, opts)
+  }
 }
