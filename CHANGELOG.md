@@ -1,37 +1,34 @@
+- Optimize qual and sequence string record functions for less GC pressure
+
 <a name="1.1.12"></a>
+
 ## [1.1.12](https://github.com/GMOD/bam-js/compare/v1.1.11...v1.1.12) (2022-02-17)
-
-
 
 - Add blocksForRange method to BamFile class to help stats estimation in JBrowse 2
 
 <a name="1.1.11"></a>
+
 ## [1.1.11](https://github.com/GMOD/bam-js/compare/v1.1.10...v1.1.11) (2022-01-26)
-
-
 
 - Cache setup of index file parsing
 
 <a name="1.1.10"></a>
+
 ## [1.1.10](https://github.com/GMOD/bam-js/compare/v1.1.9...v1.1.10) (2022-01-18)
 
-
-
-- Make _refID and flags public fields
+- Make \_refID and flags public fields
 - Small internal changes to the handling of opts
 
 <a name="1.1.9"></a>
+
 ## [1.1.9](https://github.com/GMOD/bam-js/compare/v1.1.8...v1.1.9) (2021-12-14)
-
-
 
 - Add ESM module export in package.json (smaller bundle size for consumers)
 - Cache BAI readFile result for compatibility with node.js native filehandles (which otherwise fail if re-reading the filehandle twice)
 
 <a name="1.1.8"></a>
+
 ## [1.1.8](https://github.com/GMOD/bam-js/compare/v1.1.7...v1.1.8) (2021-05-21)
-
-
 
 - Fix types for yieldThreadTime
 
