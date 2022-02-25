@@ -1,13 +1,14 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 import Constants from './constants'
 
-const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('').map(s => s.charCodeAt(0))
+const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
 const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
 
 /**
  * Class of each BAM record returned by this API.
  */
 export default class BamRecord {
+  private qualarr?: number[] | undefined
   private data: any
   private bytes: any
   private _id: number
@@ -140,10 +141,14 @@ export default class BamRecord {
   }
 
   qual() {
-    return this.qualRaw()?.join(' ')
+    const qual = this.qualRaw()
+    return qual?.join(' ') || ''
   }
 
   qualRaw() {
+    if (this.qualarr) {
+      return this.qualarr
+    }
     if (this.isSegmentUnmapped()) {
       return undefined
     }
@@ -155,11 +160,13 @@ export default class BamRecord {
       this.get('_l_read_name') +
       this.get('_n_cigar_op') * 4 +
       this.get('_seq_bytes')
+    console.log('here')
     const lseq = this.get('seq_length')
-    const qseq = Buffer.allocUnsafe(lseq)
+    const qseq = [] as number[]
     for (let j = 0; j < lseq; ++j) {
       qseq[j] = byteArray[p + j]
     }
+    this.qualarr = qseq
     return qseq
   }
 
@@ -536,17 +543,12 @@ export default class BamRecord {
     const seqBytes = this.get('_seq_bytes')
     const len = this.get('seq_length')
     let buf = ''
-    let i = 0
     for (let j = 0; j < seqBytes; ++j) {
       const sb = byteArray[p + j]
-      buf += String.fromCharCode(SEQRET_DECODER[(sb & 0xf0) >> 4])
-      i++
-      if (i < len) {
-        buf += String.fromCharCode(SEQRET_DECODER[sb & 0x0f])
-        i++
-      }
+      buf += SEQRET_DECODER[(sb & 0xf0) >> 4]
+      buf += SEQRET_DECODER[sb & 0x0f]
     }
-    return buf
+    return buf.slice(0, len)
   }
 
   // adapted from igv.js
