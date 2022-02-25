@@ -151,7 +151,7 @@ export default class BamRecord {
       this.get('_n_cigar_op') * 4 +
       this.get('_seq_bytes')
     const lseq = this.get('seq_length')
-    return byteArray.slice(p, p + lseq)
+    return byteArray.subarray(p, p + lseq)
   }
 
   strand() {
@@ -521,15 +521,18 @@ export default class BamRecord {
     const seqBytes = this.get('_seq_bytes')
     const len = this.get('seq_length')
     let buf = ''
-    let i = 0
-    for (let j = 0; j < seqBytes; ++j) {
+    for (let j = 0; j < seqBytes - 1; ++j) {
       const sb = byteArray[p + j]
       buf += SEQRET_DECODER[(sb & 0xf0) >> 4]
-      i++
-      if (i < len) {
-        buf += SEQRET_DECODER[sb & 0x0f]
-        i++
-      }
+      buf += SEQRET_DECODER[sb & 0x0f]
+    }
+
+    // there are two bases per byte, so this handles the case where it is odd
+    // length
+    const sb = byteArray[p + seqBytes - 1]
+    buf += SEQRET_DECODER[(sb & 0xf0) >> 4]
+    if (len % 2 === 0) {
+      buf += SEQRET_DECODER[sb & 0x0f]
     }
     return buf
   }

@@ -127,9 +127,9 @@ export default class BamFile {
         throw new Error('Error reading header')
       }
       if (bytesRead < ret) {
-        buffer = buffer.slice(0, bytesRead)
+        buffer = buffer.subarray(0, bytesRead)
       } else {
-        buffer = buffer.slice(0, ret)
+        buffer = buffer.subarray(0, ret)
       }
     } else {
       buffer = (await this.bam.readFile(opts)) as Buffer
@@ -185,9 +185,9 @@ export default class BamFile {
       throw new Error('Error reading refseqs from header')
     }
     if (bytesRead < refSeqBytes) {
-      buffer = buffer.slice(0, bytesRead)
+      buffer = buffer.subarray(0, bytesRead)
     } else {
-      buffer = buffer.slice(0, refSeqBytes)
+      buffer = buffer.subarray(0, refSeqBytes)
     }
     const uncba = await unzip(buffer)
     const nRef = uncba.readInt32LE(start)
@@ -451,9 +451,9 @@ export default class BamFile {
     checkAbortSignal(signal)
 
     if (bytesRead < bufsize) {
-      buffer = buffer.slice(0, bytesRead)
+      buffer = buffer.subarray(0, bytesRead)
     } else {
-      buffer = buffer.slice(0, bufsize)
+      buffer = buffer.subarray(0, bufsize)
     }
 
     const {
@@ -515,7 +515,7 @@ export default class BamFile {
               (blockStart - dpositions[pos]) +
               chunk.minv.dataPosition +
               1
-            : crc32.signed(ba.slice(blockStart, blockEnd)),
+            : crc32.signed(ba.subarray(blockStart, blockEnd)),
         })
 
         sink.push(feature)
