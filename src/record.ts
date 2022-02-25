@@ -12,21 +12,21 @@ export default class BamRecord {
   private data: any
   private bytes: any
   private _id: number
-  private _tagOffset: number | undefined = undefined
+  private _tagOffset: number | undefined
   private _tagList: string[] = []
   private _allTagsParsed = false
 
   public flags: any
   public _refID: number
   constructor(args: any) {
+    const { start, end, byteArray, fileOffset } = args
     this.data = {}
     this.bytes = {
-      start: args.bytes.start,
-      end: args.bytes.end,
-      byteArray: args.bytes.byteArray,
+      start,
+      end,
+      byteArray,
     }
-    this._id = args.fileOffset
-    const { start, byteArray } = this.bytes
+    this._id = fileOffset
     this._refID = byteArray.readInt32LE(start + 4)
     this.data.start = byteArray.readInt32LE(start + 8)
     this.flags = (byteArray.readInt32LE(start + 16) & 0xffff0000) >> 16
@@ -153,14 +153,13 @@ export default class BamRecord {
       return undefined
     }
 
-    const { byteArray } = this.bytes
+    const { start, byteArray } = this.bytes
     const p =
-      this.bytes.start +
+      start +
       36 +
       this.get('_l_read_name') +
       this.get('_n_cigar_op') * 4 +
       this.get('_seq_bytes')
-    console.log('here')
     const lseq = this.get('seq_length')
     const qseq = [] as number[]
     for (let j = 0; j < lseq; ++j) {
@@ -187,11 +186,8 @@ export default class BamRecord {
 
   _read_name() {
     const nl = this.get('_l_read_name')
-    return this.bytes.byteArray.toString(
-      'ascii',
-      this.bytes.start + 36,
-      this.bytes.start + 36 + nl - 1,
-    )
+    const { byteArray, start } = this.bytes
+    return byteArray.toString('ascii', start + 36, start + 36 + nl - 1)
   }
 
   /**
@@ -206,10 +202,10 @@ export default class BamRecord {
       return undefined
     }
 
-    const { byteArray } = this.bytes
+    const { byteArray, start } = this.bytes
     let p =
       this._tagOffset ||
-      this.bytes.start +
+      start +
         36 +
         this.get('_l_read_name') +
         this.get('_n_cigar_op') * 4 +
