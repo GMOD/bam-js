@@ -62,7 +62,7 @@ export default class BAI extends IndexFile {
     const binLimit = ((1 << ((depth + 1) * 3)) - 1) / 7
 
     // read the indexes for each reference sequence
-    data.indices = []
+    data.indices = new Array(data.refCount)
     let currOffset = 8
     for (let i = 0; i < data.refCount; i += 1) {
       // the binning index
@@ -83,7 +83,7 @@ export default class BAI extends IndexFile {
         } else {
           const chunkCount = bytes.readInt32LE(currOffset)
           currOffset += 4
-          const chunks = []
+          const chunks = new Array(chunkCount)
           for (let k = 0; k < chunkCount; k += 1) {
             const u = fromBytes(bytes, currOffset)
             const v = fromBytes(bytes, currOffset + 8)
@@ -100,7 +100,7 @@ export default class BAI extends IndexFile {
       // as we're going through the linear index, figure out
       // the smallest virtual offset in the indexes, which
       // tells us where the BAM header ends
-      const linearIndex = []
+      const linearIndex = new Array(linearCount)
       for (let k = 0; k < linearCount; k += 1) {
         linearIndex[k] = fromBytes(bytes, currOffset)
         currOffset += 8
