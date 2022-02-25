@@ -9,8 +9,8 @@ const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
  */
 export default class BamRecord {
   private qualarr?: number[] | undefined
-  private data: any
-  private bytes: any
+  private data = {} as { [key: string]: any }
+  private bytes: { start: number; end: number; byteArray: Buffer }
   private _id: number
   private _tagOffset: number | undefined
   private _tagList: string[] = []
@@ -19,16 +19,10 @@ export default class BamRecord {
   public flags: any
   public _refID: number
   constructor(args: any) {
-    const {
-      bytes: { start, end, byteArray },
-      fileOffset,
-    } = args
+    const { bytes, fileOffset } = args
+    const { byteArray, start } = bytes
     this.data = {}
-    this.bytes = {
-      start,
-      end,
-      byteArray,
-    }
+    this.bytes = bytes
     this._id = fileOffset
     this._refID = byteArray.readInt32LE(start + 4)
     this.data.start = byteArray.readInt32LE(start + 8)
@@ -100,7 +94,7 @@ export default class BamRecord {
     })
 
     const seen: { [key: string]: boolean } = {}
-    tags = tags.filter(t => {
+    return tags.filter(t => {
       if (
         (t in this.data && this.data[t] === undefined) ||
         t === 'CG' ||
@@ -114,8 +108,6 @@ export default class BamRecord {
       seen[lt] = true
       return !s
     })
-
-    return tags
   }
 
   parent() {
@@ -144,8 +136,7 @@ export default class BamRecord {
   }
 
   qual() {
-    const qual = this.qualRaw()
-    return qual?.join(' ') || ''
+    return this.qualRaw()?.join(' ')
   }
 
   qualRaw() {
@@ -165,11 +156,6 @@ export default class BamRecord {
       this.get('_seq_bytes')
     const lseq = this.get('seq_length')
     return byteArray.slice(p, p + lseq)
-    // for (let j = 0; j < lseq; ++j) {
-    //   qseq[j] = byteArray[p + j]
-    // }
-    // this.qualarr = qseq
-    // return qseq
   }
 
   strand() {
