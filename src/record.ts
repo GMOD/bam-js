@@ -8,7 +8,6 @@ const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
  * Class of each BAM record returned by this API.
  */
 export default class BamRecord {
-  private qualarr?: number[] | undefined
   private data = {} as { [key: string]: any }
   private bytes: { start: number; end: number; byteArray: Buffer }
   private _id: number
@@ -140,9 +139,6 @@ export default class BamRecord {
   }
 
   qualRaw() {
-    if (this.qualarr) {
-      return this.qualarr
-    }
     if (this.isSegmentUnmapped()) {
       return undefined
     }
@@ -519,21 +515,23 @@ export default class BamRecord {
   }
 
   seq() {
-    const { byteArray } = this.bytes
+    const { start, byteArray } = this.bytes
     const p =
-      this.bytes.start +
-      36 +
-      this.get('_l_read_name') +
-      this.get('_n_cigar_op') * 4
+      start + 36 + this.get('_l_read_name') + this.get('_n_cigar_op') * 4
     const seqBytes = this.get('_seq_bytes')
     const len = this.get('seq_length')
     let buf = ''
+    let i = 0
     for (let j = 0; j < seqBytes; ++j) {
       const sb = byteArray[p + j]
       buf += SEQRET_DECODER[(sb & 0xf0) >> 4]
-      buf += SEQRET_DECODER[sb & 0x0f]
+      i++
+      if (i < len) {
+        buf += SEQRET_DECODER[sb & 0x0f]
+        i++
+      }
     }
-    return buf.slice(0, len)
+    return buf
   }
 
   // adapted from igv.js
