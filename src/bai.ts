@@ -3,7 +3,7 @@ import { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 
 import IndexFile from './indexFile'
-import { longToNumber, abortBreakPoint, optimizeChunks, BaseOpts } from './util'
+import { longToNumber, optimizeChunks, BaseOpts } from './util'
 
 const BAI_MAGIC = 21578050 // BAI\1
 
@@ -48,7 +48,7 @@ export default class BAI extends IndexFile {
   }
 
   // fetch and parse the index
-  async _parse(opts: BaseOpts = {}) {
+  async _parse() {
     const data: { [key: string]: any } = { bai: true, maxBlockSize: 1 << 16 }
     const bytes = await this.fetchBai()
 
@@ -65,8 +65,6 @@ export default class BAI extends IndexFile {
     data.indices = new Array(data.refCount)
     let currOffset = 8
     for (let i = 0; i < data.refCount; i += 1) {
-      await abortBreakPoint(opts.signal)
-
       // the binning index
       const binCount = bytes.readInt32LE(currOffset)
       let stats

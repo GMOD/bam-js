@@ -76,7 +76,7 @@ export default class CSI extends IndexFile {
     Object.assign(
       data,
       this._parseNameBytes(
-        bytes.slice(offset + 28, offset + 28 + nameSectionLength),
+        bytes.subarray(offset + 28, offset + 28 + nameSectionLength),
       ),
     )
     return data
@@ -168,11 +168,6 @@ export default class CSI extends IndexFile {
   }
 
   parsePseudoBin(bytes: Buffer, offset: number) {
-    // const one = Long.fromBytesLE(bytes.slice(offset + 4, offset + 12), true)
-    // const two = Long.fromBytesLE(bytes.slice(offset + 12, offset + 20), true)
-    // const three = longToNumber(
-    //   Long.fromBytesLE(bytes.slice(offset + 20, offset + 28), true),
-    // )
     const lineCount = longToNumber(
       Long.fromBytesLE(
         Array.prototype.slice.call(bytes, offset + 28, offset + 36),

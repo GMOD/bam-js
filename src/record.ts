@@ -1,31 +1,28 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 import Constants from './constants'
 
-const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('').map(s => s.charCodeAt(0))
+const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
 const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
 
 /**
  * Class of each BAM record returned by this API.
  */
 export default class BamRecord {
-  private data: any
-  private bytes: any
+  private data = {} as { [key: string]: any }
+  private bytes: { start: number; end: number; byteArray: Buffer }
   private _id: number
-  private _tagOffset: number | undefined = undefined
+  private _tagOffset: number | undefined
   private _tagList: string[] = []
   private _allTagsParsed = false
 
   public flags: any
   public _refID: number
   constructor(args: any) {
+    const { bytes, fileOffset } = args
+    const { byteArray, start } = bytes
     this.data = {}
-    this.bytes = {
-      start: args.bytes.start,
-      end: args.bytes.end,
-      byteArray: args.bytes.byteArray,
-    }
-    this._id = args.fileOffset
-    const { start, byteArray } = this.bytes
+    this.bytes = bytes
+    this._id = fileOffset
     this._refID = byteArray.readInt32LE(start + 4)
     this.data.start = byteArray.readInt32LE(start + 8)
     this.flags = (byteArray.readInt32LE(start + 16) & 0xffff0000) >> 16
@@ -96,7 +93,7 @@ export default class BamRecord {
     })
 
     const seen: { [key: string]: boolean } = {}
-    tags = tags.filter(t => {
+    return tags.filter(t => {
       if (
         (t in this.data && this.data[t] === undefined) ||
         t === 'CG' ||
@@ -110,8 +107,6 @@ export default class BamRecord {
       seen[lt] = true
       return !s
     })
-
-    return tags
   }
 
   parent() {
@@ -148,19 +143,15 @@ export default class BamRecord {
       return undefined
     }
 
-    const { byteArray } = this.bytes
+    const { start, byteArray } = this.bytes
     const p =
-      this.bytes.start +
+      start +
       36 +
       this.get('_l_read_name') +
       this.get('_n_cigar_op') * 4 +
       this.get('_seq_bytes')
     const lseq = this.get('seq_length')
-    const qseq = Buffer.allocUnsafe(lseq)
-    for (let j = 0; j < lseq; ++j) {
-      qseq[j] = byteArray[p + j]
-    }
-    return qseq
+    return byteArray.subarray(p, p + lseq)
   }
 
   strand() {
@@ -180,11 +171,8 @@ export default class BamRecord {
 
   _read_name() {
     const nl = this.get('_l_read_name')
-    return this.bytes.byteArray.toString(
-      'ascii',
-      this.bytes.start + 36,
-      this.bytes.start + 36 + nl - 1,
-    )
+    const { byteArray, start } = this.bytes
+    return byteArray.toString('ascii', start + 36, start + 36 + nl - 1)
   }
 
   /**
@@ -199,10 +187,10 @@ export default class BamRecord {
       return undefined
     }
 
-    const { byteArray } = this.bytes
+    const { byteArray, start } = this.bytes
     let p =
       this._tagOffset ||
-      this.bytes.start +
+      start +
         36 +
         this.get('_l_read_name') +
         this.get('_n_cigar_op') * 4 +
@@ -527,26 +515,26 @@ export default class BamRecord {
   }
 
   seq() {
-    const { byteArray } = this.bytes
+    const { start, byteArray } = this.bytes
     const p =
-      this.bytes.start +
-      36 +
-      this.get('_l_read_name') +
-      this.get('_n_cigar_op') * 4
+      start + 36 + this.get('_l_read_name') + this.get('_n_cigar_op') * 4
     const seqBytes = this.get('_seq_bytes')
     const len = this.get('seq_length')
-    let buf = ''
-    let i = 0
-    for (let j = 0; j < seqBytes; ++j) {
+    const buf = []
+    for (let j = 0; j < seqBytes - 1; ++j) {
       const sb = byteArray[p + j]
-      buf += String.fromCharCode(SEQRET_DECODER[(sb & 0xf0) >> 4])
-      i++
-      if (i < len) {
-        buf += String.fromCharCode(SEQRET_DECODER[sb & 0x0f])
-        i++
-      }
+      buf.push(SEQRET_DECODER[(sb & 0xf0) >> 4])
+      buf.push(SEQRET_DECODER[sb & 0x0f])
     }
-    return buf
+
+    // there are two bases per byte, so this handles the case where it is odd
+    // length
+    const sb = byteArray[p + seqBytes - 1]
+    buf.push(SEQRET_DECODER[(sb & 0xf0) >> 4])
+    if (len % 2 === 0) {
+      buf.push(SEQRET_DECODER[sb & 0x0f])
+    }
+    return buf.join('')
   }
 
   // adapted from igv.js

@@ -50,19 +50,6 @@ describe('index human data', () => {
     expect(await ti.hasRefSeq(19)).toEqual(true)
     expect(await ti.lineCount(19)).toEqual(2924253)
   })
-  it('can abort loading 1000 genomes bai', async () => {
-    const ti = new BAI({
-      filehandle: new LocalFile(
-        require.resolve(
-          './data/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam.bai',
-        ),
-      ),
-    })
-    const aborter = new HalfAbortController()
-    const indexDataP = ti.parse({ signal: aborter.signal })
-    aborter.abort()
-    await expect(indexDataP).rejects.toThrow(/aborted/)
-  })
 })
 describe('bam header', () => {
   it('loads volvox-sorted.bam', async () => {
