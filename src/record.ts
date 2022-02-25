@@ -19,7 +19,10 @@ export default class BamRecord {
   public flags: any
   public _refID: number
   constructor(args: any) {
-    const { start, end, byteArray, fileOffset } = args
+    const {
+      bytes: { start, end, byteArray },
+      fileOffset,
+    } = args
     this.data = {}
     this.bytes = {
       start,
@@ -161,12 +164,12 @@ export default class BamRecord {
       this.get('_n_cigar_op') * 4 +
       this.get('_seq_bytes')
     const lseq = this.get('seq_length')
-    const qseq = [] as number[]
-    for (let j = 0; j < lseq; ++j) {
-      qseq[j] = byteArray[p + j]
-    }
-    this.qualarr = qseq
-    return qseq
+    return byteArray.slice(p, p + lseq)
+    // for (let j = 0; j < lseq; ++j) {
+    //   qseq[j] = byteArray[p + j]
+    // }
+    // this.qualarr = qseq
+    // return qseq
   }
 
   strand() {
