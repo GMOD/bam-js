@@ -1,3 +1,7 @@
+## [1.1.13](https://github.com/GMOD/bam-js/compare/v1.1.12...v1.1.13) (2022-02-25)
+
+
+
 - Optimize qual and sequence string record functions for less GC pressure
 
 <a name="1.1.12"></a>
