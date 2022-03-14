@@ -515,26 +515,23 @@ export default class BamRecord {
   }
 
   seq() {
-    const { start, byteArray } = this.bytes
+    const { byteArray, start } = this.bytes
     const p =
       start + 36 + this.get('_l_read_name') + this.get('_n_cigar_op') * 4
     const seqBytes = this.get('_seq_bytes')
     const len = this.get('seq_length')
-    const buf = []
-    for (let j = 0; j < seqBytes - 1; ++j) {
+    let buf = ''
+    let i = 0
+    for (let j = 0; j < seqBytes; ++j) {
       const sb = byteArray[p + j]
-      buf.push(SEQRET_DECODER[(sb & 0xf0) >> 4])
-      buf.push(SEQRET_DECODER[sb & 0x0f])
+      buf += SEQRET_DECODER[(sb & 0xf0) >> 4]
+      i++
+      if (i < len) {
+        buf += SEQRET_DECODER[sb & 0x0f]
+        i++
+      }
     }
-
-    // there are two bases per byte, so this handles the case where it is odd
-    // length
-    const sb = byteArray[p + seqBytes - 1]
-    buf.push(SEQRET_DECODER[(sb & 0xf0) >> 4])
-    if (len % 2 === 0) {
-      buf.push(SEQRET_DECODER[sb & 0x0f])
-    }
-    return buf.join('')
+    return buf
   }
 
   // adapted from igv.js
