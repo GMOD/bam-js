@@ -490,9 +490,12 @@ export default class BamRecord {
   _flags() {}
 
   length_on_ref() {
-    this.get('cigar') // the length_on_ref is set as a
-    // side effect of the CIGAR parsing
-    return this.data.length_on_ref
+    if (this.data.length_on_ref) {
+      return this.data.length_on_ref
+    } else {
+      this.get('cigar') // the length_on_ref is set as a side effect
+      return this.data.length_on_ref
+    }
   }
 
   _n_cigar_op() {
