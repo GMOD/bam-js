@@ -689,6 +689,11 @@
   resolved "https://registry.yarnpkg.com/@types/prettier/-/prettier-2.4.4.tgz#5d9b63132df54d8909fce1c3f8ca260fdd693e17"
   integrity sha512-ReVR2rLTV1kvtlWFyuot+d1pkpG2Fw/XKE3PDAdj57rbM97ttSp9JZ2UsP+2EHTylra9cUf6JA7tGwW1INzUrA==
 
+"@types/quick-lru@2":
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/@types/quick-lru/-/quick-lru-2.0.0.tgz#04b3a558d45533ceef1be33950b7ed7e1202cd2f"
+  integrity sha512-bQLWvCkzO4OFPUFAQH5Ql0K8Q+9XH0uGbsODUXQlv9PfT+1hMVB++XZpiLDTKad35hu0KB2e9sYop/jVnkosVg==
+
 "@types/stack-utils@^2.0.0":
   version "2.0.1"
   resolved "https://registry.yarnpkg.com/@types/stack-utils/-/stack-utils-2.0.1.tgz#20f18294f797f2209b5f65c8e3b5c8e8261d127c"
@@ -798,6 +803,18 @@ abab@^2.0.3, abab@^2.0.5:
   version "2.0.5"
   resolved "https://registry.yarnpkg.com/abab/-/abab-2.0.5.tgz#c0b678fb32d60fc1219c784d6a826fe385aeb79a"
   integrity sha512-9IK9EadsbHo6jLWIpxpR6pL0sazTXV6+SQv25ZB+F7Bj9mJNaOc4nCRabwd5M/JwmUa8idz6Eci6eKfJryPs6Q==
+
+abortable-promise-cache@^1.5.0:
+  version "1.5.0"
+  resolved "https://registry.yarnpkg.com/abortable-promise-cache/-/abortable-promise-cache-1.5.0.tgz#33b6716a26bb0ef3b8104724d6ee828bd94a78c4"
+  integrity sha512-S2FfvU1As7Fve6ObCEsuOiE22UR7k91ytM+m4bzG6eAf+fb4TOAVEGZGAzlRfCo7/bZamL9d3ZeXc08MPm3azA==
+  dependencies:
+    abortcontroller-polyfill "^1.2.9"
+
+abortcontroller-polyfill@^1.2.9:
+  version "1.7.3"
+  resolved "https://registry.yarnpkg.com/abortcontroller-polyfill/-/abortcontroller-polyfill-1.7.3.tgz#1b5b487bd6436b5b764fd52a612509702c3144b5"
+  integrity sha512-zetDJxd89y3X99Kvo4qFx8GKlt6GsvN3UcRZHwU6iFA/0KiOmhkTVhe8oRoTBiTVPZu09x3vCra47+w8Yz1+2Q==
 
 acorn-globals@^6.0.0:
   version "6.0.0"
@@ -3439,6 +3456,11 @@ queue-microtask@^1.2.2:
   version "1.2.3"
   resolved "https://registry.yarnpkg.com/queue-microtask/-/queue-microtask-1.2.3.tgz#4929228bbc724dfac43e0efb058caf7b6cfb6243"
   integrity sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==
+
+quick-lru@^2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/quick-lru/-/quick-lru-2.0.0.tgz#32b017b28d1784631c8ab0a1ed2978e094dbe181"
+  integrity sha512-DqOtZziv7lDjEyuqyVQacRciAwMCEjTNrLYCHYEIIgjcE/tLEpBF82hiDIwCjRnEL9/hY2GJxA0T8ZvYvVVSSA==
 
 quick-lru@^4.0.1:
   version "4.0.1"
