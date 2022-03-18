@@ -501,7 +501,8 @@ export default class BamFile {
               (blockStart - dpositions[pos]) +
               chunk.minv.dataPosition +
               1
-            : crc32.signed(ba.subarray(blockStart, blockEnd)),
+            : // must be slice, not subarray for buffer polyfill on web
+              crc32.signed(ba.slice(blockStart, blockEnd)),
         })
 
         sink.push(feature)
