@@ -43,10 +43,7 @@ export default class BamRecord {
   }
 
   end() {
-    return (
-      this.get('start') +
-      (this.get('length_on_ref') || this.get('seq_length') || undefined)
-    )
+    return this.get('start') + this.get('length_on_ref')
   }
 
   seq_id() {

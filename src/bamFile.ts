@@ -53,8 +53,18 @@ export default class BamFile {
       maxSize: 50,
     }),
     //@ts-ignore
-    fill: ({ chunk, opts }, signal) => {
-      return this._readChunk({ chunk, opts: { ...opts, signal } })
+    fill: async ({ chunk, opts }, signal) => {
+      const { data, cpositions, dpositions } = await this._readChunk({
+        chunk,
+        opts: { ...opts, signal },
+      })
+      const feats = await this.readBamFeatures(
+        data,
+        cpositions,
+        dpositions,
+        chunk,
+      )
+      return feats
     },
   })
 
@@ -303,22 +313,14 @@ export default class BamFile {
 
     for (let i = 0; i < chunks.length; i++) {
       const c = chunks[i]
-      //@ts-ignore
-      const { data, cpositions, dpositions, chunk } =
-        await this.featureCache.get(
-          c.toString(),
-          {
-            chunk: c,
-            opts,
-          },
-          opts.signal,
-        )
-      const records = await this.readBamFeatures(
-        data,
-        cpositions,
-        dpositions,
-        chunk,
-      )
+      const records = (await this.featureCache.get(
+        c.toString(),
+        {
+          chunk: c,
+          opts,
+        },
+        opts.signal,
+      )) as BAMFeature[]
 
       const recs = []
       for (let i = 0; i < records.length; i += 1) {
