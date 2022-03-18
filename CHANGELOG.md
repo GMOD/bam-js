@@ -1,6 +1,7 @@
+- Fix for htsget failing with message 'input must be buffer, number, or string, received object'
+- Speed improvement by caching chunks of features
+
 ## [1.1.14](https://github.com/GMOD/bam-js/compare/v1.1.13...v1.1.14) (2022-03-14)
-
-
 
 - Fix seq function for corner case
 
