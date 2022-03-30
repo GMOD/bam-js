@@ -16,7 +16,8 @@
   },
   "files": [
     "dist",
-    "esm"
+    "esm",
+    "src"
   ],
   "scripts": {
     "test": "jest",
