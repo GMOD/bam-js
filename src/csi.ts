@@ -188,16 +188,13 @@ export default class CSI extends IndexFile {
     }
 
     const indexData = await this.parse(opts)
-    if (!indexData) {
-      return []
-    }
-    const ba = indexData.indices[refId]
+    const ba = indexData?.indices[refId]
     if (!ba) {
       return []
     }
 
     const overlappingBins = this.reg2bins(min, max) // List of bin #s that overlap min, max
-    const chunks: Chunk[] = []
+    const chunks = []
 
     // Find chunks in overlapping bins.  Leaf bins (< 4681) are not pruned
     for (const [start, end] of overlappingBins) {
@@ -215,8 +212,8 @@ export default class CSI extends IndexFile {
   }
 
   /**
-   * calculate the list of bins that may overlap with region [beg,end) (zero-based half-open)
-   * @returns {Array[number]}
+   * calculate the list of bins that may overlap with region [beg,end)
+   * (zero-based half-open)
    */
   reg2bins(beg: number, end: number) {
     beg -= 1 // < convert to 1-based closed
