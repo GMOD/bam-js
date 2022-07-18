@@ -1,12 +1,10 @@
+- Bump devDeps and generic-filehandle to 3.0.0
+
 ## [1.1.16](https://github.com/GMOD/bam-js/compare/v1.1.15...v1.1.16) (2022-03-30)
-
-
 
 - Add src directory for better source maps
 
 ## [1.1.15](https://github.com/GMOD/bam-js/compare/v1.1.14...v1.1.15) (2022-03-18)
-
-
 
 - Fix for htsget failing with message 'input must be buffer, number, or string, received object'
 - Speed improvement by caching chunks of features
