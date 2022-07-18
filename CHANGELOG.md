@@ -1,3 +1,7 @@
+## [1.1.17](https://github.com/GMOD/bam-js/compare/v1.1.16...v1.1.17) (2022-07-18)
+
+
+
 - Bump devDeps and generic-filehandle to 3.0.0
 
 ## [1.1.16](https://github.com/GMOD/bam-js/compare/v1.1.15...v1.1.16) (2022-03-30)
