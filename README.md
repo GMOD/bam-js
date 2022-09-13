@@ -21,6 +21,16 @@ var header = await t.getHeader()
 var records = await t.getRecordsForRange('ctgA', 0, 49999)
 ```
 
+The `bamPath` argument only works on nodejs, in the browser, you should pass `bamFilehandle` with a generic-filehandle e.g. RemoteFile
+
+```js
+const { RemoteFile } = require('generic-filehandle')
+const bam = new BamFile({
+  bamFilehandle: new RemoteFile('yourfile.bam'), // or a full http url
+  baiFilehandle: new RemoteFile('yourfile.bam.bai'), // or a full http url
+})
+```
+
 Input are 0-based half-open coordinates (note: not the same as samtools view coordinate inputs!)
 
 ## Usage with htsget
