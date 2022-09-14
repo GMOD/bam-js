@@ -15,10 +15,11 @@ const t = new BamFile({
   bamPath: 'test.bam',
 })
 
+// note: it's required to first run getHeader before any getRecordsForRange
 var header = await t.getHeader()
 
 // this would get same records as samtools view ctgA:1-50000
-var records = await t.getRecordsForRange('ctgA', 0, 49999)
+var records = await t.getRecordsForRange('ctgA', 0, 50000)
 ```
 
 The `bamPath` argument only works on nodejs, in the browser, you should pass `bamFilehandle` with a generic-filehandle e.g. RemoteFile
@@ -67,6 +68,8 @@ The BAM class constructor accepts arguments
 Note: filehandles implement the Filehandle interface from https://www.npmjs.com/package/generic-filehandle. This module offers the path and url arguments as convenience methods for supplying the LocalFile and RemoteFile
 
 ### async getRecordsForRange(refName, start, end, opts)
+
+Note: you must run getHeader before running getRecordsForRange
 
 - refName - a string for the chrom to fetch from
 - start - a 0 based half open start coordinate
