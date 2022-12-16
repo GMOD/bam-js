@@ -1,6 +1,6 @@
 [![NPM version](https://img.shields.io/npm/v/@gmod/bam.svg?style=flat-square)](https://npmjs.org/package/@gmod/bam)
 [![Coverage Status](https://img.shields.io/codecov/c/github/GMOD/bam-js/master.svg?style=flat-square)](https://codecov.io/gh/GMOD/bam-js/branch/master)
-[![Build Status](https://img.shields.io/github/workflow/status/GMOD/bam-js/Push/master?logo=github&style=flat-query)](https://github.com/GMOD/bam-js/actions?query=branch%3Amaster+workflow%3APush+)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/GMOD/bam-js/push.yml?branch=master)](https://github.com/GMOD/bam-js/actions?query=branch%3Amaster+workflow%3APush+)
 
 ## Install
 
