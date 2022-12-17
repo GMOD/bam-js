@@ -1,9 +1,9 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`1000 genomes bam check deep check 1000 genomes 1`] = `
-Array [
-  Object {
-    "data": Object {
+[
+  {
+    "data": {
       "_bin_mq_nl": 306774051,
       "_flag_nc": 9502722,
       "_l_read_name": 35,
@@ -20,9 +20,9 @@ Array [
 `;
 
 exports[`1000 genomes bam check deep check 1000 genomes bai 1`] = `
-Array [
-  Object {
-    "data": Object {
+[
+  {
+    "data": {
       "_bin_mq_nl": 306774051,
       "_flag_nc": 9502722,
       "_l_read_name": 35,
@@ -39,9 +39,9 @@ Array [
 `;
 
 exports[`bam deep record check deep check volvox-sorted.bam 1`] = `
-Array [
-  Object {
-    "data": Object {
+[
+  {
+    "data": {
       "_bin_mq_nl": 306783516,
       "_flag_nc": 1,
       "_l_read_name": 28,
@@ -54,8 +54,8 @@ Array [
     },
     "flags": 0,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306783516,
       "_flag_nc": 1,
       "_l_read_name": 28,
@@ -72,18 +72,18 @@ Array [
 `;
 
 exports[`bam header loads volvox-sorted.bam 1`] = `
-Array [
-  Object {
+[
+  {
     "end": 16384,
     "score": 3132.8408055269733,
     "start": 0,
   },
-  Object {
+  {
     "end": 32768,
     "score": 3364.491059715608,
     "start": 16384,
   },
-  Object {
+  {
     "end": 49152,
     "score": 3096.8317529169985,
     "start": 32768,
@@ -92,78 +92,78 @@ Array [
 `;
 
 exports[`ecoli bam check check ecoli header and records 1`] = `
-Array [
-  Object {
-    "data": Array [
-      Object {
+[
+  {
+    "data": [
+      {
         "tag": "VN",
         "value": "1.3",
       },
     ],
     "tag": "HD",
   },
-  Object {
-    "data": Array [
-      Object {
+  {
+    "data": [
+      {
         "tag": "SN",
         "value": "ref000001|chr",
       },
-      Object {
+      {
         "tag": "LN",
         "value": "4639675",
       },
-      Object {
+      {
         "tag": "M5",
         "value": "05dc7a37701cdc6bcf154344a227983d",
       },
     ],
     "tag": "SQ",
   },
-  Object {
-    "data": Array [
-      Object {
+  {
+    "data": [
+      {
         "tag": "ID",
         "value": "343cd2783e",
       },
-      Object {
+      {
         "tag": "SM",
         "value": "c100278822550000001523007907041295",
       },
-      Object {
+      {
         "tag": "PU",
         "value": "m120131_103014_sidney_c100278822550000001523007907041295_s1_p0",
       },
-      Object {
+      {
         "tag": "PL",
         "value": "PacBio_RS",
       },
-      Object {
+      {
         "tag": "DT",
         "value": "2012-01-31T10",
       },
     ],
     "tag": "RG",
   },
-  Object {
-    "data": Array [
-      Object {
+  {
+    "data": [
+      {
         "tag": "ID",
         "value": "/mnt/secondary/Smrtanalysis/opt/smrtanalysis/analysis/bin/SAMIO.py",
       },
-      Object {
+      {
         "tag": "VN",
         "value": "1.2.0.SF",
       },
-      Object {
+      {
         "tag": "CL",
         "value": "-b -o /mnt/secondary/Smrtanalysis/opt/smrtanalysis/common/jobs/034/034822/data/aligned_reads.sam -p /mnt/secondary/Smrtanalysis/opt/smrtanalysis/common/references/ecoli /mnt/secondary/Smrtanalysis/opt/smrtanalysis/common/jobs/034/034822/data/aligned_reads.cmp.h5",
       },
     ],
     "tag": "PG",
   },
-  Object {
-    "data": Array [
-      Object {
+  {
+    "data": [
+      {
         "tag": "READS",
         "value": "39496",
       },
@@ -174,9 +174,9 @@ Array [
 `;
 
 exports[`ecoli bam check check ecoli header and records 2`] = `
-Array [
-  Object {
-    "data": Object {
+[
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 113,
       "_l_read_name": 69,
@@ -189,8 +189,8 @@ Array [
     },
     "flags": 0,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 149,
       "_l_read_name": 69,
@@ -203,8 +203,8 @@ Array [
     },
     "flags": 0,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 145,
       "_l_read_name": 69,
@@ -217,8 +217,8 @@ Array [
     },
     "flags": 0,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 291,
       "_l_read_name": 69,
@@ -231,8 +231,8 @@ Array [
     },
     "flags": 0,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 251,
       "_l_read_name": 69,
@@ -245,8 +245,8 @@ Array [
     },
     "flags": 0,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 1049021,
       "_l_read_name": 69,
@@ -259,8 +259,8 @@ Array [
     },
     "flags": 16,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 1049037,
       "_l_read_name": 69,
@@ -273,8 +273,8 @@ Array [
     },
     "flags": 16,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 1049287,
       "_l_read_name": 69,
@@ -287,8 +287,8 @@ Array [
     },
     "flags": 16,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 611,
       "_l_read_name": 69,
@@ -301,8 +301,8 @@ Array [
     },
     "flags": 0,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 1049439,
       "_l_read_name": 69,
@@ -315,8 +315,8 @@ Array [
     },
     "flags": 16,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 1049841,
       "_l_read_name": 69,
@@ -329,8 +329,8 @@ Array [
     },
     "flags": 16,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839108,
       "_flag_nc": 25,
       "_l_read_name": 68,
@@ -343,8 +343,8 @@ Array [
     },
     "flags": 0,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 1049115,
       "_l_read_name": 69,
@@ -357,8 +357,8 @@ Array [
     },
     "flags": 16,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 701,
       "_l_read_name": 69,
@@ -371,8 +371,8 @@ Array [
     },
     "flags": 0,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 1048817,
       "_l_read_name": 69,
@@ -385,8 +385,8 @@ Array [
     },
     "flags": 16,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 425,
       "_l_read_name": 69,
@@ -399,8 +399,8 @@ Array [
     },
     "flags": 0,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 1048797,
       "_l_read_name": 69,
@@ -413,8 +413,8 @@ Array [
     },
     "flags": 16,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 587,
       "_l_read_name": 69,
@@ -427,8 +427,8 @@ Array [
     },
     "flags": 0,
   },
-  Object {
-    "data": Object {
+  {
+    "data": {
       "_bin_mq_nl": 306839109,
       "_flag_nc": 201,
       "_l_read_name": 69,
@@ -445,313 +445,313 @@ Array [
 `;
 
 exports[`large indexcov human 1000g 1`] = `
-Array [
-  Object {
+[
+  {
     "end": 16384,
     "score": 0,
     "start": 0,
   },
-  Object {
+  {
     "end": 32768,
     "score": 0,
     "start": 16384,
   },
-  Object {
+  {
     "end": 49152,
     "score": 43.23452166175142,
     "start": 32768,
   },
-  Object {
+  {
     "end": 65536,
     "score": 181.43355010894746,
     "start": 49152,
   },
-  Object {
+  {
     "end": 81920,
     "score": 724.9031224884259,
     "start": 65536,
   },
-  Object {
+  {
     "end": 98304,
     "score": 545.3441148607548,
     "start": 81920,
   },
-  Object {
+  {
     "end": 114688,
     "score": 726.0019922188293,
     "start": 98304,
   },
-  Object {
+  {
     "end": 131072,
     "score": 747.2868218707595,
     "start": 114688,
   },
-  Object {
+  {
     "end": 147456,
     "score": 733.1492625661585,
     "start": 131072,
   },
-  Object {
+  {
     "end": 163840,
     "score": 758.2662849753776,
     "start": 147456,
   },
-  Object {
+  {
     "end": 180224,
     "score": 928.4064091995916,
     "start": 163840,
   },
-  Object {
+  {
     "end": 196608,
     "score": 1631.636865660651,
     "start": 180224,
   },
-  Object {
+  {
     "end": 212992,
     "score": 731.4594040731853,
     "start": 196608,
   },
-  Object {
+  {
     "end": 229376,
     "score": 918.9228864002284,
     "start": 212992,
   },
-  Object {
+  {
     "end": 245760,
     "score": 919.9755851335559,
     "start": 229376,
   },
-  Object {
+  {
     "end": 262144,
     "score": 905.8472600283702,
     "start": 245760,
   },
-  Object {
+  {
     "end": 278528,
     "score": 905.9765388201823,
     "start": 262144,
   },
-  Object {
+  {
     "end": 294912,
     "score": 556.9607377250186,
     "start": 278528,
   },
-  Object {
+  {
     "end": 311296,
     "score": 925.553041580309,
     "start": 294912,
   },
-  Object {
+  {
     "end": 327680,
     "score": 737.6370834819234,
     "start": 311296,
   },
-  Object {
+  {
     "end": 344064,
     "score": 913.6963295312512,
     "start": 327680,
   },
-  Object {
+  {
     "end": 360448,
     "score": 940.9095152077102,
     "start": 344064,
   },
-  Object {
+  {
     "end": 376832,
     "score": 747.6377214485353,
     "start": 360448,
   },
-  Object {
+  {
     "end": 393216,
     "score": 727.3317169346114,
     "start": 376832,
   },
-  Object {
+  {
     "end": 409600,
     "score": 541.825884883581,
     "start": 393216,
   },
-  Object {
+  {
     "end": 425984,
     "score": 722.2898440539374,
     "start": 409600,
   },
-  Object {
+  {
     "end": 442368,
     "score": 729.040043826415,
     "start": 425984,
   },
-  Object {
+  {
     "end": 458752,
     "score": 736.3350613643867,
     "start": 442368,
   },
-  Object {
+  {
     "end": 475136,
     "score": 911.9603000412022,
     "start": 458752,
   },
-  Object {
+  {
     "end": 491520,
     "score": 733.3524149532919,
     "start": 475136,
   },
-  Object {
+  {
     "end": 507904,
     "score": 745.7262421695984,
     "start": 491520,
   },
-  Object {
+  {
     "end": 524288,
     "score": 739.9733359339574,
     "start": 507904,
   },
-  Object {
+  {
     "end": 540672,
     "score": 724.6260965059713,
     "start": 524288,
   },
-  Object {
+  {
     "end": 557056,
     "score": 746.6404279116987,
     "start": 540672,
   },
-  Object {
+  {
     "end": 573440,
     "score": 735.7440726018168,
     "start": 557056,
   },
-  Object {
+  {
     "end": 589824,
     "score": 903.012360807918,
     "start": 573440,
   },
-  Object {
+  {
     "end": 606208,
     "score": 920.2895479136712,
     "start": 589824,
   },
-  Object {
+  {
     "end": 622592,
     "score": 549.7303595829529,
     "start": 606208,
   },
-  Object {
+  {
     "end": 638976,
     "score": 734.0542141088437,
     "start": 622592,
   },
-  Object {
+  {
     "end": 655360,
     "score": 748.3856916011628,
     "start": 638976,
   },
-  Object {
+  {
     "end": 671744,
     "score": 907.9434232956102,
     "start": 655360,
   },
-  Object {
+  {
     "end": 688128,
     "score": 748.4687993958992,
     "start": 671744,
   },
-  Object {
+  {
     "end": 704512,
     "score": 744.0363836766252,
     "start": 688128,
   },
-  Object {
+  {
     "end": 720896,
     "score": 745.6339001754468,
     "start": 704512,
   },
-  Object {
+  {
     "end": 737280,
     "score": 733.7587197275587,
     "start": 720896,
   },
-  Object {
+  {
     "end": 753664,
     "score": 915.7740243996609,
     "start": 737280,
   },
-  Object {
+  {
     "end": 770048,
     "score": 743.842465488907,
     "start": 753664,
   },
-  Object {
+  {
     "end": 786432,
     "score": 738.3850536345509,
     "start": 770048,
   },
-  Object {
+  {
     "end": 802816,
     "score": 730.7945417152943,
     "start": 786432,
   },
-  Object {
+  {
     "end": 819200,
     "score": 741.6170234298548,
     "start": 802816,
   },
-  Object {
+  {
     "end": 835584,
     "score": 722.7977250217708,
     "start": 819200,
   },
-  Object {
+  {
     "end": 851968,
     "score": 750.4818548684027,
     "start": 835584,
   },
-  Object {
+  {
     "end": 868352,
     "score": 741.4969788374578,
     "start": 851968,
   },
-  Object {
+  {
     "end": 884736,
     "score": 743.2237741280916,
     "start": 868352,
   },
-  Object {
+  {
     "end": 901120,
     "score": 730.6929655217275,
     "start": 884736,
   },
-  Object {
+  {
     "end": 917504,
     "score": 912.0157052376932,
     "start": 901120,
   },
-  Object {
+  {
     "end": 933888,
     "score": 920.9267076733169,
     "start": 917504,
   },
-  Object {
+  {
     "end": 950272,
     "score": 735.2269574345682,
     "start": 933888,
   },
-  Object {
+  {
     "end": 966656,
     "score": 917.6485668809371,
     "start": 950272,
   },
-  Object {
+  {
     "end": 983040,
     "score": 743.0575585386189,
     "start": 966656,
   },
-  Object {
+  {
     "end": 999424,
     "score": 739.7147783503331,
     "start": 983040,
   },
-  Object {
+  {
     "end": 1015808,
     "score": 739.3084735760663,
     "start": 999424,
@@ -760,7 +760,7 @@ Array [
 `;
 
 exports[`long tag list 1`] = `
-Array [
+[
   "seq",
   "start",
   "end",
