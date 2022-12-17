@@ -1,3 +1,7 @@
+## [1.1.18](https://github.com/GMOD/bam-js/compare/v1.1.17...v1.1.18) (2022-12-17)
+
+
+
 - Use es2015 for nodejs build
 
 ## [1.1.17](https://github.com/GMOD/bam-js/compare/v1.1.16...v1.1.17) (2022-07-18)
