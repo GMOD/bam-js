@@ -1,6 +1,6 @@
+- Use es2015 for nodejs build
+
 ## [1.1.17](https://github.com/GMOD/bam-js/compare/v1.1.16...v1.1.17) (2022-07-18)
-
-
 
 - Bump devDeps and generic-filehandle to 3.0.0
 

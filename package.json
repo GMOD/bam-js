@@ -25,7 +25,7 @@
     "lint": "eslint --report-unused-disable-directives --max-warnings 0 --ext .js,.ts src test",
     "clean": "rimraf dist esm",
     "build:esm": "tsc --target es2018 --outDir esm",
-    "build:es5": "tsc --target es5 --outDir dist",
+    "build:es5": "tsc --target es2015 --module commonjs --outDir dist",
     "build": "npm run build:esm && npm run build:es5",
     "prebuild": "npm run clean && npm run lint",
     "preversion": "npm run lint && npm test && npm run build",
