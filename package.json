@@ -42,7 +42,6 @@
     "@gmod/bgzf-filehandle": "^1.4.4",
     "abortable-promise-cache": "^1.5.0",
     "buffer-crc32": "^0.2.13",
-    "cross-fetch": "^3.0.2",
     "generic-filehandle": "^3.0.0",
     "long": "^4.0.0",
     "object.entries-ponyfill": "^1.0.1",
