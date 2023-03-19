@@ -1,8 +1,7 @@
+import { unzip } from '@gmod/bgzf-filehandle'
 import { BaseOpts, BamOpts } from './util'
 import BamFile, { BAM_MAGIC } from './bamFile'
-import 'cross-fetch/polyfill'
 import Chunk from './chunk'
-import { unzip } from '@gmod/bgzf-filehandle'
 import { parseHeaderText } from './sam'
 
 interface HeaderLine {
