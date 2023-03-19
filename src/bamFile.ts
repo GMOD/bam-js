@@ -11,14 +11,7 @@ import Chunk from './chunk'
 import BAMFeature from './record'
 import IndexFile from './indexFile'
 import { parseHeaderText } from './sam'
-import {
-  abortBreakPoint,
-  checkAbortSignal,
-  timeout,
-  makeOpts,
-  BamOpts,
-  BaseOpts,
-} from './util'
+import { checkAbortSignal, timeout, makeOpts, BamOpts, BaseOpts } from './util'
 
 export const BAM_MAGIC = 21840194
 
@@ -29,9 +22,9 @@ function flat<T>(arr: T[][]) {
 }
 
 async function gen2array<T>(gen: AsyncIterable<T>): Promise<T[]> {
-  const out: T[] = []
+  let out: T[] = []
   for await (const x of gen) {
-    out.push(x)
+    out = out.concat(x)
   }
   return out
 }
@@ -58,23 +51,10 @@ export default class BamFile {
         chunk,
         opts: { ...opts, signal },
       })
-      const feats = await this.readBamFeatures(
-        data,
-        cpositions,
-        dpositions,
-        chunk,
-      )
-      return feats
+      return this.readBamFeatures(data, cpositions, dpositions, chunk)
     },
   })
 
-  /**
-   * @param {object} args
-   * @param {string} [args.bamPath]
-   * @param {FileHandle} [args.bamFilehandle]
-   * @param {string} [args.baiPath]
-   * @param {FileHandle} [args.baiFilehandle]
-   */
   constructor({
     bamFilehandle,
     bamPath,
@@ -255,9 +235,7 @@ export default class BamFile {
       maxInsertSize: 200000,
     },
   ) {
-    return flat(
-      await gen2array(this.streamRecordsForRange(chr, min, max, opts)),
-    )
+    return gen2array(this.streamRecordsForRange(chr, min, max, opts))
   }
 
   async *streamRecordsForRange(
@@ -266,21 +244,12 @@ export default class BamFile {
     max: number,
     opts: BamOpts = {},
   ) {
-    const { signal } = opts
-    const chrId = this.chrToIndex && this.chrToIndex[chr]
-    let chunks: Chunk[]
-    if (!(chrId >= 0)) {
-      chunks = []
-    } else {
-      chunks = await this.index.blocksForRange(chrId, min - 1, max, opts)
-
-      if (!chunks) {
-        throw new Error('Error in index fetch')
-      }
-    }
+    const chrId = this.chrToIndex?.[chr]
+    const chunks = !(chrId >= 0)
+      ? []
+      : await this.index.blocksForRange(chrId, min - 1, max, opts)
 
     for (let i = 0; i < chunks.length; i += 1) {
-      await abortBreakPoint(signal)
       const size = chunks[i].fetchedSize()
       if (size > this.chunkSizeLimit) {
         throw new Error(
@@ -430,13 +399,22 @@ export default class BamFile {
     return flat(await Promise.all(mateFeatPromises))
   }
 
-  async _readChunk({ chunk, opts }: { chunk: Chunk; opts: BaseOpts }) {
-    const size = chunk.fetchedSize()
-    const { buffer, bytesRead } = await this.bam.read(
+  async _readRegion(position: number, size: number, opts: BaseOpts = {}) {
+    const { bytesRead, buffer } = await this.bam.read(
       Buffer.alloc(size),
       0,
       size,
+      position,
+      opts,
+    )
+
+    return buffer.subarray(0, Math.min(bytesRead, size))
+  }
+
+  async _readChunk({ chunk, opts }: { chunk: Chunk; opts: BaseOpts }) {
+    const buffer = await this._readRegion(
       chunk.minv.blockPosition,
+      chunk.fetchedSize(),
       opts,
     )
 
@@ -444,10 +422,7 @@ export default class BamFile {
       buffer: data,
       cpositions,
       dpositions,
-    } = await unzipChunkSlice(
-      buffer.subarray(0, Math.min(bytesRead, size)),
-      chunk,
-    )
+    } = await unzipChunkSlice(buffer, chunk)
     return { data, cpositions, dpositions, chunk }
   }
 

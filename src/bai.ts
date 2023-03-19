@@ -14,6 +14,18 @@ function roundUp(n: number, multiple: number) {
   return n - (n % multiple) + multiple
 }
 
+function reg2bins(beg: number, end: number) {
+  end -= 1
+  return [
+    [0, 0],
+    [1 + (beg >> 26), 1 + (end >> 26)],
+    [9 + (beg >> 23), 9 + (end >> 23)],
+    [73 + (beg >> 20), 73 + (end >> 20)],
+    [585 + (beg >> 17), 585 + (end >> 17)],
+    [4681 + (beg >> 14), 4681 + (end >> 14)],
+  ]
+}
+
 export default class BAI extends IndexFile {
   baiP?: Promise<Buffer>
 
@@ -156,22 +168,6 @@ export default class BAI extends IndexFile {
     })
   }
 
-  /**
-   * calculate the list of bins that may overlap with region [beg,end) (zero-based half-open)
-   * @returns {Array[number]}
-   */
-  reg2bins(beg: number, end: number) {
-    end -= 1
-    return [
-      [0, 0],
-      [1 + (beg >> 26), 1 + (end >> 26)],
-      [9 + (beg >> 23), 9 + (end >> 23)],
-      [73 + (beg >> 20), 73 + (end >> 20)],
-      [585 + (beg >> 17), 585 + (end >> 17)],
-      [4681 + (beg >> 14), 4681 + (end >> 14)],
-    ]
-  }
-
   async blocksForRange(
     refId: number,
     min: number,
@@ -192,7 +188,7 @@ export default class BAI extends IndexFile {
     }
 
     // List of bin #s that overlap min, max
-    const overlappingBins = this.reg2bins(min, max)
+    const overlappingBins = reg2bins(min, max)
     const chunks: Chunk[] = []
 
     // Find chunks in overlapping bins.  Leaf bins (< 4681) are not pruned
@@ -201,7 +197,7 @@ export default class BAI extends IndexFile {
         if (ba.binIndex[bin]) {
           const binChunks = ba.binIndex[bin]
           for (let c = 0; c < binChunks.length; ++c) {
-            chunks.push(new Chunk(binChunks[c].minv, binChunks[c].maxv, bin))
+            chunks.push(binChunks[c])
           }
         }
       }
