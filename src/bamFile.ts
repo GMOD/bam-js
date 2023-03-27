@@ -1,6 +1,5 @@
 import crc32 from 'buffer-crc32'
 import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
-import entries from 'object.entries-ponyfill'
 import { LocalFile, RemoteFile, GenericFilehandle } from 'generic-filehandle'
 import AbortablePromiseCache from 'abortable-promise-cache'
 import QuickLRU from 'quick-lru'
@@ -333,7 +332,7 @@ export default class BamFile {
         readNames[name]++
         readIds[id] = 1
       }
-      entries(readNames).forEach(([k, v]: [string, number]) => {
+      Object.entries(readNames).forEach(([k, v]: [string, number]) => {
         if (v === 1) {
           unmatedPairs[k] = true
         }
