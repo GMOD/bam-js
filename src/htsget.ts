@@ -24,7 +24,9 @@ async function concat(arr: HtsgetChunk[], opts: Record<string, any>) {
           headers: { ...opts.headers, ...rest },
         })
         if (!res.ok) {
-          throw new Error(`Failed to fetch ${url}: ${await res.text()}`)
+          throw new Error(
+            `HTTP ${res.status} fetching ${url}: ${await res.text()}`,
+          )
         }
         return Buffer.from(await res.arrayBuffer())
       }
@@ -60,7 +62,9 @@ export default class HtsgetFile extends BamFile {
     const chrId = this.chrToIndex && this.chrToIndex[chr]
     const result = await fetch(url, { ...opts })
     if (!result.ok) {
-      throw new Error(result.statusText)
+      throw new Error(
+        `HTTP ${result.status} fetching ${url}: ${await result.text()}`,
+      )
     }
     const data = await result.json()
     const uncba = await concat(data.htsget.urls.slice(1), opts)
@@ -114,7 +118,9 @@ export default class HtsgetFile extends BamFile {
     const url = `${this.baseUrl}/${this.trackId}?referenceName=na&class=header`
     const result = await fetch(url, opts)
     if (!result.ok) {
-      throw new Error(`Failed to fetch ${url}: ${await result.text()}`)
+      throw new Error(
+        `HTTP ${result.status} fetching ${url}: ${await result.text()}`,
+      )
     }
     const data = await result.json()
     const uncba = await concat(data.htsget.urls, opts)
