@@ -4,24 +4,19 @@ import BamFile, { BAM_MAGIC } from './bamFile'
 import Chunk from './chunk'
 import { parseHeaderText } from './sam'
 
-interface HeaderLine {
-  tag: string
-  value: string
-}
-
 interface HtsgetChunk {
   url: string
   headers?: Record<string, string>
 }
-async function concat(arr: { url: string }[], opts: Record<string, any>) {
+async function concat(arr: HtsgetChunk[], opts: Record<string, any>) {
   const res = await Promise.all(
-    arr.map(async (chunk: HtsgetChunk) => {
+    arr.map(async chunk => {
       const { url, headers } = chunk
       if (url.startsWith('data:')) {
         return Buffer.from(url.split(',')[1], 'base64')
       } else {
         //remove referer header, it is not even allowed to be specified
-        //@ts-ignore
+        // @ts-expect-error
         //eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { referer, ...rest } = headers
         const res = await fetch(url, {
@@ -29,7 +24,7 @@ async function concat(arr: { url: string }[], opts: Record<string, any>) {
           headers: { ...opts.headers, ...rest },
         })
         if (!res.ok) {
-          throw new Error(`Failed to fetch ${res.statusText}`)
+          throw new Error(`Failed to fetch ${url}: ${await res.text()}`)
         }
         return Buffer.from(await res.arrayBuffer())
       }
@@ -45,8 +40,7 @@ export default class HtsgetFile extends BamFile {
   private trackId: string
 
   constructor(args: { trackId: string; baseUrl: string }) {
-    // @ts-ignore override bam defaults
-    super({ bamFilehandle: '?', baiFilehandle: '?' })
+    super({ htsget: true })
     this.baseUrl = args.baseUrl
     this.trackId = args.trackId
   }
@@ -70,17 +64,38 @@ export default class HtsgetFile extends BamFile {
     }
     const data = await result.json()
     const uncba = await concat(data.htsget.urls.slice(1), opts)
-    const chunk = {
-      buffer: uncba,
-      chunk: { minv: { dataPosition: 0 } },
-      toString() {
-        return `${chr}_${min}_${max}`
-      },
-    }
 
     yield* this._fetchChunkFeatures(
-      // @ts-ignore
-      [chunk],
+      [
+        // fake stuff to pretend to be a Chunk
+        {
+          buffer: uncba,
+          _fetchedSize: undefined,
+          bin: 0,
+          compareTo() {
+            return 0
+          },
+          toUniqueString() {
+            return `${chr}_${min}_${max}`
+          },
+          fetchedSize() {
+            return 0
+          },
+          minv: {
+            dataPosition: 0,
+            blockPosition: 0,
+            compareTo: () => 0,
+          },
+          maxv: {
+            dataPosition: Number.MAX_SAFE_INTEGER,
+            blockPosition: 0,
+            compareTo: () => 0,
+          },
+          toString() {
+            return `${chr}_${min}_${max}`
+          },
+        },
+      ],
       chrId,
       min,
       max,
@@ -88,21 +103,18 @@ export default class HtsgetFile extends BamFile {
     )
   }
 
-  //@ts-ignore
-  async _readChunk(params: {
-    chunk: { buffer: Buffer; chunk: Chunk }
-    opts: BaseOpts
-  }) {
-    const { chunk } = params
-    const { buffer, chunk: c2 } = chunk
-    return { data: buffer, cpositions: null, dpositions: null, chunk: c2 }
+  async _readChunk({ chunk }: { chunk: Chunk; opts: BaseOpts }) {
+    if (!chunk.buffer) {
+      throw new Error('expected chunk.buffer in htsget')
+    }
+    return { data: chunk.buffer, cpositions: [], dpositions: [], chunk }
   }
 
   async getHeader(opts: BaseOpts = {}) {
     const url = `${this.baseUrl}/${this.trackId}?referenceName=na&class=header`
     const result = await fetch(url, opts)
     if (!result.ok) {
-      throw new Error(`Failed to fetch ${result.statusText}`)
+      throw new Error(`Failed to fetch ${url}: ${await result.text()}`)
     }
     const data = await result.json()
     const uncba = await concat(data.htsget.urls, opts)
@@ -111,7 +123,6 @@ export default class HtsgetFile extends BamFile {
       throw new Error('Not a BAM file')
     }
     const headLen = uncba.readInt32LE(4)
-
     const headerText = uncba.toString('utf8', 8, 8 + headLen)
     const samHeader = parseHeaderText(headerText)
 
@@ -119,11 +130,10 @@ export default class HtsgetFile extends BamFile {
     // mapping between ref ref ID numbers and names
     const idToName: string[] = []
     const nameToId: Record<string, number> = {}
-    const sqLines = samHeader.filter((l: { tag: string }) => l.tag === 'SQ')
-    sqLines.forEach((sqLine: { data: HeaderLine[] }, refId: number) => {
-      sqLine.data.forEach((item: HeaderLine) => {
+    const sqLines = samHeader.filter(l => l.tag === 'SQ')
+    sqLines.forEach((sqLine, refId) => {
+      sqLine.data.forEach(item => {
         if (item.tag === 'SN') {
-          // this is the ref name
           const refName = item.value
           nameToId[refName] = refId
           idToName[refId] = refName

@@ -11,6 +11,7 @@ import BAMFeature from './record'
 import IndexFile from './indexFile'
 import { parseHeaderText } from './sam'
 import { checkAbortSignal, timeout, makeOpts, BamOpts, BaseOpts } from './util'
+import NullIndex from './nullIndex'
 
 export const BAM_MAGIC = 21840194
 
@@ -28,6 +29,27 @@ async function gen2array<T>(gen: AsyncIterable<T>): Promise<T[]> {
   return out
 }
 
+interface Args {
+  chunk: Chunk
+  opts: BaseOpts
+}
+
+class NullFilehandle {
+  public read(): Promise<any> {
+    throw new Error('never called')
+  }
+  public stat(): Promise<any> {
+    throw new Error('never called')
+  }
+
+  public readFile(): Promise<any> {
+    throw new Error('never called')
+  }
+
+  public close(): Promise<any> {
+    throw new Error('never called')
+  }
+}
 export default class BamFile {
   private renameRefSeq: (a: string) => string
   private bam: GenericFilehandle
@@ -39,13 +61,12 @@ export default class BamFile {
   protected indexToChr: any
   private yieldThreadTime: number
 
-  private featureCache = new AbortablePromiseCache({
-    //@ts-ignore
+  private featureCache = new AbortablePromiseCache<Args, BAMFeature[]>({
     cache: new QuickLRU({
       maxSize: 50,
     }),
-    //@ts-ignore
-    fill: async ({ chunk, opts }, signal) => {
+    fill: async (args: Args, signal) => {
+      const { chunk, opts } = args
       const { data, cpositions, dpositions } = await this._readChunk({
         chunk,
         opts: { ...opts, signal },
@@ -66,6 +87,7 @@ export default class BamFile {
     csiUrl,
     fetchSizeLimit,
     chunkSizeLimit,
+    htsget,
     yieldThreadTime = 100,
     renameRefSeqs = n => n,
   }: {
@@ -82,6 +104,7 @@ export default class BamFile {
     chunkSizeLimit?: number
     renameRefSeqs?: (a: string) => string
     yieldThreadTime?: number
+    htsget?: boolean
   }) {
     this.renameRefSeq = renameRefSeqs
 
@@ -91,6 +114,8 @@ export default class BamFile {
       this.bam = new LocalFile(bamPath)
     } else if (bamUrl) {
       this.bam = new RemoteFile(bamUrl)
+    } else if (htsget) {
+      this.bam = new NullFilehandle()
     } else {
       throw new Error('unable to initialize bam')
     }
@@ -110,6 +135,8 @@ export default class BamFile {
       this.index = new BAI({ filehandle: new LocalFile(`${bamPath}.bai`) })
     } else if (bamUrl) {
       this.index = new BAI({ filehandle: new RemoteFile(`${bamUrl}.bai`) })
+    } else if (htsget) {
+      this.index = new NullIndex({} as any)
     } else {
       throw new Error('unable to infer index format')
     }

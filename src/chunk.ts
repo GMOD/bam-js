@@ -2,28 +2,14 @@ import VirtualOffset from './virtualOffset'
 
 // little class representing a chunk in the index
 export default class Chunk {
-  public minv: VirtualOffset
-  public maxv: VirtualOffset
-  public bin: number
-  public _fetchedSize?: number
+  public buffer?: Buffer
 
-  /**
-   * @param {VirtualOffset} minv
-   * @param {VirtualOffset} maxv
-   * @param {number} bin
-   * @param {number} [fetchedSize]
-   */
   constructor(
-    minv: VirtualOffset,
-    maxv: VirtualOffset,
-    bin: number,
-    fetchedSize = undefined,
-  ) {
-    this.minv = minv
-    this.maxv = maxv
-    this.bin = bin
-    this._fetchedSize = fetchedSize
-  }
+    public minv: VirtualOffset,
+    public maxv: VirtualOffset,
+    public bin: number,
+    public _fetchedSize = undefined,
+  ) {}
 
   toUniqueString() {
     return `${this.minv}..${this.maxv} (bin ${
