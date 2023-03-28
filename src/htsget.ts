@@ -59,52 +59,56 @@ export default class HtsgetFile extends BamFile {
   ) {
     const base = `${this.baseUrl}/${this.trackId}`
     const url = `${base}?referenceName=${chr}&start=${min}&end=${max}&format=BAM`
-    const chrId = this.chrToIndex && this.chrToIndex[chr]
-    const result = await fetch(url, { ...opts })
-    if (!result.ok) {
-      throw new Error(
-        `HTTP ${result.status} fetching ${url}: ${await result.text()}`,
+    const chrId = this.chrToIndex?.[chr]
+    if (chrId === undefined) {
+      yield []
+    } else {
+      const result = await fetch(url, { ...opts })
+      if (!result.ok) {
+        throw new Error(
+          `HTTP ${result.status} fetching ${url}: ${await result.text()}`,
+        )
+      }
+      const data = await result.json()
+      const uncba = await concat(data.htsget.urls.slice(1), opts)
+
+      yield* this._fetchChunkFeatures(
+        [
+          // fake stuff to pretend to be a Chunk
+          {
+            buffer: uncba,
+            _fetchedSize: undefined,
+            bin: 0,
+            compareTo() {
+              return 0
+            },
+            toUniqueString() {
+              return `${chr}_${min}_${max}`
+            },
+            fetchedSize() {
+              return 0
+            },
+            minv: {
+              dataPosition: 0,
+              blockPosition: 0,
+              compareTo: () => 0,
+            },
+            maxv: {
+              dataPosition: Number.MAX_SAFE_INTEGER,
+              blockPosition: 0,
+              compareTo: () => 0,
+            },
+            toString() {
+              return `${chr}_${min}_${max}`
+            },
+          },
+        ],
+        chrId,
+        min,
+        max,
+        opts,
       )
     }
-    const data = await result.json()
-    const uncba = await concat(data.htsget.urls.slice(1), opts)
-
-    yield* this._fetchChunkFeatures(
-      [
-        // fake stuff to pretend to be a Chunk
-        {
-          buffer: uncba,
-          _fetchedSize: undefined,
-          bin: 0,
-          compareTo() {
-            return 0
-          },
-          toUniqueString() {
-            return `${chr}_${min}_${max}`
-          },
-          fetchedSize() {
-            return 0
-          },
-          minv: {
-            dataPosition: 0,
-            blockPosition: 0,
-            compareTo: () => 0,
-          },
-          maxv: {
-            dataPosition: Number.MAX_SAFE_INTEGER,
-            blockPosition: 0,
-            compareTo: () => 0,
-          },
-          toString() {
-            return `${chr}_${min}_${max}`
-          },
-        },
-      ],
-      chrId,
-      min,
-      max,
-      opts,
-    )
   }
 
   async _readChunk({ chunk }: { chunk: Chunk; opts: BaseOpts }) {
@@ -134,17 +138,21 @@ export default class HtsgetFile extends BamFile {
 
     // use the @SQ lines in the header to figure out the
     // mapping between ref ref ID numbers and names
-    const idToName: string[] = []
+    const idToName: { refName: string; length: number }[] = []
     const nameToId: Record<string, number> = {}
     const sqLines = samHeader.filter(l => l.tag === 'SQ')
     sqLines.forEach((sqLine, refId) => {
+      let refName = ''
+      let length = 0
       sqLine.data.forEach(item => {
         if (item.tag === 'SN') {
-          const refName = item.value
-          nameToId[refName] = refId
-          idToName[refId] = refName
+          refName = item.value
+        } else if (item.tag === 'LN') {
+          length = +item.value
         }
       })
+      nameToId[refName] = refId
+      idToName[refId] = { refName, length }
     })
     this.chrToIndex = nameToId
     this.indexToChr = idToName

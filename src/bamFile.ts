@@ -51,11 +51,12 @@ export default class BamFile {
   private bam: GenericFilehandle
   private chunkSizeLimit: number
   private fetchSizeLimit: number
-  private header: any
-  protected chrToIndex: any
-  protected indexToChr: any
+  private header?: string
+  protected chrToIndex?: Record<string, number>
+  protected indexToChr?: { refName: string; length: number }[]
   private yieldThreadTime: number
   public index: IndexFile
+  public htsget = false
 
   private featureCache = new AbortablePromiseCache<Args, BAMFeature[]>({
     cache: new QuickLRU({
@@ -81,9 +82,9 @@ export default class BamFile {
     csiPath,
     csiFilehandle,
     csiUrl,
-    fetchSizeLimit,
-    chunkSizeLimit,
     htsget,
+    fetchSizeLimit = 500_000_000,
+    chunkSizeLimit = 300_000_000,
     yieldThreadTime = 100,
     renameRefSeqs = n => n,
   }: {
@@ -111,6 +112,7 @@ export default class BamFile {
     } else if (bamUrl) {
       this.bam = new RemoteFile(bamUrl)
     } else if (htsget) {
+      this.htsget = true
       this.bam = new NullFilehandle()
     } else {
       throw new Error('unable to initialize bam')
@@ -132,12 +134,13 @@ export default class BamFile {
     } else if (bamUrl) {
       this.index = new BAI({ filehandle: new RemoteFile(`${bamUrl}.bai`) })
     } else if (htsget) {
+      this.htsget = true
       this.index = new NullIndex({} as any)
     } else {
       throw new Error('unable to infer index format')
     }
-    this.fetchSizeLimit = fetchSizeLimit || 500000000 // 500MB
-    this.chunkSizeLimit = chunkSizeLimit || 300000000 // 300MB
+    this.fetchSizeLimit = fetchSizeLimit
+    this.chunkSizeLimit = chunkSizeLimit
     this.yieldThreadTime = yieldThreadTime
   }
 
@@ -149,24 +152,12 @@ export default class BamFile {
       : undefined
     let buffer
     if (ret) {
-      const res = await this.bam.read(
-        Buffer.alloc(ret + blockLen),
-        0,
-        ret + blockLen,
-        0,
-        opts,
-      )
-
-      const { bytesRead } = res
-      ;({ buffer } = res)
-      if (!bytesRead) {
+      const s = ret + blockLen
+      const res = await this.bam.read(Buffer.alloc(s), 0, s, 0, opts)
+      if (!res.bytesRead) {
         throw new Error('Error reading header')
       }
-      if (bytesRead < ret) {
-        buffer = buffer.subarray(0, bytesRead)
-      } else {
-        buffer = buffer.subarray(0, ret)
-      }
+      buffer = res.buffer.subarray(0, Math.min(res.bytesRead, ret))
     } else {
       buffer = (await this.bam.readFile(opts)) as Buffer
     }
@@ -267,28 +258,30 @@ export default class BamFile {
     opts: BamOpts = {},
   ) {
     const chrId = this.chrToIndex?.[chr]
-    const chunks = !(chrId >= 0)
-      ? []
-      : await this.index.blocksForRange(chrId, min - 1, max, opts)
+    if (chrId === undefined) {
+      yield []
+    } else {
+      const chunks = await this.index.blocksForRange(chrId, min - 1, max, opts)
 
-    for (let i = 0; i < chunks.length; i += 1) {
-      const size = chunks[i].fetchedSize()
-      if (size > this.chunkSizeLimit) {
+      for (let i = 0; i < chunks.length; i += 1) {
+        const size = chunks[i].fetchedSize()
+        if (size > this.chunkSizeLimit) {
+          throw new Error(
+            `Too many BAM features. BAM chunk size ${size} bytes exceeds chunkSizeLimit of ${this.chunkSizeLimit}`,
+          )
+        }
+      }
+
+      const totalSize = chunks
+        .map(s => s.fetchedSize())
+        .reduce((a, b) => a + b, 0)
+      if (totalSize > this.fetchSizeLimit) {
         throw new Error(
-          `Too many BAM features. BAM chunk size ${size} bytes exceeds chunkSizeLimit of ${this.chunkSizeLimit}`,
+          `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
         )
       }
+      yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
     }
-
-    const totalSize = chunks
-      .map(s => s.fetchedSize())
-      .reduce((a, b) => a + b, 0)
-    if (totalSize > this.fetchSizeLimit) {
-      throw new Error(
-        `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
-      )
-    }
-    yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
   async *_fetchChunkFeatures(
@@ -496,7 +489,7 @@ export default class BamFile {
           // starts at 0 instead of chunk.minv.dataPosition
           //
           // the +1 is just to avoid any possible uniqueId 0 but this does not realistically happen
-          fileOffset: cpositions
+          fileOffset: cpositions.length
             ? cpositions[pos] * (1 << 8) +
               (blockStart - dpositions[pos]) +
               chunk.minv.dataPosition +
@@ -518,18 +511,27 @@ export default class BamFile {
   }
 
   async hasRefSeq(seqName: string) {
-    const refId = this.chrToIndex && this.chrToIndex[seqName]
-    return this.index.hasRefSeq(refId)
+    const seqId = this.chrToIndex?.[seqName]
+    if (seqId === undefined) {
+      return false
+    }
+    return this.index.hasRefSeq(seqId)
   }
 
   async lineCount(seqName: string) {
-    const refId = this.chrToIndex && this.chrToIndex[seqName]
-    return this.index.lineCount(refId)
+    const seqId = this.chrToIndex?.[seqName]
+    if (seqId === undefined) {
+      return 0
+    }
+    return this.index.lineCount(seqId)
   }
 
   async indexCov(seqName: string, start?: number, end?: number) {
     await this.index.parse()
-    const seqId = this.chrToIndex && this.chrToIndex[seqName]
+    const seqId = this.chrToIndex?.[seqName]
+    if (seqId === undefined) {
+      return []
+    }
     return this.index.indexCov(seqId, start, end)
   }
 
@@ -540,7 +542,10 @@ export default class BamFile {
     opts?: BaseOpts,
   ) {
     await this.index.parse()
-    const seqId = this.chrToIndex && this.chrToIndex[seqName]
+    const seqId = this.chrToIndex?.[seqName]
+    if (seqId === undefined) {
+      return []
+    }
     return this.index.blocksForRange(seqId, start, end, opts)
   }
 }
