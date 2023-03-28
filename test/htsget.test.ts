@@ -1,31 +1,12 @@
 // @ts-nocheck
 import { HtsgetFile } from '../src'
-import * as fs from 'fs'
-
-const fetch = req => {
-  const result = fs.readFileSync(
-    require.resolve('./htsget/result.json'),
-    'utf8',
-  )
-  if (
-    req ===
-    'http://htsnexus.rnd.dnanex.us/v1/reads/BroadHiSeqX_b37/NA12878?referenceName=na&class=header'
-  ) {
-    return new Response(result, { status: 200 })
-  } else if (
-    req ===
-    'https://dl.dnanex.us/F/D/Pb1QjgQx9j2bZ8Q44x50xf4fQV3YZBgkvkz23FFB/NA12878_recompressed.bam'
-  ) {
-    const result = fs.readFileSync(require.resolve('./htsget/data.bam'))
-    return new Response(result, { status: 206 })
-  } else {
-    return new Response(result, { status: 200 })
-  }
-}
+import fetchMock from 'jest-fetch-mock'
+import fs from 'fs'
 
 beforeEach(() => {
   jest.restoreAllMocks()
 })
+
 xdescribe('htsspec htsget wtsi', () => {
   it('wtsi', async () => {
     const ti = new HtsgetFile({
@@ -37,8 +18,26 @@ xdescribe('htsspec htsget wtsi', () => {
   })
 })
 
+const result = fs.readFileSync(require.resolve('./htsget/result.json'), 'utf8')
+
 test('dnanexus with mock', async () => {
-  global.fetch = jest.fn().mockImplementation(fetch)
+  fetchMock.mockIf(
+    'http://htsnexus.rnd.dnanex.us/v1/reads/BroadHiSeqX_b37/NA12878?referenceName=na&class=header',
+    () => {
+      return result
+    },
+  )
+  fetchMock.mockIf(
+    'https://dl.dnanex.us/F/D/Pb1QjgQx9j2bZ8Q44x50xf4fQV3YZBgkvkz23FFB/NA12878_recompressed.bam',
+
+    () => {
+      const result = fs.readFileSync(require.resolve('./htsget/data.bam'))
+      return {
+        status: 206,
+        body: result,
+      }
+    },
+  )
   const ti = new HtsgetFile({
     baseUrl: 'http://htsnexus.rnd.dnanex.us/v1/reads',
     trackId: 'BroadHiSeqX_b37/NA12878',
