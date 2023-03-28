@@ -17,11 +17,7 @@ export const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
 
-function flat<T>(arr: T[][]) {
-  return ([] as T[]).concat(...arr)
-}
-
-async function gen2array<T>(gen: AsyncIterable<T>): Promise<T[]> {
+async function gen2array<T>(gen: AsyncIterable<T[]>): Promise<T[]> {
   let out: T[] = []
   for await (const x of gen) {
     out = out.concat(x)
@@ -53,13 +49,13 @@ class NullFilehandle {
 export default class BamFile {
   private renameRefSeq: (a: string) => string
   private bam: GenericFilehandle
-  private index: IndexFile
   private chunkSizeLimit: number
   private fetchSizeLimit: number
   private header: any
   protected chrToIndex: any
   protected indexToChr: any
   private yieldThreadTime: number
+  public index: IndexFile
 
   private featureCache = new AbortablePromiseCache<Args, BAMFeature[]>({
     cache: new QuickLRU({
@@ -388,11 +384,14 @@ export default class BamFile {
 
     // filter out duplicate chunks (the blocks are lists of chunks, blocks are
     // concatenated, then filter dup chunks)
-    const mateChunks = flat(await Promise.all(matePromises))
-      .sort()
-      .filter(
-        (item, pos, ary) => !pos || item.toString() !== ary[pos - 1].toString(),
-      )
+    const map = new Map<string, Chunk>()
+    const preProcessedMateChunks = (await Promise.all(matePromises)).flat()
+    for (const m of preProcessedMateChunks) {
+      if (!map.has(m.toString())) {
+        map.set(m.toString(), m)
+      }
+    }
+    const mateChunks = [...map.values()]
 
     const mateTotalSize = mateChunks
       .map(s => s.fetchedSize())
@@ -422,7 +421,7 @@ export default class BamFile {
       }
       return mateRecs
     })
-    return flat(await Promise.all(mateFeatPromises))
+    return (await Promise.all(mateFeatPromises)).flat()
   }
 
   async _readRegion(position: number, size: number, opts: BaseOpts = {}) {
