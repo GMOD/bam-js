@@ -8,10 +8,8 @@ import BAI from './bai'
 import CSI from './csi'
 import Chunk from './chunk'
 import BAMFeature from './record'
-import IndexFile from './indexFile'
 import { parseHeaderText } from './sam'
 import { checkAbortSignal, timeout, makeOpts, BamOpts, BaseOpts } from './util'
-import NullIndex from './nullIndex'
 
 export const BAM_MAGIC = 21840194
 
@@ -55,7 +53,7 @@ export default class BamFile {
   protected chrToIndex?: Record<string, number>
   protected indexToChr?: { refName: string; length: number }[]
   private yieldThreadTime: number
-  public index: IndexFile
+  public index?: BAI | CSI
   public htsget = false
 
   private featureCache = new AbortablePromiseCache<Args, BAMFeature[]>({
@@ -135,7 +133,6 @@ export default class BamFile {
       this.index = new BAI({ filehandle: new RemoteFile(`${bamUrl}.bai`) })
     } else if (htsget) {
       this.htsget = true
-      this.index = new NullIndex({} as any)
     } else {
       throw new Error('unable to infer index format')
     }
@@ -146,6 +143,9 @@ export default class BamFile {
 
   async getHeader(origOpts: AbortSignal | BaseOpts = {}) {
     const opts = makeOpts(origOpts)
+    if (!this.index) {
+      return
+    }
     const indexData = await this.index.parse(opts)
     const ret = indexData.firstDataLine
       ? indexData.firstDataLine.blockPosition + 65535
@@ -254,28 +254,10 @@ export default class BamFile {
     opts?: BamOpts,
   ) {
     const chrId = this.chrToIndex?.[chr]
-    if (chrId === undefined) {
+    if (chrId === undefined || !this.index) {
       yield []
     } else {
       const chunks = await this.index.blocksForRange(chrId, min - 1, max, opts)
-
-      for (const chunk of chunks) {
-        const size = chunk.fetchedSize()
-        if (size > this.chunkSizeLimit) {
-          throw new Error(
-            `Too many BAM features. BAM chunk size ${size} bytes exceeds chunkSizeLimit of ${this.chunkSizeLimit}`,
-          )
-        }
-      }
-
-      const totalSize = chunks
-        .map(s => s.fetchedSize())
-        .reduce((a, b) => a + b, 0)
-      if (totalSize > this.fetchSizeLimit) {
-        throw new Error(
-          `data size of ${totalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
-        )
-      }
       yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
     }
   }
@@ -357,6 +339,7 @@ export default class BamFile {
         const pnext = f._next_pos()
         const rnext = f._next_refid()
         if (
+          this.index &&
           unmatedPairs[name] &&
           (pairAcrossChr ||
             (rnext === chrId && Math.abs(start - pnext) < maxInsertSize))
@@ -379,14 +362,6 @@ export default class BamFile {
     }
     const mateChunks = [...map.values()]
 
-    const mateTotalSize = mateChunks
-      .map(s => s.fetchedSize())
-      .reduce((a, b) => a + b, 0)
-    if (mateTotalSize > this.fetchSizeLimit) {
-      throw new Error(
-        `data size of ${mateTotalSize.toLocaleString()} bytes exceeded fetch size limit of ${this.fetchSizeLimit.toLocaleString()} bytes`,
-      )
-    }
     const mateFeatPromises = mateChunks.map(async c => {
       const { data, cpositions, dpositions, chunk } = await this._readChunk({
         chunk: c,
@@ -509,18 +484,21 @@ export default class BamFile {
     if (seqId === undefined) {
       return false
     }
-    return this.index.hasRefSeq(seqId)
+    return this.index?.hasRefSeq(seqId)
   }
 
   async lineCount(seqName: string) {
     const seqId = this.chrToIndex?.[seqName]
-    if (seqId === undefined) {
+    if (seqId === undefined || !this.index) {
       return 0
     }
     return this.index.lineCount(seqId)
   }
 
   async indexCov(seqName: string, start?: number, end?: number) {
+    if (!this.index) {
+      return []
+    }
     await this.index.parse()
     const seqId = this.chrToIndex?.[seqName]
     if (seqId === undefined) {
@@ -535,6 +513,9 @@ export default class BamFile {
     end: number,
     opts?: BaseOpts,
   ) {
+    if (!this.index) {
+      return []
+    }
     await this.index.parse()
     const seqId = this.chrToIndex?.[seqName]
     if (seqId === undefined) {

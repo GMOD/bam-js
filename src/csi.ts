@@ -17,15 +17,12 @@ function rshift(num: number, bits: number) {
 }
 
 export default class CSI extends IndexFile {
-  private maxBinNumber: number
-  private depth: number
-  private minShift: number
-  constructor(args: any) {
-    super(args)
-    this.maxBinNumber = 0
-    this.depth = 0
-    this.minShift = 0
-  }
+  private maxBinNumber = 0
+  private depth = 0
+  private minShift = 0
+
+  public setupP?: ReturnType<CSI['_parse']>
+
   async lineCount(refId: number): Promise<number> {
     const indexData = await this.parse()
     if (!indexData) {
@@ -51,35 +48,39 @@ export default class CSI extends IndexFile {
       return {}
     }
 
-    const data: { [key: string]: any } = {}
-    data.formatFlags = bytes.readInt32LE(offset)
-    data.coordinateType =
-      data.formatFlags & 0x10000 ? 'zero-based-half-open' : '1-based-closed'
-    data.format = (
+    const formatFlags = bytes.readInt32LE(offset)
+    const coordinateType =
+      formatFlags & 0x10000 ? 'zero-based-half-open' : '1-based-closed'
+    const format = (
       { 0: 'generic', 1: 'SAM', 2: 'VCF' } as {
         [key: number]: string
       }
-    )[data.formatFlags & 0xf]
-    if (!data.format) {
-      throw new Error(`invalid Tabix preset format flags ${data.formatFlags}`)
+    )[formatFlags & 0xf]
+    if (!format) {
+      throw new Error(`invalid Tabix preset format flags ${formatFlags}`)
     }
-    data.columnNumbers = {
+    const columnNumbers = {
       ref: bytes.readInt32LE(offset + 4),
       start: bytes.readInt32LE(offset + 8),
       end: bytes.readInt32LE(offset + 12),
     }
-    data.metaValue = bytes.readInt32LE(offset + 16)
-    data.metaChar = data.metaValue ? String.fromCharCode(data.metaValue) : ''
-    data.skipLines = bytes.readInt32LE(offset + 20)
+    const metaValue = bytes.readInt32LE(offset + 16)
+    const metaChar = metaValue ? String.fromCharCode(metaValue) : ''
+    const skipLines = bytes.readInt32LE(offset + 20)
     const nameSectionLength = bytes.readInt32LE(offset + 24)
 
-    Object.assign(
-      data,
-      this._parseNameBytes(
+    return {
+      columnNumbers,
+      coordinateType,
+      metaValue,
+      metaChar,
+      skipLines,
+      format,
+      formatFlags,
+      ...this._parseNameBytes(
         bytes.subarray(offset + 28, offset + 28 + nameSectionLength),
       ),
-    )
-    return data
+    }
   }
 
   _parseNameBytes(namesBytes: Buffer) {
@@ -104,15 +105,15 @@ export default class CSI extends IndexFile {
 
   // fetch and parse the index
   async _parse(opts: { signal?: AbortSignal }) {
-    const data: { [key: string]: any } = { csi: true, maxBlockSize: 1 << 16 }
-    const buffer = (await this.filehandle.readFile(opts)) as Buffer
+    const buffer = await this.filehandle.readFile(opts)
     const bytes = await unzip(buffer)
 
+    let csiVersion
     // check TBI magic numbers
     if (bytes.readUInt32LE(0) === CSI1_MAGIC) {
-      data.csiVersion = 1
+      csiVersion = 1
     } else if (bytes.readUInt32LE(0) === CSI2_MAGIC) {
-      data.csiVersion = 2
+      csiVersion = 2
     } else {
       throw new Error('Not a CSI file')
       // TODO: do we need to support big-endian CSI files?
@@ -122,15 +123,14 @@ export default class CSI extends IndexFile {
     this.depth = bytes.readInt32LE(8)
     this.maxBinNumber = ((1 << ((this.depth + 1) * 3)) - 1) / 7
     const auxLength = bytes.readInt32LE(12)
-    if (auxLength) {
-      Object.assign(data, this.parseAuxData(bytes, 16, auxLength))
-    }
-    data.refCount = bytes.readInt32LE(16 + auxLength)
+    const aux = auxLength ? this.parseAuxData(bytes, 16, auxLength) : {}
+    const refCount = bytes.readInt32LE(16 + auxLength)
 
     // read the indexes for each reference sequence
-    data.indices = new Array(data.refCount)
+    const indices = new Array(refCount)
     let currOffset = 16 + auxLength + 4
-    for (let i = 0; i < data.refCount; i += 1) {
+    let firstDataLine: VirtualOffset | undefined
+    for (let i = 0; i < refCount; i += 1) {
       await abortBreakPoint(opts.signal)
       // the binning index
       const binCount = bytes.readInt32LE(currOffset)
@@ -146,7 +146,7 @@ export default class CSI extends IndexFile {
           currOffset += 4 + 8 + 4 + 16 + 16
         } else {
           const loffset = fromBytes(bytes, currOffset + 4)
-          this._findFirstData(data, loffset)
+          firstDataLine = this._findFirstData(firstDataLine, loffset)
           const chunkCount = bytes.readInt32LE(currOffset + 12)
           currOffset += 16
           const chunks = new Array(chunkCount)
@@ -161,10 +161,18 @@ export default class CSI extends IndexFile {
         }
       }
 
-      data.indices[i] = { binIndex, stats }
+      indices[i] = { binIndex, stats }
     }
 
-    return data
+    return {
+      csiVersion,
+      firstDataLine,
+      indices,
+      refCount,
+      csi: true,
+      maxBlockSize: 1 << 16,
+      ...aux,
+    }
   }
 
   parsePseudoBin(bytes: Buffer, offset: number) {
@@ -239,5 +247,20 @@ export default class CSI extends IndexFile {
       bins.push([b, e])
     }
     return bins
+  }
+
+  async parse(opts: BaseOpts = {}) {
+    if (!this.setupP) {
+      this.setupP = this._parse(opts).catch(e => {
+        this.setupP = undefined
+        throw e
+      })
+    }
+    return this.setupP
+  }
+
+  async hasRefSeq(seqId: number, opts: BaseOpts = {}) {
+    const header = await this.parse(opts)
+    return !!header.indices[seqId]?.binIndex
   }
 }

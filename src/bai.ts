@@ -2,8 +2,8 @@ import Long from 'long'
 import VirtualOffset, { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 
-import IndexFile from './indexFile'
 import { longToNumber, optimizeChunks, BaseOpts } from './util'
+import IndexFile from './indexFile'
 
 const BAI_MAGIC = 21578050 // BAI\1
 
@@ -28,6 +28,7 @@ function reg2bins(beg: number, end: number) {
 
 export default class BAI extends IndexFile {
   baiP?: Promise<Buffer>
+  public setupP?: ReturnType<BAI['_parse']>
 
   parsePseudoBin(bytes: Buffer, offset: number) {
     const lineCount = longToNumber(
@@ -60,23 +61,23 @@ export default class BAI extends IndexFile {
   }
 
   // fetch and parse the index
-  async _parse() {
-    const data: { [key: string]: any } = { bai: true, maxBlockSize: 1 << 16 }
-    const bytes = await this.fetchBai()
+  async _parse(opts?: BaseOpts) {
+    const bytes = await this.fetchBai(opts)
 
     // check BAI magic numbers
     if (bytes.readUInt32LE(0) !== BAI_MAGIC) {
       throw new Error('Not a BAI file')
     }
 
-    data.refCount = bytes.readInt32LE(4)
+    const refCount = bytes.readInt32LE(4)
     const depth = 5
     const binLimit = ((1 << ((depth + 1) * 3)) - 1) / 7
 
     // read the indexes for each reference sequence
-    data.indices = new Array(data.refCount)
+    const indices = new Array(refCount)
     let currOffset = 8
-    for (let i = 0; i < data.refCount; i += 1) {
+    let firstDataLine: VirtualOffset | undefined
+    for (let i = 0; i < refCount; i += 1) {
       // the binning index
       const binCount = bytes.readInt32LE(currOffset)
       let stats
@@ -100,7 +101,7 @@ export default class BAI extends IndexFile {
             const u = fromBytes(bytes, currOffset)
             const v = fromBytes(bytes, currOffset + 8)
             currOffset += 16
-            this._findFirstData(data, u)
+            firstDataLine = this._findFirstData(firstDataLine, u)
             chunks[k] = new Chunk(u, v, bin)
           }
           binIndex[bin] = chunks
@@ -116,13 +117,19 @@ export default class BAI extends IndexFile {
       for (let k = 0; k < linearCount; k += 1) {
         linearIndex[k] = fromBytes(bytes, currOffset)
         currOffset += 8
-        this._findFirstData(data, linearIndex[k])
+        firstDataLine = this._findFirstData(firstDataLine, linearIndex[k])
       }
 
-      data.indices[i] = { binIndex, linearIndex, stats }
+      indices[i] = { binIndex, linearIndex, stats }
     }
 
-    return data
+    return {
+      bai: true,
+      firstDataLine,
+      maxBlockSize: 1 << 16,
+      indices,
+      refCount,
+    }
   }
 
   async indexCov(
@@ -214,5 +221,20 @@ export default class BAI extends IndexFile {
     }
 
     return optimizeChunks(chunks, lowest)
+  }
+
+  async parse(opts: BaseOpts = {}) {
+    if (!this.setupP) {
+      this.setupP = this._parse(opts).catch(e => {
+        this.setupP = undefined
+        throw e
+      })
+    }
+    return this.setupP
+  }
+
+  async hasRefSeq(seqId: number, opts: BaseOpts = {}) {
+    const header = await this.parse(opts)
+    return !!header.indices[seqId]?.binIndex
   }
 }
