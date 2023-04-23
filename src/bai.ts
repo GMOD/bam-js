@@ -40,14 +40,9 @@ export default class BAI extends IndexFile {
     return { lineCount }
   }
 
-  async lineCount(refId: number, opts: BaseOpts = {}) {
-    const prom = await this.parse(opts)
-    const index = prom.indices[refId]
-    if (!index) {
-      return -1
-    }
-    const ret = index.stats || {}
-    return ret.lineCount === undefined ? -1 : ret.lineCount
+  async lineCount(refId: number, opts?: BaseOpts) {
+    const indexData = await this.parse(opts)
+    return indexData.indices[refId]?.stats?.lineCount || 0
   }
 
   fetchBai(opts: BaseOpts = {}) {
@@ -74,10 +69,9 @@ export default class BAI extends IndexFile {
     const binLimit = ((1 << ((depth + 1) * 3)) - 1) / 7
 
     // read the indexes for each reference sequence
-    const indices = new Array(refCount)
     let currOffset = 8
     let firstDataLine: VirtualOffset | undefined
-    for (let i = 0; i < refCount; i += 1) {
+    const indices = Array.from({ length: refCount }).map(() => {
       // the binning index
       const binCount = bytes.readInt32LE(currOffset)
       let stats
@@ -113,15 +107,15 @@ export default class BAI extends IndexFile {
       // as we're going through the linear index, figure out
       // the smallest virtual offset in the indexes, which
       // tells us where the BAM header ends
-      const linearIndex = new Array(linearCount)
-      for (let k = 0; k < linearCount; k += 1) {
-        linearIndex[k] = fromBytes(bytes, currOffset)
+      const linearIndex = Array.from({ length: linearCount }).map(() => {
+        const offset = fromBytes(bytes, currOffset)
         currOffset += 8
-        firstDataLine = this._findFirstData(firstDataLine, linearIndex[k])
-      }
+        firstDataLine = this._findFirstData(firstDataLine, offset)
+        return offset
+      })
 
-      indices[i] = { binIndex, linearIndex, stats }
-    }
+      return { binIndex, linearIndex, stats }
+    })
 
     return {
       bai: true,
@@ -167,9 +161,10 @@ export default class BAI extends IndexFile {
       }
       currentPos = linearIndex[i + 1].blockPosition
     }
-    return depths.map(d => {
-      return { ...d, score: (d.score * stats.lineCount) / totalSize }
-    })
+    return depths.map(d => ({
+      ...d,
+      score: (d.score * (stats?.lineCount || 0)) / totalSize,
+    }))
   }
 
   async blocksForRange(

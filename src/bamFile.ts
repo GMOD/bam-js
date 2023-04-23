@@ -45,14 +45,12 @@ class NullFilehandle {
   }
 }
 export default class BamFile {
-  private renameRefSeq: (a: string) => string
-  private bam: GenericFilehandle
-  private chunkSizeLimit: number
-  private fetchSizeLimit: number
-  private header?: string
-  protected chrToIndex?: Record<string, number>
-  protected indexToChr?: { refName: string; length: number }[]
-  private yieldThreadTime: number
+  public renameRefSeq: (a: string) => string
+  public bam: GenericFilehandle
+  public header?: string
+  public chrToIndex?: Record<string, number>
+  public indexToChr?: { refName: string; length: number }[]
+  public yieldThreadTime: number
   public index?: BAI | CSI
   public htsget = false
 
@@ -81,8 +79,6 @@ export default class BamFile {
     csiFilehandle,
     csiUrl,
     htsget,
-    fetchSizeLimit = 500_000_000,
-    chunkSizeLimit = 300_000_000,
     yieldThreadTime = 100,
     renameRefSeqs = n => n,
   }: {
@@ -95,8 +91,6 @@ export default class BamFile {
     csiPath?: string
     csiFilehandle?: GenericFilehandle
     csiUrl?: string
-    fetchSizeLimit?: number
-    chunkSizeLimit?: number
     renameRefSeqs?: (a: string) => string
     yieldThreadTime?: number
     htsget?: boolean
@@ -136,8 +130,6 @@ export default class BamFile {
     } else {
       throw new Error('unable to infer index format')
     }
-    this.fetchSizeLimit = fetchSizeLimit
-    this.chunkSizeLimit = chunkSizeLimit
     this.yieldThreadTime = yieldThreadTime
   }
 
@@ -243,7 +235,7 @@ export default class BamFile {
     min: number,
     max: number,
     opts?: BamOpts,
-  ) {
+  ): Promise<BAMFeature[]> {
     return gen2array(this.streamRecordsForRange(chr, min, max, opts))
   }
 

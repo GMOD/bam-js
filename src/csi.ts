@@ -2,7 +2,7 @@ import Long from 'long'
 import { unzip } from '@gmod/bgzf-filehandle'
 import VirtualOffset, { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
-import { longToNumber, abortBreakPoint, optimizeChunks, BaseOpts } from './util'
+import { longToNumber, optimizeChunks, BaseOpts } from './util'
 
 import IndexFile from './indexFile'
 
@@ -23,31 +23,16 @@ export default class CSI extends IndexFile {
 
   public setupP?: ReturnType<CSI['_parse']>
 
-  async lineCount(refId: number): Promise<number> {
-    const indexData = await this.parse()
-    if (!indexData) {
-      return -1
-    }
-    const idx = indexData.indices[refId]
-    if (!idx) {
-      return -1
-    }
-    const { stats } = indexData.indices[refId]
-    if (stats) {
-      return stats.lineCount
-    }
-    return -1
+  async lineCount(refId: number, opts?: BaseOpts) {
+    const indexData = await this.parse(opts)
+    return indexData.indices[refId]?.stats?.lineCount || 0
   }
 
   async indexCov() {
     return []
   }
 
-  parseAuxData(bytes: Buffer, offset: number, auxLength: number) {
-    if (auxLength < 30) {
-      return {}
-    }
-
+  parseAuxData(bytes: Buffer, offset: number) {
     const formatFlags = bytes.readInt32LE(offset)
     const coordinateType =
       formatFlags & 0x10000 ? 'zero-based-half-open' : '1-based-closed'
@@ -123,15 +108,13 @@ export default class CSI extends IndexFile {
     this.depth = bytes.readInt32LE(8)
     this.maxBinNumber = ((1 << ((this.depth + 1) * 3)) - 1) / 7
     const auxLength = bytes.readInt32LE(12)
-    const aux = auxLength ? this.parseAuxData(bytes, 16, auxLength) : {}
+    const aux = auxLength >= 30 ? this.parseAuxData(bytes, 16) : undefined
     const refCount = bytes.readInt32LE(16 + auxLength)
 
     // read the indexes for each reference sequence
-    const indices = new Array(refCount)
     let currOffset = 16 + auxLength + 4
     let firstDataLine: VirtualOffset | undefined
-    for (let i = 0; i < refCount; i += 1) {
-      await abortBreakPoint(opts.signal)
+    const indices = Array.from({ length: refCount }).map(() => {
       // the binning index
       const binCount = bytes.readInt32LE(currOffset)
       currOffset += 4
@@ -161,8 +144,8 @@ export default class CSI extends IndexFile {
         }
       }
 
-      indices[i] = { binIndex, stats }
-    }
+      return { binIndex, stats }
+    })
 
     return {
       csiVersion,
