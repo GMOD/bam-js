@@ -201,8 +201,8 @@ export default class CSI extends IndexFile {
       for (let bin = start; bin <= end; bin++) {
         if (ba.binIndex[bin]) {
           const binChunks = ba.binIndex[bin]
-          for (let c = 0; c < binChunks.length; ++c) {
-            chunks.push(new Chunk(binChunks[c].minv, binChunks[c].maxv, bin))
+          for (const binChunk of binChunks) {
+            chunks.push(new Chunk(binChunk.minv, binChunk.maxv, bin))
           }
         }
       }

@@ -242,11 +242,7 @@ export default class BamFile {
     chr: string,
     min: number,
     max: number,
-    opts: BamOpts = {
-      viewAsPairs: false,
-      pairAcrossChr: false,
-      maxInsertSize: 200000,
-    },
+    opts?: BamOpts,
   ) {
     return gen2array(this.streamRecordsForRange(chr, min, max, opts))
   }
@@ -255,7 +251,7 @@ export default class BamFile {
     chr: string,
     min: number,
     max: number,
-    opts: BamOpts = {},
+    opts?: BamOpts,
   ) {
     const chrId = this.chrToIndex?.[chr]
     if (chrId === undefined) {
@@ -263,8 +259,8 @@ export default class BamFile {
     } else {
       const chunks = await this.index.blocksForRange(chrId, min - 1, max, opts)
 
-      for (let i = 0; i < chunks.length; i += 1) {
-        const size = chunks[i].fetchedSize()
+      for (const chunk of chunks) {
+        const size = chunk.fetchedSize()
         if (size > this.chunkSizeLimit) {
           throw new Error(
             `Too many BAM features. BAM chunk size ${size} bytes exceeds chunkSizeLimit of ${this.chunkSizeLimit}`,
@@ -289,14 +285,13 @@ export default class BamFile {
     chrId: number,
     min: number,
     max: number,
-    opts: BamOpts,
+    opts: BamOpts = {},
   ) {
-    const { viewAsPairs = false } = opts
+    const { viewAsPairs } = opts || {}
     const feats = []
     let done = false
 
-    for (let i = 0; i < chunks.length; i++) {
-      const c = chunks[i]
+    for (const c of chunks) {
       const records = (await this.featureCache.get(
         c.toString(),
         {
@@ -307,8 +302,7 @@ export default class BamFile {
       )) as BAMFeature[]
 
       const recs = []
-      for (let i = 0; i < records.length; i += 1) {
-        const feature = records[i]
+      for (const feature of records) {
         if (feature.seq_id() === chrId) {
           if (feature.get('start') >= max) {
             // past end of range, can stop iterating
@@ -334,31 +328,30 @@ export default class BamFile {
   }
 
   async fetchPairs(chrId: number, feats: BAMFeature[][], opts: BamOpts) {
-    const { pairAcrossChr = false, maxInsertSize = 200000 } = opts
+    const { pairAcrossChr, maxInsertSize = 200000 } = opts
     const unmatedPairs: { [key: string]: boolean } = {}
     const readIds: { [key: string]: number } = {}
     feats.map(ret => {
       const readNames: { [key: string]: number } = {}
-      for (let i = 0; i < ret.length; i++) {
-        const name = ret[i].name()
-        const id = ret[i].id()
+      for (const element of ret) {
+        const name = element.name()
+        const id = element.id()
         if (!readNames[name]) {
           readNames[name] = 0
         }
         readNames[name]++
         readIds[id] = 1
       }
-      Object.entries(readNames).forEach(([k, v]: [string, number]) => {
+      for (const [k, v] of Object.entries(readNames)) {
         if (v === 1) {
           unmatedPairs[k] = true
         }
-      })
+      }
     })
 
     const matePromises: Promise<Chunk[]>[] = []
     feats.map(ret => {
-      for (let i = 0; i < ret.length; i++) {
-        const f = ret[i]
+      for (const f of ret) {
         const name = f.name()
         const start = f.get('start')
         const pnext = f._next_pos()
@@ -378,8 +371,8 @@ export default class BamFile {
     // filter out duplicate chunks (the blocks are lists of chunks, blocks are
     // concatenated, then filter dup chunks)
     const map = new Map<string, Chunk>()
-    const preProcessedMateChunks = (await Promise.all(matePromises)).flat()
-    for (const m of preProcessedMateChunks) {
+    const res = await Promise.all(matePromises)
+    for (const m of res.flat()) {
       if (!map.has(m.toString())) {
         map.set(m.toString(), m)
       }
@@ -406,15 +399,15 @@ export default class BamFile {
         chunk,
       )
       const mateRecs = []
-      for (let i = 0; i < feats.length; i += 1) {
-        const feature = feats[i]
+      for (const feature of feats) {
         if (unmatedPairs[feature.get('name')] && !readIds[feature.id()]) {
           mateRecs.push(feature)
         }
       }
       return mateRecs
     })
-    return (await Promise.all(mateFeatPromises)).flat()
+    const res2 = await Promise.all(mateFeatPromises)
+    return res2.flat()
   }
 
   async _readRegion(position: number, size: number, opts: BaseOpts = {}) {
@@ -489,13 +482,14 @@ export default class BamFile {
           // starts at 0 instead of chunk.minv.dataPosition
           //
           // the +1 is just to avoid any possible uniqueId 0 but this does not realistically happen
-          fileOffset: cpositions.length
-            ? cpositions[pos] * (1 << 8) +
-              (blockStart - dpositions[pos]) +
-              chunk.minv.dataPosition +
-              1
-            : // must be slice, not subarray for buffer polyfill on web
-              crc32.signed(ba.slice(blockStart, blockEnd)),
+          fileOffset:
+            cpositions.length > 0
+              ? cpositions[pos] * (1 << 8) +
+                (blockStart - dpositions[pos]) +
+                chunk.minv.dataPosition +
+                1
+              : // must be slice, not subarray for buffer polyfill on web
+                crc32.signed(ba.slice(blockStart, blockEnd)),
         })
 
         sink.push(feature)

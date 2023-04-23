@@ -4,9 +4,7 @@ import { BAI, BamFile } from '../src'
 
 describe('using vanilla node filehandles', () => {
   it('loads volvox-sorted.bam.bai', async () => {
-    const filehandle = await fs.promises.open(
-      require.resolve('./data/volvox-sorted.bam.bai'),
-    )
+    const filehandle = await fs.promises.open('test/data/volvox-sorted.bam.bai')
 
     const ti = new BAI({
       filehandle,
@@ -19,12 +17,8 @@ describe('using vanilla node filehandles', () => {
   })
 
   it('gets features from volvox-sorted.bam', async () => {
-    const bam = await fs.promises.open(
-      require.resolve('./data/volvox-sorted.bam'),
-    )
-    const bai = await fs.promises.open(
-      require.resolve('./data/volvox-sorted.bam.bai'),
-    )
+    const bam = await fs.promises.open('test/data/volvox-sorted.bam')
+    const bai = await fs.promises.open('test/data/volvox-sorted.bam.bai')
     const ti = new BamFile({
       bamFilehandle: bam,
       baiFilehandle: bai,

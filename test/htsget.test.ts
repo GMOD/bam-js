@@ -18,7 +18,7 @@ xdescribe('htsspec htsget wtsi', () => {
   })
 })
 
-const result = fs.readFileSync(require.resolve('./htsget/result.json'), 'utf8')
+const result = fs.readFileSync('test/htsget/result.json', 'utf8')
 
 test('dnanexus with mock', async () => {
   fetchMock.mockIf(
@@ -31,7 +31,7 @@ test('dnanexus with mock', async () => {
     'https://dl.dnanex.us/F/D/Pb1QjgQx9j2bZ8Q44x50xf4fQV3YZBgkvkz23FFB/NA12878_recompressed.bam',
 
     () => {
-      const result = fs.readFileSync(require.resolve('./htsget/data.bam'))
+      const result = fs.readFileSync('test/htsget/data.bam')
       return {
         status: 206,
         body: result,

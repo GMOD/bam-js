@@ -1,5 +1,5 @@
 import Long from 'long'
-import { fromBytes } from './virtualOffset'
+import VirtualOffset, { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 
 import IndexFile from './indexFile'
@@ -139,17 +139,14 @@ export default class BAI extends IndexFile {
       return []
     }
     const { linearIndex = [], stats } = seqIdx
-    if (!linearIndex.length) {
+    if (linearIndex.length === 0) {
       return []
     }
-    const e = end !== undefined ? roundUp(end, v) : (linearIndex.length - 1) * v
-    const s = start !== undefined ? roundDown(start, v) : 0
-    let depths
-    if (range) {
-      depths = new Array((e - s) / v)
-    } else {
-      depths = new Array(linearIndex.length - 1)
-    }
+    const e = end === undefined ? (linearIndex.length - 1) * v : roundUp(end, v)
+    const s = start === undefined ? 0 : roundDown(start, v)
+    const depths = range
+      ? new Array((e - s) / v)
+      : new Array(linearIndex.length - 1)
     const totalSize = linearIndex[linearIndex.length - 1].blockPosition
     if (e > (linearIndex.length - 1) * v) {
       throw new Error('query outside of range of linear index')
@@ -196,8 +193,8 @@ export default class BAI extends IndexFile {
       for (let bin = start; bin <= end; bin++) {
         if (ba.binIndex[bin]) {
           const binChunks = ba.binIndex[bin]
-          for (let c = 0; c < binChunks.length; ++c) {
-            chunks.push(binChunks[c])
+          for (const binChunk of binChunks) {
+            chunks.push(binChunk)
           }
         }
       }
@@ -206,15 +203,13 @@ export default class BAI extends IndexFile {
     // Use the linear index to find minimum file position of chunks that could
     // contain alignments in the region
     const nintv = ba.linearIndex.length
-    let lowest = null
+    let lowest: VirtualOffset | undefined
     const minLin = Math.min(min >> 14, nintv - 1)
     const maxLin = Math.min(max >> 14, nintv - 1)
     for (let i = minLin; i <= maxLin; ++i) {
       const vp = ba.linearIndex[i]
-      if (vp) {
-        if (!lowest || vp.compareTo(lowest) < 0) {
-          lowest = vp
-        }
+      if (vp && (!lowest || vp.compareTo(lowest) < 0)) {
+        lowest = vp
       }
     }
 

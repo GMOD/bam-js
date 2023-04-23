@@ -8,7 +8,7 @@ interface HtsgetChunk {
   url: string
   headers?: Record<string, string>
 }
-async function concat(arr: HtsgetChunk[], opts: Record<string, any>) {
+async function concat(arr: HtsgetChunk[], opts?: Record<string, any>) {
   const res = await Promise.all(
     arr.map(async chunk => {
       const { url, headers } = chunk
@@ -21,7 +21,7 @@ async function concat(arr: HtsgetChunk[], opts: Record<string, any>) {
         const { referer, ...rest } = headers
         const res = await fetch(url, {
           ...opts,
-          headers: { ...opts.headers, ...rest },
+          headers: { ...opts?.headers, ...rest },
         })
         if (!res.ok) {
           throw new Error(
@@ -51,11 +51,7 @@ export default class HtsgetFile extends BamFile {
     chr: string,
     min: number,
     max: number,
-    opts: BamOpts = {
-      viewAsPairs: false,
-      pairAcrossChr: false,
-      maxInsertSize: 200000,
-    },
+    opts?: BamOpts,
   ) {
     const base = `${this.baseUrl}/${this.trackId}`
     const url = `${base}?referenceName=${chr}&start=${min}&end=${max}&format=BAM`
@@ -141,19 +137,19 @@ export default class HtsgetFile extends BamFile {
     const idToName: { refName: string; length: number }[] = []
     const nameToId: Record<string, number> = {}
     const sqLines = samHeader.filter(l => l.tag === 'SQ')
-    sqLines.forEach((sqLine, refId) => {
+    for (const [refId, sqLine] of sqLines.entries()) {
       let refName = ''
       let length = 0
-      sqLine.data.forEach(item => {
+      for (const item of sqLine.data) {
         if (item.tag === 'SN') {
           refName = item.value
         } else if (item.tag === 'LN') {
           length = +item.value
         }
-      })
+      }
       nameToId[refName] = refId
       idToName[refId] = { refName, length }
-    })
+    }
     this.chrToIndex = nameToId
     this.indexToChr = idToName
     return samHeader
