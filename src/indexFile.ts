@@ -1,5 +1,4 @@
 import { GenericFilehandle } from 'generic-filehandle'
-import VirtualOffset from './virtualOffset'
 import Chunk from './chunk'
 import { BaseOpts } from './util'
 
@@ -34,15 +33,4 @@ export default abstract class IndexFile {
     end: number,
     opts?: BaseOpts,
   ): Promise<Chunk[]>
-
-  _findFirstData(
-    firstDataLine: VirtualOffset | undefined,
-    virtualOffset: VirtualOffset,
-  ) {
-    return firstDataLine
-      ? firstDataLine.compareTo(virtualOffset) > 0
-        ? virtualOffset
-        : firstDataLine
-      : virtualOffset
-  }
 }

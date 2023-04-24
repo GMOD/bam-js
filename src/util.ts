@@ -1,3 +1,4 @@
+import Long from 'long'
 import Chunk from './chunk'
 import VirtualOffset from './virtualOffset'
 
@@ -109,4 +110,48 @@ export function optimizeChunks(chunks: Chunk[], lowest?: VirtualOffset) {
   }
 
   return mergedChunks
+}
+
+export function parsePseudoBin(bytes: Buffer, offset: number) {
+  const lineCount = longToNumber(
+    Long.fromBytesLE(
+      Array.prototype.slice.call(bytes, offset, offset + 8),
+      true,
+    ),
+  )
+  return { lineCount }
+}
+
+export function findFirstData(
+  firstDataLine: VirtualOffset | undefined,
+  virtualOffset: VirtualOffset,
+) {
+  return firstDataLine
+    ? firstDataLine.compareTo(virtualOffset) > 0
+      ? virtualOffset
+      : firstDataLine
+    : virtualOffset
+}
+
+export function parseNameBytes(
+  namesBytes: Buffer,
+  renameRefSeq: (arg: string) => string = s => s,
+) {
+  let currRefId = 0
+  let currNameStart = 0
+  const refIdToName = []
+  const refNameToId: { [key: string]: number } = {}
+  for (let i = 0; i < namesBytes.length; i += 1) {
+    if (!namesBytes[i]) {
+      if (currNameStart < i) {
+        let refName = namesBytes.toString('utf8', currNameStart, i)
+        refName = renameRefSeq(refName)
+        refIdToName[currRefId] = refName
+        refNameToId[refName] = currRefId
+      }
+      currNameStart = i + 1
+      currRefId += 1
+    }
+  }
+  return { refNameToId, refIdToName }
 }

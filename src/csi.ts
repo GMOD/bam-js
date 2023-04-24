@@ -1,8 +1,13 @@
-import Long from 'long'
 import { unzip } from '@gmod/bgzf-filehandle'
 import VirtualOffset, { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
-import { longToNumber, optimizeChunks, BaseOpts } from './util'
+import {
+  optimizeChunks,
+  findFirstData,
+  parsePseudoBin,
+  parseNameBytes,
+  BaseOpts,
+} from './util'
 
 import IndexFile from './indexFile'
 
@@ -62,30 +67,11 @@ export default class CSI extends IndexFile {
       skipLines,
       format,
       formatFlags,
-      ...this._parseNameBytes(
+      ...parseNameBytes(
         bytes.subarray(offset + 28, offset + 28 + nameSectionLength),
+        this.renameRefSeq,
       ),
     }
-  }
-
-  _parseNameBytes(namesBytes: Buffer) {
-    let currRefId = 0
-    let currNameStart = 0
-    const refIdToName = []
-    const refNameToId: { [key: string]: number } = {}
-    for (let i = 0; i < namesBytes.length; i += 1) {
-      if (!namesBytes[i]) {
-        if (currNameStart < i) {
-          let refName = namesBytes.toString('utf8', currNameStart, i)
-          refName = this.renameRefSeq(refName)
-          refIdToName[currRefId] = refName
-          refNameToId[refName] = currRefId
-        }
-        currNameStart = i + 1
-        currRefId += 1
-      }
-    }
-    return { refNameToId, refIdToName }
   }
 
   // fetch and parse the index
@@ -111,41 +97,47 @@ export default class CSI extends IndexFile {
     const aux = auxLength >= 30 ? this.parseAuxData(bytes, 16) : undefined
     const refCount = bytes.readInt32LE(16 + auxLength)
 
+    type BinIndex = { [key: string]: Chunk[] }
+
     // read the indexes for each reference sequence
-    let currOffset = 16 + auxLength + 4
+    let curr = 16 + auxLength + 4
     let firstDataLine: VirtualOffset | undefined
-    const indices = Array.from({ length: refCount }).map(() => {
+    const indices = new Array<{
+      binIndex: BinIndex
+      stats?: { lineCount: number }
+    }>(refCount)
+    for (let i = 0; i < refCount; i++) {
       // the binning index
-      const binCount = bytes.readInt32LE(currOffset)
-      currOffset += 4
+      const binCount = bytes.readInt32LE(curr)
+      curr += 4
       const binIndex: { [key: string]: Chunk[] } = {}
       let stats // < provided by parsing a pseudo-bin, if present
-      for (let j = 0; j < binCount; j += 1) {
-        const bin = bytes.readUInt32LE(currOffset)
+      for (let j = 0; j < binCount; j++) {
+        const bin = bytes.readUInt32LE(curr)
+        curr += 4
         if (bin > this.maxBinNumber) {
-          // this is a fake bin that actually has stats information
-          // about the reference sequence in it
-          stats = this.parsePseudoBin(bytes, currOffset + 4)
-          currOffset += 4 + 8 + 4 + 16 + 16
+          stats = parsePseudoBin(bytes, curr + 28)
+          curr += 28 + 16
         } else {
-          const loffset = fromBytes(bytes, currOffset + 4)
-          firstDataLine = this._findFirstData(firstDataLine, loffset)
-          const chunkCount = bytes.readInt32LE(currOffset + 12)
-          currOffset += 16
-          const chunks = new Array(chunkCount)
+          firstDataLine = findFirstData(firstDataLine, fromBytes(bytes, curr))
+          curr += 8
+          const chunkCount = bytes.readInt32LE(curr)
+          curr += 4
+          const chunks = new Array<Chunk>(chunkCount)
           for (let k = 0; k < chunkCount; k += 1) {
-            const u = fromBytes(bytes, currOffset)
-            const v = fromBytes(bytes, currOffset + 8)
-            currOffset += 16
-            // this._findFirstData(data, u)
+            const u = fromBytes(bytes, curr)
+            curr += 8
+            const v = fromBytes(bytes, curr)
+            curr += 8
+            firstDataLine = findFirstData(firstDataLine, u)
             chunks[k] = new Chunk(u, v, bin)
           }
           binIndex[bin] = chunks
         }
       }
 
-      return { binIndex, stats }
-    })
+      indices[i] = { binIndex, stats }
+    }
 
     return {
       csiVersion,
@@ -156,16 +148,6 @@ export default class CSI extends IndexFile {
       maxBlockSize: 1 << 16,
       ...aux,
     }
-  }
-
-  parsePseudoBin(bytes: Buffer, offset: number) {
-    const lineCount = longToNumber(
-      Long.fromBytesLE(
-        Array.prototype.slice.call(bytes, offset + 28, offset + 36),
-        true,
-      ),
-    )
-    return { lineCount }
   }
 
   async blocksForRange(
@@ -183,17 +165,20 @@ export default class CSI extends IndexFile {
     if (!ba) {
       return []
     }
+    const overlappingBins = this.reg2bins(min, max)
 
-    const overlappingBins = this.reg2bins(min, max) // List of bin #s that overlap min, max
+    if (overlappingBins.length === 0) {
+      return []
+    }
+
     const chunks = []
-
     // Find chunks in overlapping bins.  Leaf bins (< 4681) are not pruned
     for (const [start, end] of overlappingBins) {
       for (let bin = start; bin <= end; bin++) {
         if (ba.binIndex[bin]) {
           const binChunks = ba.binIndex[bin]
-          for (const binChunk of binChunks) {
-            chunks.push(new Chunk(binChunk.minv, binChunk.maxv, bin))
+          for (const c of binChunks) {
+            chunks.push(c)
           }
         }
       }
