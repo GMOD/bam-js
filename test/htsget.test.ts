@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { HtsgetFile } from '../src'
 import fetchMock from 'jest-fetch-mock'
 import fs from 'fs'
@@ -18,20 +17,19 @@ xdescribe('htsspec htsget wtsi', () => {
   })
 })
 
-const result = fs.readFileSync(require.resolve('./htsget/result.json'), 'utf8')
+const result = fs.readFileSync('test/htsget/result.json', 'utf8')
 
 test('dnanexus with mock', async () => {
   fetchMock.mockIf(
     'http://htsnexus.rnd.dnanex.us/v1/reads/BroadHiSeqX_b37/NA12878?referenceName=na&class=header',
-    () => {
-      return result
-    },
+    result,
   )
   fetchMock.mockIf(
     'https://dl.dnanex.us/F/D/Pb1QjgQx9j2bZ8Q44x50xf4fQV3YZBgkvkz23FFB/NA12878_recompressed.bam',
 
+    // @ts-expect-error
     () => {
-      const result = fs.readFileSync(require.resolve('./htsget/data.bam'))
+      const result = fs.readFileSync('test/htsget/data.bam')
       return {
         status: 206,
         body: result,
@@ -44,7 +42,7 @@ test('dnanexus with mock', async () => {
   })
   const header = await ti.getHeader()
   expect(header).toBeTruthy()
-  const records = await ti.getRecordsForRange(1, 2000000, 2000001)
+  const records = await ti.getRecordsForRange('1', 2000000, 2000001)
   expect(records.length).toBe(39)
 })
 
@@ -55,6 +53,6 @@ test('dnanexus without mock', async () => {
   })
   const header = await ti.getHeader()
   expect(header).toBeTruthy()
-  const records = await ti.getRecordsForRange(1, 2000000, 2000001)
+  const records = await ti.getRecordsForRange('1', 2000000, 2000001)
   expect(records.length).toBe(39)
 })

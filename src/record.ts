@@ -83,11 +83,11 @@ export default class BamRecord {
     }
     tags = tags.concat(this._tagList || [])
 
-    Object.keys(this.data).forEach(k => {
+    for (const k of Object.keys(this.data)) {
       if (k[0] !== '_' && k !== 'next_seq_id') {
         tags.push(k)
       }
-    })
+    }
 
     const seen: { [key: string]: boolean } = {}
     return tags.filter(t => {
@@ -107,7 +107,7 @@ export default class BamRecord {
   }
 
   parent() {
-    return undefined
+    return
   }
 
   children() {
@@ -137,7 +137,7 @@ export default class BamRecord {
 
   qualRaw() {
     if (this.isSegmentUnmapped()) {
-      return undefined
+      return
     }
 
     const { start, byteArray } = this.bytes
@@ -157,7 +157,7 @@ export default class BamRecord {
 
   multi_segment_next_segment_strand() {
     if (this.isMateUnmapped()) {
-      return undefined
+      return
     }
     return this.isMateReverseComplemented() ? -1 : 1
   }
@@ -181,7 +181,7 @@ export default class BamRecord {
     // called, we already know that we have no such tag, because
     // it would already have been cached.
     if (this._allTagsParsed) {
-      return undefined
+      return
     }
 
     const { byteArray, start } = this.bytes
@@ -204,40 +204,48 @@ export default class BamRecord {
 
       let value
       switch (type) {
-        case 'A':
+        case 'A': {
           value = String.fromCharCode(byteArray[p])
           p += 1
           break
-        case 'i':
+        }
+        case 'i': {
           value = byteArray.readInt32LE(p)
           p += 4
           break
-        case 'I':
+        }
+        case 'I': {
           value = byteArray.readUInt32LE(p)
           p += 4
           break
-        case 'c':
+        }
+        case 'c': {
           value = byteArray.readInt8(p)
           p += 1
           break
-        case 'C':
+        }
+        case 'C': {
           value = byteArray.readUInt8(p)
           p += 1
           break
-        case 's':
+        }
+        case 's': {
           value = byteArray.readInt16LE(p)
           p += 2
           break
-        case 'S':
+        }
+        case 'S': {
           value = byteArray.readUInt16LE(p)
           p += 2
           break
-        case 'f':
+        }
+        case 'f': {
           value = byteArray.readFloatLE(p)
           p += 4
           break
+        }
         case 'Z':
-        case 'H':
+        case 'H': {
           value = ''
           while (p <= blockEnd) {
             const cc = byteArray[p++]
@@ -248,6 +256,7 @@ export default class BamRecord {
             }
           }
           break
+        }
         case 'B': {
           value = ''
           const cc = byteArray[p++]
@@ -339,10 +348,11 @@ export default class BamRecord {
           }
           break
         }
-        default:
+        default: {
           console.warn(`Unknown BAM tag type '${type}', tags may be incomplete`)
           value = undefined
-          p = blockEnd // stop parsing tags
+          p = blockEnd
+        } // stop parsing tags
       }
 
       this._tagOffset = p
@@ -355,7 +365,7 @@ export default class BamRecord {
       this.data[lcTag] = value
     }
     this._allTagsParsed = true
-    return undefined
+    return
   }
 
   _parseAllTags() {
@@ -368,7 +378,7 @@ export default class BamRecord {
       cigar
         .match(/\d+\D/g)
         //@ts-ignore
-        .map(op => [op.match(/\D/)[0].toUpperCase(), parseInt(op, 10)])
+        .map(op => [op.match(/\D/)[0].toUpperCase(), Number.parseInt(op, 10)])
     )
   }
 
@@ -436,7 +446,7 @@ export default class BamRecord {
 
   cigar() {
     if (this.isSegmentUnmapped()) {
-      return undefined
+      return
     }
 
     const { byteArray, start } = this.bytes
@@ -568,7 +578,7 @@ export default class BamRecord {
       }
       return tmp.join('')
     }
-    return null
+    return ''
   }
 
   _bin_mq_nl() {
@@ -597,13 +607,13 @@ export default class BamRecord {
 
   toJSON() {
     const data: { [key: string]: any } = {}
-    Object.keys(this).forEach(k => {
+    for (const k of Object.keys(this)) {
       if (k.charAt(0) === '_' || k === 'bytes') {
-        return
+        continue
       }
       //@ts-ignore
       data[k] = this[k]
-    })
+    }
 
     return data
   }

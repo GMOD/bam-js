@@ -1,7 +1,7 @@
 // @ts-nocheck
 import Record from '../src/record'
 
-class FakeRecord extends Record {
+export default class FakeRecord extends Record {
   constructor(read1, strand1, strand2, tlen) {
     super({
       bytes: {
@@ -43,5 +43,3 @@ class FakeRecord extends Record {
     return 1
   }
 }
-
-module.exports = FakeRecord

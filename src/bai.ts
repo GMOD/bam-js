@@ -1,9 +1,8 @@
-import Long from 'long'
-import { fromBytes } from './virtualOffset'
+import VirtualOffset, { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 
+import { optimizeChunks, parsePseudoBin, findFirstData, BaseOpts } from './util'
 import IndexFile from './indexFile'
-import { longToNumber, optimizeChunks, BaseOpts } from './util'
 
 const BAI_MAGIC = 21578050 // BAI\1
 
@@ -27,102 +26,93 @@ function reg2bins(beg: number, end: number) {
 }
 
 export default class BAI extends IndexFile {
-  baiP?: Promise<Buffer>
+  public setupP?: ReturnType<BAI['_parse']>
 
-  parsePseudoBin(bytes: Buffer, offset: number) {
-    const lineCount = longToNumber(
-      Long.fromBytesLE(
-        Array.prototype.slice.call(bytes, offset + 16, offset + 24),
-        true,
-      ),
-    )
-    return { lineCount }
-  }
-
-  async lineCount(refId: number, opts: BaseOpts = {}) {
-    const prom = await this.parse(opts)
-    const index = prom.indices[refId]
-    if (!index) {
-      return -1
-    }
-    const ret = index.stats || {}
-    return ret.lineCount === undefined ? -1 : ret.lineCount
-  }
-
-  fetchBai(opts: BaseOpts = {}) {
-    if (!this.baiP) {
-      this.baiP = this.filehandle.readFile(opts).catch(e => {
-        this.baiP = undefined
-        throw e
-      }) as Promise<Buffer>
-    }
-    return this.baiP
+  async lineCount(refId: number, opts?: BaseOpts) {
+    const indexData = await this.parse(opts)
+    return indexData.indices[refId]?.stats?.lineCount || 0
   }
 
   // fetch and parse the index
-  async _parse() {
-    const data: { [key: string]: any } = { bai: true, maxBlockSize: 1 << 16 }
-    const bytes = await this.fetchBai()
+  async _parse(opts?: BaseOpts) {
+    const bytes = (await this.filehandle.readFile(opts)) as Buffer
 
     // check BAI magic numbers
     if (bytes.readUInt32LE(0) !== BAI_MAGIC) {
       throw new Error('Not a BAI file')
     }
 
-    data.refCount = bytes.readInt32LE(4)
+    const refCount = bytes.readInt32LE(4)
     const depth = 5
     const binLimit = ((1 << ((depth + 1) * 3)) - 1) / 7
 
     // read the indexes for each reference sequence
-    data.indices = new Array(data.refCount)
-    let currOffset = 8
-    for (let i = 0; i < data.refCount; i += 1) {
+    let curr = 8
+    let firstDataLine: VirtualOffset | undefined
+
+    type BinIndex = { [key: string]: Chunk[] }
+    type LinearIndex = VirtualOffset[]
+    const indices = new Array<{
+      binIndex: BinIndex
+      linearIndex: LinearIndex
+      stats?: { lineCount: number }
+    }>(refCount)
+    for (let i = 0; i < refCount; i++) {
       // the binning index
-      const binCount = bytes.readInt32LE(currOffset)
+      const binCount = bytes.readInt32LE(curr)
       let stats
 
-      currOffset += 4
+      curr += 4
       const binIndex: { [key: number]: Chunk[] } = {}
+
       for (let j = 0; j < binCount; j += 1) {
-        const bin = bytes.readUInt32LE(currOffset)
-        currOffset += 4
+        const bin = bytes.readUInt32LE(curr)
+        curr += 4
         if (bin === binLimit + 1) {
-          currOffset += 4
-          stats = this.parsePseudoBin(bytes, currOffset)
-          currOffset += 32
+          curr += 4
+          stats = parsePseudoBin(bytes, curr + 16)
+          curr += 32
         } else if (bin > binLimit + 1) {
           throw new Error('bai index contains too many bins, please use CSI')
         } else {
-          const chunkCount = bytes.readInt32LE(currOffset)
-          currOffset += 4
-          const chunks = new Array(chunkCount)
-          for (let k = 0; k < chunkCount; k += 1) {
-            const u = fromBytes(bytes, currOffset)
-            const v = fromBytes(bytes, currOffset + 8)
-            currOffset += 16
-            this._findFirstData(data, u)
+          const chunkCount = bytes.readInt32LE(curr)
+          curr += 4
+          const chunks = new Array<Chunk>(chunkCount)
+          for (let k = 0; k < chunkCount; k++) {
+            const u = fromBytes(bytes, curr)
+            curr += 8
+            const v = fromBytes(bytes, curr)
+            curr += 8
+            firstDataLine = findFirstData(firstDataLine, u)
             chunks[k] = new Chunk(u, v, bin)
           }
           binIndex[bin] = chunks
         }
       }
 
-      const linearCount = bytes.readInt32LE(currOffset)
-      currOffset += 4
-      // as we're going through the linear index, figure out
-      // the smallest virtual offset in the indexes, which
-      // tells us where the BAM header ends
-      const linearIndex = new Array(linearCount)
-      for (let k = 0; k < linearCount; k += 1) {
-        linearIndex[k] = fromBytes(bytes, currOffset)
-        currOffset += 8
-        this._findFirstData(data, linearIndex[k])
+      const linearCount = bytes.readInt32LE(curr)
+      curr += 4
+      // as we're going through the linear index, figure out the smallest
+      // virtual offset in the indexes, which tells us where the BAM header
+      // ends
+      const linearIndex = new Array<VirtualOffset>(linearCount)
+      for (let j = 0; j < linearCount; j++) {
+        const offset = fromBytes(bytes, curr)
+        curr += 8
+        firstDataLine = findFirstData(firstDataLine, offset)
+        linearIndex[j] = offset
       }
 
-      data.indices[i] = { binIndex, linearIndex, stats }
+      indices[i] = { binIndex, linearIndex, stats }
     }
 
-    return data
+    return {
+      bai: true,
+      firstDataLine,
+      maxBlockSize: 1 << 16,
+      indices,
+      refCount,
+    }
   }
 
   async indexCov(
@@ -139,17 +129,14 @@ export default class BAI extends IndexFile {
       return []
     }
     const { linearIndex = [], stats } = seqIdx
-    if (!linearIndex.length) {
+    if (linearIndex.length === 0) {
       return []
     }
-    const e = end !== undefined ? roundUp(end, v) : (linearIndex.length - 1) * v
-    const s = start !== undefined ? roundDown(start, v) : 0
-    let depths
-    if (range) {
-      depths = new Array((e - s) / v)
-    } else {
-      depths = new Array(linearIndex.length - 1)
-    }
+    const e = end === undefined ? (linearIndex.length - 1) * v : roundUp(end, v)
+    const s = start === undefined ? 0 : roundDown(start, v)
+    const depths = range
+      ? new Array((e - s) / v)
+      : new Array(linearIndex.length - 1)
     const totalSize = linearIndex[linearIndex.length - 1].blockPosition
     if (e > (linearIndex.length - 1) * v) {
       throw new Error('query outside of range of linear index')
@@ -163,9 +150,10 @@ export default class BAI extends IndexFile {
       }
       currentPos = linearIndex[i + 1].blockPosition
     }
-    return depths.map(d => {
-      return { ...d, score: (d.score * stats.lineCount) / totalSize }
-    })
+    return depths.map(d => ({
+      ...d,
+      score: (d.score * (stats?.lineCount || 0)) / totalSize,
+    }))
   }
 
   async blocksForRange(
@@ -196,8 +184,8 @@ export default class BAI extends IndexFile {
       for (let bin = start; bin <= end; bin++) {
         if (ba.binIndex[bin]) {
           const binChunks = ba.binIndex[bin]
-          for (let c = 0; c < binChunks.length; ++c) {
-            chunks.push(binChunks[c])
+          for (const binChunk of binChunks) {
+            chunks.push(binChunk)
           }
         }
       }
@@ -206,18 +194,31 @@ export default class BAI extends IndexFile {
     // Use the linear index to find minimum file position of chunks that could
     // contain alignments in the region
     const nintv = ba.linearIndex.length
-    let lowest = null
+    let lowest: VirtualOffset | undefined
     const minLin = Math.min(min >> 14, nintv - 1)
     const maxLin = Math.min(max >> 14, nintv - 1)
     for (let i = minLin; i <= maxLin; ++i) {
       const vp = ba.linearIndex[i]
-      if (vp) {
-        if (!lowest || vp.compareTo(lowest) < 0) {
-          lowest = vp
-        }
+      if (vp && (!lowest || vp.compareTo(lowest) < 0)) {
+        lowest = vp
       }
     }
 
     return optimizeChunks(chunks, lowest)
+  }
+
+  async parse(opts: BaseOpts = {}) {
+    if (!this.setupP) {
+      this.setupP = this._parse(opts).catch(e => {
+        this.setupP = undefined
+        throw e
+      })
+    }
+    return this.setupP
+  }
+
+  async hasRefSeq(seqId: number, opts: BaseOpts = {}) {
+    const header = await this.parse(opts)
+    return !!header.indices[seqId]?.binIndex
   }
 }

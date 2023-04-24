@@ -1,14 +1,12 @@
-// @ts-nocheck
 import fs from 'fs'
 import { BAI, BamFile } from '../src'
 
 describe('using vanilla node filehandles', () => {
   it('loads volvox-sorted.bam.bai', async () => {
-    const filehandle = await fs.promises.open(
-      require.resolve('./data/volvox-sorted.bam.bai'),
-    )
+    const filehandle = await fs.promises.open('test/data/volvox-sorted.bam.bai')
 
     const ti = new BAI({
+      // @ts-expect-error
       filehandle,
     })
     const indexData = await ti.parse()
@@ -19,14 +17,12 @@ describe('using vanilla node filehandles', () => {
   })
 
   it('gets features from volvox-sorted.bam', async () => {
-    const bam = await fs.promises.open(
-      require.resolve('./data/volvox-sorted.bam'),
-    )
-    const bai = await fs.promises.open(
-      require.resolve('./data/volvox-sorted.bam.bai'),
-    )
+    const bam = await fs.promises.open('test/data/volvox-sorted.bam')
+    const bai = await fs.promises.open('test/data/volvox-sorted.bam.bai')
     const ti = new BamFile({
+      // @ts-expect-error
       bamFilehandle: bam,
+      // @ts-expect-error
       baiFilehandle: bai,
     })
     await ti.getHeader()

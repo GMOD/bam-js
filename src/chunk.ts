@@ -8,7 +8,7 @@ export default class Chunk {
     public minv: VirtualOffset,
     public maxv: VirtualOffset,
     public bin: number,
-    public _fetchedSize = undefined,
+    public _fetchedSize?: number,
   ) {}
 
   toUniqueString() {
