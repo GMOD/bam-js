@@ -1,97 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`1000 genomes bam check deep check 1000 genomes 1`] = `
-[
-  {
-    "data": {
-      "_bin_mq_nl": 306774051,
-      "_flag_nc": 9502722,
-      "_l_read_name": 35,
-      "_n_cigar_op": 2,
-      "cigar": "183S67M",
-      "end": 10066,
-      "length_on_ref": 67,
-      "seq_length": 250,
-      "start": 9999,
-    },
-    "flags": 145,
-  },
-]
-`;
-
-exports[`1000 genomes bam check deep check 1000 genomes bai 1`] = `
-[
-  {
-    "data": {
-      "_bin_mq_nl": 306774051,
-      "_flag_nc": 9502722,
-      "_l_read_name": 35,
-      "_n_cigar_op": 2,
-      "cigar": "183S67M",
-      "end": 10066,
-      "length_on_ref": 67,
-      "seq_length": 250,
-      "start": 9999,
-    },
-    "flags": 145,
-  },
-]
-`;
-
-exports[`bam deep record check deep check volvox-sorted.bam 1`] = `
-[
-  {
-    "data": {
-      "_bin_mq_nl": 306783516,
-      "_flag_nc": 1,
-      "_l_read_name": 28,
-      "_n_cigar_op": 1,
-      "cigar": "100M",
-      "end": 102,
-      "length_on_ref": 100,
-      "seq_length": 100,
-      "start": 2,
-    },
-    "flags": 0,
-  },
-  {
-    "data": {
-      "_bin_mq_nl": 306783516,
-      "_flag_nc": 1,
-      "_l_read_name": 28,
-      "_n_cigar_op": 1,
-      "cigar": "100M",
-      "end": 107,
-      "length_on_ref": 100,
-      "seq_length": 100,
-      "start": 7,
-    },
-    "flags": 0,
-  },
-]
-`;
-
-exports[`bam header loads volvox-sorted.bam 1`] = `
-[
-  {
-    "end": 16384,
-    "score": 3132.8408055269733,
-    "start": 0,
-  },
-  {
-    "end": 32768,
-    "score": 3364.491059715608,
-    "start": 16384,
-  },
-  {
-    "end": 49152,
-    "score": 3096.8317529169985,
-    "start": 32768,
-  },
-]
-`;
-
-exports[`ecoli bam check check ecoli header and records 1`] = `
+exports[`check ecoli header and records 1`] = `
 [
   {
     "data": [
@@ -173,7 +82,7 @@ exports[`ecoli bam check check ecoli header and records 1`] = `
 ]
 `;
 
-exports[`ecoli bam check check ecoli header and records 2`] = `
+exports[`check ecoli header and records 2`] = `
 [
   {
     "data": {
@@ -438,6 +347,58 @@ exports[`ecoli bam check check ecoli header and records 2`] = `
       "length_on_ref": 1530,
       "seq_length": 1560,
       "start": 35,
+    },
+    "flags": 0,
+  },
+]
+`;
+
+exports[`deep check 1000 genomes bai 1`] = `
+[
+  {
+    "data": {
+      "_bin_mq_nl": 306774051,
+      "_flag_nc": 9502722,
+      "_l_read_name": 35,
+      "_n_cigar_op": 2,
+      "cigar": "183S67M",
+      "end": 10066,
+      "length_on_ref": 67,
+      "seq_length": 250,
+      "start": 9999,
+    },
+    "flags": 145,
+  },
+]
+`;
+
+exports[`deep check volvox-sorted.bam 1`] = `
+[
+  {
+    "data": {
+      "_bin_mq_nl": 306783516,
+      "_flag_nc": 1,
+      "_l_read_name": 28,
+      "_n_cigar_op": 1,
+      "cigar": "100M",
+      "end": 102,
+      "length_on_ref": 100,
+      "seq_length": 100,
+      "start": 2,
+    },
+    "flags": 0,
+  },
+  {
+    "data": {
+      "_bin_mq_nl": 306783516,
+      "_flag_nc": 1,
+      "_l_read_name": 28,
+      "_n_cigar_op": 1,
+      "cigar": "100M",
+      "end": 107,
+      "length_on_ref": 100,
+      "seq_length": 100,
+      "start": 7,
     },
     "flags": 0,
   },
@@ -755,6 +716,26 @@ exports[`large indexcov human 1000g 1`] = `
     "end": 1015808,
     "score": 739.3084735760663,
     "start": 999424,
+  },
+]
+`;
+
+exports[`loads volvox-sorted.bam 1`] = `
+[
+  {
+    "end": 16384,
+    "score": 3132.8408055269733,
+    "start": 0,
+  },
+  {
+    "end": 32768,
+    "score": 3364.491059715608,
+    "start": 16384,
+  },
+  {
+    "end": 49152,
+    "score": 3096.8317529169985,
+    "start": 32768,
   },
 ]
 `;

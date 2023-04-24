@@ -3,7 +3,8 @@ import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
 import { LocalFile, RemoteFile, GenericFilehandle } from 'generic-filehandle'
 import AbortablePromiseCache from 'abortable-promise-cache'
 import QuickLRU from 'quick-lru'
-//locals
+
+// locals
 import BAI from './bai'
 import CSI from './csi'
 import Chunk from './chunk'
@@ -53,6 +54,7 @@ export default class BamFile {
   public yieldThreadTime: number
   public index?: BAI | CSI
   public htsget = false
+  public headerP?: ReturnType<BamFile['getHeaderPre']>
 
   private featureCache = new AbortablePromiseCache<Args, BAMFeature[]>({
     cache: new QuickLRU({
@@ -133,7 +135,7 @@ export default class BamFile {
     this.yieldThreadTime = yieldThreadTime
   }
 
-  async getHeader(origOpts: AbortSignal | BaseOpts = {}) {
+  async getHeaderPre(origOpts: BaseOpts = {}) {
     const opts = makeOpts(origOpts)
     if (!this.index) {
       return
@@ -171,6 +173,16 @@ export default class BamFile {
     this.indexToChr = indexToChr
 
     return parseHeaderText(this.header)
+  }
+
+  getHeader(opts?: BaseOpts) {
+    if (!this.headerP) {
+      this.headerP = this.getHeaderPre(opts).catch(e => {
+        this.headerP = undefined
+        throw e
+      })
+    }
+    return this.headerP
   }
 
   async getHeaderText(opts: BaseOpts = {}) {
@@ -235,7 +247,7 @@ export default class BamFile {
     min: number,
     max: number,
     opts?: BamOpts,
-  ): Promise<BAMFeature[]> {
+  ) {
     return gen2array(this.streamRecordsForRange(chr, min, max, opts))
   }
 
@@ -245,6 +257,7 @@ export default class BamFile {
     max: number,
     opts?: BamOpts,
   ) {
+    await this.getHeader(opts)
     const chrId = this.chrToIndex?.[chr]
     if (chrId === undefined || !this.index) {
       yield []
@@ -266,14 +279,14 @@ export default class BamFile {
     let done = false
 
     for (const c of chunks) {
-      const records = (await this.featureCache.get(
+      const records = await this.featureCache.get(
         c.toString(),
         {
           chunk: c,
           opts,
         },
         opts.signal,
-      )) as BAMFeature[]
+      )
 
       const recs = []
       for (const feature of records) {
@@ -433,22 +446,26 @@ export default class BamFile {
             start: blockStart,
             end: blockEnd,
           },
-          // the below results in an automatically calculated file-offset based ID
-          // if the info for that is available, otherwise crc32 of the features
+          // the below results in an automatically calculated file-offset based
+          // ID if the info for that is available, otherwise crc32 of the
+          // features
           //
-          // cpositions[pos] refers to actual file offset of a bgzip block boundaries
+          // cpositions[pos] refers to actual file offset of a bgzip block
+          // boundaries
           //
-          // we multiply by (1 <<8) in order to make sure each block has a "unique"
-          // address space so that data in that block could never overlap
+          // we multiply by (1 <<8) in order to make sure each block has a
+          // "unique" address space so that data in that block could never
+          // overlap
           //
           // then the blockStart-dpositions is an uncompressed file offset from
-          // that bgzip block boundary, and since the cpositions are multiplied by
-          // (1 << 8) these uncompressed offsets get a unique space
+          // that bgzip block boundary, and since the cpositions are multiplied
+          // by (1 << 8) these uncompressed offsets get a unique space
           //
-          // this has an extra chunk.minv.dataPosition added on because it blockStart
-          // starts at 0 instead of chunk.minv.dataPosition
+          // this has an extra chunk.minv.dataPosition added on because it
+          // blockStart starts at 0 instead of chunk.minv.dataPosition
           //
-          // the +1 is just to avoid any possible uniqueId 0 but this does not realistically happen
+          // the +1 is just to avoid any possible uniqueId 0 but this does not
+          // realistically happen
           fileOffset:
             cpositions.length > 0
               ? cpositions[pos] * (1 << 8) +

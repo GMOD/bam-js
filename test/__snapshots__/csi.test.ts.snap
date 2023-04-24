@@ -1,5 +1,5 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`1000 genomes bam check deep check 1000 genomes 1`] = `[]`;
+exports[`deep check 1000 genomes 1`] = `[]`;
 
-exports[`1000 genomes bam check deep check 1000 genomes csi 1`] = `[]`;
+exports[`deep check 1000 genomes csi 1`] = `[]`;
