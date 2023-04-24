@@ -1,5 +1,6 @@
 - Remove cross-fetch and object.entries polyfills
 - Improve typescripting
+- Remove chunkSizeLimit and fetchSizeLimit
 
 ## [1.1.18](https://github.com/GMOD/bam-js/compare/v1.1.17...v1.1.18) (2022-12-17)
 
