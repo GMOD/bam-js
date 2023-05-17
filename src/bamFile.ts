@@ -135,7 +135,7 @@ export default class BamFile {
     this.yieldThreadTime = yieldThreadTime
   }
 
-  async getHeaderPre(origOpts: BaseOpts = {}) {
+  async getHeaderPre(origOpts?: BaseOpts) {
     const opts = makeOpts(origOpts)
     if (!this.index) {
       return
@@ -195,7 +195,7 @@ export default class BamFile {
   async _readRefSeqs(
     start: number,
     refSeqBytes: number,
-    opts: BaseOpts = {},
+    opts?: BaseOpts,
   ): Promise<{
     chrToIndex: { [key: string]: number }
     indexToChr: { refName: string; length: number }[]
@@ -274,21 +274,18 @@ export default class BamFile {
     max: number,
     opts: BamOpts = {},
   ) {
-    const { viewAsPairs } = opts || {}
-    const feats = []
+    const { viewAsPairs } = opts
+    const feats = [] as BAMFeature[][]
     let done = false
 
-    for (const c of chunks) {
+    for (const chunk of chunks) {
       const records = await this.featureCache.get(
-        c.toString(),
-        {
-          chunk: c,
-          opts,
-        },
+        chunk.toString(),
+        { chunk, opts },
         opts.signal,
       )
 
-      const recs = []
+      const recs = [] as BAMFeature[]
       for (const feature of records) {
         if (feature.seq_id() === chrId) {
           if (feature.get('start') >= max) {
@@ -365,29 +362,28 @@ export default class BamFile {
         map.set(m.toString(), m)
       }
     }
-    const mateChunks = [...map.values()]
 
-    const mateFeatPromises = mateChunks.map(async c => {
-      const { data, cpositions, dpositions, chunk } = await this._readChunk({
-        chunk: c,
-        opts,
-      })
-      const feats = await this.readBamFeatures(
-        data,
-        cpositions,
-        dpositions,
-        chunk,
-      )
-      const mateRecs = []
-      for (const feature of feats) {
-        if (unmatedPairs[feature.get('name')] && !readIds[feature.id()]) {
-          mateRecs.push(feature)
+    const mateFeatPromises = await Promise.all(
+      [...map.values()].map(async c => {
+        const { data, cpositions, dpositions, chunk } = await this._readChunk({
+          chunk: c,
+          opts,
+        })
+        const mateRecs = [] as BAMFeature[]
+        for (const feature of await this.readBamFeatures(
+          data,
+          cpositions,
+          dpositions,
+          chunk,
+        )) {
+          if (unmatedPairs[feature.get('name')] && !readIds[feature.id()]) {
+            mateRecs.push(feature)
+          }
         }
-      }
-      return mateRecs
-    })
-    const res2 = await Promise.all(mateFeatPromises)
-    return res2.flat()
+        return mateRecs
+      }),
+    )
+    return mateFeatPromises.flat()
   }
 
   async _readRegion(position: number, size: number, opts: BaseOpts = {}) {
@@ -424,7 +420,7 @@ export default class BamFile {
     chunk: Chunk,
   ) {
     let blockStart = 0
-    const sink = []
+    const sink = [] as BAMFeature[]
     let pos = 0
     let last = +Date.now()
 
@@ -490,18 +486,12 @@ export default class BamFile {
 
   async hasRefSeq(seqName: string) {
     const seqId = this.chrToIndex?.[seqName]
-    if (seqId === undefined) {
-      return false
-    }
-    return this.index?.hasRefSeq(seqId)
+    return seqId === undefined ? false : this.index?.hasRefSeq(seqId)
   }
 
   async lineCount(seqName: string) {
     const seqId = this.chrToIndex?.[seqName]
-    if (seqId === undefined || !this.index) {
-      return 0
-    }
-    return this.index.lineCount(seqId)
+    return seqId === undefined || !this.index ? 0 : this.index.lineCount(seqId)
   }
 
   async indexCov(seqName: string, start?: number, end?: number) {
@@ -510,10 +500,7 @@ export default class BamFile {
     }
     await this.index.parse()
     const seqId = this.chrToIndex?.[seqName]
-    if (seqId === undefined) {
-      return []
-    }
-    return this.index.indexCov(seqId, start, end)
+    return seqId === undefined ? [] : this.index.indexCov(seqId, start, end)
   }
 
   async blocksForRange(
@@ -527,9 +514,8 @@ export default class BamFile {
     }
     await this.index.parse()
     const seqId = this.chrToIndex?.[seqName]
-    if (seqId === undefined) {
-      return []
-    }
-    return this.index.blocksForRange(seqId, start, end, opts)
+    return seqId === undefined
+      ? []
+      : this.index.blocksForRange(seqId, start, end, opts)
   }
 }
