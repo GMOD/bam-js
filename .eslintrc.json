@@ -16,6 +16,7 @@
     "semi": ["error", "never"],
 
     "unicorn/no-new-array": 0,
+    "unicorn/prefer-at": 0,
     "unicorn/catch-error-name": 0,
     "unicorn/no-nested-ternary": 0,
     "unicorn/prefer-spread": 0,
