@@ -1,4 +1,5 @@
 import { unzip } from '@gmod/bgzf-filehandle'
+import { Buffer } from 'buffer'
 import { BaseOpts, BamOpts } from './util'
 import BamFile, { BAM_MAGIC } from './bamFile'
 import Chunk from './chunk'
