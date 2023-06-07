@@ -1,3 +1,4 @@
+import { Buffer } from 'buffer'
 import crc32 from 'buffer-crc32'
 import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
 import { LocalFile, RemoteFile, GenericFilehandle } from 'generic-filehandle'
