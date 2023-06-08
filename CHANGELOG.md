@@ -1,3 +1,12 @@
+# [2.0.0](https://github.com/GMOD/bam-js/compare/v1.1.18...v2.0.0) (2023-06-08)
+
+
+### Features
+
+* explicit buffer import ([#98](https://github.com/GMOD/bam-js/issues/98)) ([66de9f4](https://github.com/GMOD/bam-js/commit/66de9f4ce30e3ff647d5297f093695e92ec9227c))
+
+
+
 - Add explicit buffer import
 - Remove cross-fetch and object.entries polyfills
 - Improve typescripting
