@@ -1,3 +1,4 @@
+- Add explicit buffer import
 - Remove cross-fetch and object.entries polyfills
 - Improve typescripting
 - Remove chunkSizeLimit and fetchSizeLimit
