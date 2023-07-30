@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-empty-function */
 import Constants from './constants'
 
 const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
