@@ -20,15 +20,14 @@
     "src"
   ],
   "scripts": {
-    "test": "vitest run",
-    "coverage": "npm test -- --coverage",
-    "lint": "eslint --report-unused-disable-directives --max-warnings 0 src test",
+    "test": "vitest",
+    "lint": "eslint --report-unused-disable-directives --max-warnings 0",
     "clean": "rimraf dist esm",
     "build:esm": "tsc --target es2018 --outDir esm",
     "build:es5": "tsc --target es2015 --module commonjs --outDir dist",
     "build": "npm run build:esm && npm run build:es5",
     "prebuild": "npm run clean && npm run lint",
-    "preversion": "npm run lint && npm test && npm run build",
+    "preversion": "npm run lint && npm test run && npm run build",
     "version": "standard-changelog && git add CHANGELOG.md",
     "postversion": "git push --follow-tags"
   },
@@ -43,7 +42,6 @@
     "@gmod/bgzf-filehandle": "^1.4.4",
     "crc": "^4.3.2",
     "generic-filehandle": "^3.0.0",
-    "long": "^4.0.0",
     "quick-lru": "^4.0.0"
   },
   "devDependencies": {

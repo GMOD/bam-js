@@ -1,19 +1,8 @@
-import Long from 'long'
 import Chunk from './chunk'
 import VirtualOffset from './virtualOffset'
 
 export function timeout(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-export function longToNumber(long: Long) {
-  if (
-    long.greaterThan(Number.MAX_SAFE_INTEGER) ||
-    long.lessThan(Number.MIN_SAFE_INTEGER)
-  ) {
-    throw new Error('integer overflow')
-  }
-  return long.toNumber()
 }
 
 /**
@@ -113,13 +102,9 @@ export function optimizeChunks(chunks: Chunk[], lowest?: VirtualOffset) {
 }
 
 export function parsePseudoBin(bytes: Buffer, offset: number) {
-  const lineCount = longToNumber(
-    Long.fromBytesLE(
-      Array.prototype.slice.call(bytes, offset, offset + 8),
-      true,
-    ),
-  )
-  return { lineCount }
+  return {
+    lineCount: Number(bytes.readBigInt64LE(offset)),
+  }
 }
 
 export function findFirstData(
