@@ -17,6 +17,10 @@ export const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
 
+function isGzip(buf: Buffer) {
+  return buf[0] === 31 && buf[1] === 139 && buf[2] === 8
+}
+
 async function gen2array<T>(gen: AsyncIterable<T[]>): Promise<T[]> {
   let out: T[] = []
   for await (const x of gen) {
@@ -157,7 +161,7 @@ export default class BamFile {
       buffer = (await this.bam.readFile(opts)) as Buffer
     }
 
-    const uncba = await unzip(buffer)
+    const uncba = isGzip(buffer) ? await unzip(buffer) : buffer
 
     if (uncba.readInt32LE(0) !== BAM_MAGIC) {
       throw new Error('Not a BAM file')
@@ -215,9 +219,8 @@ export default class BamFile {
     if (!bytesRead) {
       throw new Error('Error reading refseqs from header')
     }
-    const uncba = await unzip(
-      buffer.subarray(0, Math.min(bytesRead, refSeqBytes)),
-    )
+    const ret = buffer.subarray(0, Math.min(bytesRead, refSeqBytes))
+    const uncba = isGzip(ret) ? await unzip(ret) : ret
     const nRef = uncba.readInt32LE(start)
     let p = start + 4
     const chrToIndex: { [key: string]: number } = {}
@@ -405,13 +408,21 @@ export default class BamFile {
       chunk.fetchedSize(),
       opts,
     )
-
-    const {
-      buffer: data,
-      cpositions,
-      dpositions,
-    } = await unzipChunkSlice(buffer, chunk)
-    return { data, cpositions, dpositions, chunk }
+    if (isGzip(buffer)) {
+      const {
+        buffer: data,
+        cpositions,
+        dpositions,
+      } = await unzipChunkSlice(buffer, chunk)
+      return { data, cpositions, dpositions, chunk }
+    } else {
+      // const {
+      //   buffer,
+      //   cpositions: [],
+      //   dpositions: [],
+      console.log(buffer)
+      return { data: buffer, cpositions: [], dpositions: [], chunk }
+    }
   }
 
   async readBamFeatures(
