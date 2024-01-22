@@ -75,7 +75,7 @@ export interface BaseOpts {
 }
 
 export function makeOpts(obj: AbortSignal | BaseOpts = {}): BaseOpts {
-  return 'aborted' in obj ? ({ signal: obj } as BaseOpts) : (obj as BaseOpts)
+  return 'aborted' in obj ? ({ signal: obj } as BaseOpts) : obj
 }
 
 export function optimizeChunks(chunks: Chunk[], lowest?: VirtualOffset) {
@@ -140,7 +140,7 @@ export function parseNameBytes(
   let currRefId = 0
   let currNameStart = 0
   const refIdToName = []
-  const refNameToId: { [key: string]: number } = {}
+  const refNameToId: Record<string, number> = {}
   for (let i = 0; i < namesBytes.length; i += 1) {
     if (!namesBytes[i]) {
       if (currNameStart < i) {

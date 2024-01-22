@@ -18,7 +18,7 @@ async function concat(arr: HtsgetChunk[], opts?: Record<string, any>) {
       } else {
         //remove referer header, it is not even allowed to be specified
         // @ts-expect-error
-        //eslint-disable-next-line @typescript-eslint/no-unused-vars
+
         const { referer, ...rest } = headers
         const res = await fetch(url, {
           ...opts,

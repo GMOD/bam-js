@@ -17,10 +17,6 @@ export const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
 
-function isGzip(buf: Buffer) {
-  return buf[0] === 31 && buf[1] === 139 && buf[2] === 8
-}
-
 async function gen2array<T>(gen: AsyncIterable<T[]>): Promise<T[]> {
   let out: T[] = []
   for await (const x of gen) {
@@ -158,10 +154,10 @@ export default class BamFile {
       }
       buffer = res.buffer.subarray(0, Math.min(res.bytesRead, ret))
     } else {
-      buffer = (await this.bam.readFile(opts)) as Buffer
+      buffer = await this.bam.readFile(opts)
     }
 
-    const uncba = isGzip(buffer) ? await unzip(buffer) : buffer
+    const uncba = await unzip(buffer)
 
     if (uncba.readInt32LE(0) !== BAM_MAGIC) {
       throw new Error('Not a BAM file')
@@ -202,7 +198,7 @@ export default class BamFile {
     refSeqBytes: number,
     opts?: BaseOpts,
   ): Promise<{
-    chrToIndex: { [key: string]: number }
+    chrToIndex: Record<string, number>
     indexToChr: { refName: string; length: number }[]
   }> {
     if (start > refSeqBytes) {
@@ -220,10 +216,10 @@ export default class BamFile {
       throw new Error('Error reading refseqs from header')
     }
     const ret = buffer.subarray(0, Math.min(bytesRead, refSeqBytes))
-    const uncba = isGzip(ret) ? await unzip(ret) : ret
+    const uncba = await unzip(ret)
     const nRef = uncba.readInt32LE(start)
     let p = start + 4
-    const chrToIndex: { [key: string]: number } = {}
+    const chrToIndex: Record<string, number> = {}
     const indexToChr: { refName: string; length: number }[] = []
     for (let i = 0; i < nRef; i += 1) {
       const lName = uncba.readInt32LE(p)
@@ -317,10 +313,10 @@ export default class BamFile {
 
   async fetchPairs(chrId: number, feats: BAMFeature[][], opts: BamOpts) {
     const { pairAcrossChr, maxInsertSize = 200000 } = opts
-    const unmatedPairs: { [key: string]: boolean } = {}
-    const readIds: { [key: string]: number } = {}
+    const unmatedPairs: Record<string, boolean> = {}
+    const readIds: Record<string, number> = {}
     feats.map(ret => {
-      const readNames: { [key: string]: number } = {}
+      const readNames: Record<string, number> = {}
       for (const element of ret) {
         const name = element.name()
         const id = element.id()
@@ -408,21 +404,12 @@ export default class BamFile {
       chunk.fetchedSize(),
       opts,
     )
-    if (isGzip(buffer)) {
-      const {
-        buffer: data,
-        cpositions,
-        dpositions,
-      } = await unzipChunkSlice(buffer, chunk)
-      return { data, cpositions, dpositions, chunk }
-    } else {
-      // const {
-      //   buffer,
-      //   cpositions: [],
-      //   dpositions: [],
-      console.log(buffer)
-      return { data: buffer, cpositions: [], dpositions: [], chunk }
-    }
+    const {
+      buffer: data,
+      cpositions,
+      dpositions,
+    } = await unzipChunkSlice(buffer, chunk)
+    return { data, cpositions, dpositions, chunk }
   }
 
   async readBamFeatures(
@@ -442,6 +429,7 @@ export default class BamFile {
 
       // increment position to the current decompressed status
       if (dpositions) {
+        // eslint-disable-next-line no-empty
         while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]) {}
         pos--
       }
