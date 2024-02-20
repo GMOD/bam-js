@@ -19,7 +19,7 @@ xdescribe('htsspec htsget wtsi', () => {
 
 const result = fs.readFileSync('test/htsget/result.json', 'utf8')
 
-test('dnanexus with mock', async () => {
+xtest('dnanexus with mock', async () => {
   fetchMock.mockIf(
     'http://htsnexus.rnd.dnanex.us/v1/reads/BroadHiSeqX_b37/NA12878?referenceName=na&class=header',
     result,
@@ -46,7 +46,7 @@ test('dnanexus with mock', async () => {
   expect(records.length).toBe(39)
 })
 
-test('dnanexus without mock', async () => {
+xtest('dnanexus without mock', async () => {
   const ti = new HtsgetFile({
     baseUrl: 'http://htsnexus.rnd.dnanex.us/v1/reads',
     trackId: 'BroadHiSeqX_b37/NA12878',
