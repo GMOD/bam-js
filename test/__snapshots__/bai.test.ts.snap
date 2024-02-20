@@ -48,7 +48,7 @@ exports[`check ecoli header and records 1`] = `
       },
       {
         "tag": "DT",
-        "value": "2012-01-31T10",
+        "value": "2012-01-31T10:30:14",
       },
     ],
     "tag": "RG",
