@@ -7,7 +7,9 @@ export function parseHeaderText(text: string) {
       data.push({
         tag: tag.slice(1),
         data: fields.map(f => {
-          const [fieldTag, value] = f.split(':', 2)
+          const r = f.indexOf(':')
+          const fieldTag = f.slice(0, r)
+          const value = f.slice(r + 1)
           return { tag: fieldTag, value }
         }),
       })
