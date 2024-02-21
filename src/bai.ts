@@ -50,7 +50,7 @@ export default class BAI extends IndexFile {
     let curr = 8
     let firstDataLine: VirtualOffset | undefined
 
-    type BinIndex = { [key: string]: Chunk[] }
+    type BinIndex = Record<string, Chunk[]>
     type LinearIndex = VirtualOffset[]
     const indices = new Array<{
       binIndex: BinIndex
@@ -63,7 +63,7 @@ export default class BAI extends IndexFile {
       let stats
 
       curr += 4
-      const binIndex: { [key: number]: Chunk[] } = {}
+      const binIndex: Record<number, Chunk[]> = {}
 
       for (let j = 0; j < binCount; j += 1) {
         const bin = bytes.readUInt32LE(curr)

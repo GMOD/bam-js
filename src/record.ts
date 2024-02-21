@@ -7,7 +7,7 @@ const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
  * Class of each BAM record returned by this API.
  */
 export default class BamRecord {
-  private data = {} as { [key: string]: any }
+  private data = {} as Record<string, any>
   private bytes: { start: number; end: number; byteArray: Buffer }
   private _id: number
   private _tagOffset: number | undefined
@@ -83,12 +83,12 @@ export default class BamRecord {
     tags = tags.concat(this._tagList || [])
 
     for (const k of Object.keys(this.data)) {
-      if (k[0] !== '_' && k !== 'next_seq_id') {
+      if (!k.startsWith('_') && k !== 'next_seq_id') {
         tags.push(k)
       }
     }
 
-    const seen: { [key: string]: boolean } = {}
+    const seen: Record<string, boolean> = {}
     return tags.filter(t => {
       if (
         (t in this.data && this.data[t] === undefined) ||
@@ -493,8 +493,6 @@ export default class BamRecord {
     }
   }
 
-  _flags() {}
-
   length_on_ref() {
     if (this.data.length_on_ref) {
       return this.data.length_on_ref
@@ -605,9 +603,9 @@ export default class BamRecord {
   }
 
   toJSON() {
-    const data: { [key: string]: any } = {}
+    const data: Record<string, any> = {}
     for (const k of Object.keys(this)) {
-      if (k.charAt(0) === '_' || k === 'bytes') {
+      if (k.startsWith('_') || k === 'bytes') {
         continue
       }
       //@ts-ignore

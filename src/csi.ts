@@ -42,9 +42,7 @@ export default class CSI extends IndexFile {
     const coordinateType =
       formatFlags & 0x10000 ? 'zero-based-half-open' : '1-based-closed'
     const format = (
-      { 0: 'generic', 1: 'SAM', 2: 'VCF' } as {
-        [key: number]: string
-      }
+      { 0: 'generic', 1: 'SAM', 2: 'VCF' } as Record<number, string>
     )[formatFlags & 0xf]
     if (!format) {
       throw new Error(`invalid Tabix preset format flags ${formatFlags}`)
@@ -97,7 +95,7 @@ export default class CSI extends IndexFile {
     const aux = auxLength >= 30 ? this.parseAuxData(bytes, 16) : undefined
     const refCount = bytes.readInt32LE(16 + auxLength)
 
-    type BinIndex = { [key: string]: Chunk[] }
+    type BinIndex = Record<string, Chunk[]>
 
     // read the indexes for each reference sequence
     let curr = 16 + auxLength + 4
@@ -110,7 +108,7 @@ export default class CSI extends IndexFile {
       // the binning index
       const binCount = bytes.readInt32LE(curr)
       curr += 4
-      const binIndex: { [key: string]: Chunk[] } = {}
+      const binIndex: Record<string, Chunk[]> = {}
       let stats // < provided by parsing a pseudo-bin, if present
       for (let j = 0; j < binCount; j++) {
         const bin = bytes.readUInt32LE(curr)

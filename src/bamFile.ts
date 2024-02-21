@@ -154,7 +154,7 @@ export default class BamFile {
       }
       buffer = res.buffer.subarray(0, Math.min(res.bytesRead, ret))
     } else {
-      buffer = (await this.bam.readFile(opts)) as Buffer
+      buffer = await this.bam.readFile(opts)
     }
 
     const uncba = await unzip(buffer)
@@ -198,7 +198,7 @@ export default class BamFile {
     refSeqBytes: number,
     opts?: BaseOpts,
   ): Promise<{
-    chrToIndex: { [key: string]: number }
+    chrToIndex: Record<string, number>
     indexToChr: { refName: string; length: number }[]
   }> {
     if (start > refSeqBytes) {
@@ -220,7 +220,7 @@ export default class BamFile {
     )
     const nRef = uncba.readInt32LE(start)
     let p = start + 4
-    const chrToIndex: { [key: string]: number } = {}
+    const chrToIndex: Record<string, number> = {}
     const indexToChr: { refName: string; length: number }[] = []
     for (let i = 0; i < nRef; i += 1) {
       const lName = uncba.readInt32LE(p)
@@ -314,10 +314,10 @@ export default class BamFile {
 
   async fetchPairs(chrId: number, feats: BAMFeature[][], opts: BamOpts) {
     const { pairAcrossChr, maxInsertSize = 200000 } = opts
-    const unmatedPairs: { [key: string]: boolean } = {}
-    const readIds: { [key: string]: number } = {}
+    const unmatedPairs: Record<string, boolean> = {}
+    const readIds: Record<string, number> = {}
     feats.map(ret => {
-      const readNames: { [key: string]: number } = {}
+      const readNames: Record<string, number> = {}
       for (const element of ret) {
         const name = element.name()
         const id = element.id()

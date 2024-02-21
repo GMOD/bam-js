@@ -12,7 +12,7 @@ export default class Chunk {
   ) {}
 
   toUniqueString() {
-    return `${this.minv}..${this.maxv} (bin ${
+    return `${this.minv.toString()}..${this.maxv.toString()} (bin ${
       this.bin
     }, fetchedSize ${this.fetchedSize()})`
   }

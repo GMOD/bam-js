@@ -13,7 +13,7 @@ describe('using vanilla node filehandles', () => {
     expect(indexData.bai).toEqual(true)
     expect(await ti.lineCount(0)).toEqual(9596)
     expect(await ti.hasRefSeq(0)).toEqual(true)
-    filehandle.close()
+    await filehandle.close()
   })
 
   it('gets features from volvox-sorted.bam', async () => {
@@ -39,7 +39,7 @@ describe('using vanilla node filehandles', () => {
     expect(records[0].getReadBases()).toEqual(
       'TTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG',
     )
-    bam.close()
-    bai.close()
+    await bam.close()
+    await bai.close()
   })
 })
