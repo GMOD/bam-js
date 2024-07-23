@@ -1,3 +1,13 @@
+## [2.0.3](https://github.com/GMOD/bam-js/compare/v2.0.2...v2.0.3) (2024-07-23)
+
+
+### Reverts
+
+* Revert "Migrate to eslint9" ([65adcbb](https://github.com/GMOD/bam-js/commit/65adcbb2793243659682d30694f8604d241a5337))
+* Revert "Run format" ([2a02535](https://github.com/GMOD/bam-js/commit/2a02535db4df80f245232522cdba771cbf5ea214))
+
+
+
 ## [2.0.2](https://github.com/GMOD/bam-js/compare/v2.0.1...v2.0.2) (2024-02-21)
 
 - Update typescript-eslint config and related fixes
