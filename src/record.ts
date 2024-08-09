@@ -19,11 +19,10 @@ export default class BamRecord {
   constructor(args: any) {
     const { bytes, fileOffset } = args
     const { byteArray, start } = bytes
-    this.data = {}
+    this.data = { start: byteArray.readInt32LE(start + 8) }
     this.bytes = bytes
     this._id = fileOffset
     this._refID = byteArray.readInt32LE(start + 4)
-    this.data.start = byteArray.readInt32LE(start + 8)
     this.flags = (byteArray.readInt32LE(start + 16) & 0xffff0000) >> 16
   }
 
@@ -377,12 +376,13 @@ export default class BamRecord {
       cigar
         .match(/\d+\D/g)
         //@ts-ignore
-        .map(op => [op.match(/\D/)[0].toUpperCase(), Number.parseInt(op, 10)])
+        .map(op => [/\D/.exec(op)[0].toUpperCase(), Number.parseInt(op, 10)])
     )
   }
 
   /**
-   * @returns {boolean} true if the read is paired, regardless of whether both segments are mapped
+   * @returns {boolean} true if the read is paired, regardless of whether both
+   * segments are mapped
    */
   isPaired() {
     return !!(this.flags & Constants.BAM_FPAIRED)
