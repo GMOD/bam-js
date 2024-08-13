@@ -178,7 +178,7 @@ export default class BamFile {
 
   getHeader(opts?: BaseOpts) {
     if (!this.headerP) {
-      this.headerP = this.getHeaderPre(opts).catch(e => {
+      this.headerP = this.getHeaderPre(opts).catch((e: unknown) => {
         this.headerP = undefined
         throw e
       })
@@ -417,7 +417,7 @@ export default class BamFile {
   async readBamFeatures(
     ba: Buffer,
     cpositions: number[],
-    dpositions: number[],
+    dpositions: number[] | undefined,
     chunk: Chunk,
   ) {
     let blockStart = 0
@@ -431,6 +431,7 @@ export default class BamFile {
 
       // increment position to the current decompressed status
       if (dpositions) {
+        // eslint-disable-next-line no-empty
         while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]) {}
         pos--
       }

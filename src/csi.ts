@@ -159,7 +159,7 @@ export default class CSI extends IndexFile {
     }
 
     const indexData = await this.parse(opts)
-    const ba = indexData?.indices[refId]
+    const ba = indexData.indices[refId]
     if (!ba) {
       return []
     }
@@ -175,8 +175,10 @@ export default class CSI extends IndexFile {
       for (let bin = start; bin <= end; bin++) {
         if (ba.binIndex[bin]) {
           const binChunks = ba.binIndex[bin]
-          for (const c of binChunks) {
-            chunks.push(c)
+          if (binChunks) {
+            for (const c of binChunks) {
+              chunks.push(c)
+            }
           }
         }
       }
@@ -201,7 +203,7 @@ export default class CSI extends IndexFile {
     let l = 0
     let t = 0
     let s = this.minShift + this.depth * 3
-    const bins = []
+    const bins = [] as [number, number][]
     for (; l <= this.depth; s -= 3, t += lshift(1, l * 3), l += 1) {
       const b = t + rshift(beg, s)
       const e = t + rshift(end, s)
@@ -217,7 +219,7 @@ export default class CSI extends IndexFile {
 
   async parse(opts: BaseOpts = {}) {
     if (!this.setupP) {
-      this.setupP = this._parse(opts).catch(e => {
+      this.setupP = this._parse(opts).catch((e: unknown) => {
         this.setupP = undefined
         throw e
       })

@@ -16,18 +16,8 @@ export default class VirtualOffset {
     )
   }
 
-  static min(...args: VirtualOffset[]) {
-    let min
-    let i = 0
-    for (; !min; i += 1) {
-      min = args[i]
-    }
-    for (; i < args.length; i += 1) {
-      if (min.compareTo(args[i]) > 0) {
-        min = args[i]
-      }
-    }
-    return min
+  static min(arg0: VirtualOffset, arg1: VirtualOffset) {
+    return arg0.compareTo(arg1)
   }
 }
 export function fromBytes(bytes: Buffer, offset = 0, bigendian = false) {
@@ -36,12 +26,12 @@ export function fromBytes(bytes: Buffer, offset = 0, bigendian = false) {
   }
 
   return new VirtualOffset(
-    bytes[offset + 7] * 0x10000000000 +
-      bytes[offset + 6] * 0x100000000 +
-      bytes[offset + 5] * 0x1000000 +
-      bytes[offset + 4] * 0x10000 +
-      bytes[offset + 3] * 0x100 +
-      bytes[offset + 2],
-    (bytes[offset + 1] << 8) | bytes[offset],
+    bytes[offset + 7]! * 0x10000000000 +
+      bytes[offset + 6]! * 0x100000000 +
+      bytes[offset + 5]! * 0x1000000 +
+      bytes[offset + 4]! * 0x10000 +
+      bytes[offset + 3]! * 0x100 +
+      bytes[offset + 2]!,
+    (bytes[offset + 1]! << 8) | bytes[offset]!,
   )
 }

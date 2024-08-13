@@ -22,7 +22,7 @@ function reg2bins(beg: number, end: number) {
     [73 + (beg >> 20), 73 + (end >> 20)],
     [585 + (beg >> 17), 585 + (end >> 17)],
     [4681 + (beg >> 14), 4681 + (end >> 14)],
-  ]
+  ] as const
 }
 
 export default class BAI extends IndexFile {
@@ -137,18 +137,23 @@ export default class BAI extends IndexFile {
     const depths = range
       ? new Array((e - s) / v)
       : new Array(linearIndex.length - 1)
-    const totalSize = linearIndex[linearIndex.length - 1].blockPosition
-    if (e > (linearIndex.length - 1) * v) {
+    const totalSize = linearIndex[linearIndex.length - 1]?.blockPosition
+    if (e > (linearIndex.length - 1) * v || totalSize === undefined) {
       throw new Error('query outside of range of linear index')
     }
-    let currentPos = linearIndex[s / v].blockPosition
+    let currentPos = linearIndex[s / v]?.blockPosition
+
     for (let i = s / v, j = 0; i < e / v; i++, j++) {
+      const l = linearIndex[i + 1]?.blockPosition
+      if (currentPos === undefined || l === undefined) {
+        throw new Error('unknown')
+      }
       depths[j] = {
-        score: linearIndex[i + 1].blockPosition - currentPos,
+        score: l - currentPos,
         start: i * v,
         end: i * v + v,
       }
-      currentPos = linearIndex[i + 1].blockPosition
+      currentPos = l
     }
     return depths.map(d => ({
       ...d,
@@ -167,9 +172,6 @@ export default class BAI extends IndexFile {
     }
 
     const indexData = await this.parse(opts)
-    if (!indexData) {
-      return []
-    }
     const ba = indexData.indices[refId]
     if (!ba) {
       return []
@@ -184,8 +186,10 @@ export default class BAI extends IndexFile {
       for (let bin = start; bin <= end; bin++) {
         if (ba.binIndex[bin]) {
           const binChunks = ba.binIndex[bin]
-          for (const binChunk of binChunks) {
-            chunks.push(binChunk)
+          if (binChunks) {
+            for (const binChunk of binChunks) {
+              chunks.push(binChunk)
+            }
           }
         }
       }
@@ -209,7 +213,7 @@ export default class BAI extends IndexFile {
 
   async parse(opts: BaseOpts = {}) {
     if (!this.setupP) {
-      this.setupP = this._parse(opts).catch(e => {
+      this.setupP = this._parse(opts).catch((e: unknown) => {
         this.setupP = undefined
         throw e
       })
