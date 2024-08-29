@@ -1,3 +1,4 @@
+import { expect, test } from 'vitest'
 import { BAI, BamFile, BamRecord } from '../src'
 
 import { LocalFile } from 'generic-filehandle'
@@ -130,7 +131,7 @@ test('BamFile with test_deletion_2_0.snps.bwa_align.sorted.grouped.bam', async (
   ).toBeTruthy()
 })
 
-it('loads some data from tiny file', async () => {
+test('loads some data from tiny file', async () => {
   const b = new BamFile({ bamPath: 'test/data/tiny.bam' })
   await b.getHeader()
   const features = await b.getRecordsForRange('22', 30000000, 30010000)
@@ -389,11 +390,11 @@ test('get header text', async () => {
 })
 
 // use on any large long read data file
-xtest('speed test', async () => {
-  const ti = new BamFile({ bamPath: 'test/data/pacbio_speed_test.bam' })
-  await ti.getHeader()
-  console.time('timerecord')
-  const rec = await ti.getRecordsForRange('8', 0, 2000000)
-  rec.map(r => r.getReadBases())
-  console.timeEnd('timerecord')
-})
+// test('speed test', async () => {
+//   const ti = new BamFile({ bamPath: 'test/data/pacbio_speed_test.bam' })
+//   await ti.getHeader()
+//   console.time('timerecord')
+//   const rec = await ti.getRecordsForRange('8', 0, 2000000)
+//   rec.map(r => r.getReadBases())
+//   console.timeEnd('timerecord')
+// })
