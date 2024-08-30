@@ -79,7 +79,7 @@ export default class BamRecord {
     if (this.isPaired()) {
       tags.push('next_segment_position', 'pair_orientation')
     }
-    tags = tags.concat(this._tagList || [])
+    tags = tags.concat(this._tagList)
 
     for (const k of Object.keys(this.data)) {
       if (!k.startsWith('_') && k !== 'next_seq_id') {

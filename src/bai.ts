@@ -22,7 +22,7 @@ function reg2bins(beg: number, end: number) {
     [73 + (beg >> 20), 73 + (end >> 20)],
     [585 + (beg >> 17), 585 + (end >> 17)],
     [4681 + (beg >> 14), 4681 + (end >> 14)],
-  ]
+  ] as const
 }
 
 export default class BAI extends IndexFile {
@@ -125,6 +125,7 @@ export default class BAI extends IndexFile {
     const range = start !== undefined
     const indexData = await this.parse(opts)
     const seqIdx = indexData.indices[seqId]
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!seqIdx) {
       return []
     }
@@ -167,10 +168,12 @@ export default class BAI extends IndexFile {
     }
 
     const indexData = await this.parse(opts)
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!indexData) {
       return []
     }
     const ba = indexData.indices[refId]
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!ba) {
       return []
     }
@@ -182,6 +185,7 @@ export default class BAI extends IndexFile {
     // Find chunks in overlapping bins.  Leaf bins (< 4681) are not pruned
     for (const [start, end] of overlappingBins) {
       for (let bin = start; bin <= end; bin++) {
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (ba.binIndex[bin]) {
           const binChunks = ba.binIndex[bin]
           for (const binChunk of binChunks) {
@@ -199,6 +203,7 @@ export default class BAI extends IndexFile {
     const maxLin = Math.min(max >> 14, nintv - 1)
     for (let i = minLin; i <= maxLin; ++i) {
       const vp = ba.linearIndex[i]
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (vp && (!lowest || vp.compareTo(lowest) < 0)) {
         lowest = vp
       }
@@ -209,7 +214,7 @@ export default class BAI extends IndexFile {
 
   async parse(opts: BaseOpts = {}) {
     if (!this.setupP) {
-      this.setupP = this._parse(opts).catch(e => {
+      this.setupP = this._parse(opts).catch((e: unknown) => {
         this.setupP = undefined
         throw e
       })
