@@ -178,7 +178,7 @@ export default class BamFile {
 
   getHeader(opts?: BaseOpts) {
     if (!this.headerP) {
-      this.headerP = this.getHeaderPre(opts).catch(e => {
+      this.headerP = this.getHeaderPre(opts).catch((e: unknown) => {
         this.headerP = undefined
         throw e
       })
@@ -430,6 +430,7 @@ export default class BamFile {
       const blockEnd = blockStart + 4 + blockSize - 1
 
       // increment position to the current decompressed status
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (dpositions) {
         while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]) {}
         pos--
@@ -470,6 +471,7 @@ export default class BamFile {
                 chunk.minv.dataPosition +
                 1
               : // must be slice, not subarray for buffer polyfill on web
+                // eslint-disable-next-line @typescript-eslint/no-deprecated
                 crc32.signed(ba.slice(blockStart, blockEnd)),
         })
 
