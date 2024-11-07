@@ -1,3 +1,4 @@
+import Long from 'long'
 import Chunk from './chunk'
 import VirtualOffset from './virtualOffset'
 
@@ -103,7 +104,10 @@ export function optimizeChunks(chunks: Chunk[], lowest?: VirtualOffset) {
 
 export function parsePseudoBin(bytes: Buffer, offset: number) {
   return {
-    lineCount: Number(bytes.readBigInt64LE(offset)),
+    lineCount: Long.fromBytesLE(
+      Array.prototype.slice.call(bytes, offset, offset + 8),
+      true,
+    ).toNumber(),
   }
 }
 

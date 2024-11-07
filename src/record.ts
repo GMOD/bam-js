@@ -1,202 +1,102 @@
 import Constants from './constants'
+import type { Buffer } from 'buffer'
 
 const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
 const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
 
-/**
- * Class of each BAM record returned by this API.
- */
+interface Bytes {
+  start: number
+  end: number
+  byteArray: Buffer
+}
 export default class BamRecord {
-  private data = {} as Record<string, any>
-  private bytes: { start: number; end: number; byteArray: Buffer }
-  private _id: number
-  private _tagOffset: number | undefined
-  private _tagList: string[] = []
-  private _allTagsParsed = false
+  public fileOffset: number
+  private bytes: Bytes
 
-  public flags: any
-  public _refID: number
-  constructor(args: any) {
-    const { bytes, fileOffset } = args
-    const { byteArray, start } = bytes
-    this.data = { start: byteArray.readInt32LE(start + 8) }
-    this.bytes = bytes
-    this._id = fileOffset
-    this._refID = byteArray.readInt32LE(start + 4)
-    this.flags = (byteArray.readInt32LE(start + 16) & 0xffff0000) >> 16
+  constructor(args: { bytes: Bytes; fileOffset: number }) {
+    this.bytes = args.bytes
+    this.fileOffset = args.fileOffset
   }
 
-  get(field: string) {
-    //@ts-ignore
-    if (this[field]) {
-      //@ts-ignore
-      if (this.data[field]) {
-        return this.data[field]
-      }
-      //@ts-ignore
-      this.data[field] = this[field]()
-      return this.data[field]
-    }
-    return this._get(field.toLowerCase())
+  get byteArray() {
+    return this.bytes.byteArray
   }
 
-  end() {
-    return this.get('start') + this.get('length_on_ref')
+  get flags() {
+    return (
+      (this.byteArray.readInt32LE(this.bytes.start + 16) & 0xffff0000) >> 16
+    )
+  }
+  get ref_id() {
+    return this.byteArray.readInt32LE(this.bytes.start + 4)
   }
 
-  seq_id() {
-    return this._refID
+  get start() {
+    return this.byteArray.readInt32LE(this.bytes.start + 8)
   }
 
-  // same as get(), except requires lower-case arguments.  used
-  // internally to save lots of calls to field.toLowerCase()
-  _get(field: string) {
-    if (field in this.data) {
-      return this.data[field]
-    }
-    this.data[field] = this._parseTag(field)
-    return this.data[field]
+  get end() {
+    return this.start + this.length_on_ref
   }
 
-  _tags() {
-    this._parseAllTags()
-
-    let tags = ['seq']
-
-    if (!this.isSegmentUnmapped()) {
-      tags.push(
-        'start',
-        'end',
-        'strand',
-        'score',
-        'qual',
-        'MQ',
-        'CIGAR',
-        'length_on_ref',
-        'template_length',
-      )
-    }
-    if (this.isPaired()) {
-      tags.push('next_segment_position', 'pair_orientation')
-    }
-    tags = tags.concat(this._tagList)
-
-    for (const k of Object.keys(this.data)) {
-      if (!k.startsWith('_') && k !== 'next_seq_id') {
-        tags.push(k)
-      }
-    }
-
-    const seen: Record<string, boolean> = {}
-    return tags.filter(t => {
-      if (
-        (t in this.data && this.data[t] === undefined) ||
-        t === 'CG' ||
-        t === 'cg'
-      ) {
-        return false
-      }
-
-      const lt = t.toLowerCase()
-      const s = seen[lt]
-      seen[lt] = true
-      return !s
-    })
+  get id() {
+    return this.fileOffset
   }
 
-  parent() {
-    return
-  }
-
-  children() {
-    return this.get('subfeatures')
-  }
-
-  id() {
-    return this._id
-  }
-
-  // special parsers
-  /**
-   * Mapping quality score.
-   */
-  mq() {
-    const mq = (this.get('_bin_mq_nl') & 0xff00) >> 8
+  get mq() {
+    const mq = (this.bin_mq_nl & 0xff00) >> 8
     return mq === 255 ? undefined : mq
   }
 
-  score() {
-    return this.get('mq')
+  get score() {
+    return this.mq
   }
 
-  qual() {
-    return this.qualRaw()?.join(' ')
+  get qual() {
+    return this.qualRaw?.join(' ')
   }
 
-  qualRaw() {
+  get qualRaw() {
     if (this.isSegmentUnmapped()) {
       return
     }
 
-    const { start, byteArray } = this.bytes
     const p =
-      start +
-      36 +
-      this.get('_l_read_name') +
-      this.get('_n_cigar_op') * 4 +
-      this.get('_seq_bytes')
-    const lseq = this.get('seq_length')
-    return byteArray.subarray(p, p + lseq)
+      this.b0 +
+      this.read_name_length +
+      this.num_cigar_ops * 4 +
+      this.num_seq_bytes
+    return this.byteArray.subarray(p, p + this.seq_length)
   }
 
-  strand() {
+  get strand() {
     return this.isReverseComplemented() ? -1 : 1
   }
 
-  multi_segment_next_segment_strand() {
-    if (this.isMateUnmapped()) {
-      return
-    }
-    return this.isMateReverseComplemented() ? -1 : 1
+  get b0() {
+    return this.bytes.start + 36
+  }
+  get name() {
+    return this.byteArray.toString(
+      'ascii',
+      this.b0,
+      this.b0 + this.read_name_length - 1,
+    )
   }
 
-  name() {
-    return this.get('_read_name')
-  }
-
-  _read_name() {
-    const nl = this.get('_l_read_name')
-    const { byteArray, start } = this.bytes
-    return byteArray.toString('ascii', start + 36, start + 36 + nl - 1)
-  }
-
-  /**
-   * Get the value of a tag, parsing the tags as far as necessary.
-   * Only called if we have not already parsed that field.
-   */
-  _parseTag(tagName?: string) {
-    // if all of the tags have been parsed and we're still being
-    // called, we already know that we have no such tag, because
-    // it would already have been cached.
-    if (this._allTagsParsed) {
-      return
-    }
-
-    const { byteArray, start } = this.bytes
+  get tags() {
+    const { byteArray } = this.bytes
     let p =
-      this._tagOffset ||
-      start +
-        36 +
-        this.get('_l_read_name') +
-        this.get('_n_cigar_op') * 4 +
-        this.get('_seq_bytes') +
-        this.get('seq_length')
+      this.b0 +
+      this.read_name_length +
+      this.num_cigar_ops * 4 +
+      this.num_seq_bytes +
+      this.seq_length
 
     const blockEnd = this.bytes.end
-    let lcTag
-    while (p < blockEnd && lcTag !== tagName) {
+    const tags = {} as Record<string, unknown>
+    while (p < blockEnd) {
       const tag = String.fromCharCode(byteArray[p], byteArray[p + 1])
-      lcTag = tag.toLowerCase()
       const type = String.fromCharCode(byteArray[p + 2])
       p += 3
 
@@ -353,31 +253,9 @@ export default class BamRecord {
         } // stop parsing tags
       }
 
-      this._tagOffset = p
-
-      this._tagList.push(tag)
-      if (lcTag === tagName) {
-        return value
-      }
-
-      this.data[lcTag] = value
+      tags[tag] = value
     }
-    this._allTagsParsed = true
-    return
-  }
-
-  _parseAllTags() {
-    this._parseTag('')
-  }
-
-  _parseCigar(cigar: string) {
-    return (
-      //@ts-ignore
-      cigar
-        .match(/\d+\D/g)
-        //@ts-ignore
-        .map(op => [/\D/.exec(op)[0].toUpperCase(), Number.parseInt(op, 10)])
-    )
+    return tags
   }
 
   /**
@@ -443,42 +321,44 @@ export default class BamRecord {
     return !!(this.flags & Constants.BAM_FSUPPLEMENTARY)
   }
 
-  cigar() {
+  get cigarAndLength() {
     if (this.isSegmentUnmapped()) {
-      return
+      return {
+        length_on_ref: 0,
+        CIGAR: '',
+      }
     }
 
-    const { byteArray, start } = this.bytes
-    const numCigarOps = this.get('_n_cigar_op')
-    let p = start + 36 + this.get('_l_read_name')
-    const seqLen = this.get('seq_length')
-    let cigar = ''
-    let lref = 0
+    const numCigarOps = this.num_cigar_ops
+    let p = this.b0 + this.read_name_length
+    let CIGAR = ''
 
-    // check for CG tag by inspecting whether the CIGAR field
-    // contains a clip that consumes entire seqLen
-    let cigop = byteArray.readInt32LE(p)
+    // check for CG tag by inspecting whether the CIGAR field contains a clip
+    // that consumes entire seqLen
+    let cigop = this.byteArray.readInt32LE(p)
     let lop = cigop >> 4
     let op = CIGAR_DECODER[cigop & 0xf]
-    if (op === 'S' && lop === seqLen) {
-      // if there is a CG the second CIGAR field will
-      // be a N tag the represents the length on ref
+    if (op === 'S' && lop === this.seq_length) {
+      // if there is a CG the second CIGAR field will be a N tag the represents
+      // the length on ref
       p += 4
-      cigop = byteArray.readInt32LE(p)
+      cigop = this.byteArray.readInt32LE(p)
       lop = cigop >> 4
       op = CIGAR_DECODER[cigop & 0xf]
       if (op !== 'N') {
         console.warn('CG tag with no N tag')
       }
-      this.data.length_on_ref = lop
-      return this.get('CG')
+      return {
+        CIGAR: this.tags.CG as string,
+        length_on_ref: lop,
+      }
     } else {
+      let lref = 0
       for (let c = 0; c < numCigarOps; ++c) {
-        cigop = byteArray.readInt32LE(p)
+        cigop = this.byteArray.readInt32LE(p)
         lop = cigop >> 4
         op = CIGAR_DECODER[cigop & 0xf]
-        cigar += lop + op
-
+        CIGAR += lop + op
         // soft clip, hard clip, and insertion don't count toward
         // the length on the reference
         if (op !== 'H' && op !== 'S' && op !== 'I') {
@@ -488,45 +368,38 @@ export default class BamRecord {
         p += 4
       }
 
-      this.data.length_on_ref = lref
-      return cigar
+      return {
+        CIGAR,
+        length_on_ref: lref,
+      }
     }
   }
 
-  length_on_ref() {
-    if (this.data.length_on_ref) {
-      return this.data.length_on_ref
-    } else {
-      this.get('cigar') // the length_on_ref is set as a side effect
-      return this.data.length_on_ref
-    }
+  get length_on_ref() {
+    return this.cigarAndLength.length_on_ref
   }
 
-  _n_cigar_op() {
-    return this.get('_flag_nc') & 0xffff
+  get CIGAR() {
+    return this.cigarAndLength.CIGAR
   }
 
-  _l_read_name() {
-    return this.get('_bin_mq_nl') & 0xff
+  get num_cigar_ops() {
+    return this.flag_nc & 0xffff
   }
 
-  /**
-   * number of bytes in the sequence field
-   */
-  _seq_bytes() {
-    return (this.get('seq_length') + 1) >> 1
+  get read_name_length() {
+    return this.bin_mq_nl & 0xff
   }
 
-  getReadBases() {
-    return this.seq()
+  get num_seq_bytes() {
+    return (this.seq_length + 1) >> 1
   }
 
-  seq() {
-    const { byteArray, start } = this.bytes
-    const p =
-      start + 36 + this.get('_l_read_name') + this.get('_n_cigar_op') * 4
-    const seqBytes = this.get('_seq_bytes')
-    const len = this.get('seq_length')
+  get seq() {
+    const { byteArray } = this.bytes
+    const p = this.b0 + this.read_name_length + this.num_cigar_ops * 4
+    const seqBytes = this.num_seq_bytes
+    const len = this.seq_length
     let buf = ''
     let i = 0
     for (let j = 0; j < seqBytes; ++j) {
@@ -542,11 +415,11 @@ export default class BamRecord {
   }
 
   // adapted from igv.js
-  getPairOrientation() {
+  get pair_orientation() {
     if (
       !this.isSegmentUnmapped() &&
       !this.isMateUnmapped() &&
-      this._refID === this._next_refid()
+      this.ref_id === this.next_refid
     ) {
       const s1 = this.isReverseComplemented() ? 'R' : 'F'
       const s2 = this.isMateReverseComplemented() ? 'R' : 'F'
@@ -561,7 +434,7 @@ export default class BamRecord {
       }
 
       const tmp = []
-      const isize = this.template_length()
+      const isize = this.template_length
       if (isize > 0) {
         tmp[0] = s1
         tmp[1] = o1
@@ -578,28 +451,28 @@ export default class BamRecord {
     return ''
   }
 
-  _bin_mq_nl() {
-    return this.bytes.byteArray.readInt32LE(this.bytes.start + 12)
+  get bin_mq_nl() {
+    return this.byteArray.readInt32LE(this.bytes.start + 12)
   }
 
-  _flag_nc() {
-    return this.bytes.byteArray.readInt32LE(this.bytes.start + 16)
+  get flag_nc() {
+    return this.byteArray.readInt32LE(this.bytes.start + 16)
   }
 
-  seq_length() {
-    return this.bytes.byteArray.readInt32LE(this.bytes.start + 20)
+  get seq_length() {
+    return this.byteArray.readInt32LE(this.bytes.start + 20)
   }
 
-  _next_refid() {
-    return this.bytes.byteArray.readInt32LE(this.bytes.start + 24)
+  get next_refid() {
+    return this.byteArray.readInt32LE(this.bytes.start + 24)
   }
 
-  _next_pos() {
-    return this.bytes.byteArray.readInt32LE(this.bytes.start + 28)
+  get next_pos() {
+    return this.byteArray.readInt32LE(this.bytes.start + 28)
   }
 
-  template_length() {
-    return this.bytes.byteArray.readInt32LE(this.bytes.start + 32)
+  get template_length() {
+    return this.byteArray.readInt32LE(this.bytes.start + 32)
   }
 
   toJSON() {
@@ -615,3 +488,27 @@ export default class BamRecord {
     return data
   }
 }
+
+function cacheGetter<T>(ctor: { prototype: T }, prop: keyof T): void {
+  const desc = Object.getOwnPropertyDescriptor(ctor.prototype, prop)
+  if (!desc) {
+    throw new Error('OH NO, NO PROPERTY DESCRIPTOR')
+  }
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  const getter = desc.get
+  if (!getter) {
+    throw new Error('OH NO, NOT A GETTER')
+  }
+  Object.defineProperty(ctor.prototype, prop, {
+    get() {
+      const ret = getter.call(this)
+      Object.defineProperty(this, prop, { value: ret })
+      return ret
+    },
+  })
+}
+
+cacheGetter(BamRecord, 'tags')
+cacheGetter(BamRecord, 'cigarAndLength')
+cacheGetter(BamRecord, 'seq')
+cacheGetter(BamRecord, 'qual')

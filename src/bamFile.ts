@@ -288,12 +288,12 @@ export default class BamFile {
 
       const recs = [] as BAMFeature[]
       for (const feature of records) {
-        if (feature.seq_id() === chrId) {
-          if (feature.get('start') >= max) {
+        if (feature.ref_id === chrId) {
+          if (feature.start >= max) {
             // past end of range, can stop iterating
             done = true
             break
-          } else if (feature.get('end') >= min) {
+          } else if (feature.end >= min) {
             // must be in range
             recs.push(feature)
           }
@@ -319,8 +319,8 @@ export default class BamFile {
     feats.map(ret => {
       const readNames: Record<string, number> = {}
       for (const element of ret) {
-        const name = element.name()
-        const id = element.id()
+        const name = element.name
+        const id = element.id
         if (!readNames[name]) {
           readNames[name] = 0
         }
@@ -337,10 +337,10 @@ export default class BamFile {
     const matePromises: Promise<Chunk[]>[] = []
     feats.map(ret => {
       for (const f of ret) {
-        const name = f.name()
-        const start = f.get('start')
-        const pnext = f._next_pos()
-        const rnext = f._next_refid()
+        const name = f.name
+        const start = f.start
+        const pnext = f.next_pos
+        const rnext = f.next_refid
         if (
           this.index &&
           unmatedPairs[name] &&
@@ -377,7 +377,7 @@ export default class BamFile {
           dpositions,
           chunk,
         )) {
-          if (unmatedPairs[feature.get('name')] && !readIds[feature.id()]) {
+          if (unmatedPairs[feature.name] && !readIds[feature.id]) {
             mateRecs.push(feature)
           }
         }
