@@ -161,7 +161,7 @@ feature.get('end') // 0-based half open end coordinate
 feature.get('name') // QNAME
 feature.get('seq') // feature sequence
 feature.get('qual') // qualities
-feature.get('cigar') // cigar string
+feature.get('CIGAR') // CIGAR string
 feature.get('MD') // MD string
 feature.get('SA') // supplementary alignments
 feature.get('template_length') // TLEN

@@ -9,6 +9,8 @@ export default class FakeRecord extends Record {
         start: 0,
         byteArray: Buffer.from([
           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0,
         ]),
       },
     })
@@ -17,7 +19,8 @@ export default class FakeRecord extends Record {
     this.strand1 = strand1 === 'R'
     this.strand2 = strand2 === 'R'
     this.tlen = tlen
-    this._refID = 1
+    this.nextrefid = 1
+    this.refid = 1
   }
 
   isRead1() {
@@ -36,11 +39,15 @@ export default class FakeRecord extends Record {
     return this.strand1
   }
 
-  template_length() {
+  get template_length() {
     return this.tlen
   }
 
-  _next_refid() {
-    return 1
+  get next_refid() {
+    return this.nextrefid
+  }
+
+  get ref_id() {
+    return this.refid
   }
 }
