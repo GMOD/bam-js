@@ -142,52 +142,20 @@ Returns whether we have this refName in the sample
 
 ### Returned features
 
-The returned features from BAM are lazy features meaning that it delays
-processing of all the feature tags until necessary.
-
-You can access data feature.get('field') to get the value of a feature attribute
-
 Example
 
 ```typescript
-feature.get('seq_id') // numerical sequence id corresponding to position in the sam header
-feature.get('start') // 0-based half open start coordinate
-feature.get('end') // 0-based half open end coordinate
+feature.ref_id // numerical sequence id corresponding to position in the sam header
+feature.start // 0-based half open start coordinate
+feature.end // 0-based half open end coordinate
+feature.name // QNAME
+feature.seq // feature sequence
+feature.qual // qualities
+feature.CIGAR // CIGAR string
+feature.tags // tags
+feature.flags // flags
+feature.template_length // TLEN
 ```
-
-#### Fields
-
-```typescript
-feature.get('name') // QNAME
-feature.get('seq') // feature sequence
-feature.get('qual') // qualities
-feature.get('CIGAR') // CIGAR string
-feature.get('MD') // MD string
-feature.get('SA') // supplementary alignments
-feature.get('template_length') // TLEN
-feature.get('length_on_ref') // derived from CIGAR using standard algorithm
-```
-
-#### Flags
-
-```typescript
-feature.get('flags') // see https://broadinstitute.github.io/picard/explain-flags.html
-```
-
-#### Tags
-
-BAM tags such as MD can be obtained via
-
-```typescript
-feature.get('MD')
-```
-
-A full list of tags that can be obtained can be obtained via
-
-    feature._tags()
-
-The feature format may change in future versions to be more raw data records,
-but this will be a major version bump
 
 #### Note
 
