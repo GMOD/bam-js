@@ -189,7 +189,7 @@ export default class BAI extends IndexFile {
         if (ba.binIndex[bin]) {
           const binChunks = ba.binIndex[bin]
           for (const binChunk of binChunks) {
-            chunks.push(binChunk)
+            chunks.push(new Chunk(binChunk.minv, binChunk.maxv, bin))
           }
         }
       }
@@ -203,6 +203,7 @@ export default class BAI extends IndexFile {
     const maxLin = Math.min(max >> 14, nintv - 1)
     for (let i = minLin; i <= maxLin; ++i) {
       const vp = ba.linearIndex[i]
+
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (vp && (!lowest || vp.compareTo(lowest) < 0)) {
         lowest = vp
