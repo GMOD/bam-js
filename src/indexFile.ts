@@ -58,6 +58,6 @@ export default abstract class IndexFile {
   }
 
   async hasRefSeq(seqId: number, opts: BaseOpts = {}) {
-    return !!((await this.parse(opts)).indices[seqId] || {}).binIndex
+    return !!(await this.parse(opts)).indices[seqId]?.binIndex
   }
 }
