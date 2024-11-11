@@ -26,6 +26,8 @@ function reg2bins(beg: number, end: number) {
 }
 
 export default class BAI extends IndexFile {
+  public setupP?: ReturnType<BAI['_parse']>
+
   async lineCount(refId: number, opts?: BaseOpts) {
     const indexData = await this.parse(opts)
     return indexData.indices[refId]?.stats?.lineCount || 0
@@ -166,10 +168,12 @@ export default class BAI extends IndexFile {
     }
 
     const indexData = await this.parse(opts)
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!indexData) {
       return []
     }
     const ba = indexData.indices[refId]
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!ba) {
       return []
     }
@@ -181,10 +185,11 @@ export default class BAI extends IndexFile {
     // Find chunks in overlapping bins.  Leaf bins (< 4681) are not pruned
     for (const [start, end] of overlappingBins) {
       for (let bin = start; bin <= end; bin++) {
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (ba.binIndex[bin]) {
           const binChunks = ba.binIndex[bin]
-          for (const chunk of binChunks) {
-            chunks.push(new Chunk(chunk.minv, chunk.maxv, bin))
+          for (const binChunk of binChunks) {
+            chunks.push(new Chunk(binChunk.minv, binChunk.maxv, bin))
           }
         }
       }
@@ -199,11 +204,27 @@ export default class BAI extends IndexFile {
     for (let i = minLin; i <= maxLin; ++i) {
       const vp = ba.linearIndex[i]
 
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (vp && (!lowest || vp.compareTo(lowest) < 0)) {
         lowest = vp
       }
     }
 
     return optimizeChunks(chunks, lowest)
+  }
+
+  async parse(opts: BaseOpts = {}) {
+    if (!this.setupP) {
+      this.setupP = this._parse(opts).catch((e: unknown) => {
+        this.setupP = undefined
+        throw e
+      })
+    }
+    return this.setupP
+  }
+
+  async hasRefSeq(seqId: number, opts: BaseOpts = {}) {
+    const header = await this.parse(opts)
+    return !!header.indices[seqId]?.binIndex
   }
 }
