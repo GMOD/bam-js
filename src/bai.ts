@@ -1,5 +1,5 @@
 import Long from 'long'
-import { fromBytes } from './virtualOffset'
+import VirtualOffset, { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
 
 import IndexFile from './indexFile'

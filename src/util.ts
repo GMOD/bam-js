@@ -105,7 +105,7 @@ export function optimizeChunks(chunks: Chunk[], lowest?: VirtualOffset) {
 export function parsePseudoBin(bytes: Buffer, offset: number) {
   return {
     lineCount: Long.fromBytesLE(
-      Array.prototype.slice.call(bytes, offset, offset + 8),
+      Array.prototype.slice.call(bytes, offset + 16, offset + 24),
       true,
     ).toNumber(),
   }
