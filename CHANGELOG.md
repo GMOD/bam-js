@@ -1,3 +1,7 @@
+## [4.0.1](https://github.com/GMOD/bam-js/compare/v4.0.0...v4.0.1) (2024-11-12)
+
+
+
 # [4.0.0](https://github.com/GMOD/bam-js/compare/v3.0.3...v4.0.0) (2024-11-12)
 
 
