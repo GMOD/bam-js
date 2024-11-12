@@ -1,4 +1,3 @@
-import fs from 'fs'
 import { expect, test } from 'vitest'
 import { BAI, BamFile, BamRecord } from '../src'
 
