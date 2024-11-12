@@ -53,10 +53,6 @@ export default class BamRecord {
   }
 
   get qual() {
-    return this.qualRaw?.join(' ')
-  }
-
-  get qualRaw() {
     if (this.isSegmentUnmapped()) {
       return
     }
@@ -100,160 +96,124 @@ export default class BamRecord {
       const type = String.fromCharCode(byteArray[p + 2])
       p += 3
 
-      let value
-      switch (type) {
-        case 'A': {
-          value = String.fromCharCode(byteArray[p])
-          p += 1
-          break
-        }
-        case 'i': {
-          value = byteArray.readInt32LE(p)
-          p += 4
-          break
-        }
-        case 'I': {
-          value = byteArray.readUInt32LE(p)
-          p += 4
-          break
-        }
-        case 'c': {
-          value = byteArray.readInt8(p)
-          p += 1
-          break
-        }
-        case 'C': {
-          value = byteArray.readUInt8(p)
-          p += 1
-          break
-        }
-        case 's': {
-          value = byteArray.readInt16LE(p)
-          p += 2
-          break
-        }
-        case 'S': {
-          value = byteArray.readUInt16LE(p)
-          p += 2
-          break
-        }
-        case 'f': {
-          value = byteArray.readFloatLE(p)
-          p += 4
-          break
-        }
-        case 'Z':
-        case 'H': {
-          value = ''
-          while (p <= blockEnd) {
-            const cc = byteArray[p++]
-            if (cc === 0) {
-              break
-            } else {
-              value += String.fromCharCode(cc)
-            }
-          }
-          break
-        }
-        case 'B': {
-          value = ''
+      if (type === 'A') {
+        tags[tag] = String.fromCharCode(byteArray[p])
+        p += 1
+      } else if (type === 'i') {
+        tags[tag] = byteArray.readInt32LE(p)
+        p += 4
+      } else if (type === 'I') {
+        tags[tag] = byteArray.readUInt32LE(p)
+        p += 4
+      } else if (type === 'c') {
+        tags[tag] = byteArray.readInt8(p)
+        p += 1
+      } else if (type === 'C') {
+        tags[tag] = byteArray.readUInt8(p)
+        p += 1
+      } else if (type === 's') {
+        tags[tag] = byteArray.readInt16LE(p)
+        p += 2
+      } else if (type === 'S') {
+        tags[tag] = byteArray.readUInt16LE(p)
+        p += 2
+      } else if (type === 'f') {
+        tags[tag] = byteArray.readFloatLE(p)
+        p += 4
+      } else if (type === 'Z' || type === 'H') {
+        const value = []
+        while (p <= blockEnd) {
           const cc = byteArray[p++]
-          const Btype = String.fromCharCode(cc)
-          const limit = byteArray.readInt32LE(p)
-          p += 4
-          if (Btype === 'i') {
-            if (tag === 'CG') {
-              for (let k = 0; k < limit; k++) {
-                const cigop = byteArray.readInt32LE(p)
-                const lop = cigop >> 4
-                const op = CIGAR_DECODER[cigop & 0xf]
-                value += lop + op
-                p += 4
-              }
-            } else {
-              for (let k = 0; k < limit; k++) {
-                value += byteArray.readInt32LE(p)
-                if (k + 1 < limit) {
-                  value += ','
-                }
-                p += 4
-              }
-            }
+          if (cc !== 0) {
+            value.push(String.fromCharCode(cc))
+          } else {
+            break
           }
-          if (Btype === 'I') {
-            if (tag === 'CG') {
-              for (let k = 0; k < limit; k++) {
-                const cigop = byteArray.readUInt32LE(p)
-                const lop = cigop >> 4
-                const op = CIGAR_DECODER[cigop & 0xf]
-                value += lop + op
-                p += 4
-              }
-            } else {
-              for (let k = 0; k < limit; k++) {
-                value += byteArray.readUInt32LE(p)
-                if (k + 1 < limit) {
-                  value += ','
-                }
-                p += 4
-              }
-            }
-          }
-          if (Btype === 's') {
+        }
+        tags[tag] = value.join('')
+      } else if (type === 'B') {
+        const cc = byteArray[p++]
+        const Btype = String.fromCharCode(cc)
+        const limit = byteArray.readInt32LE(p)
+        p += 4
+        if (Btype === 'i') {
+          if (tag === 'CG') {
+            const value = []
             for (let k = 0; k < limit; k++) {
-              value += byteArray.readInt16LE(p)
-              if (k + 1 < limit) {
-                value += ','
-              }
-              p += 2
-            }
-          }
-          if (Btype === 'S') {
-            for (let k = 0; k < limit; k++) {
-              value += byteArray.readUInt16LE(p)
-              if (k + 1 < limit) {
-                value += ','
-              }
-              p += 2
-            }
-          }
-          if (Btype === 'c') {
-            for (let k = 0; k < limit; k++) {
-              value += byteArray.readInt8(p)
-              if (k + 1 < limit) {
-                value += ','
-              }
-              p += 1
-            }
-          }
-          if (Btype === 'C') {
-            for (let k = 0; k < limit; k++) {
-              value += byteArray.readUInt8(p)
-              if (k + 1 < limit) {
-                value += ','
-              }
-              p += 1
-            }
-          }
-          if (Btype === 'f') {
-            for (let k = 0; k < limit; k++) {
-              value += byteArray.readFloatLE(p)
-              if (k + 1 < limit) {
-                value += ','
-              }
+              const cigop = byteArray.readInt32LE(p)
+              const lop = cigop >> 4
+              const op = CIGAR_DECODER[cigop & 0xf]
+              value.push(lop + op)
               p += 4
             }
+            tags[tag] = value.join('')
+          } else {
+            const value = []
+            for (let k = 0; k < limit; k++) {
+              value.push(byteArray.readInt32LE(p))
+              p += 4
+            }
+            tags[tag] = value
           }
-          break
+        } else if (Btype === 'I') {
+          if (tag === 'CG') {
+            const value = []
+            for (let k = 0; k < limit; k++) {
+              const cigop = byteArray.readUInt32LE(p)
+              const lop = cigop >> 4
+              const op = CIGAR_DECODER[cigop & 0xf]
+              value.push(lop + op)
+              p += 4
+            }
+            tags[tag] = value.join('')
+          } else {
+            const value = []
+            for (let k = 0; k < limit; k++) {
+              value.push(byteArray.readUInt32LE(p))
+              p += 4
+            }
+            tags[tag] = value
+          }
+        } else if (Btype === 's') {
+          const value = []
+          for (let k = 0; k < limit; k++) {
+            value.push(byteArray.readInt16LE(p))
+            p += 2
+          }
+          tags[tag] = value
+        } else if (Btype === 'S') {
+          const value = []
+          for (let k = 0; k < limit; k++) {
+            value.push(byteArray.readUInt16LE(p))
+            p += 2
+          }
+          tags[tag] = value
+        } else if (Btype === 'c') {
+          const value = []
+          for (let k = 0; k < limit; k++) {
+            value.push(byteArray.readInt8(p))
+            p += 1
+          }
+          tags[tag] = value
+        } else if (Btype === 'C') {
+          const value = []
+          for (let k = 0; k < limit; k++) {
+            value.push(byteArray.readUInt8(p))
+            p += 1
+          }
+          tags[tag] = value
+        } else if (Btype === 'f') {
+          const value = []
+          for (let k = 0; k < limit; k++) {
+            value.push(byteArray.readFloatLE(p))
+            p += 4
+          }
+          tags[tag] = value
         }
-        default: {
-          console.warn(`Unknown BAM tag type '${type}', tags may be incomplete`)
-          value = undefined
-          p = blockEnd
-        } // stop parsing tags
+      } else {
+        console.error('Unknown BAM tag type', type)
+        break
       }
-
-      tags[tag] = value
     }
     return tags
   }
@@ -331,7 +291,7 @@ export default class BamRecord {
 
     const numCigarOps = this.num_cigar_ops
     let p = this.b0 + this.read_name_length
-    let CIGAR = ''
+    const CIGAR = []
 
     // check for CG tag by inspecting whether the CIGAR field contains a clip
     // that consumes entire seqLen
@@ -358,9 +318,9 @@ export default class BamRecord {
         cigop = this.byteArray.readInt32LE(p)
         lop = cigop >> 4
         op = CIGAR_DECODER[cigop & 0xf]
-        CIGAR += lop + op
-        // soft clip, hard clip, and insertion don't count toward
-        // the length on the reference
+        CIGAR.push(lop + op)
+        // soft clip, hard clip, and insertion don't count toward the length on
+        // the reference
         if (op !== 'H' && op !== 'S' && op !== 'I') {
           lref += lop
         }
@@ -369,7 +329,7 @@ export default class BamRecord {
       }
 
       return {
-        CIGAR,
+        CIGAR: CIGAR.join(''),
         length_on_ref: lref,
       }
     }
@@ -400,18 +360,18 @@ export default class BamRecord {
     const p = this.b0 + this.read_name_length + this.num_cigar_ops * 4
     const seqBytes = this.num_seq_bytes
     const len = this.seq_length
-    let buf = ''
+    const buf = []
     let i = 0
     for (let j = 0; j < seqBytes; ++j) {
       const sb = byteArray[p + j]
-      buf += SEQRET_DECODER[(sb & 0xf0) >> 4]
+      buf.push(SEQRET_DECODER[(sb & 0xf0) >> 4])
       i++
       if (i < len) {
-        buf += SEQRET_DECODER[sb & 0x0f]
+        buf.push(SEQRET_DECODER[sb & 0x0f])
         i++
       }
     }
-    return buf
+    return buf.join('')
   }
 
   // adapted from igv.js

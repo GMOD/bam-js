@@ -46,8 +46,8 @@ test('gets features from volvox-sorted.bam', async () => {
   expect(records[0].end).toEqual(102)
   expect(records[0].CIGAR).toEqual('100M')
   expect(records[0].name).toEqual('ctgA_3_555_0:0:0_2:0:0_102d')
-  expect(records[0].qual).toEqual(
-    '17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17',
+  expect(records[0].qual?.join(',')).toEqual(
+    '17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17',
   )
   expect(records[0].tags.MD).toEqual('100')
   expect(records[0].seq).toEqual(
@@ -156,13 +156,13 @@ test('BamFile with B tags', async () => {
 
   const features = await b.getRecordsForRange('chr1', 980654, 981663)
   // ZC:B:i,364,359,1,0    ZD:B:f,0.01,0.02,0.03   ZE:B:c,0,1,2,3  ZK:B:s,45,46,47
-  const ret = (features[1].tags.ZD as string).split(',')
-  expect(features[1].tags.ZC).toEqual('364,359,1,0')
-  expect(features[1].tags.ZE).toEqual('0,1,2,3')
-  expect(features[1].tags.ZK).toEqual('45,46,47')
-  expect(+ret[0]).toBeCloseTo(0.01)
-  expect(+ret[1]).toBeCloseTo(0.02)
-  expect(+ret[2]).toBeCloseTo(0.03)
+  const ret = features[1].tags.ZD as number[]
+  expect(features[1].tags.ZC).toEqual([364, 359, 1, 0])
+  expect(features[1].tags.ZE).toEqual([0, 1, 2, 3])
+  expect(features[1].tags.ZK).toEqual([45, 46, 47])
+  expect(ret[0]).toBeCloseTo(0.01)
+  expect(ret[1]).toBeCloseTo(0.02)
+  expect(ret[2]).toBeCloseTo(0.03)
   expect(features.length).toEqual(2)
 })
 
@@ -388,10 +388,10 @@ test('get header text', async () => {
 
 // use on any large long read data file
 // test('speed test', async () => {
-//   const ti = new BamFile({ bamPath: 'test/data/pacbio_speed_test.bam' })
+//   const ti = new BamFile({ bamPath: 'test/data/400x.longread.bam' })
 //   await ti.getHeader()
 //   console.time('timerecord')
-//   const rec = await ti.getRecordsForRange('8', 0, 2000000)
-//   rec.map(r => r.getReadBases())
+//   const rec = await ti.getRecordsForRange('chr22_mask', 102_144, 122_533)
+//   rec.map(r => r.seq)
 //   console.timeEnd('timerecord')
 // })
