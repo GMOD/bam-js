@@ -408,7 +408,7 @@ export default class BamRecord {
       }
       return tmp.join('')
     }
-    return ''
+    return undefined
   }
 
   get bin_mq_nl() {

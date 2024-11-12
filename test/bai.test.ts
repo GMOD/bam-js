@@ -1,3 +1,4 @@
+import fs from 'fs'
 import { expect, test } from 'vitest'
 import { BAI, BamFile, BamRecord } from '../src'
 
@@ -391,7 +392,10 @@ test('get header text', async () => {
 //   const ti = new BamFile({ bamPath: 'test/data/400x.longread.bam' })
 //   await ti.getHeader()
 //   console.time('timerecord')
-//   const rec = await ti.getRecordsForRange('chr22_mask', 102_144, 122_533)
-//   rec.map(r => r.seq)
+//   const rec = await ti.getRecordsForRange('chr22_mask', 0, 122_533)
+//   fs.writeFileSync(
+//     'out.txt',
+//     rec.map(r => `${r.seq}\t${r.tags.MD}\t${r.CIGAR}`).join('\n'),
+//   )
 //   console.timeEnd('timerecord')
 // })
