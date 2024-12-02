@@ -37,8 +37,9 @@ export default class CSI extends IndexFile {
     return []
   }
 
-  parseAuxData(bytes: Buffer, offset: number) {
-    const formatFlags = bytes.readInt32LE(offset)
+  parseAuxData(bytes: Uint8Array, offset: number) {
+    const dataView = new DataView(bytes.buffer)
+    const formatFlags = dataView.getUint32(offset, true)
     const coordinateType =
       formatFlags & 0x10000 ? 'zero-based-half-open' : '1-based-closed'
     const format = (
@@ -48,14 +49,14 @@ export default class CSI extends IndexFile {
       throw new Error(`invalid Tabix preset format flags ${formatFlags}`)
     }
     const columnNumbers = {
-      ref: bytes.readInt32LE(offset + 4),
-      start: bytes.readInt32LE(offset + 8),
-      end: bytes.readInt32LE(offset + 12),
+      ref: dataView.getInt32(offset + 4, true),
+      start: dataView.getInt32(offset + 8, true),
+      end: dataView.getInt32(offset + 12, true),
     }
-    const metaValue = bytes.readInt32LE(offset + 16)
+    const metaValue = dataView.getInt32(offset + 16, true)
     const metaChar = metaValue ? String.fromCharCode(metaValue) : ''
-    const skipLines = bytes.readInt32LE(offset + 20)
-    const nameSectionLength = bytes.readInt32LE(offset + 24)
+    const skipLines = dataView.getInt32(offset + 20, true)
+    const nameSectionLength = dataView.getInt32(offset + 24, true)
 
     return {
       columnNumbers,
@@ -77,23 +78,24 @@ export default class CSI extends IndexFile {
     const buffer = await this.filehandle.readFile(opts)
     const bytes = await unzip(buffer)
 
+    const dataView = new DataView(bytes.buffer)
     let csiVersion
     // check TBI magic numbers
-    if (bytes.readUInt32LE(0) === CSI1_MAGIC) {
+    if (dataView.getUint32(0, true) === CSI1_MAGIC) {
       csiVersion = 1
-    } else if (bytes.readUInt32LE(0) === CSI2_MAGIC) {
+    } else if (dataView.getUint32(0, true) === CSI2_MAGIC) {
       csiVersion = 2
     } else {
       throw new Error('Not a CSI file')
       // TODO: do we need to support big-endian CSI files?
     }
 
-    this.minShift = bytes.readInt32LE(4)
-    this.depth = bytes.readInt32LE(8)
+    this.minShift = dataView.getInt32(4, true)
+    this.depth = dataView.getInt32(8, true)
     this.maxBinNumber = ((1 << ((this.depth + 1) * 3)) - 1) / 7
-    const auxLength = bytes.readInt32LE(12)
+    const auxLength = dataView.getInt32(12, true)
     const aux = auxLength >= 30 ? this.parseAuxData(bytes, 16) : undefined
-    const refCount = bytes.readInt32LE(16 + auxLength)
+    const refCount = dataView.getInt32(16 + auxLength, true)
 
     type BinIndex = Record<string, Chunk[]>
 
@@ -106,12 +108,12 @@ export default class CSI extends IndexFile {
     }>(refCount)
     for (let i = 0; i < refCount; i++) {
       // the binning index
-      const binCount = bytes.readInt32LE(curr)
+      const binCount = dataView.getInt32(curr, true)
       curr += 4
       const binIndex: Record<string, Chunk[]> = {}
       let stats // < provided by parsing a pseudo-bin, if present
       for (let j = 0; j < binCount; j++) {
-        const bin = bytes.readUInt32LE(curr)
+        const bin = dataView.getUint32(curr, true)
         curr += 4
         if (bin > this.maxBinNumber) {
           stats = parsePseudoBin(bytes, curr + 28)
@@ -119,7 +121,7 @@ export default class CSI extends IndexFile {
         } else {
           firstDataLine = findFirstData(firstDataLine, fromBytes(bytes, curr))
           curr += 8
-          const chunkCount = bytes.readInt32LE(curr)
+          const chunkCount = dataView.getInt32(curr, true)
           curr += 4
           const chunks = new Array<Chunk>(chunkCount)
           for (let k = 0; k < chunkCount; k += 1) {

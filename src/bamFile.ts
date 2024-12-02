@@ -1,4 +1,3 @@
-import { Buffer } from 'buffer'
 import crc32 from 'crc/crc32'
 import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
 import { LocalFile, RemoteFile, GenericFilehandle } from 'generic-filehandle'
@@ -148,23 +147,22 @@ export default class BamFile {
     let buffer
     if (ret) {
       const s = ret + blockLen
-      const res = await this.bam.read(Buffer.alloc(s), 0, s, 0, opts)
-      if (!res.bytesRead) {
-        throw new Error('Error reading header')
-      }
-      buffer = res.buffer.subarray(0, Math.min(res.bytesRead, ret))
+      buffer = await this.bam.read(s, 0)
     } else {
       buffer = await this.bam.readFile(opts)
     }
 
+    console.log({ buffer })
     const uncba = await unzip(buffer)
+    const dataView = new DataView(uncba.buffer)
 
-    if (uncba.readInt32LE(0) !== BAM_MAGIC) {
+    if (dataView.getInt32(0, true) !== BAM_MAGIC) {
       throw new Error('Not a BAM file')
     }
-    const headLen = uncba.readInt32LE(4)
+    const headLen = dataView.getInt32(4, true)
 
-    this.header = uncba.toString('utf8', 8, 8 + headLen)
+    const decoder = new TextDecoder('utf8')
+    this.header = decoder.decode(uncba.subarray(8, 8 + headLen))
     const { chrToIndex, indexToChr } = await this._readRefSeqs(
       headLen + 8,
       65535,
@@ -204,30 +202,21 @@ export default class BamFile {
     if (start > refSeqBytes) {
       return this._readRefSeqs(start, refSeqBytes * 2, opts)
     }
-    const size = refSeqBytes + blockLen
-    const { bytesRead, buffer } = await this.bam.read(
-      Buffer.alloc(size),
-      0,
-      refSeqBytes,
-      0,
-      opts,
-    )
-    if (!bytesRead) {
-      throw new Error('Error reading refseqs from header')
-    }
-    const uncba = await unzip(
-      buffer.subarray(0, Math.min(bytesRead, refSeqBytes)),
-    )
-    const nRef = uncba.readInt32LE(start)
+    // const size = refSeqBytes + blockLen <-- use this?
+    const buffer = await this.bam.read(refSeqBytes, 0, opts)
+    const uncba = await unzip(buffer)
+    const dataView = new DataView(uncba.buffer)
+    const nRef = dataView.getInt32(start, true)
     let p = start + 4
     const chrToIndex: Record<string, number> = {}
     const indexToChr: { refName: string; length: number }[] = []
+    const decoder = new TextDecoder('utf8')
     for (let i = 0; i < nRef; i += 1) {
-      const lName = uncba.readInt32LE(p)
+      const lName = dataView.getInt32(p, true)
       const refName = this.renameRefSeq(
-        uncba.toString('utf8', p + 4, p + 4 + lName - 1),
+        decoder.decode(uncba.subarray(p + 4, p + 4 + lName - 1)),
       )
-      const lRef = uncba.readInt32LE(p + lName + 4)
+      const lRef = dataView.getInt32(p + lName + 4, true)
 
       chrToIndex[refName] = i
       indexToChr.push({ refName, length: lRef })
@@ -388,15 +377,7 @@ export default class BamFile {
   }
 
   async _readRegion(position: number, size: number, opts: BaseOpts = {}) {
-    const { bytesRead, buffer } = await this.bam.read(
-      Buffer.alloc(size),
-      0,
-      size,
-      position,
-      opts,
-    )
-
-    return buffer.subarray(0, Math.min(bytesRead, size))
+    return this.bam.read(size, position, opts)
   }
 
   async _readChunk({ chunk, opts }: { chunk: Chunk; opts: BaseOpts }) {
@@ -415,7 +396,7 @@ export default class BamFile {
   }
 
   async readBamFeatures(
-    ba: Buffer,
+    ba: Uint8Array,
     cpositions: number[],
     dpositions: number[],
     chunk: Chunk,
@@ -425,8 +406,9 @@ export default class BamFile {
     let pos = 0
     let last = +Date.now()
 
+    const dataView = new DataView(ba.buffer)
     while (blockStart + 4 < ba.length) {
-      const blockSize = ba.readInt32LE(blockStart)
+      const blockSize = dataView.getInt32(blockStart, true)
       const blockEnd = blockStart + 4 + blockSize - 1
 
       // increment position to the current decompressed status
@@ -471,8 +453,8 @@ export default class BamFile {
                 chunk.minv.dataPosition +
                 1
               : // must be slice, not subarray for buffer polyfill on web
-                // eslint-disable-next-line @typescript-eslint/no-deprecated
-                crc32.signed(ba.slice(blockStart, blockEnd)),
+                // @ts-expect-error
+                crc32.signed(ba.subarray(blockStart, blockEnd)),
         })
 
         sink.push(feature)

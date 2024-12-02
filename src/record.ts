@@ -1,5 +1,4 @@
 import Constants from './constants'
-import type { Buffer } from 'buffer'
 
 const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
 const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
@@ -7,15 +6,18 @@ const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
 interface Bytes {
   start: number
   end: number
-  byteArray: Buffer
+  byteArray: Uint8Array
 }
+
 export default class BamRecord {
   public fileOffset: number
   private bytes: Bytes
+  private #dataView: DataView
 
   constructor(args: { bytes: Bytes; fileOffset: number }) {
     this.bytes = args.bytes
     this.fileOffset = args.fileOffset
+    this.#dataView = new DataView(this.bytes.byteArray.buffer)
   }
 
   get byteArray() {
@@ -24,15 +26,15 @@ export default class BamRecord {
 
   get flags() {
     return (
-      (this.byteArray.readInt32LE(this.bytes.start + 16) & 0xffff0000) >> 16
+      (this.#dataView.getInt32(this.bytes.start + 16, true) & 0xffff0000) >> 16
     )
   }
   get ref_id() {
-    return this.byteArray.readInt32LE(this.bytes.start + 4)
+    return this.#dataView.getInt32(this.bytes.start + 4, true)
   }
 
   get start() {
-    return this.byteArray.readInt32LE(this.bytes.start + 8)
+    return this.#dataView.getInt32(this.bytes.start + 8, true)
   }
 
   get end() {
@@ -73,15 +75,14 @@ export default class BamRecord {
     return this.bytes.start + 36
   }
   get name() {
-    return this.byteArray.toString(
-      'ascii',
-      this.b0,
-      this.b0 + this.read_name_length - 1,
-    )
+    let str = ''
+    for (let i = 0; i < this.read_name_length - 1; i++) {
+      str += String.fromCharCode(this.byteArray[this.b0 + i])
+    }
+    return str
   }
 
   get tags() {
-    const { byteArray } = this.bytes
     let p =
       this.b0 +
       this.read_name_length +
@@ -92,38 +93,38 @@ export default class BamRecord {
     const blockEnd = this.bytes.end
     const tags = {} as Record<string, unknown>
     while (p < blockEnd) {
-      const tag = String.fromCharCode(byteArray[p], byteArray[p + 1])
-      const type = String.fromCharCode(byteArray[p + 2])
+      const tag = String.fromCharCode(this.byteArray[p], this.byteArray[p + 1])
+      const type = String.fromCharCode(this.byteArray[p + 2])
       p += 3
 
       if (type === 'A') {
-        tags[tag] = String.fromCharCode(byteArray[p])
+        tags[tag] = String.fromCharCode(this.byteArray[p])
         p += 1
       } else if (type === 'i') {
-        tags[tag] = byteArray.readInt32LE(p)
+        tags[tag] = this.#dataView.getInt32(p, true)
         p += 4
       } else if (type === 'I') {
-        tags[tag] = byteArray.readUInt32LE(p)
+        tags[tag] = this.#dataView.getUint32(p, true)
         p += 4
       } else if (type === 'c') {
-        tags[tag] = byteArray.readInt8(p)
+        tags[tag] = this.#dataView.getInt8(p)
         p += 1
       } else if (type === 'C') {
-        tags[tag] = byteArray.readUInt8(p)
+        tags[tag] = this.#dataView.getUint8(p)
         p += 1
       } else if (type === 's') {
-        tags[tag] = byteArray.readInt16LE(p)
+        tags[tag] = this.#dataView.getInt16(p, true)
         p += 2
       } else if (type === 'S') {
-        tags[tag] = byteArray.readUInt16LE(p)
+        tags[tag] = this.#dataView.getUint16(p, true)
         p += 2
       } else if (type === 'f') {
-        tags[tag] = byteArray.readFloatLE(p)
+        tags[tag] = this.#dataView.getFloat32(p, true)
         p += 4
       } else if (type === 'Z' || type === 'H') {
         const value = []
         while (p <= blockEnd) {
-          const cc = byteArray[p++]
+          const cc = this.byteArray[p++]
           if (cc !== 0) {
             value.push(String.fromCharCode(cc))
           } else {
@@ -132,15 +133,15 @@ export default class BamRecord {
         }
         tags[tag] = value.join('')
       } else if (type === 'B') {
-        const cc = byteArray[p++]
+        const cc = this.byteArray[p++]
         const Btype = String.fromCharCode(cc)
-        const limit = byteArray.readInt32LE(p)
+        const limit = this.#dataView.getInt32(p, true)
         p += 4
         if (Btype === 'i') {
           if (tag === 'CG') {
             const value = []
             for (let k = 0; k < limit; k++) {
-              const cigop = byteArray.readInt32LE(p)
+              const cigop = this.#dataView.getInt32(p, true)
               const lop = cigop >> 4
               const op = CIGAR_DECODER[cigop & 0xf]
               value.push(lop + op)
@@ -150,7 +151,7 @@ export default class BamRecord {
           } else {
             const value = []
             for (let k = 0; k < limit; k++) {
-              value.push(byteArray.readInt32LE(p))
+              value.push(this.#dataView.getInt32(p, true))
               p += 4
             }
             tags[tag] = value
@@ -159,7 +160,7 @@ export default class BamRecord {
           if (tag === 'CG') {
             const value = []
             for (let k = 0; k < limit; k++) {
-              const cigop = byteArray.readUInt32LE(p)
+              const cigop = this.#dataView.getUint32(p, true)
               const lop = cigop >> 4
               const op = CIGAR_DECODER[cigop & 0xf]
               value.push(lop + op)
@@ -169,7 +170,7 @@ export default class BamRecord {
           } else {
             const value = []
             for (let k = 0; k < limit; k++) {
-              value.push(byteArray.readUInt32LE(p))
+              value.push(this.#dataView.getUint32(p, true))
               p += 4
             }
             tags[tag] = value
@@ -177,35 +178,35 @@ export default class BamRecord {
         } else if (Btype === 's') {
           const value = []
           for (let k = 0; k < limit; k++) {
-            value.push(byteArray.readInt16LE(p))
+            value.push(this.#dataView.getInt16(p, true))
             p += 2
           }
           tags[tag] = value
         } else if (Btype === 'S') {
           const value = []
           for (let k = 0; k < limit; k++) {
-            value.push(byteArray.readUInt16LE(p))
+            value.push(this.#dataView.getUint16(p, true))
             p += 2
           }
           tags[tag] = value
         } else if (Btype === 'c') {
           const value = []
           for (let k = 0; k < limit; k++) {
-            value.push(byteArray.readInt8(p))
+            value.push(this.#dataView.getInt8(p))
             p += 1
           }
           tags[tag] = value
         } else if (Btype === 'C') {
           const value = []
           for (let k = 0; k < limit; k++) {
-            value.push(byteArray.readUInt8(p))
+            value.push(this.#dataView.getUint8(p))
             p += 1
           }
           tags[tag] = value
         } else if (Btype === 'f') {
           const value = []
           for (let k = 0; k < limit; k++) {
-            value.push(byteArray.readFloatLE(p))
+            value.push(this.#dataView.getFloat32(p, true))
             p += 4
           }
           tags[tag] = value
@@ -295,14 +296,14 @@ export default class BamRecord {
 
     // check for CG tag by inspecting whether the CIGAR field contains a clip
     // that consumes entire seqLen
-    let cigop = this.byteArray.readInt32LE(p)
+    let cigop = this.#dataView.getInt32(p, true)
     let lop = cigop >> 4
     let op = CIGAR_DECODER[cigop & 0xf]
     if (op === 'S' && lop === this.seq_length) {
       // if there is a CG the second CIGAR field will be a N tag the represents
       // the length on ref
       p += 4
-      cigop = this.byteArray.readInt32LE(p)
+      cigop = this.#dataView.getInt32(p, true)
       lop = cigop >> 4
       op = CIGAR_DECODER[cigop & 0xf]
       if (op !== 'N') {
@@ -315,7 +316,7 @@ export default class BamRecord {
     } else {
       let lref = 0
       for (let c = 0; c < numCigarOps; ++c) {
-        cigop = this.byteArray.readInt32LE(p)
+        cigop = this.#dataView.getInt32(p, true)
         lop = cigop >> 4
         op = CIGAR_DECODER[cigop & 0xf]
         CIGAR.push(lop + op)
@@ -412,27 +413,27 @@ export default class BamRecord {
   }
 
   get bin_mq_nl() {
-    return this.byteArray.readInt32LE(this.bytes.start + 12)
+    return this.#dataView.getInt32(this.bytes.start + 12, true)
   }
 
   get flag_nc() {
-    return this.byteArray.readInt32LE(this.bytes.start + 16)
+    return this.#dataView.getInt32(this.bytes.start + 16, true)
   }
 
   get seq_length() {
-    return this.byteArray.readInt32LE(this.bytes.start + 20)
+    return this.#dataView.getInt32(this.bytes.start + 20, true)
   }
 
   get next_refid() {
-    return this.byteArray.readInt32LE(this.bytes.start + 24)
+    return this.#dataView.getInt32(this.bytes.start + 24, true)
   }
 
   get next_pos() {
-    return this.byteArray.readInt32LE(this.bytes.start + 28)
+    return this.#dataView.getInt32(this.bytes.start + 28, true)
   }
 
   get template_length() {
-    return this.byteArray.readInt32LE(this.bytes.start + 32)
+    return this.#dataView.getInt32(this.bytes.start + 32, true)
   }
 
   toJSON() {

@@ -30,7 +30,7 @@ export default class VirtualOffset {
     return min
   }
 }
-export function fromBytes(bytes: Buffer, offset = 0, bigendian = false) {
+export function fromBytes(bytes: Uint8Array, offset = 0, bigendian = false) {
   if (bigendian) {
     throw new Error('big-endian virtual file offsets not implemented')
   }
