@@ -26,10 +26,10 @@ var records = await t.getRecordsForRange('ctgA', 0, 50000)
 ```
 
 The `bamPath` argument only works on nodejs. In the browser, you should pass
-`bamFilehandle` with a generic-filehandle e.g. `RemoteFile`
+`bamFilehandle` with a generic-filehandle2 e.g. `RemoteFile`
 
 ```typescript
-const { RemoteFile } = require('generic-filehandle')
+const { RemoteFile } = require('generic-filehandle2')
 const bam = new BamFile({
   bamFilehandle: new RemoteFile('yourfile.bam'), // or a full http url
   baiFilehandle: new RemoteFile('yourfile.bam.bai'), // or a full http url
@@ -76,9 +76,10 @@ The BAM class constructor accepts arguments
   yielding
 
 Note: filehandles implement the Filehandle interface from
-https://www.npmjs.com/package/generic-filehandle. This module offers the path
-and url arguments as convenience methods for supplying the LocalFile and
-RemoteFile
+https://www.npmjs.com/package/generic-filehandle2.
+
+This module offers the path and url arguments as convenience methods for
+supplying the LocalFile and RemoteFile
 
 ### async getRecordsForRange(refName, start, end, opts)
 
@@ -112,7 +113,7 @@ for await (const chunk of file.streamRecordsForRange(
 The `getRecordsForRange` simply wraps this process by concatenating chunks into
 an array
 
-### async getHeader(opts: {....anything to pass to generic-filehandle opts})
+### async getHeader(opts: {....anything to pass to generic-filehandle2 opts})
 
 This obtains the header from `HtsgetFile` or `BamFile`. Retrieves BAM file and
 BAI/CSI header if applicable, or API request for refnames from htsget
@@ -156,11 +157,6 @@ feature.tags // tags
 feature.flags // flags
 feature.template_length // TLEN
 ```
-
-#### Note
-
-The reason that we hide the data behind this ".get" function is that we lazily
-decode records on demand, which can reduce memory consumption.
 
 ## License
 

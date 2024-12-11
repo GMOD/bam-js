@@ -12,7 +12,7 @@ interface Bytes {
 export default class BamRecord {
   public fileOffset: number
   private bytes: Bytes
-  private #dataView: DataView
+  #dataView: DataView
 
   constructor(args: { bytes: Bytes; fileOffset: number }) {
     this.bytes = args.bytes

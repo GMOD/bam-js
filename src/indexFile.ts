@@ -1,4 +1,4 @@
-import { GenericFilehandle } from 'generic-filehandle'
+import { GenericFilehandle } from 'generic-filehandle2'
 import Chunk from './chunk'
 import { BaseOpts } from './util'
 

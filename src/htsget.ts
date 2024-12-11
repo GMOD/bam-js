@@ -1,6 +1,5 @@
 import { unzip } from '@gmod/bgzf-filehandle'
-import { Buffer } from 'buffer'
-import { BaseOpts, BamOpts } from './util'
+import { BaseOpts, BamOpts, concatUint8Array } from './util'
 import BamFile, { BAM_MAGIC } from './bamFile'
 import Chunk from './chunk'
 import { parseHeaderText } from './sam'
@@ -14,7 +13,8 @@ async function concat(arr: HtsgetChunk[], opts?: Record<string, any>) {
     arr.map(async chunk => {
       const { url, headers } = chunk
       if (url.startsWith('data:')) {
-        return Buffer.from(url.split(',')[1], 'base64')
+        // @ts-expect-error
+        return Uint8Array.fromBase64(url.split(',')[1], 'base64') as Uint8Array
       } else {
         //remove referer header, it is not even allowed to be specified
         // @ts-expect-error
@@ -29,12 +29,12 @@ async function concat(arr: HtsgetChunk[], opts?: Record<string, any>) {
             `HTTP ${res.status} fetching ${url}: ${await res.text()}`,
           )
         }
-        return Buffer.from(await res.arrayBuffer())
+        return new Uint8Array(await res.arrayBuffer())
       }
     }),
   )
 
-  return Buffer.concat(await Promise.all(res.map(elt => unzip(elt))))
+  return concatUint8Array(await Promise.all(res.map(elt => unzip(elt))))
 }
 
 export default class HtsgetFile extends BamFile {
@@ -108,11 +108,17 @@ export default class HtsgetFile extends BamFile {
     }
   }
 
+  // @ts-expect-error
   async _readChunk({ chunk }: { chunk: Chunk; opts: BaseOpts }) {
     if (!chunk.buffer) {
       throw new Error('expected chunk.buffer in htsget')
     }
-    return { data: chunk.buffer, cpositions: [], dpositions: [], chunk }
+    return {
+      data: chunk.buffer,
+      cpositions: [],
+      dpositions: [],
+      chunk,
+    }
   }
 
   async getHeader(opts: BaseOpts = {}) {
@@ -125,12 +131,15 @@ export default class HtsgetFile extends BamFile {
     }
     const data = await result.json()
     const uncba = await concat(data.htsget.urls, opts)
+    const dataView = new DataView(uncba.buffer)
 
-    if (uncba.readInt32LE(0) !== BAM_MAGIC) {
+    if (dataView.getInt32(0, true) !== BAM_MAGIC) {
       throw new Error('Not a BAM file')
     }
-    const headLen = uncba.readInt32LE(4)
-    const headerText = uncba.toString('utf8', 8, 8 + headLen)
+    const headLen = dataView.getInt32(4, true)
+
+    const decoder = new TextDecoder('utf8')
+    const headerText = decoder.decode(uncba.subarray(8, 8 + headLen))
     const samHeader = parseHeaderText(headerText)
 
     // use the @SQ lines in the header to figure out the

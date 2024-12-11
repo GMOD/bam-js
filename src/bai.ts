@@ -34,7 +34,7 @@ export default class BAI extends IndexFile {
   }
 
   // fetch and parse the index
-  async _parse(opts?: BaseOpts) {
+  async _parse(_opts?: BaseOpts) {
     const bytes = await this.filehandle.readFile()
     const dataView = new DataView(bytes.buffer)
 
