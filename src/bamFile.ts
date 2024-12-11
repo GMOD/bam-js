@@ -152,7 +152,6 @@ export default class BamFile {
       buffer = await this.bam.readFile(opts)
     }
 
-    console.log({ buffer })
     const uncba = await unzip(buffer)
     const dataView = new DataView(uncba.buffer)
 

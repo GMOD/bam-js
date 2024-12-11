@@ -80,13 +80,14 @@ export default class CSI extends IndexFile {
 
     const dataView = new DataView(bytes.buffer)
     let csiVersion
-    // check TBI magic numbers
-    if (dataView.getUint32(0, true) === CSI1_MAGIC) {
+    const magic = dataView.getUint32(0, true)
+
+    if (magic === CSI1_MAGIC) {
       csiVersion = 1
-    } else if (dataView.getUint32(0, true) === CSI2_MAGIC) {
+    } else if (magic === CSI2_MAGIC) {
       csiVersion = 2
     } else {
-      throw new Error('Not a CSI file')
+      throw new Error(`Not a CSI file ${magic}`)
       // TODO: do we need to support big-endian CSI files?
     }
 

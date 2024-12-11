@@ -99,7 +99,6 @@ test('deep check volvox-sorted.bam', async () => {
   const ti = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
   await ti.getHeader()
   const records = await ti.getRecordsForRange('ctgA', 0, 10)
-  console.log({ record: records[0] })
   expect(records).toMatchSnapshot()
 })
 
