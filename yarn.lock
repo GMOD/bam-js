@@ -237,12 +237,12 @@
   resolved "https://registry.yarnpkg.com/@gmod/abortable-promise-cache/-/abortable-promise-cache-2.0.1.tgz#d01cbcb2d9ad23cf0f421824b7e759a441815ebc"
   integrity sha512-6PQTJv+uxAb8XE/oL2Uh4EmFJpn65YOTSqGn8HLNXrWRlW1Clp1Oze6biHeRCMonLwEx4oH4bPeyjdcMnNP8pw==
 
-"@gmod/bgzf-filehandle@^2.0.0":
-  version "2.0.0"
-  resolved "https://registry.yarnpkg.com/@gmod/bgzf-filehandle/-/bgzf-filehandle-2.0.0.tgz#1c8d3a16054a50a100cc3637e338abaa2306d60a"
-  integrity sha512-jCYqAln1ol44ZhG6xZkfvVRyGKU9At5prKYZtLw2LcgWwZ5zQ/0+4wvinNt6PDcc6I45aRqiK6iPQIQg9OCPVA==
+"@gmod/bgzf-filehandle@^2.0.1":
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/@gmod/bgzf-filehandle/-/bgzf-filehandle-2.0.1.tgz#2ec15ae053dce007cf1cd68b6d2173dea70ce3d7"
+  integrity sha512-uyHMHucenFQCLt4zQ7ZJoNg9PXEZTmA8Z27oNrg6VHSpKY6vQY46RsgZSubTn6/G7UAF4RZVQeFS9HeJpR/Vuw==
   dependencies:
-    generic-filehandle2 "^0.0.1"
+    generic-filehandle2 "^0.0.2"
     long "^4.0.0"
     pako "^1.0.11"
 
@@ -1246,10 +1246,10 @@ function-bind@^1.1.2:
   resolved "https://registry.yarnpkg.com/function-bind/-/function-bind-1.1.2.tgz#2c02d864d97f3ea6c8830c464cbd11ab6eab7a1c"
   integrity sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA==
 
-generic-filehandle2@^0.0.1:
-  version "0.0.1"
-  resolved "https://registry.yarnpkg.com/generic-filehandle2/-/generic-filehandle2-0.0.1.tgz#7f26ee54a939ed588d6bdb3a453bb2255ccd2be9"
-  integrity sha512-cySnWoVmNUSkRztAwlghNVAYXUh+VVy/fxn8tT3jZIo8UQEHkYL7ueSUseBZrwqBCq9n06Wp/F4xv2q2/SwYCQ==
+generic-filehandle2@^0.0.2:
+  version "0.0.2"
+  resolved "https://registry.yarnpkg.com/generic-filehandle2/-/generic-filehandle2-0.0.2.tgz#a87839bdefa5cebb8aec6aa1486f904595908dde"
+  integrity sha512-8v2ZOMiJ2uneKpaKNqCTFDBmXai4nihRd8QY9G6vQ9JRcuaDrkwSKxlGM4A0k2X4XNr+X02T6RMv1QPT9fgPEw==
 
 git-raw-commits@^5.0.0:
   version "5.0.0"
