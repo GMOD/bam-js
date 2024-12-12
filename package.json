@@ -41,7 +41,7 @@
     "@gmod/abortable-promise-cache": "^2.0.0",
     "@gmod/bgzf-filehandle": "^2.0.1",
     "crc": "^4.3.2",
-    "generic-filehandle2": "^0.0.2",
+    "generic-filehandle2": "^1.0.0",
     "long": "^4.0.0",
     "quick-lru": "^4.0.0"
   },

@@ -13,8 +13,14 @@ async function concat(arr: HtsgetChunk[], opts?: Record<string, any>) {
     arr.map(async chunk => {
       const { url, headers } = chunk
       if (url.startsWith('data:')) {
-        // @ts-expect-error
-        return Uint8Array.fromBase64(url.split(',')[1], 'base64') as Uint8Array
+        // pass base64 data url to fetch to decode to buffer
+        // https://stackoverflow.com/a/54123275/2129219
+        const res = await fetch(url)
+        if (!res.ok) {
+          throw new Error('failed to decode base64')
+        }
+        const ret = await res.arrayBuffer()
+        return new Uint8Array(ret)
       } else {
         //remove referer header, it is not even allowed to be specified
         // @ts-expect-error

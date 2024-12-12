@@ -1251,6 +1251,11 @@ generic-filehandle2@^0.0.2:
   resolved "https://registry.yarnpkg.com/generic-filehandle2/-/generic-filehandle2-0.0.2.tgz#a87839bdefa5cebb8aec6aa1486f904595908dde"
   integrity sha512-8v2ZOMiJ2uneKpaKNqCTFDBmXai4nihRd8QY9G6vQ9JRcuaDrkwSKxlGM4A0k2X4XNr+X02T6RMv1QPT9fgPEw==
 
+generic-filehandle2@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/generic-filehandle2/-/generic-filehandle2-1.0.0.tgz#d7a216072467793e1e48c925f97162eab1b82efc"
+  integrity sha512-jXfyNk1zhsR0Xf2sLm4vgeYSP1q1XbeSVG0TRSnOCKLb2CojPNJyy57nKi6QWmt83yGSHZGay8qIn7YWyl2V5w==
+
 git-raw-commits@^5.0.0:
   version "5.0.0"
   resolved "https://registry.yarnpkg.com/git-raw-commits/-/git-raw-commits-5.0.0.tgz#38af4301e70c17be03fec01a37a6cd90ce0db04e"
