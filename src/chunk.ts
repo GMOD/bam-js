@@ -2,7 +2,7 @@ import VirtualOffset from './virtualOffset'
 
 // little class representing a chunk in the index
 export default class Chunk {
-  public buffer?: Buffer
+  public buffer?: Uint8Array
 
   constructor(
     public minv: VirtualOffset,

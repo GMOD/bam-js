@@ -34,15 +34,16 @@ export default class BAI extends IndexFile {
   }
 
   // fetch and parse the index
-  async _parse(opts?: BaseOpts) {
-    const bytes = (await this.filehandle.readFile(opts)) as Buffer
+  async _parse(_opts?: BaseOpts) {
+    const bytes = await this.filehandle.readFile()
+    const dataView = new DataView(bytes.buffer)
 
     // check BAI magic numbers
-    if (bytes.readUInt32LE(0) !== BAI_MAGIC) {
+    if (dataView.getUint32(0, true) !== BAI_MAGIC) {
       throw new Error('Not a BAI file')
     }
 
-    const refCount = bytes.readInt32LE(4)
+    const refCount = dataView.getInt32(4, true)
     const depth = 5
     const binLimit = ((1 << ((depth + 1) * 3)) - 1) / 7
 
@@ -57,16 +58,18 @@ export default class BAI extends IndexFile {
       linearIndex: LinearIndex
       stats?: { lineCount: number }
     }>(refCount)
+
     for (let i = 0; i < refCount; i++) {
       // the binning index
-      const binCount = bytes.readInt32LE(curr)
+
+      const binCount = dataView.getInt32(curr, true)
       let stats
 
       curr += 4
       const binIndex: Record<number, Chunk[]> = {}
 
       for (let j = 0; j < binCount; j += 1) {
-        const bin = bytes.readUInt32LE(curr)
+        const bin = dataView.getUint32(curr, true)
         curr += 4
         if (bin === binLimit + 1) {
           curr += 4
@@ -75,7 +78,7 @@ export default class BAI extends IndexFile {
         } else if (bin > binLimit + 1) {
           throw new Error('bai index contains too many bins, please use CSI')
         } else {
-          const chunkCount = bytes.readInt32LE(curr)
+          const chunkCount = dataView.getInt32(curr, true)
           curr += 4
           const chunks = new Array<Chunk>(chunkCount)
           for (let k = 0; k < chunkCount; k++) {
@@ -90,7 +93,7 @@ export default class BAI extends IndexFile {
         }
       }
 
-      const linearCount = bytes.readInt32LE(curr)
+      const linearCount = dataView.getInt32(curr, true)
       curr += 4
       // as we're going through the linear index, figure out the smallest
       // virtual offset in the indexes, which tells us where the BAM header

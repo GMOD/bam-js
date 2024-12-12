@@ -102,7 +102,7 @@ export function optimizeChunks(chunks: Chunk[], lowest?: VirtualOffset) {
   return mergedChunks
 }
 
-export function parsePseudoBin(bytes: Buffer, offset: number) {
+export function parsePseudoBin(bytes: Uint8Array, offset: number) {
   return {
     lineCount: Long.fromBytesLE(
       Array.prototype.slice.call(bytes, offset, offset + 8),
@@ -123,7 +123,7 @@ export function findFirstData(
 }
 
 export function parseNameBytes(
-  namesBytes: Buffer,
+  namesBytes: Uint8Array,
   renameRefSeq: (arg: string) => string = s => s,
 ) {
   let currRefId = 0
@@ -133,7 +133,10 @@ export function parseNameBytes(
   for (let i = 0; i < namesBytes.length; i += 1) {
     if (!namesBytes[i]) {
       if (currNameStart < i) {
-        let refName = namesBytes.toString('utf8', currNameStart, i)
+        let refName = ''
+        for (let j = currNameStart; j < i; j++) {
+          refName += String.fromCharCode(namesBytes[j])
+        }
         refName = renameRefSeq(refName)
         refIdToName[currRefId] = refName
         refNameToId[refName] = currRefId
@@ -143,4 +146,21 @@ export function parseNameBytes(
     }
   }
   return { refNameToId, refIdToName }
+}
+
+export function sum(array: Uint8Array[]) {
+  let sum = 0
+  for (const entry of array) {
+    sum += entry.length
+  }
+  return sum
+}
+export function concatUint8Array(args: Uint8Array[]) {
+  const mergedArray = new Uint8Array(sum(args))
+  let offset = 0
+  for (const entry of args) {
+    mergedArray.set(entry, offset)
+    offset += entry.length
+  }
+  return mergedArray
 }
