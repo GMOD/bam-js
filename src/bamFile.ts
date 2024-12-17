@@ -1,4 +1,4 @@
-import crc32 from 'crc/crc32'
+import crc32 from 'crc/calculators/crc32'
 import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
 import { LocalFile, RemoteFile, GenericFilehandle } from 'generic-filehandle2'
 import AbortablePromiseCache from '@gmod/abortable-promise-cache'
@@ -451,9 +451,10 @@ export default class BamFile {
                 (blockStart - dpositions[pos]) +
                 chunk.minv.dataPosition +
                 1
-              : // must be slice, not subarray for buffer polyfill on web
-                // @ts-expect-error
-                crc32.signed(ba.subarray(blockStart, blockEnd)),
+              : // this shift >>> 0 is equivalent to crc32(b).unsigned but uses the
+                // internal calculator of crc32 to avoid accidentally importing buffer
+                // https://github.com/alexgorbatchev/crc/blob/31fc3853e417b5fb5ec83335428805842575f699/src/define_crc.ts#L5
+                crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
         })
 
         sink.push(feature)
