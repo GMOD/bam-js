@@ -1,5 +1,5 @@
-import { fromBytesLE, toNumber } from 'longfn'
 import Chunk from './chunk'
+import { longFromBytesToUnsigned } from './long'
 import VirtualOffset from './virtualOffset'
 
 export function timeout(ms: number) {
@@ -105,7 +105,7 @@ export function optimizeChunks(chunks: Chunk[], lowest?: VirtualOffset) {
 
 export function parsePseudoBin(bytes: Uint8Array, offset: number) {
   return {
-    lineCount: toNumber(fromBytesLE(bytes.subarray(offset, offset + 8), true)),
+    lineCount: longFromBytesToUnsigned(bytes, offset),
   }
 }
 
