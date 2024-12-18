@@ -1,4 +1,4 @@
-import Long from 'long'
+import { fromBytesLE, toNumber } from 'longfn'
 import Chunk from './chunk'
 import VirtualOffset from './virtualOffset'
 
@@ -8,9 +8,10 @@ export function timeout(ms: number) {
 
 /**
  * Properly check if the given AbortSignal is aborted.
- * Per the standard, if the signal reads as aborted,
- * this function throws either a DOMException AbortError, or a regular error
- * with a `code` attribute set to `ERR_ABORTED`.
+ *
+ * Per the standard, if the signal reads as aborted, this function throws
+ * either a DOMException AbortError, or a regular error with a `code` attribute
+ * set to `ERR_ABORTED`.
  *
  * For convenience, passing `undefined` is a no-op
  *
@@ -104,10 +105,7 @@ export function optimizeChunks(chunks: Chunk[], lowest?: VirtualOffset) {
 
 export function parsePseudoBin(bytes: Uint8Array, offset: number) {
   return {
-    lineCount: Long.fromBytesLE(
-      Array.prototype.slice.call(bytes, offset, offset + 8),
-      true,
-    ).toNumber(),
+    lineCount: toNumber(fromBytesLE(bytes.subarray(offset, offset + 8), true)),
   }
 }
 

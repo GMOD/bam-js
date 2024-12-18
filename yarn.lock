@@ -238,12 +238,12 @@
   integrity sha512-6PQTJv+uxAb8XE/oL2Uh4EmFJpn65YOTSqGn8HLNXrWRlW1Clp1Oze6biHeRCMonLwEx4oH4bPeyjdcMnNP8pw==
 
 "@gmod/bgzf-filehandle@^2.0.1":
-  version "2.0.2"
-  resolved "https://registry.yarnpkg.com/@gmod/bgzf-filehandle/-/bgzf-filehandle-2.0.2.tgz#3433caea2ec0eeb5b6942823cc5e8785faa0e22e"
-  integrity sha512-rhQNaTV3Yb5lD8EGW9p14BQO3jzJiSQxY5lXX5wjWYf3RDuJ9RWMOJ1im51mcdrvaIXmPT2mLs9xfD9dXeVAvw==
+  version "2.0.3"
+  resolved "https://registry.yarnpkg.com/@gmod/bgzf-filehandle/-/bgzf-filehandle-2.0.3.tgz#398e3ea61f332e1b0ec8ccd5aa22aed14770393f"
+  integrity sha512-vwQWopYxTTuVxJx8WvjNLQM30mkRdMpoPJzg+n4C0UdI7ZR8c0R5szzyUaZPFJnRbQDJhTC3HJE3EILXptJAYQ==
   dependencies:
     generic-filehandle2 "^1.0.0"
-    long "^4.0.0"
+    longfn "^1.3.1"
     pako "^1.0.11"
 
 "@humanfs/core@^0.19.1":
@@ -458,11 +458,6 @@
   version "7.0.15"
   resolved "https://registry.yarnpkg.com/@types/json-schema/-/json-schema-7.0.15.tgz#596a1747233694d50f6ad8a7869fcb6f56cf5841"
   integrity sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==
-
-"@types/long@^4.0.0":
-  version "4.0.2"
-  resolved "https://registry.yarnpkg.com/@types/long/-/long-4.0.2.tgz#b74129719fc8d11c01868010082d483b7545591a"
-  integrity sha512-MqTGEo5bj5t157U6fA/BiDynNkn0YknVdh48CMPkTSpFTVmvao5UQmm7uEF6xBEo7qIMAlY/JSleYaE6VOdpaA==
 
 "@types/node@^20.11.19":
   version "20.17.10"
@@ -1532,10 +1527,10 @@ lodash.merge@^4.6.2:
   resolved "https://registry.yarnpkg.com/lodash.merge/-/lodash.merge-4.6.2.tgz#558aa53b43b661e1925a0afdfa36a9a1085fe57a"
   integrity sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ==
 
-long@^4.0.0:
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/long/-/long-4.0.0.tgz#9a7b71cfb7d361a194ea555241c92f7468d5bf28"
-  integrity sha512-XsP+KhQif4bjX1kbuSiySJFNAehNxgLb6hPRGJ9QsUr8ajHkuXGdrHmFUTUUXhDwVX2R5bY4JNZEwbUiMhV+MA==
+longfn@^1.3.1:
+  version "1.3.1"
+  resolved "https://registry.yarnpkg.com/longfn/-/longfn-1.3.1.tgz#1655fef1034bcb9f7b7911a4afb493d4acc8751d"
+  integrity sha512-sFNpfHBvO+mK6bSMr//CGeeXCJX4nKaBJ9M7QsJkzZT8ez+z12lkzRlyZibjdtjLHlfYPv9rmwHGGuwJOglFFQ==
 
 loupe@^3.1.0, loupe@^3.1.2:
   version "3.1.2"
