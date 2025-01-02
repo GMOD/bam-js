@@ -163,7 +163,7 @@ export default class CSI extends IndexFile {
 
     const indexData = await this.parse(opts)
     const ba = indexData.indices[refId]
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+
     if (!ba) {
       return []
     }
@@ -177,9 +177,8 @@ export default class CSI extends IndexFile {
     // Find chunks in overlapping bins.  Leaf bins (< 4681) are not pruned
     for (const [start, end] of overlappingBins) {
       for (let bin = start; bin <= end; bin++) {
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (ba.binIndex[bin]) {
-          const binChunks = ba.binIndex[bin]
+          const binChunks = ba.binIndex[bin]!
           for (const c of binChunks) {
             chunks.push(c)
           }

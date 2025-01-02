@@ -128,7 +128,7 @@ export default class BAI extends IndexFile {
     const range = start !== undefined
     const indexData = await this.parse(opts)
     const seqIdx = indexData.indices[seqId]
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+
     if (!seqIdx) {
       return []
     }
@@ -141,18 +141,18 @@ export default class BAI extends IndexFile {
     const depths = range
       ? new Array((e - s) / v)
       : new Array(linearIndex.length - 1)
-    const totalSize = linearIndex[linearIndex.length - 1].blockPosition
+    const totalSize = linearIndex[linearIndex.length - 1]!.blockPosition
     if (e > (linearIndex.length - 1) * v) {
       throw new Error('query outside of range of linear index')
     }
-    let currentPos = linearIndex[s / v].blockPosition
+    let currentPos = linearIndex[s / v]!.blockPosition
     for (let i = s / v, j = 0; i < e / v; i++, j++) {
       depths[j] = {
-        score: linearIndex[i + 1].blockPosition - currentPos,
+        score: linearIndex[i + 1]!.blockPosition - currentPos,
         start: i * v,
         end: i * v + v,
       }
-      currentPos = linearIndex[i + 1].blockPosition
+      currentPos = linearIndex[i + 1]!.blockPosition
     }
     return depths.map(d => ({
       ...d,
@@ -176,7 +176,7 @@ export default class BAI extends IndexFile {
       return []
     }
     const ba = indexData.indices[refId]
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+
     if (!ba) {
       return []
     }
@@ -188,9 +188,8 @@ export default class BAI extends IndexFile {
     // Find chunks in overlapping bins.  Leaf bins (< 4681) are not pruned
     for (const [start, end] of overlappingBins) {
       for (let bin = start; bin <= end; bin++) {
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (ba.binIndex[bin]) {
-          const binChunks = ba.binIndex[bin]
+          const binChunks = ba.binIndex[bin]!
           for (const binChunk of binChunks) {
             chunks.push(new Chunk(binChunk.minv, binChunk.maxv, bin))
           }
@@ -207,7 +206,6 @@ export default class BAI extends IndexFile {
     for (let i = minLin; i <= maxLin; ++i) {
       const vp = ba.linearIndex[i]
 
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (vp && (!lowest || vp.compareTo(lowest) < 0)) {
         lowest = vp
       }

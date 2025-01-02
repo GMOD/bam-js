@@ -83,6 +83,7 @@ export default tseslint.config(
       'unicorn/prefer-number-properties': 'off',
       'unicorn/no-process-exit': 'off',
       'unicorn/prefer-at': 'off',
+      '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',

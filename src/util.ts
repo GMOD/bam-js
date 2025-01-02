@@ -133,7 +133,7 @@ export function parseNameBytes(
       if (currNameStart < i) {
         let refName = ''
         for (let j = currNameStart; j < i; j++) {
-          refName += String.fromCharCode(namesBytes[j])
+          refName += String.fromCharCode(namesBytes[j]!)
         }
         refName = renameRefSeq(refName)
         refIdToName[currRefId] = refName

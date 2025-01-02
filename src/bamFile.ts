@@ -375,14 +375,10 @@ export default class BamFile {
     return mateFeatPromises.flat()
   }
 
-  async _readRegion(position: number, size: number, opts: BaseOpts = {}) {
-    return this.bam.read(size, position, opts)
-  }
-
   async _readChunk({ chunk, opts }: { chunk: Chunk; opts: BaseOpts }) {
-    const buffer = await this._readRegion(
-      chunk.minv.blockPosition,
+    const buf = await this.bam.read(
       chunk.fetchedSize(),
+      chunk.minv.blockPosition,
       opts,
     )
 
@@ -390,7 +386,7 @@ export default class BamFile {
       buffer: data,
       cpositions,
       dpositions,
-    } = await unzipChunkSlice(buffer, chunk)
+    } = await unzipChunkSlice(buf, chunk)
     return { data, cpositions, dpositions, chunk }
   }
 
@@ -413,7 +409,7 @@ export default class BamFile {
       // increment position to the current decompressed status
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (dpositions) {
-        while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]) {}
+        while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]!) {}
         pos--
       }
 
@@ -447,8 +443,8 @@ export default class BamFile {
           // realistically happen
           fileOffset:
             cpositions.length > 0
-              ? cpositions[pos] * (1 << 8) +
-                (blockStart - dpositions[pos]) +
+              ? cpositions[pos]! * (1 << 8) +
+                (blockStart - dpositions[pos]!) +
                 chunk.minv.dataPosition +
                 1
               : // this shift >>> 0 is equivalent to crc32(b).unsigned but uses the

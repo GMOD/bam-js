@@ -77,7 +77,7 @@ export default class BamRecord {
   get name() {
     let str = ''
     for (let i = 0; i < this.read_name_length - 1; i++) {
-      str += String.fromCharCode(this.byteArray[this.b0 + i])
+      str += String.fromCharCode(this.byteArray[this.b0 + i]!)
     }
     return str
   }
@@ -93,12 +93,15 @@ export default class BamRecord {
     const blockEnd = this.bytes.end
     const tags = {} as Record<string, unknown>
     while (p < blockEnd) {
-      const tag = String.fromCharCode(this.byteArray[p], this.byteArray[p + 1])
-      const type = String.fromCharCode(this.byteArray[p + 2])
+      const tag = String.fromCharCode(
+        this.byteArray[p]!,
+        this.byteArray[p + 1]!,
+      )
+      const type = String.fromCharCode(this.byteArray[p + 2]!)
       p += 3
 
       if (type === 'A') {
-        tags[tag] = String.fromCharCode(this.byteArray[p])
+        tags[tag] = String.fromCharCode(this.byteArray[p]!)
         p += 1
       } else if (type === 'i') {
         tags[tag] = this.#dataView.getInt32(p, true)
@@ -124,7 +127,7 @@ export default class BamRecord {
       } else if (type === 'Z' || type === 'H') {
         const value = []
         while (p <= blockEnd) {
-          const cc = this.byteArray[p++]
+          const cc = this.byteArray[p++]!
           if (cc !== 0) {
             value.push(String.fromCharCode(cc))
           } else {
@@ -133,7 +136,7 @@ export default class BamRecord {
         }
         tags[tag] = value.join('')
       } else if (type === 'B') {
-        const cc = this.byteArray[p++]
+        const cc = this.byteArray[p++]!
         const Btype = String.fromCharCode(cc)
         const limit = this.#dataView.getInt32(p, true)
         p += 4
@@ -143,7 +146,7 @@ export default class BamRecord {
             for (let k = 0; k < limit; k++) {
               const cigop = this.#dataView.getInt32(p, true)
               const lop = cigop >> 4
-              const op = CIGAR_DECODER[cigop & 0xf]
+              const op = CIGAR_DECODER[cigop & 0xf]!
               value.push(lop + op)
               p += 4
             }
@@ -162,7 +165,7 @@ export default class BamRecord {
             for (let k = 0; k < limit; k++) {
               const cigop = this.#dataView.getUint32(p, true)
               const lop = cigop >> 4
-              const op = CIGAR_DECODER[cigop & 0xf]
+              const op = CIGAR_DECODER[cigop & 0xf]!
               value.push(lop + op)
               p += 4
             }
@@ -318,7 +321,7 @@ export default class BamRecord {
       for (let c = 0; c < numCigarOps; ++c) {
         cigop = this.#dataView.getInt32(p, true)
         lop = cigop >> 4
-        op = CIGAR_DECODER[cigop & 0xf]
+        op = CIGAR_DECODER[cigop & 0xf]!
         CIGAR.push(lop + op)
         // soft clip, hard clip, and insertion don't count toward the length on
         // the reference
@@ -357,14 +360,13 @@ export default class BamRecord {
   }
 
   get seq() {
-    const { byteArray } = this.bytes
     const p = this.b0 + this.read_name_length + this.num_cigar_ops * 4
     const seqBytes = this.num_seq_bytes
     const len = this.seq_length
     const buf = []
     let i = 0
     for (let j = 0; j < seqBytes; ++j) {
-      const sb = byteArray[p + j]
+      const sb = this.byteArray[p + j]!
       buf.push(SEQRET_DECODER[(sb & 0xf0) >> 4])
       i++
       if (i < len) {

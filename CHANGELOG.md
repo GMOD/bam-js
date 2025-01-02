@@ -1,26 +1,14 @@
 ## [5.0.5](https://github.com/GMOD/bam-js/compare/v5.0.4...v5.0.5) (2024-12-18)
 
-
-
 ## [5.0.4](https://github.com/GMOD/bam-js/compare/v5.0.2...v5.0.4) (2024-12-18)
-
-
 
 ## [5.0.3](https://github.com/GMOD/bam-js/compare/v5.0.2...v5.0.3) (2024-12-18)
 
-
-
 ## [5.0.2](https://github.com/GMOD/bam-js/compare/v5.0.1...v5.0.2) (2024-12-17)
-
-
 
 ## [5.0.1](https://github.com/GMOD/bam-js/compare/v5.0.0...v5.0.1) (2024-12-12)
 
-
-
 # [5.0.0](https://github.com/GMOD/bam-js/compare/v4.0.1...v5.0.0) (2024-12-12)
-
-
 
 ## [4.0.1](https://github.com/GMOD/bam-js/compare/v4.0.0...v4.0.1) (2024-11-12)
 
