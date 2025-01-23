@@ -10,41 +10,17 @@ import CSI from './csi'
 import Chunk from './chunk'
 import BAMFeature from './record'
 import { parseHeaderText } from './sam'
-import { checkAbortSignal, timeout, makeOpts, BamOpts, BaseOpts } from './util'
+import { checkAbortSignal, timeout, makeOpts, BamOpts, BaseOpts, gen2array } from './util'
+import NullFilehandle from './nullFilehandle'
 
 export const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
-
-async function gen2array<T>(gen: AsyncIterable<T[]>): Promise<T[]> {
-  let out: T[] = []
-  for await (const x of gen) {
-    out = out.concat(x)
-  }
-  return out
-}
-
 interface Args {
   chunk: Chunk
   opts: BaseOpts
 }
 
-class NullFilehandle {
-  public read(): Promise<any> {
-    throw new Error('never called')
-  }
-  public stat(): Promise<any> {
-    throw new Error('never called')
-  }
-
-  public readFile(): Promise<any> {
-    throw new Error('never called')
-  }
-
-  public close(): Promise<any> {
-    throw new Error('never called')
-  }
-}
 export default class BamFile {
   public renameRefSeq: (a: string) => string
   public bam: GenericFilehandle

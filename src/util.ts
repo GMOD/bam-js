@@ -162,3 +162,14 @@ export function concatUint8Array(args: Uint8Array[]) {
   }
   return mergedArray
 }
+
+
+export async function gen2array<T>(gen: AsyncIterable<T[]>): Promise<T[]> {
+  let out: T[] = []
+  for await (const x of gen) {
+    out = out.concat(x)
+  }
+  return out
+}
+
+
