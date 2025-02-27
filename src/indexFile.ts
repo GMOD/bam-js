@@ -10,7 +10,7 @@ export default abstract class IndexFile {
 
   /**
    * @param {filehandle} filehandle
-   * @param {function} [renameRefSeqs]
+   * @param {function} renameRefSeqs
    */
   constructor({
     filehandle,

@@ -1,6 +1,6 @@
 import Chunk from './chunk'
 import { longFromBytesToUnsigned } from './long'
-import VirtualOffset from './virtualOffset'
+import { Offset, VirtualOffset } from './virtualOffset'
 
 export function timeout(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -69,7 +69,7 @@ export function makeOpts(obj: AbortSignal | BaseOpts = {}): BaseOpts {
   return 'aborted' in obj ? ({ signal: obj } as BaseOpts) : obj
 }
 
-export function optimizeChunks(chunks: Chunk[], lowest?: VirtualOffset) {
+export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
   const mergedChunks: Chunk[] = []
   let lastChunk: Chunk | undefined
 
@@ -163,7 +163,6 @@ export function concatUint8Array(args: Uint8Array[]) {
   return mergedArray
 }
 
-
 export async function gen2array<T>(gen: AsyncIterable<T[]>): Promise<T[]> {
   let out: T[] = []
   for await (const x of gen) {
@@ -171,5 +170,3 @@ export async function gen2array<T>(gen: AsyncIterable<T[]>): Promise<T[]> {
   }
   return out
 }
-
-

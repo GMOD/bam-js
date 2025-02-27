@@ -1,4 +1,11 @@
-export default class VirtualOffset {
+export interface Offset {
+  blockPosition: number
+  dataPosition: number
+  toString(): string
+  compareTo(arg: Offset): number
+}
+
+export class VirtualOffset {
   public blockPosition: number
   public dataPosition: number
   constructor(blockPosition: number, dataPosition: number) {
