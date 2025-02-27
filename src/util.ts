@@ -27,7 +27,7 @@ export function checkAbortSignal(signal?: AbortSignal) {
     // console.log('bam aborted!')
     if (typeof DOMException === 'undefined') {
       const e = new Error('aborted')
-      //@ts-ignore
+      // @ts-ignore
       e.code = 'ERR_ABORTED'
       throw e
     } else {

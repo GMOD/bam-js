@@ -1,17 +1,26 @@
-import crc32 from 'crc/calculators/crc32'
-import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
-import { LocalFile, RemoteFile, GenericFilehandle } from 'generic-filehandle2'
 import AbortablePromiseCache from '@gmod/abortable-promise-cache'
+import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
+import crc32 from 'crc/calculators/crc32'
+import { LocalFile, RemoteFile } from 'generic-filehandle2'
 import QuickLRU from 'quick-lru'
 
 // locals
 import BAI from './bai'
-import CSI from './csi'
 import Chunk from './chunk'
+import CSI from './csi'
+import NullFilehandle from './nullFilehandle'
 import BAMFeature from './record'
 import { parseHeaderText } from './sam'
-import { checkAbortSignal, timeout, makeOpts, BamOpts, BaseOpts, gen2array } from './util'
-import NullFilehandle from './nullFilehandle'
+import {
+  BamOpts,
+  BaseOpts,
+  checkAbortSignal,
+  gen2array,
+  makeOpts,
+  timeout,
+} from './util'
+
+import type { GenericFilehandle } from 'generic-filehandle2'
 
 export const BAM_MAGIC = 21840194
 

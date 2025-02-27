@@ -1,8 +1,7 @@
-import VirtualOffset, { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
-
-import { optimizeChunks, parsePseudoBin, findFirstData, BaseOpts } from './util'
 import IndexFile from './indexFile'
+import { BaseOpts, findFirstData, optimizeChunks, parsePseudoBin } from './util'
+import VirtualOffset, { fromBytes } from './virtualOffset'
 
 const BAI_MAGIC = 21578050 // BAI\1
 

@@ -444,7 +444,7 @@ export default class BamRecord {
       if (k.startsWith('_') || k === 'bytes') {
         continue
       }
-      //@ts-ignore
+      // @ts-ignore
       data[k] = this[k]
     }
 

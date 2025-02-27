@@ -1,6 +1,7 @@
 // @ts-nocheck
-import Record from '../src/record'
 import { Buffer } from 'buffer'
+
+import Record from '../src/record'
 
 export default class FakeRecord extends Record {
   constructor(read1, strand1, strand2, tlen) {

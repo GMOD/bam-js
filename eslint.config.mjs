@@ -1,4 +1,5 @@
 import eslint from '@eslint/js'
+import importPlugin from 'eslint-plugin-import'
 import eslintPluginUnicorn from 'eslint-plugin-unicorn'
 import tseslint from 'typescript-eslint'
 
@@ -24,24 +25,30 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   ...tseslint.configs.stylisticTypeChecked,
   ...tseslint.configs.strictTypeChecked,
+  importPlugin.flatConfigs.recommended,
 
   eslintPluginUnicorn.configs['flat/recommended'],
   {
     rules: {
-      '@typescript-eslint/no-unused-vars': [
+      'no-empty': 'off',
+      'no-console': [
         'warn',
         {
-          argsIgnorePattern: '^_',
-          ignoreRestSiblings: true,
+          allow: ['error', 'warn'],
+        },
+      ],
+      'no-underscore-dangle': 'off',
+      curly: 'error',
+      semi: ['error', 'never'],
+      'spaced-comment': [
+        'error',
+        'always',
+        {
+          markers: ['/'],
         },
       ],
 
-      'no-underscore-dangle': 0,
-      curly: 'error',
-      '@typescript-eslint/no-explicit-any': 0,
-      '@typescript-eslint/explicit-module-boundary-types': 0,
-      '@typescript-eslint/ban-ts-comment': 0,
-      semi: ['error', 'never'],
+      '@typescript-eslint/ban-ts-comment': 'off',
       'unicorn/no-new-array': 'off',
       'unicorn/no-empty-file': 'off',
       'unicorn/prefer-type-error': 'off',
@@ -83,6 +90,9 @@ export default tseslint.config(
       'unicorn/prefer-number-properties': 'off',
       'unicorn/no-process-exit': 'off',
       'unicorn/prefer-at': 'off',
+
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
@@ -93,7 +103,33 @@ export default tseslint.config(
       '@typescript-eslint/require-await': 'off',
       '@typescript-eslint/restrict-template-expressions': 'off',
       '@typescript-eslint/restrict-plus-operands': 'off',
-      'no-empty': 'off',
+
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+          caughtErrors: 'none',
+        },
+      ],
+
+      'import/no-unresolved': 'off',
+      'import/order': [
+        'error',
+        {
+          named: true,
+          'newlines-between': 'always',
+          alphabetize: {
+            order: 'asc',
+          },
+          groups: [
+            'builtin',
+            ['external', 'internal'],
+            ['parent', 'sibling', 'index', 'object'],
+            'type',
+          ],
+        },
+      ],
     },
   },
 )

@@ -1,15 +1,15 @@
 import { unzip } from '@gmod/bgzf-filehandle'
-import VirtualOffset, { fromBytes } from './virtualOffset'
-import Chunk from './chunk'
-import {
-  optimizeChunks,
-  findFirstData,
-  parsePseudoBin,
-  parseNameBytes,
-  BaseOpts,
-} from './util'
 
+import Chunk from './chunk'
 import IndexFile from './indexFile'
+import {
+  BaseOpts,
+  findFirstData,
+  optimizeChunks,
+  parseNameBytes,
+  parsePseudoBin,
+} from './util'
+import VirtualOffset, { fromBytes } from './virtualOffset'
 
 const CSI1_MAGIC = 21582659 // CSI\1
 const CSI2_MAGIC = 38359875 // CSI\2

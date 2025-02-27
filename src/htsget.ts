@@ -1,8 +1,9 @@
 import { unzip } from '@gmod/bgzf-filehandle'
-import { BaseOpts, BamOpts, concatUint8Array } from './util'
+
 import BamFile, { BAM_MAGIC } from './bamFile'
 import Chunk from './chunk'
 import { parseHeaderText } from './sam'
+import { BamOpts, BaseOpts, concatUint8Array } from './util'
 
 interface HtsgetChunk {
   url: string
@@ -22,7 +23,7 @@ async function concat(arr: HtsgetChunk[], opts?: Record<string, any>) {
         const ret = await res.arrayBuffer()
         return new Uint8Array(ret)
       } else {
-        //remove referer header, it is not even allowed to be specified
+        // remove referer header, it is not even allowed to be specified
         // @ts-expect-error
 
         const { referer, ...rest } = headers
