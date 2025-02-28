@@ -4,7 +4,6 @@ import crc32 from 'crc/calculators/crc32'
 import { LocalFile, RemoteFile } from 'generic-filehandle2'
 import QuickLRU from 'quick-lru'
 
-// locals
 import BAI from './bai'
 import Chunk from './chunk'
 import CSI from './csi'

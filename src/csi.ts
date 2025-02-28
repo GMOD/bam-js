@@ -1,4 +1,5 @@
 import { unzip } from '@gmod/bgzf-filehandle'
+import QuickLRU from 'quick-lru'
 
 import Chunk from './chunk'
 import IndexFile from './indexFile'
@@ -9,7 +10,7 @@ import {
   parseNameBytes,
   parsePseudoBin,
 } from './util'
-import VirtualOffset, { fromBytes } from './virtualOffset'
+import { VirtualOffset, fromBytes } from './virtualOffset'
 
 const CSI1_MAGIC = 21582659 // CSI\1
 const CSI2_MAGIC = 38359875 // CSI\2
@@ -30,7 +31,7 @@ export default class CSI extends IndexFile {
 
   async lineCount(refId: number, opts?: BaseOpts) {
     const indexData = await this.parse(opts)
-    return indexData.indices[refId]?.stats?.lineCount || 0
+    return indexData.indices(refId)?.stats?.lineCount || 0
   }
 
   async indexCov() {
@@ -94,20 +95,45 @@ export default class CSI extends IndexFile {
     this.minShift = dataView.getInt32(4, true)
     this.depth = dataView.getInt32(8, true)
     this.maxBinNumber = ((1 << ((this.depth + 1) * 3)) - 1) / 7
+    const maxBinNumber = this.maxBinNumber
     const auxLength = dataView.getInt32(12, true)
     const aux = auxLength >= 30 ? this.parseAuxData(bytes, 16) : undefined
     const refCount = dataView.getInt32(16 + auxLength, true)
 
-    type BinIndex = Record<string, Chunk[]>
-
     // read the indexes for each reference sequence
     let curr = 16 + auxLength + 4
     let firstDataLine: VirtualOffset | undefined
-    const indices = new Array<{
-      binIndex: BinIndex
-      stats?: { lineCount: number }
-    }>(refCount)
+    const offsets = [] as number[]
     for (let i = 0; i < refCount; i++) {
+      offsets.push(curr)
+      const binCount = dataView.getInt32(curr, true)
+      curr += 4
+      for (let j = 0; j < binCount; j++) {
+        const bin = dataView.getUint32(curr, true)
+        curr += 4
+        if (bin > this.maxBinNumber) {
+          curr += 28 + 16
+        } else {
+          curr += 8
+          const chunkCount = dataView.getInt32(curr, true)
+          curr += 4
+          for (let k = 0; k < chunkCount; k += 1) {
+            curr += 8
+            curr += 8
+          }
+        }
+      }
+    }
+
+    const indicesCache = new QuickLRU<number, ReturnType<typeof getIndices>>({
+      maxSize: 5,
+    })
+
+    function getIndices(refId: number) {
+      let curr = offsets[refId]
+      if (curr === undefined) {
+        return undefined
+      }
       // the binning index
       const binCount = dataView.getInt32(curr, true)
       curr += 4
@@ -116,7 +142,7 @@ export default class CSI extends IndexFile {
       for (let j = 0; j < binCount; j++) {
         const bin = dataView.getUint32(curr, true)
         curr += 4
-        if (bin > this.maxBinNumber) {
+        if (bin > maxBinNumber) {
           stats = parsePseudoBin(bytes, curr + 28)
           curr += 28 + 16
         } else {
@@ -137,13 +163,25 @@ export default class CSI extends IndexFile {
         }
       }
 
-      indices[i] = { binIndex, stats }
+      return {
+        binIndex,
+        stats,
+      }
     }
 
     return {
       csiVersion,
       firstDataLine,
-      indices,
+      indices: (refId: number) => {
+        if (!indicesCache.has(refId)) {
+          const result = getIndices(refId)
+          if (result) {
+            indicesCache.set(refId, result)
+          }
+          return result
+        }
+        return indicesCache.get(refId)
+      },
       refCount,
       csi: true,
       maxBlockSize: 1 << 16,
@@ -162,7 +200,7 @@ export default class CSI extends IndexFile {
     }
 
     const indexData = await this.parse(opts)
-    const ba = indexData.indices[refId]
+    const ba = indexData.indices(refId)
 
     if (!ba) {
       return []
@@ -231,6 +269,6 @@ export default class CSI extends IndexFile {
 
   async hasRefSeq(seqId: number, opts: BaseOpts = {}) {
     const header = await this.parse(opts)
-    return !!header.indices[seqId]?.binIndex
+    return !!header.indices(seqId)?.binIndex
   }
 }

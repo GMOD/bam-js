@@ -1,12 +1,12 @@
-import VirtualOffset from './virtualOffset'
+import { Offset } from './virtualOffset'
 
 // little class representing a chunk in the index
 export default class Chunk {
   public buffer?: Uint8Array
 
   constructor(
-    public minv: VirtualOffset,
-    public maxv: VirtualOffset,
+    public minv: Offset,
+    public maxv: Offset,
     public bin: number,
     public _fetchedSize?: number,
   ) {}
