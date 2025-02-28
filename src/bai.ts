@@ -4,6 +4,8 @@ import Chunk from './chunk'
 import IndexFile from './indexFile'
 import { BaseOpts, findFirstData, optimizeChunks, parsePseudoBin } from './util'
 import { VirtualOffset, fromBytes } from './virtualOffset'
+import BaiIndex from './baiIndex'
+import { GenericFilehandle } from 'generic-filehandle2'
 
 const BAI_MAGIC = 21578050 // BAI\1
 
@@ -33,6 +35,16 @@ function reg2bins(beg: number, end: number) {
 }
 
 export default class BAI extends IndexFile {
+  baiIndex?: BaiIndex
+  constructor(args: {
+    filehandle: GenericFilehandle
+    renameRefSeq?: (a: string) => string
+    baiIndex?: BaiIndex
+  }) {
+    super(args)
+    this.baiIndex = args.baiIndex
+  }
+
   public setupP?: ReturnType<BAI['_parse']>
 
   async lineCount(refId: number, opts?: BaseOpts) {

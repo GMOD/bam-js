@@ -7,10 +7,6 @@ export default abstract class IndexFile {
   public filehandle: GenericFilehandle
   public renameRefSeq: (s: string) => string
 
-  /**
-   * @param {filehandle} filehandle
-   * @param {function} renameRefSeqs
-   */
   constructor({
     filehandle,
     renameRefSeq = (n: string) => n,

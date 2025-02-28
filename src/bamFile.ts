@@ -32,6 +32,7 @@ interface Args {
 export default class BamFile {
   public renameRefSeq: (a: string) => string
   public bam: GenericFilehandle
+  public baiIndex?: GenericFilehandle
   public header?: string
   public chrToIndex?: Record<string, number>
   public indexToChr?: { refName: string; length: number }[]
@@ -55,6 +56,9 @@ export default class BamFile {
   })
 
   constructor({
+    baiIndexFilehandle,
+    baiIndexPath,
+    baiIndexUrl,
     bamFilehandle,
     bamPath,
     bamUrl,
@@ -68,15 +72,22 @@ export default class BamFile {
     yieldThreadTime = 100,
     renameRefSeqs = n => n,
   }: {
+    baiIndexFilehandle?: GenericFilehandle
+    baiIndexPath?: string
+    baiIndexUrl?: string
+
     bamFilehandle?: GenericFilehandle
     bamPath?: string
     bamUrl?: string
+
     baiPath?: string
     baiFilehandle?: GenericFilehandle
     baiUrl?: string
+
     csiPath?: string
     csiFilehandle?: GenericFilehandle
     csiUrl?: string
+
     renameRefSeqs?: (a: string) => string
     yieldThreadTime?: number
     htsget?: boolean
@@ -95,6 +106,14 @@ export default class BamFile {
     } else {
       throw new Error('unable to initialize bam')
     }
+    if (baiIndexFilehandle) {
+      this.baiIndex = new BaiIndex({ filehandle: csiFilehandle })
+    } else if (baiIndexPath) {
+      this.baiIndex = new BaiIndex({ filehandle: new LocalFile(csiPath) })
+    } else if (baiIndexUrl) {
+      this.baiIndex = new BaiIndex({ filehandle: new RemoteFile(csiUrl) })
+    }
+
     if (csiFilehandle) {
       this.index = new CSI({ filehandle: csiFilehandle })
     } else if (csiPath) {
