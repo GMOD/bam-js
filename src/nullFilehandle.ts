@@ -1,4 +1,3 @@
-
 export default class NullFilehandle {
   public read(): Promise<any> {
     throw new Error('never called')

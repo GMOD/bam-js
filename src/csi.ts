@@ -1,4 +1,5 @@
 import { unzip } from '@gmod/bgzf-filehandle'
+import QuickLRU from 'quick-lru'
 
 import Chunk from './chunk'
 import IndexFile from './indexFile'
@@ -94,6 +95,7 @@ export default class CSI extends IndexFile {
     this.minShift = dataView.getInt32(4, true)
     this.depth = dataView.getInt32(8, true)
     this.maxBinNumber = ((1 << ((this.depth + 1) * 3)) - 1) / 7
+    const maxBinNumber = this.maxBinNumber
     const auxLength = dataView.getInt32(12, true)
     const aux = auxLength >= 30 ? this.parseAuxData(bytes, 16) : undefined
     const refCount = dataView.getInt32(16 + auxLength, true)
@@ -123,47 +125,62 @@ export default class CSI extends IndexFile {
       }
     }
 
+    const indicesCache = new QuickLRU<number, ReturnType<typeof getIndices>>({
+      maxSize: 5,
+    })
+
+    function getIndices(refId: number) {
+      let curr = offsets[refId]
+      if (curr === undefined) {
+        return undefined
+      }
+      // the binning index
+      const binCount = dataView.getInt32(curr, true)
+      curr += 4
+      const binIndex: Record<string, Chunk[]> = {}
+      let stats // < provided by parsing a pseudo-bin, if present
+      for (let j = 0; j < binCount; j++) {
+        const bin = dataView.getUint32(curr, true)
+        curr += 4
+        if (bin > maxBinNumber) {
+          stats = parsePseudoBin(bytes, curr + 28)
+          curr += 28 + 16
+        } else {
+          firstDataLine = findFirstData(firstDataLine, fromBytes(bytes, curr))
+          curr += 8
+          const chunkCount = dataView.getInt32(curr, true)
+          curr += 4
+          const chunks = new Array<Chunk>(chunkCount)
+          for (let k = 0; k < chunkCount; k += 1) {
+            const u = fromBytes(bytes, curr)
+            curr += 8
+            const v = fromBytes(bytes, curr)
+            curr += 8
+            firstDataLine = findFirstData(firstDataLine, u)
+            chunks[k] = new Chunk(u, v, bin)
+          }
+          binIndex[bin] = chunks
+        }
+      }
+
+      return {
+        binIndex,
+        stats,
+      }
+    }
+
     return {
       csiVersion,
       firstDataLine,
       indices: (refId: number) => {
-        let curr = offsets[refId]
-        if (curr === undefined) {
-          return undefined
-        }
-        // the binning index
-        const binCount = dataView.getInt32(curr, true)
-        curr += 4
-        const binIndex: Record<string, Chunk[]> = {}
-        let stats // < provided by parsing a pseudo-bin, if present
-        for (let j = 0; j < binCount; j++) {
-          const bin = dataView.getUint32(curr, true)
-          curr += 4
-          if (bin > this.maxBinNumber) {
-            stats = parsePseudoBin(bytes, curr + 28)
-            curr += 28 + 16
-          } else {
-            firstDataLine = findFirstData(firstDataLine, fromBytes(bytes, curr))
-            curr += 8
-            const chunkCount = dataView.getInt32(curr, true)
-            curr += 4
-            const chunks = new Array<Chunk>(chunkCount)
-            for (let k = 0; k < chunkCount; k += 1) {
-              const u = fromBytes(bytes, curr)
-              curr += 8
-              const v = fromBytes(bytes, curr)
-              curr += 8
-              firstDataLine = findFirstData(firstDataLine, u)
-              chunks[k] = new Chunk(u, v, bin)
-            }
-            binIndex[bin] = chunks
+        if (!indicesCache.has(refId)) {
+          const result = getIndices(refId)
+          if (result) {
+            indicesCache.set(refId, result)
           }
+          return result
         }
-
-        return {
-          binIndex,
-          stats,
-        }
+        return indicesCache.get(refId)
       },
       refCount,
       csi: true,

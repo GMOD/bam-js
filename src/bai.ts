@@ -1,3 +1,5 @@
+import QuickLRU from 'quick-lru'
+
 import Chunk from './chunk'
 import IndexFile from './indexFile'
 import { BaseOpts, findFirstData, optimizeChunks, parsePseudoBin } from './util'
@@ -93,64 +95,79 @@ export default class BAI extends IndexFile {
         linearIndex[j] = offset
       }
     }
+    const indicesCache = new QuickLRU<number, ReturnType<typeof getIndices>>({
+      maxSize: 5,
+    })
+
+    function getIndices(refId: number) {
+      let curr = offsets[refId]
+      if (curr === undefined) {
+        return undefined
+      }
+      const binCount = dataView.getInt32(curr, true)
+      let stats
+
+      curr += 4
+      const binIndex: Record<number, Chunk[]> = {}
+
+      for (let j = 0; j < binCount; j += 1) {
+        const bin = dataView.getUint32(curr, true)
+        curr += 4
+        if (bin === binLimit + 1) {
+          curr += 4
+          stats = parsePseudoBin(bytes, curr + 16)
+          curr += 32
+        } else if (bin > binLimit + 1) {
+          throw new Error('bai index contains too many bins, please use CSI')
+        } else {
+          const chunkCount = dataView.getInt32(curr, true)
+          curr += 4
+          const chunks = new Array<Chunk>(chunkCount)
+          for (let k = 0; k < chunkCount; k++) {
+            const u = fromBytes(bytes, curr)
+            curr += 8
+            const v = fromBytes(bytes, curr)
+            curr += 8
+            firstDataLine = findFirstData(firstDataLine, u)
+            chunks[k] = new Chunk(u, v, bin)
+          }
+          binIndex[bin] = chunks
+        }
+      }
+
+      const linearCount = dataView.getInt32(curr, true)
+      curr += 4
+      // as we're going through the linear index, figure out the smallest
+      // virtual offset in the indexes, which tells us where the BAM header
+      // ends
+      const linearIndex = new Array<VirtualOffset>(linearCount)
+      for (let j = 0; j < linearCount; j++) {
+        const offset = fromBytes(bytes, curr)
+        curr += 8
+        firstDataLine = findFirstData(firstDataLine, offset)
+        linearIndex[j] = offset
+      }
+
+      return {
+        binIndex,
+        linearIndex,
+        stats,
+      }
+    }
+
     return {
       bai: true,
       firstDataLine,
       maxBlockSize: 1 << 16,
       indices: (refId: number) => {
-        let curr = offsets[refId]
-        if (curr === undefined) {
-          return undefined
-        }
-        const binCount = dataView.getInt32(curr, true)
-        let stats
-
-        curr += 4
-        const binIndex: Record<number, Chunk[]> = {}
-
-        for (let j = 0; j < binCount; j += 1) {
-          const bin = dataView.getUint32(curr, true)
-          curr += 4
-          if (bin === binLimit + 1) {
-            curr += 4
-            stats = parsePseudoBin(bytes, curr + 16)
-            curr += 32
-          } else if (bin > binLimit + 1) {
-            throw new Error('bai index contains too many bins, please use CSI')
-          } else {
-            const chunkCount = dataView.getInt32(curr, true)
-            curr += 4
-            const chunks = new Array<Chunk>(chunkCount)
-            for (let k = 0; k < chunkCount; k++) {
-              const u = fromBytes(bytes, curr)
-              curr += 8
-              const v = fromBytes(bytes, curr)
-              curr += 8
-              firstDataLine = findFirstData(firstDataLine, u)
-              chunks[k] = new Chunk(u, v, bin)
-            }
-            binIndex[bin] = chunks
+        if (!indicesCache.has(refId)) {
+          const result = getIndices(refId)
+          if (result) {
+            indicesCache.set(refId, result)
           }
+          return result
         }
-
-        const linearCount = dataView.getInt32(curr, true)
-        curr += 4
-        // as we're going through the linear index, figure out the smallest
-        // virtual offset in the indexes, which tells us where the BAM header
-        // ends
-        const linearIndex = new Array<VirtualOffset>(linearCount)
-        for (let j = 0; j < linearCount; j++) {
-          const offset = fromBytes(bytes, curr)
-          curr += 8
-          firstDataLine = findFirstData(firstDataLine, offset)
-          linearIndex[j] = offset
-        }
-
-        return {
-          binIndex,
-          linearIndex,
-          stats,
-        }
+        return indicesCache.get(refId)
       },
       refCount,
     }
