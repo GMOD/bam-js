@@ -118,8 +118,10 @@ export default class CSI extends IndexFile {
           const chunkCount = dataView.getInt32(curr, true)
           curr += 4
           for (let k = 0; k < chunkCount; k += 1) {
+            const u = fromBytes(bytes, curr)
             curr += 8
             curr += 8
+            firstDataLine = findFirstData(firstDataLine, u)
           }
         }
       }
@@ -138,12 +140,12 @@ export default class CSI extends IndexFile {
       const binCount = dataView.getInt32(curr, true)
       curr += 4
       const binIndex: Record<string, Chunk[]> = {}
-      let stats // < provided by parsing a pseudo-bin, if present
+      let pseudoBinStats
       for (let j = 0; j < binCount; j++) {
         const bin = dataView.getUint32(curr, true)
         curr += 4
         if (bin > maxBinNumber) {
-          stats = parsePseudoBin(bytes, curr + 28)
+          pseudoBinStats = parsePseudoBin(bytes, curr + 28)
           curr += 28 + 16
         } else {
           firstDataLine = findFirstData(firstDataLine, fromBytes(bytes, curr))
@@ -156,7 +158,6 @@ export default class CSI extends IndexFile {
             curr += 8
             const v = fromBytes(bytes, curr)
             curr += 8
-            firstDataLine = findFirstData(firstDataLine, u)
             chunks[k] = new Chunk(u, v, bin)
           }
           binIndex[bin] = chunks
@@ -165,7 +166,7 @@ export default class CSI extends IndexFile {
 
       return {
         binIndex,
-        stats,
+        stats: pseudoBinStats,
       }
     }
 
