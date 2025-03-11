@@ -125,16 +125,8 @@ export default class BamFile {
       return
     }
     const indexData = await this.index.parse(opts)
-    const ret = indexData.firstDataLine
-      ? indexData.firstDataLine.blockPosition + 65535
-      : undefined
-    let buffer
-    if (ret) {
-      const s = ret + blockLen
-      buffer = await this.bam.read(s, 0)
-    } else {
-      buffer = await this.bam.readFile(opts)
-    }
+    const ret = (indexData.firstDataLine?.blockPosition || 0) + blockLen
+    const buffer = await this.bam.read(ret + blockLen, 0)
 
     const uncba = await unzip(buffer)
     const dataView = new DataView(uncba.buffer)
