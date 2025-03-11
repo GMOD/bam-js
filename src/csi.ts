@@ -118,10 +118,6 @@ export default class CSI extends IndexFile {
           const chunkCount = dataView.getInt32(curr, true)
           curr += 4
           for (let k = 0; k < chunkCount; k += 1) {
-            curr += 8
-            curr += 8
-          }
-          for (let k = 0; k < chunkCount; k += 1) {
             const u = fromBytes(bytes, curr)
             curr += 8
             curr += 8
