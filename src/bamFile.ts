@@ -231,7 +231,18 @@ export default class BamFile {
     const feats = [] as BAMFeature[][]
     let done = false
 
+    console.log(chunks.length)
+    let i = 0
     for (const chunk of chunks) {
+      console.log(
+        i++,
+        chunk.bin,
+        chunk.maxv,
+        chunk.minv,
+        chrId,
+        min.toLocaleString(),
+        max.toLocaleString(),
+      )
       const { data, cpositions, dpositions } = await this._readChunk({
         chunk,
         opts,
@@ -258,6 +269,7 @@ export default class BamFile {
       feats.push(recs)
       yield recs
       if (done) {
+        console.log({ done })
         break
       }
     }
