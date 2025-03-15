@@ -1,8 +1,6 @@
-import AbortablePromiseCache from '@gmod/abortable-promise-cache'
 import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
 import crc32 from 'crc/calculators/crc32'
 import { LocalFile, RemoteFile } from 'generic-filehandle2'
-import QuickLRU from 'quick-lru'
 
 import BAI from './bai'
 import Chunk from './chunk'
@@ -24,10 +22,6 @@ import type { GenericFilehandle } from 'generic-filehandle2'
 export const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
-interface Args {
-  chunk: Chunk
-  opts: BaseOpts
-}
 
 export default class BamFile {
   public renameRefSeq: (a: string) => string
@@ -39,20 +33,6 @@ export default class BamFile {
   public index?: BAI | CSI
   public htsget = false
   public headerP?: ReturnType<BamFile['getHeaderPre']>
-
-  private featureCache = new AbortablePromiseCache<Args, BAMFeature[]>({
-    cache: new QuickLRU({
-      maxSize: 50,
-    }),
-    fill: async (args: Args, signal) => {
-      const { chunk, opts } = args
-      const { data, cpositions, dpositions } = await this._readChunk({
-        chunk,
-        opts: { ...opts, signal },
-      })
-      return this.readBamFeatures(data, cpositions, dpositions, chunk)
-    },
-  })
 
   constructor({
     bamFilehandle,
@@ -252,12 +232,16 @@ export default class BamFile {
     let done = false
 
     for (const chunk of chunks) {
-      const records = await this.featureCache.get(
-        chunk.toString(),
-        { chunk, opts },
-        opts.signal,
+      const { data, cpositions, dpositions } = await this._readChunk({
+        chunk,
+        opts,
+      })
+      const records = await this.readBamFeatures(
+        data,
+        cpositions,
+        dpositions,
+        chunk,
       )
-
       const recs = [] as BAMFeature[]
       for (const feature of records) {
         if (feature.ref_id === chrId) {
