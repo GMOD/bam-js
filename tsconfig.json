@@ -2,8 +2,6 @@
   "include": ["src"],
   "compilerOptions": {
     "outDir": "dist",
-    "target": "es2022",
-    "types": ["node"],
     "lib": ["dom", "esnext"],
     "declaration": true,
     "moduleResolution": "node",
@@ -12,6 +10,8 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
     "esModuleInterop": true
   }
 }

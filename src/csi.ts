@@ -1,16 +1,17 @@
 import { unzip } from '@gmod/bgzf-filehandle'
 import QuickLRU from 'quick-lru'
 
-import Chunk from './chunk'
-import IndexFile from './indexFile'
+import Chunk from './chunk.ts'
+import IndexFile from './indexFile.ts'
 import {
-  BaseOpts,
   findFirstData,
   optimizeChunks,
   parseNameBytes,
   parsePseudoBin,
-} from './util'
-import { VirtualOffset, fromBytes } from './virtualOffset'
+} from './util.ts'
+import { VirtualOffset, fromBytes } from './virtualOffset.ts'
+
+import type { BaseOpts } from './util.ts'
 
 const CSI1_MAGIC = 21582659 // CSI\1
 const CSI2_MAGIC = 38359875 // CSI\2
