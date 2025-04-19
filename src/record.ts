@@ -1,4 +1,4 @@
-import Constants from './constants'
+import Constants from './constants.ts'
 
 const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
 const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')

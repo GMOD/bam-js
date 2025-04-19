@@ -1,4 +1,4 @@
-import IndexFile from './indexFile'
+import IndexFile from './indexFile.ts'
 
 export default class NullIndex extends IndexFile {
   public lineCount(): Promise<any> {

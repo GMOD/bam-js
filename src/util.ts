@@ -1,6 +1,6 @@
-import Chunk from './chunk'
-import { longFromBytesToUnsigned } from './long'
-import { Offset, VirtualOffset } from './virtualOffset'
+import Chunk from './chunk.ts'
+import { longFromBytesToUnsigned } from './long.ts'
+import { Offset, VirtualOffset } from './virtualOffset.ts'
 
 export function timeout(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
