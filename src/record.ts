@@ -377,6 +377,14 @@ export default class BamRecord {
     return buf.join('')
   }
 
+  seqAt(idx: number) {
+    const p = this.b0 + this.read_name_length + this.num_cigar_ops * 4
+    const r = Math.floor(idx / 2)
+    const s = idx % 2
+    const sb = this.byteArray[p + r]!
+    return !s ? SEQRET_DECODER[(sb & 0xf0) >> 4] : SEQRET_DECODER[sb & 0x0f]
+  }
+
   // adapted from igv.js
   get pair_orientation() {
     if (
