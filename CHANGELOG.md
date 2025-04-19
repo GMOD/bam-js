@@ -1,10 +1,6 @@
 ## [5.0.7](https://github.com/GMOD/bam-js/compare/v5.0.6...v5.0.7) (2025-03-11)
 
-
-
 ## [5.0.6](https://github.com/GMOD/bam-js/compare/v5.0.5...v5.0.6) (2025-02-28)
-
-
 
 ## [5.0.5](https://github.com/GMOD/bam-js/compare/v5.0.4...v5.0.5) (2024-12-18)
 
