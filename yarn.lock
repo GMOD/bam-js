@@ -253,12 +253,12 @@
   resolved "https://registry.yarnpkg.com/@gmod/abortable-promise-cache/-/abortable-promise-cache-2.0.1.tgz#d01cbcb2d9ad23cf0f421824b7e759a441815ebc"
   integrity sha512-6PQTJv+uxAb8XE/oL2Uh4EmFJpn65YOTSqGn8HLNXrWRlW1Clp1Oze6biHeRCMonLwEx4oH4bPeyjdcMnNP8pw==
 
-"@gmod/bgzf-filehandle@^2.0.1":
-  version "2.0.4"
-  resolved "https://registry.yarnpkg.com/@gmod/bgzf-filehandle/-/bgzf-filehandle-2.0.4.tgz#64f88ff6ad48efaf69641e796db87f24bf5da9ab"
-  integrity sha512-MV1V3X2uF0vqN93dkEhL8TUiJMTHyaJQFuLZttKAl8vH5utN2gKJf/3PTW8f7r5X+GgyftuTcfIpHHD5+3mJiQ==
+"@gmod/bgzf-filehandle@^3.0.1":
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/@gmod/bgzf-filehandle/-/bgzf-filehandle-3.0.1.tgz#74905de303934245c72144e78835883e76b3e97f"
+  integrity sha512-9u93IJiq2T1tqPyhq5m1MKfggXwQaapsPi6uvkzVXgyhA464zUw0nqkqoHeWMEm7cO5R6s5uW1oPEW1GY1ByxA==
   dependencies:
-    generic-filehandle2 "^1.0.0"
+    generic-filehandle2 "^2.0.1"
     pako "^1.0.11"
 
 "@humanfs/core@^0.19.1":
@@ -1564,11 +1564,6 @@ functions-have-names@^1.2.3:
   version "1.2.3"
   resolved "https://registry.yarnpkg.com/functions-have-names/-/functions-have-names-1.2.3.tgz#0404fe4ee2ba2f607f0e0ec3c80bae994133b834"
   integrity sha512-xckBUXyTIqT97tq2x2AMb+g163b5JFysYk0x4qxNFwbfQkmNZoiRHb6sPzI9/QV33WeuvVYBUIiD4NzNIyqaRQ==
-
-generic-filehandle2@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/generic-filehandle2/-/generic-filehandle2-1.0.0.tgz#d7a216072467793e1e48c925f97162eab1b82efc"
-  integrity sha512-jXfyNk1zhsR0Xf2sLm4vgeYSP1q1XbeSVG0TRSnOCKLb2CojPNJyy57nKi6QWmt83yGSHZGay8qIn7YWyl2V5w==
 
 generic-filehandle2@^2.0.1:
   version "2.0.1"
