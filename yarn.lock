@@ -248,10 +248,10 @@
     "@eslint/core" "^0.13.0"
     levn "^0.4.1"
 
-"@gmod/abortable-promise-cache@^2.0.0":
-  version "2.0.1"
-  resolved "https://registry.yarnpkg.com/@gmod/abortable-promise-cache/-/abortable-promise-cache-2.0.1.tgz#d01cbcb2d9ad23cf0f421824b7e759a441815ebc"
-  integrity sha512-6PQTJv+uxAb8XE/oL2Uh4EmFJpn65YOTSqGn8HLNXrWRlW1Clp1Oze6biHeRCMonLwEx4oH4bPeyjdcMnNP8pw==
+"@gmod/abortable-promise-cache@^3.0.1":
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/@gmod/abortable-promise-cache/-/abortable-promise-cache-3.0.1.tgz#68da57ba2458f73cbce185d7a92b61b55ad1babf"
+  integrity sha512-TLFzrC+ZLLY7V+ZP+Uda8gG9E0n5tL+ph98EuZ2RQ4XPNVb0WTaNJvlWKlzHW9rXa4SsAHMjYP6oisLbx6kfDA==
 
 "@gmod/bgzf-filehandle@^3.0.2":
   version "3.0.2"
