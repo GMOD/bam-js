@@ -1,9 +1,14 @@
 import QuickLRU from 'quick-lru'
 
-import Chunk from './chunk'
-import IndexFile from './indexFile'
-import { BaseOpts, findFirstData, optimizeChunks, parsePseudoBin } from './util'
-import { VirtualOffset, fromBytes } from './virtualOffset'
+import Chunk from './chunk.ts'
+import IndexFile from './indexFile.ts'
+import {
+  BaseOpts,
+  findFirstData,
+  optimizeChunks,
+  parsePseudoBin,
+} from './util.ts'
+import { VirtualOffset, fromBytes } from './virtualOffset.ts'
 
 const BAI_MAGIC = 21578050 // BAI\1
 

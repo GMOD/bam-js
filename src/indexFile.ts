@@ -1,5 +1,5 @@
-import Chunk from './chunk'
-import { BaseOpts } from './util'
+import Chunk from './chunk.ts'
+import { BaseOpts } from './util.ts'
 
 import type { GenericFilehandle } from 'generic-filehandle2'
 
@@ -7,10 +7,6 @@ export default abstract class IndexFile {
   public filehandle: GenericFilehandle
   public renameRefSeq: (s: string) => string
 
-  /**
-   * @param {filehandle} filehandle
-   * @param {function} renameRefSeqs
-   */
   constructor({
     filehandle,
     renameRefSeq = (n: string) => n,

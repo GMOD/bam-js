@@ -1,14 +1,17 @@
 import { unzip } from '@gmod/bgzf-filehandle'
 
-import BamFile, { BAM_MAGIC } from './bamFile'
-import Chunk from './chunk'
-import { parseHeaderText } from './sam'
-import { BamOpts, BaseOpts, concatUint8Array } from './util'
+import BamFile, { BAM_MAGIC } from './bamFile.ts'
+import Chunk from './chunk.ts'
+import { parseHeaderText } from './sam.ts'
+import { concatUint8Array } from './util.ts'
+
+import type { BamOpts, BaseOpts } from './util.ts'
 
 interface HtsgetChunk {
   url: string
   headers?: Record<string, string>
 }
+
 async function concat(arr: HtsgetChunk[], opts?: Record<string, any>) {
   const res = await Promise.all(
     arr.map(async chunk => {

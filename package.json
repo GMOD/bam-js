@@ -4,8 +4,16 @@
   "description": "Parser for BAM and BAM index (bai) files",
   "license": "MIT",
   "repository": "GMOD/bam-js",
-  "main": "dist/index.js",
-  "module": "esm/index.js",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "import": {
+      "import": "./esm/index.js"
+    },
+    "require": {
+      "require": "./dist/index.js"
+    }
+  },
   "author": {
     "name": "Colin Diesh",
     "email": "colin.diesh@gmail.com",
@@ -45,11 +53,11 @@
     "quick-lru": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^20.11.19",
+    "@types/node": "^22.15.3",
     "@vitest/coverage-v8": "^3.0.9",
     "eslint": "^9.9.0",
     "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-unicorn": "^57.0.0",
+    "eslint-plugin-unicorn": "^59.0.0",
     "prettier": "^3.3.3",
     "rimraf": "^6.0.1",
     "standard-changelog": "^6.0.0",
