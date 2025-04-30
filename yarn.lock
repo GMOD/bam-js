@@ -253,10 +253,10 @@
   resolved "https://registry.yarnpkg.com/@gmod/abortable-promise-cache/-/abortable-promise-cache-2.0.1.tgz#d01cbcb2d9ad23cf0f421824b7e759a441815ebc"
   integrity sha512-6PQTJv+uxAb8XE/oL2Uh4EmFJpn65YOTSqGn8HLNXrWRlW1Clp1Oze6biHeRCMonLwEx4oH4bPeyjdcMnNP8pw==
 
-"@gmod/bgzf-filehandle@^3.0.1":
-  version "3.0.1"
-  resolved "https://registry.yarnpkg.com/@gmod/bgzf-filehandle/-/bgzf-filehandle-3.0.1.tgz#74905de303934245c72144e78835883e76b3e97f"
-  integrity sha512-9u93IJiq2T1tqPyhq5m1MKfggXwQaapsPi6uvkzVXgyhA464zUw0nqkqoHeWMEm7cO5R6s5uW1oPEW1GY1ByxA==
+"@gmod/bgzf-filehandle@^3.0.2":
+  version "3.0.2"
+  resolved "https://registry.yarnpkg.com/@gmod/bgzf-filehandle/-/bgzf-filehandle-3.0.2.tgz#d89f8b2d169c3be10737be165b06c4ac909e3850"
+  integrity sha512-P3t9S7rVQSxePF17W/k34+AThe61nK+rNEVlt9AV80a3XvnKRW/6tDS2Wch4sURcpe5arTGZBc41hyw9W5gkHw==
   dependencies:
     generic-filehandle2 "^2.0.1"
     pako "^1.0.11"
