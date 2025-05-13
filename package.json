@@ -35,6 +35,7 @@
     "build:es5": "tsc --module commonjs --outDir dist",
     "build": "npm run build:esm && npm run build:es5",
     "prebuild": "npm run clean && npm run lint",
+    "postbuild:es5": "echo '{\"type\": \"commonjs\"}' > dist/package.json",
     "preversion": "npm run lint && npm test run && npm run build",
     "version": "standard-changelog && git add CHANGELOG.md",
     "postversion": "git push --follow-tags"
