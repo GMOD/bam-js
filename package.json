@@ -48,7 +48,7 @@
   ],
   "dependencies": {
     "@gmod/abortable-promise-cache": "^3.0.1",
-    "@gmod/bgzf-filehandle": "^3.0.2",
+    "@gmod/bgzf-filehandle": "^4.0.0",
     "crc": "^4.3.2",
     "generic-filehandle2": "^2.0.1",
     "quick-lru": "^4.0.0"
