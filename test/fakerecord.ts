@@ -1,7 +1,7 @@
 // @ts-nocheck
-import { Buffer } from 'buffer'
+import { Buffer } from "buffer"
 
-import Record from '../src/record'
+import Record from "../src/record"
 
 export default class FakeRecord extends Record {
   constructor(read1, strand1, strand2, tlen) {
@@ -17,11 +17,16 @@ export default class FakeRecord extends Record {
     })
     this.read1 = read1
     this.read2 = !read1
-    this.strand1 = strand1 === 'R'
-    this.strand2 = strand2 === 'R'
+    this.strand1 = strand1 === "R"
+    this.strand2 = strand2 === "R"
     this.tlen = tlen
     this.nextrefid = 1
     this.refid = 1
+  }
+
+  // eslint-disable-next-line @typescript-eslint/class-literal-property-style
+  get flags() {
+    return 0
   }
 
   isRead1() {
