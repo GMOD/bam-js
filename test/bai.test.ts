@@ -140,7 +140,7 @@ test('checks secondary', async () => {
   const b = new BamFile({ bamPath: 'test/data/secondary.bam' })
   await b.getHeader()
   const features = await b.getRecordsForRange('20', 10761157, 10761387)
-  const dups = features.map(f => f.isDuplicate()).filter(f => !!f).length
+  const dups = features.map(f => f.isDuplicate()).filter(Boolean).length
   expect(dups).toEqual(2)
 })
 test('BamFile empty loads but does not crash', async () => {

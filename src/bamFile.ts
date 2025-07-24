@@ -362,7 +362,7 @@ export default class BamFile {
     let blockStart = 0
     const sink = [] as BAMFeature[]
     let pos = 0
-    let last = +Date.now()
+    let last = Date.now()
 
     const dataView = new DataView(ba.buffer)
     while (blockStart + 4 < ba.length) {
@@ -417,9 +417,9 @@ export default class BamFile {
         })
 
         sink.push(feature)
-        if (this.yieldThreadTime && +Date.now() - last > this.yieldThreadTime) {
+        if (this.yieldThreadTime && Date.now() - last > this.yieldThreadTime) {
           await timeout(1)
-          last = +Date.now()
+          last = Date.now()
         }
       }
 
