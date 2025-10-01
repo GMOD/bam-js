@@ -27,6 +27,7 @@ export default class BamFile {
   public index?: BAI | CSI
   public htsget = false
   public headerP?: ReturnType<BamFile['getHeaderPre']>
+  public cache = new Map<string, { buffer: Uint8Array; nextIn: number }>()
 
   constructor({
     bamFilehandle,
@@ -349,7 +350,7 @@ export default class BamFile {
       buffer: data,
       cpositions,
       dpositions,
-    } = await unzipChunkSlice(buf, chunk)
+    } = await unzipChunkSlice(buf, chunk, this.cache)
     return { data, cpositions, dpositions, chunk }
   }
 
