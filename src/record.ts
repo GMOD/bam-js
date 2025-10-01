@@ -360,29 +360,42 @@ export default class BamRecord {
   }
 
   get seq() {
-    const p = this.b0 + this.read_name_length + this.num_cigar_ops * 4
-    const seqBytes = this.num_seq_bytes
     const len = this.seq_length
-    const buf = []
+    let buf = ''
     let i = 0
-    for (let j = 0; j < seqBytes; ++j) {
-      const sb = this.byteArray[p + j]!
-      buf.push(SEQRET_DECODER[(sb & 0xf0) >> 4])
+    for (let j = 0; j < this.num_seq_bytes; ++j) {
+      const sb =
+        this.byteArray[
+          this.b0 + this.read_name_length + this.num_cigar_ops * 4 + j
+        ]!
+      buf += SEQRET_DECODER[(sb & 0xf0) >> 4]
       i++
       if (i < len) {
-        buf.push(SEQRET_DECODER[sb & 0x0f])
+        buf += SEQRET_DECODER[sb & 0x0f]
         i++
       }
     }
-    return buf.join('')
+    return buf
   }
 
-  seqAt(idx: number) {
-    const p = this.b0 + this.read_name_length + this.num_cigar_ops * 4
-    const r = Math.floor(idx / 2)
-    const s = idx % 2
-    const sb = this.byteArray[p + r]!
-    return !s ? SEQRET_DECODER[(sb & 0xf0) >> 4] : SEQRET_DECODER[sb & 0x0f]
+  /**
+   * Get the nucleotide at a specific position in the sequence without decoding the entire sequence
+   * @param idx The 0-based index of the nucleotide to retrieve
+   * @returns The nucleotide character at the specified position, or undefined if index is out of bounds
+   */
+  seqAt(idx: number): string | undefined {
+    // Each byte contains 2 nucleotides (4 bits each)
+    // Calculate which byte contains our target nucleotide
+    const byteIndex = idx >> 1
+    const sb =
+      this.byteArray[
+        this.b0 + this.read_name_length + this.num_cigar_ops * 4 + byteIndex
+      ]!
+
+    // Determine if we want the upper or lower 4 bits
+    return idx % 2 === 0
+      ? SEQRET_DECODER[(sb & 0xf0) >> 4] // Even index: upper 4 bits
+      : SEQRET_DECODER[sb & 0x0f] // Odd index: lower 4 bits
   }
 
   // adapted from igv.js
