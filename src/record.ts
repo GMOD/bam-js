@@ -384,18 +384,19 @@ export default class BamRecord {
    * @returns The nucleotide character at the specified position, or undefined if index is out of bounds
    */
   seqAt(idx: number): string | undefined {
-    // Each byte contains 2 nucleotides (4 bits each)
-    // Calculate which byte contains our target nucleotide
-    const byteIndex = idx >> 1
-    const sb =
-      this.byteArray[
-        this.b0 + this.read_name_length + this.num_cigar_ops * 4 + byteIndex
-      ]!
+    if (idx < this.seq_length) {
+      const byteIndex = idx >> 1
+      const sb =
+        this.byteArray[
+          this.b0 + this.read_name_length + this.num_cigar_ops * 4 + byteIndex
+        ]!
 
-    // Determine if we want the upper or lower 4 bits
-    return idx % 2 === 0
-      ? SEQRET_DECODER[(sb & 0xf0) >> 4] // Even index: upper 4 bits
-      : SEQRET_DECODER[sb & 0x0f] // Odd index: lower 4 bits
+      return idx % 2 === 0
+        ? SEQRET_DECODER[(sb & 0xf0) >> 4]
+        : SEQRET_DECODER[sb & 0x0f]
+    } else {
+      return undefined
+    }
   }
 
   // adapted from igv.js
@@ -472,27 +473,3 @@ export default class BamRecord {
     return data
   }
 }
-
-function cacheGetter<T>(ctor: { prototype: T }, prop: keyof T): void {
-  const desc = Object.getOwnPropertyDescriptor(ctor.prototype, prop)
-  if (!desc) {
-    throw new Error('OH NO, NO PROPERTY DESCRIPTOR')
-  }
-  // eslint-disable-next-line @typescript-eslint/unbound-method
-  const getter = desc.get
-  if (!getter) {
-    throw new Error('OH NO, NOT A GETTER')
-  }
-  Object.defineProperty(ctor.prototype, prop, {
-    get() {
-      const ret = getter.call(this)
-      Object.defineProperty(this, prop, { value: ret })
-      return ret
-    },
-  })
-}
-
-cacheGetter(BamRecord, 'tags')
-cacheGetter(BamRecord, 'cigarAndLength')
-cacheGetter(BamRecord, 'seq')
-cacheGetter(BamRecord, 'qual')
