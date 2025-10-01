@@ -295,7 +295,6 @@ export default class BamRecord {
 
     const numCigarOps = this.num_cigar_ops
     let p = this.b0 + this.read_name_length
-    const CIGAR = []
 
     // check for CG tag by inspecting whether the CIGAR field contains a clip
     // that consumes entire seqLen
@@ -318,11 +317,13 @@ export default class BamRecord {
       }
     } else {
       let lref = 0
+      let cigarStr = ''
+
       for (let c = 0; c < numCigarOps; ++c) {
         cigop = this.#dataView.getInt32(p, true)
         lop = cigop >> 4
         op = CIGAR_DECODER[cigop & 0xf]!
-        CIGAR.push(lop + op)
+        cigarStr += lop + op
         // soft clip, hard clip, and insertion don't count toward the length on
         // the reference
         if (op !== 'H' && op !== 'S' && op !== 'I') {
@@ -333,7 +334,7 @@ export default class BamRecord {
       }
 
       return {
-        CIGAR: CIGAR.join(''),
+        CIGAR: cigarStr,
         length_on_ref: lref,
       }
     }
