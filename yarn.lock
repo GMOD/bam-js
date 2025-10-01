@@ -251,9 +251,9 @@
   integrity sha512-kxRJj5fyRKFuZDp/YvnHeadYCV2EEUKyH2T4a2Iz9O7T/thOWWHUDiiD/Mg6WZP/RNNDIcfSHl/xVHHy/+j8qg==
 
 "@gmod/bgzf-filehandle@^4.0.0":
-  version "4.1.0"
-  resolved "https://registry.yarnpkg.com/@gmod/bgzf-filehandle/-/bgzf-filehandle-4.1.0.tgz#5b85f1998cbd5d55260cf16f6f6457e70f8cc6d4"
-  integrity sha512-8O2xH0MN66BQKxMy6UZJZzsqpm/Zx30adkwY3NEgBx1N+ut6UXk/SBjVhuK3B265xHP5yYU2nF8I9X4GFAsghg==
+  version "4.1.1"
+  resolved "https://registry.yarnpkg.com/@gmod/bgzf-filehandle/-/bgzf-filehandle-4.1.1.tgz#7e959332b9a497aa7172340486330662a6f7b94f"
+  integrity sha512-X6KwsZSlYBfR+QZazNLlvXqWxw09jJt0e+VUVi64tC0ns4sdTAlPCQTWWTOnYnC0qrQ6sKDLjILDNfLY9+0YAA==
   dependencies:
     generic-filehandle2 "^2.0.5"
     pako "^1.0.11"
@@ -1387,10 +1387,10 @@ eslint-plugin-import@^2.31.0:
     string.prototype.trimend "^1.0.9"
     tsconfig-paths "^3.15.0"
 
-eslint-plugin-unicorn@^60.0.0:
-  version "60.0.0"
-  resolved "https://registry.yarnpkg.com/eslint-plugin-unicorn/-/eslint-plugin-unicorn-60.0.0.tgz#68f712bcb17e94bd176cce7312647ba1d1409c3c"
-  integrity sha512-QUzTefvP8stfSXsqKQ+vBQSEsXIlAiCduS/V1Em+FKgL9c21U/IIm20/e3MFy1jyCf14tHAhqC1sX8OTy6VUCg==
+eslint-plugin-unicorn@^61.0.2:
+  version "61.0.2"
+  resolved "https://registry.yarnpkg.com/eslint-plugin-unicorn/-/eslint-plugin-unicorn-61.0.2.tgz#fe410b1203666cef4d6a5b13b05caef814a6a2e4"
+  integrity sha512-zLihukvneYT7f74GNbVJXfWIiNQmkc/a9vYBTE4qPkQZswolWNdu+Wsp9sIXno1JOzdn6OUwLPd19ekXVkahRA==
   dependencies:
     "@babel/helper-validator-identifier" "^7.27.1"
     "@eslint-community/eslint-utils" "^4.7.0"
