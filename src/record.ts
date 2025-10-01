@@ -125,16 +125,16 @@ export default class BamRecord {
         tags[tag] = this.#dataView.getFloat32(p, true)
         p += 4
       } else if (type === 'Z' || type === 'H') {
-        const value = []
+        let value = ''
         while (p <= blockEnd) {
           const cc = this.byteArray[p++]!
           if (cc !== 0) {
-            value.push(String.fromCharCode(cc))
+            value += String.fromCharCode(cc)
           } else {
             break
           }
         }
-        tags[tag] = value.join('')
+        tags[tag] = value
       } else if (type === 'B') {
         const cc = this.byteArray[p++]!
         const Btype = String.fromCharCode(cc)
@@ -142,15 +142,15 @@ export default class BamRecord {
         p += 4
         if (Btype === 'i') {
           if (tag === 'CG') {
-            const value = []
+            let value = ''
             for (let k = 0; k < limit; k++) {
               const cigop = this.#dataView.getInt32(p, true)
               const lop = cigop >> 4
               const op = CIGAR_DECODER[cigop & 0xf]!
-              value.push(lop + op)
+              value += lop + op
               p += 4
             }
-            tags[tag] = value.join('')
+            tags[tag] = value
           } else {
             const value = []
             for (let k = 0; k < limit; k++) {
@@ -161,15 +161,15 @@ export default class BamRecord {
           }
         } else if (Btype === 'I') {
           if (tag === 'CG') {
-            const value = []
+            let value = ''
             for (let k = 0; k < limit; k++) {
               const cigop = this.#dataView.getUint32(p, true)
               const lop = cigop >> 4
               const op = CIGAR_DECODER[cigop & 0xf]!
-              value.push(lop + op)
+              value += lop + op
               p += 4
             }
-            tags[tag] = value.join('')
+            tags[tag] = value
           } else {
             const value = []
             for (let k = 0; k < limit; k++) {
