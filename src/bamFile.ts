@@ -1,6 +1,7 @@
 import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
 import crc32 from 'crc/calculators/crc32'
 import { LocalFile, RemoteFile } from 'generic-filehandle2'
+import QuickLRU from 'quick-lru'
 
 import BAI from './bai.ts'
 import Chunk from './chunk.ts'
@@ -27,6 +28,9 @@ export default class BamFile {
   public index?: BAI | CSI
   public htsget = false
   public headerP?: ReturnType<BamFile['getHeaderPre']>
+  public cache = new QuickLRU<string, { buffer: Uint8Array; nextIn: number }>({
+    maxSize: 1000,
+  })
 
   constructor({
     bamFilehandle,
@@ -349,7 +353,7 @@ export default class BamFile {
       buffer: data,
       cpositions,
       dpositions,
-    } = await unzipChunkSlice(buf, chunk)
+    } = await unzipChunkSlice(buf, chunk, this.cache)
     return { data, cpositions, dpositions, chunk }
   }
 
