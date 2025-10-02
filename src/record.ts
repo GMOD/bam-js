@@ -3,6 +3,9 @@ import Constants from './constants.ts'
 const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
 const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
 
+// NOTE: we build strings using an array and then join using ('') this has been
+// benchmarked to be 1.3 to 1.5x faster using our end to end jb2profile test suite
+
 interface Bytes {
   start: number
   end: number
@@ -155,9 +158,9 @@ export default class BamRecord {
             }
             tags[tag] = value.join('')
           } else {
-            const value = []
+            const value = new Array(limit)
             for (let k = 0; k < limit; k++) {
-              value.push(this.#dataView.getInt32(p, true))
+              value[k] = this.#dataView.getInt32(p, true)
               p += 4
             }
             tags[tag] = value
@@ -174,45 +177,45 @@ export default class BamRecord {
             }
             tags[tag] = value.join('')
           } else {
-            const value = []
+            const value = new Array(limit)
             for (let k = 0; k < limit; k++) {
-              value.push(this.#dataView.getUint32(p, true))
+              value[k] = this.#dataView.getUint32(p, true)
               p += 4
             }
             tags[tag] = value
           }
         } else if (Btype === 's') {
-          const value = []
+          const value = new Array(limit)
           for (let k = 0; k < limit; k++) {
-            value.push(this.#dataView.getInt16(p, true))
+            value[k] = this.#dataView.getInt16(p, true)
             p += 2
           }
           tags[tag] = value
         } else if (Btype === 'S') {
-          const value = []
+          const value = new Array(limit)
           for (let k = 0; k < limit; k++) {
-            value.push(this.#dataView.getUint16(p, true))
+            value[k] = this.#dataView.getUint16(p, true)
             p += 2
           }
           tags[tag] = value
         } else if (Btype === 'c') {
-          const value = []
+          const value = new Array(limit)
           for (let k = 0; k < limit; k++) {
-            value.push(this.#dataView.getInt8(p))
+            value[k] = this.#dataView.getInt8(p)
             p += 1
           }
           tags[tag] = value
         } else if (Btype === 'C') {
-          const value = []
+          const value = new Array(limit)
           for (let k = 0; k < limit; k++) {
-            value.push(this.#dataView.getUint8(p))
+            value[k] = this.#dataView.getUint8(p)
             p += 1
           }
           tags[tag] = value
         } else if (Btype === 'f') {
-          const value = []
+          const value = new Array(limit)
           for (let k = 0; k < limit; k++) {
-            value.push(this.#dataView.getFloat32(p, true))
+            value[k] = this.#dataView.getFloat32(p, true)
             p += 4
           }
           tags[tag] = value
