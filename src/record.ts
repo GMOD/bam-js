@@ -148,12 +148,14 @@ export default class BamRecord {
         p += 4
         if (Btype === 'i') {
           if (tag === 'CG') {
-            const value = new Array(limit)
-            for (let k = 0; k < limit; k++) {
+            const l2 = limit * 2
+            const value = new Array(l2)
+            for (let k = 0; k < l2; k += 2) {
               const cigop = this.#dataView.getInt32(p, true)
               const lop = cigop >> 4
               const op = CIGAR_DECODER[cigop & 0xf]!
-              value[k] = lop + op
+              value[k] = lop
+              value[k + 1] = op
               p += 4
             }
             tags[tag] = value.join('')
@@ -167,12 +169,14 @@ export default class BamRecord {
           }
         } else if (Btype === 'I') {
           if (tag === 'CG') {
-            const value = new Array(limit)
-            for (let k = 0; k < limit; k++) {
+            const l2 = limit * 2
+            const value = new Array(l2)
+            for (let k = 0; k < l2; k += 2) {
               const cigop = this.#dataView.getUint32(p, true)
               const lop = cigop >> 4
               const op = CIGAR_DECODER[cigop & 0xf]!
-              value[k] = lop + op
+              value[k] = lop
+              value[k + 1] = op
               p += 4
             }
             tags[tag] = value.join('')
@@ -301,7 +305,7 @@ export default class BamRecord {
 
     const numCigarOps = this.num_cigar_ops
     let p = this.b0 + this.read_name_length
-    const CIGAR = new Array(numCigarOps)
+    const CIGAR = new Array(numCigarOps * 2)
 
     // check for CG tag by inspecting whether the CIGAR field contains a clip
     // that consumes entire seqLen
@@ -324,11 +328,12 @@ export default class BamRecord {
       }
     } else {
       let lref = 0
-      for (let c = 0; c < numCigarOps; ++c) {
+      for (let c = 0; c < numCigarOps * 2; c += 2) {
         cigop = this.#dataView.getInt32(p, true)
         lop = cigop >> 4
         op = CIGAR_DECODER[cigop & 0xf]!
-        CIGAR[c] = lop + op
+        CIGAR[c] = lop
+        CIGAR[c + 1] = op
         // soft clip, hard clip, and insertion don't count toward the length on
         // the reference
         if (op !== 'H' && op !== 'S' && op !== 'I') {
