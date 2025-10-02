@@ -438,6 +438,22 @@ export default class BamRecord {
     return this.#dataView.getInt32(this.bytes.start + 32, true)
   }
 
+  seqAt(idx: number): string | undefined {
+    if (idx < this.seq_length) {
+      const byteIndex = idx >> 1
+      const sb =
+        this.byteArray[
+          this.b0 + this.read_name_length + this.num_cigar_ops * 4 + byteIndex
+        ]!
+
+      return idx % 2 === 0
+        ? SEQRET_DECODER[(sb & 0xf0) >> 4]
+        : SEQRET_DECODER[sb & 0x0f]
+    } else {
+      return undefined
+    }
+  }
+
   toJSON() {
     const data: Record<string, any> = {}
     for (const k of Object.keys(this)) {
