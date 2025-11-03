@@ -55,11 +55,11 @@
     "quick-lru": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^22.15.3",
+    "@types/node": "^24.10.0",
     "@vitest/coverage-v8": "^4.0.3",
     "eslint": "^9.9.0",
     "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-unicorn": "^61.0.2",
+    "eslint-plugin-unicorn": "^62.0.0",
     "prettier": "^3.3.3",
     "rimraf": "^6.0.1",
     "standard-changelog": "^7.0.1",

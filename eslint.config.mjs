@@ -50,6 +50,7 @@ export default defineConfig(
 
       '@typescript-eslint/ban-ts-comment': 'off',
       'unicorn/no-array-sort': 'off',
+      'unicorn/text-encoding-identifier-case': 'off',
       'unicorn/no-new-array': 'off',
       'unicorn/no-empty-file': 'off',
       'unicorn/prefer-type-error': 'off',
