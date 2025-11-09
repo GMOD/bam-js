@@ -1,8 +1,8 @@
 import { LocalFile } from 'generic-filehandle2'
 import { expect, test } from 'vitest'
 
-import { BAI, BamFile, BamRecord } from '../src'
-import FakeRecord from './fakerecord'
+import FakeRecord from './fakerecord.ts'
+import { BAI, BamFile, BamRecord } from '../src/index.ts'
 
 test('loads BAI volvox-sorted.bam.bai', async () => {
   const ti = new BAI({

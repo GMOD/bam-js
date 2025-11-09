@@ -115,6 +115,7 @@ export default defineConfig(
         },
       ],
 
+      'import/extensions': ['error', 'ignorePackages'],
       'import/no-unresolved': 'off',
       'import/order': [
         'error',

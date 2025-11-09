@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 
-import { BamFile } from '../src'
+import { BamFile } from '../src/index.ts'
 
 class HalfAbortController {
   signal: { aborted: boolean }
