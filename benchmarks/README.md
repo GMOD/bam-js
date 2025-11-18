@@ -87,5 +87,5 @@ Real-world performance benchmarks using out.bam (long reads):
 - Query 1Mb region with full field access
 - Isolates sequence and tags parsing overhead
 
-Long reads have longer sequences (typically 1-100kb vs 50-500bp for short reads),
-so sequence parsing optimizations should show larger improvements here.
+Long reads have longer sequences (typically 1-100kb vs 50-500bp for short
+reads), so sequence parsing optimizations should show larger improvements here.
