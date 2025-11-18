@@ -9,7 +9,7 @@ async function main() {
   await bam.getHeader()
 
   // Do many iterations to get good profiling data
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 200; i++) {
     const records = await bam.getRecordsForRange('1', 1, 100000)
     for (const record of records) {
       const _start = record.start

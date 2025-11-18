@@ -39,6 +39,10 @@ This document summarizes the performance optimizations applied to bam-js.
 - **Impact**: Eliminated 6% overhead from `__classPrivateFieldGet` calls
 - **CPU Profile**: 18% reduction in total CPU samples
 
+### 9. Pre-allocate CIGAR Array (src/record.ts)
+- **Line 332**: Pre-allocate CIGAR array instead of using push
+- **Impact**: Small improvement for CIGAR string building
+
 ## Performance Results
 
 ### CPU Profiling (Most Accurate)
