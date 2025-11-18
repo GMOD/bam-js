@@ -386,6 +386,29 @@ test('get header text', async () => {
   expect(ret?.startsWith('@HD')).toBeTruthy()
 })
 
+test('read wow.bam and print results', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/wow.bam' })
+  await bam.getHeader()
+
+  console.log('Header:', bam.header)
+  console.log('Line count:', await bam.lineCount('ctgA'))
+
+  const records = await bam.getRecordsForRange('ctgA', 0, 10000)
+  console.log('Number of records in range 0-1000:', records.length)
+
+  if (records.length > 0) {
+    const firstRecord = records[0]
+    console.log('First record details:')
+    console.log('  Name:', firstRecord.name)
+    console.log('  Start:', firstRecord.start)
+    console.log('  End:', firstRecord.end)
+    console.log('  CIGAR:', firstRecord.CIGAR)
+    console.log('  Sequence:', firstRecord.seq)
+  }
+
+  expect(records.length).toBeGreaterThan(0)
+})
+
 // use on any large long read data file
 // test('speed test', async () => {
 //   const ti = new BamFile({ bamPath: 'test/data/400x.longread.bam' })
