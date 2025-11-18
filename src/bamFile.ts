@@ -9,7 +9,7 @@ import CSI from './csi.ts'
 import NullFilehandle from './nullFilehandle.ts'
 import BAMFeature from './record.ts'
 import { parseHeaderText } from './sam.ts'
-import { checkAbortSignal, gen2array, makeOpts, timeout } from './util.ts'
+import { gen2array, makeOpts } from './util.ts'
 
 import type { BamOpts, BaseOpts } from './util.ts'
 import type { GenericFilehandle } from 'generic-filehandle2'
@@ -24,7 +24,6 @@ export default class BamFile {
   public header?: string
   public chrToIndex?: Record<string, number>
   public indexToChr?: { refName: string; length: number }[]
-  public yieldThreadTime: number
   public index?: BAI | CSI
   public htsget = false
   public headerP?: ReturnType<BamFile['getHeaderPre']>
@@ -43,7 +42,6 @@ export default class BamFile {
     csiFilehandle,
     csiUrl,
     htsget,
-    yieldThreadTime = 100,
     renameRefSeqs = n => n,
   }: {
     bamFilehandle?: GenericFilehandle
@@ -56,7 +54,6 @@ export default class BamFile {
     csiFilehandle?: GenericFilehandle
     csiUrl?: string
     renameRefSeqs?: (a: string) => string
-    yieldThreadTime?: number
     htsget?: boolean
   }) {
     this.renameRefSeq = renameRefSeqs
@@ -94,7 +91,6 @@ export default class BamFile {
     } else {
       throw new Error('unable to infer index format')
     }
-    this.yieldThreadTime = yieldThreadTime
   }
 
   async getHeaderPre(origOpts?: BaseOpts) {
@@ -261,7 +257,6 @@ export default class BamFile {
       }
     }
 
-    checkAbortSignal(opts.signal)
     if (viewAsPairs) {
       yield this.fetchPairs(chrId, feats, opts)
     }
@@ -366,10 +361,10 @@ export default class BamFile {
     let blockStart = 0
     const sink = [] as BAMFeature[]
     let pos = 0
-    let last = Date.now()
 
     const dataView = new DataView(ba.buffer)
-    const hasDpositions = dpositions && dpositions.length > 0
+    const hasDpositions = dpositions.length > 0
+    const hasCpositions = cpositions.length > 0
     while (blockStart + 4 < ba.length) {
       const blockSize = dataView.getInt32(blockStart, true)
       const blockEnd = blockStart + 4 + blockSize - 1
@@ -408,23 +403,18 @@ export default class BamFile {
           //
           // the +1 is just to avoid any possible uniqueId 0 but this does not
           // realistically happen
-          fileOffset:
-            cpositions.length > 0
-              ? cpositions[pos]! * (1 << 8) +
-                (blockStart - dpositions[pos]!) +
-                chunk.minv.dataPosition +
-                1
-              : // this shift >>> 0 is equivalent to crc32(b).unsigned but uses the
-                // internal calculator of crc32 to avoid accidentally importing buffer
-                // https://github.com/alexgorbatchev/crc/blob/31fc3853e417b5fb5ec83335428805842575f699/src/define_crc.ts#L5
-                crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
+          fileOffset: hasCpositions
+            ? cpositions[pos]! * (1 << 8) +
+              (blockStart - dpositions[pos]!) +
+              chunk.minv.dataPosition +
+              1
+            : // this shift >>> 0 is equivalent to crc32(b).unsigned but uses the
+              // internal calculator of crc32 to avoid accidentally importing buffer
+              // https://github.com/alexgorbatchev/crc/blob/31fc3853e417b5fb5ec83335428805842575f699/src/define_crc.ts#L5
+              crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
         })
 
         sink.push(feature)
-        if (this.yieldThreadTime && Date.now() - last > this.yieldThreadTime) {
-          await timeout(1)
-          last = Date.now()
-        }
       }
 
       blockStart = blockEnd + 1
