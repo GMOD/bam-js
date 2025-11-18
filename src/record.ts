@@ -368,8 +368,7 @@ export default class BamRecord {
     for (let j = 0; j < seqBytes; ++j) {
       const sb = this.byteArray[p + j]!
       buf.push(SEQRET_DECODER[(sb & 0xf0) >> 4])
-      i++
-      if (i < len) {
+      if (++i < len) {
         buf.push(SEQRET_DECODER[sb & 0x0f])
         i++
       }

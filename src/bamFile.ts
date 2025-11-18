@@ -271,7 +271,7 @@ export default class BamFile {
     const { pairAcrossChr, maxInsertSize = 200000 } = opts
     const unmatedPairs: Record<string, boolean> = {}
     const readIds: Record<string, number> = {}
-    feats.map(ret => {
+    for (const ret of feats) {
       const readNames: Record<string, number> = {}
       for (const element of ret) {
         const name = element.name
@@ -287,10 +287,10 @@ export default class BamFile {
           unmatedPairs[k] = true
         }
       }
-    })
+    }
 
     const matePromises: Promise<Chunk[]>[] = []
-    feats.map(ret => {
+    for (const ret of feats) {
       for (const f of ret) {
         const name = f.name
         const start = f.start
@@ -307,7 +307,7 @@ export default class BamFile {
           )
         }
       }
-    })
+    }
 
     // filter out duplicate chunks (the blocks are lists of chunks, blocks are
     // concatenated, then filter dup chunks)
@@ -369,13 +369,13 @@ export default class BamFile {
     let last = Date.now()
 
     const dataView = new DataView(ba.buffer)
+    const hasDpositions = dpositions && dpositions.length > 0
     while (blockStart + 4 < ba.length) {
       const blockSize = dataView.getInt32(blockStart, true)
       const blockEnd = blockStart + 4 + blockSize - 1
 
       // increment position to the current decompressed status
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (dpositions) {
+      if (hasDpositions) {
         while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]!) {}
         pos--
       }
