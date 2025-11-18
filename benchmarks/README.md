@@ -70,3 +70,22 @@ Compares the overhead of different parsing strategies:
 - Name access (string building)
 - Heavy field access (sequence, CIGAR, tags)
 - Streaming vs array-based iteration
+
+### overall-performance.bench.ts
+
+Real-world performance benchmarks using volvox-sorted.bam (short reads):
+
+- Query with full field access
+- Query with minimal access
+- Full chromosome query
+
+### overall-performance-long-reads.bench.ts
+
+Real-world performance benchmarks using out.bam (long reads):
+
+- Query 100kb region with various field access patterns
+- Query 1Mb region with full field access
+- Isolates sequence and tags parsing overhead
+
+Long reads have longer sequences (typically 1-100kb vs 50-500bp for short reads),
+so sequence parsing optimizations should show larger improvements here.
