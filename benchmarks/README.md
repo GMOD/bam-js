@@ -5,7 +5,9 @@ This directory contains performance benchmarks for the bam-js library.
 ## Running Benchmarks
 
 ```bash
-yarn bench
+yarn bench                    # Run all benchmarks
+yarn bench cache             # Run only cache benchmarks
+yarn bench string-building   # Run only string building benchmarks
 ```
 
 ## Available Benchmarks
@@ -31,3 +33,40 @@ Cache configuration: `maxSize: 1000` (in src/bamFile.ts)
 
 The cache stores decompressed BGZF blocks, eliminating redundant decompression
 when the same genomic regions are accessed multiple times.
+
+### cache-size.bench.ts
+
+Tests different cache sizes to find the optimal maxSize configuration. Compares:
+100, 500, 1000 (current), 2000, 5000
+
+### field-access.bench.ts
+
+Benchmarks the cost of accessing different record fields. Helps identify hot
+paths and expensive getters. Tests:
+
+- Basic fields (start, end, strand)
+- CIGAR (cached getter)
+- Sequence (cached getter)
+- Tags (cached getter)
+- Combined access patterns
+
+### string-building.bench.ts
+
+Compares different string building approaches for various string lengths:
+
+- Character-by-character concatenation (current approach)
+- TextDecoder with latin1 encoding
+- TextDecoder with utf8 encoding
+- Array join approach
+
+Tests both short strings (read names) and long strings (sequences).
+
+### parsing-strategies.bench.ts
+
+Compares the overhead of different parsing strategies:
+
+- Minimal record access (just counting)
+- Position-only access
+- Name access (string building)
+- Heavy field access (sequence, CIGAR, tags)
+- Streaming vs array-based iteration

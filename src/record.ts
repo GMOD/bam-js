@@ -93,130 +93,143 @@ export default class BamRecord {
     const blockEnd = this.bytes.end
     const tags = {} as Record<string, unknown>
     while (p < blockEnd) {
-      const tag = String.fromCharCode(
-        this.byteArray[p]!,
-        this.byteArray[p + 1]!,
-      )
+      const tag =
+        String.fromCharCode(this.byteArray[p]!) +
+        String.fromCharCode(this.byteArray[p + 1]!)
       const type = String.fromCharCode(this.byteArray[p + 2]!)
       p += 3
 
-      if (type === 'A') {
-        tags[tag] = String.fromCharCode(this.byteArray[p]!)
-        p += 1
-      } else if (type === 'i') {
-        tags[tag] = this.#dataView.getInt32(p, true)
-        p += 4
-      } else if (type === 'I') {
-        tags[tag] = this.#dataView.getUint32(p, true)
-        p += 4
-      } else if (type === 'c') {
-        tags[tag] = this.#dataView.getInt8(p)
-        p += 1
-      } else if (type === 'C') {
-        tags[tag] = this.#dataView.getUint8(p)
-        p += 1
-      } else if (type === 's') {
-        tags[tag] = this.#dataView.getInt16(p, true)
-        p += 2
-      } else if (type === 'S') {
-        tags[tag] = this.#dataView.getUint16(p, true)
-        p += 2
-      } else if (type === 'f') {
-        tags[tag] = this.#dataView.getFloat32(p, true)
-        p += 4
-      } else if (type === 'Z' || type === 'H') {
-        const value = []
-        while (p <= blockEnd) {
+      switch (type) {
+        case 'A':
+          tags[tag] = String.fromCharCode(this.byteArray[p]!)
+          p += 1
+          break
+        case 'i':
+          tags[tag] = this.#dataView.getInt32(p, true)
+          p += 4
+          break
+        case 'I':
+          tags[tag] = this.#dataView.getUint32(p, true)
+          p += 4
+          break
+        case 'c':
+          tags[tag] = this.#dataView.getInt8(p)
+          p += 1
+          break
+        case 'C':
+          tags[tag] = this.#dataView.getUint8(p)
+          p += 1
+          break
+        case 's':
+          tags[tag] = this.#dataView.getInt16(p, true)
+          p += 2
+          break
+        case 'S':
+          tags[tag] = this.#dataView.getUint16(p, true)
+          p += 2
+          break
+        case 'f':
+          tags[tag] = this.#dataView.getFloat32(p, true)
+          p += 4
+          break
+        case 'Z':
+        case 'H': {
+          const value = []
+          while (p <= blockEnd) {
+            const cc = this.byteArray[p++]!
+            if (cc !== 0) {
+              value.push(String.fromCharCode(cc))
+            } else {
+              break
+            }
+          }
+          tags[tag] = value.join('')
+          break
+        }
+        case 'B': {
           const cc = this.byteArray[p++]!
-          if (cc !== 0) {
-            value.push(String.fromCharCode(cc))
-          } else {
-            break
-          }
-        }
-        tags[tag] = value.join('')
-      } else if (type === 'B') {
-        const cc = this.byteArray[p++]!
-        const Btype = String.fromCharCode(cc)
-        const limit = this.#dataView.getInt32(p, true)
-        p += 4
-        if (Btype === 'i') {
-          if (tag === 'CG') {
-            const value = []
-            for (let k = 0; k < limit; k++) {
-              const cigop = this.#dataView.getInt32(p, true)
-              const lop = cigop >> 4
-              const op = CIGAR_DECODER[cigop & 0xf]!
-              value.push(lop + op)
-              p += 4
+          const Btype = String.fromCharCode(cc)
+          const limit = this.#dataView.getInt32(p, true)
+          p += 4
+          if (Btype === 'i') {
+            if (tag === 'CG') {
+              const value = []
+              for (let k = 0; k < limit; k++) {
+                const cigop = this.#dataView.getInt32(p, true)
+                const lop = cigop >> 4
+                const op = CIGAR_DECODER[cigop & 0xf]!
+                value.push(lop + op)
+                p += 4
+              }
+              tags[tag] = value.join('')
+            } else {
+              const value = []
+              for (let k = 0; k < limit; k++) {
+                value.push(this.#dataView.getInt32(p, true))
+                p += 4
+              }
+              tags[tag] = value
             }
-            tags[tag] = value.join('')
-          } else {
+          } else if (Btype === 'I') {
+            if (tag === 'CG') {
+              const value = []
+              for (let k = 0; k < limit; k++) {
+                const cigop = this.#dataView.getUint32(p, true)
+                const lop = cigop >> 4
+                const op = CIGAR_DECODER[cigop & 0xf]!
+                value.push(lop + op)
+                p += 4
+              }
+              tags[tag] = value.join('')
+            } else {
+              const value = []
+              for (let k = 0; k < limit; k++) {
+                value.push(this.#dataView.getUint32(p, true))
+                p += 4
+              }
+              tags[tag] = value
+            }
+          } else if (Btype === 's') {
             const value = []
             for (let k = 0; k < limit; k++) {
-              value.push(this.#dataView.getInt32(p, true))
+              value.push(this.#dataView.getInt16(p, true))
+              p += 2
+            }
+            tags[tag] = value
+          } else if (Btype === 'S') {
+            const value = []
+            for (let k = 0; k < limit; k++) {
+              value.push(this.#dataView.getUint16(p, true))
+              p += 2
+            }
+            tags[tag] = value
+          } else if (Btype === 'c') {
+            const value = []
+            for (let k = 0; k < limit; k++) {
+              value.push(this.#dataView.getInt8(p))
+              p += 1
+            }
+            tags[tag] = value
+          } else if (Btype === 'C') {
+            const value = []
+            for (let k = 0; k < limit; k++) {
+              value.push(this.#dataView.getUint8(p))
+              p += 1
+            }
+            tags[tag] = value
+          } else if (Btype === 'f') {
+            const value = []
+            for (let k = 0; k < limit; k++) {
+              value.push(this.#dataView.getFloat32(p, true))
               p += 4
             }
             tags[tag] = value
           }
-        } else if (Btype === 'I') {
-          if (tag === 'CG') {
-            const value = []
-            for (let k = 0; k < limit; k++) {
-              const cigop = this.#dataView.getUint32(p, true)
-              const lop = cigop >> 4
-              const op = CIGAR_DECODER[cigop & 0xf]!
-              value.push(lop + op)
-              p += 4
-            }
-            tags[tag] = value.join('')
-          } else {
-            const value = []
-            for (let k = 0; k < limit; k++) {
-              value.push(this.#dataView.getUint32(p, true))
-              p += 4
-            }
-            tags[tag] = value
-          }
-        } else if (Btype === 's') {
-          const value = []
-          for (let k = 0; k < limit; k++) {
-            value.push(this.#dataView.getInt16(p, true))
-            p += 2
-          }
-          tags[tag] = value
-        } else if (Btype === 'S') {
-          const value = []
-          for (let k = 0; k < limit; k++) {
-            value.push(this.#dataView.getUint16(p, true))
-            p += 2
-          }
-          tags[tag] = value
-        } else if (Btype === 'c') {
-          const value = []
-          for (let k = 0; k < limit; k++) {
-            value.push(this.#dataView.getInt8(p))
-            p += 1
-          }
-          tags[tag] = value
-        } else if (Btype === 'C') {
-          const value = []
-          for (let k = 0; k < limit; k++) {
-            value.push(this.#dataView.getUint8(p))
-            p += 1
-          }
-          tags[tag] = value
-        } else if (Btype === 'f') {
-          const value = []
-          for (let k = 0; k < limit; k++) {
-            value.push(this.#dataView.getFloat32(p, true))
-            p += 4
-          }
-          tags[tag] = value
+          break
         }
-      } else {
-        console.error('Unknown BAM tag type', type)
-        break
+        default:
+          console.error('Unknown BAM tag type', type)
+          break
       }
     }
     return tags
@@ -361,18 +374,22 @@ export default class BamRecord {
 
   get seq() {
     const p = this.b0 + this.read_name_length + this.num_cigar_ops * 4
-    const seqBytes = this.num_seq_bytes
     const len = this.seq_length
-    const buf = []
+    const buf = new Array(len)
     let i = 0
-    for (let j = 0; j < seqBytes; ++j) {
+    const fullBytes = len >> 1
+
+    for (let j = 0; j < fullBytes; ++j) {
       const sb = this.byteArray[p + j]!
-      buf.push(SEQRET_DECODER[(sb & 0xf0) >> 4])
-      if (++i < len) {
-        buf.push(SEQRET_DECODER[sb & 0x0f])
-        i++
-      }
+      buf[i++] = SEQRET_DECODER[(sb & 0xf0) >> 4]
+      buf[i++] = SEQRET_DECODER[sb & 0x0f]
     }
+
+    if (i < len) {
+      const sb = this.byteArray[p + fullBytes]!
+      buf[i] = SEQRET_DECODER[(sb & 0xf0) >> 4]
+    }
+
     return buf.join('')
   }
 
