@@ -235,6 +235,9 @@ export default class BamFile {
         cpositions,
         dpositions,
         chunk,
+        chrId,
+        min,
+        max,
       )
 
       const recs = [] as BAMFeature[]
@@ -357,6 +360,9 @@ export default class BamFile {
     cpositions: number[],
     dpositions: number[],
     chunk: Chunk,
+    chrId?: number,
+    min?: number,
+    max?: number,
   ) {
     let blockStart = 0
     const sink = [] as BAMFeature[]
@@ -365,6 +371,8 @@ export default class BamFile {
     const dataView = new DataView(ba.buffer)
     const hasDpositions = dpositions.length > 0
     const hasCpositions = cpositions.length > 0
+    const hasFilter = chrId !== undefined && min !== undefined && max !== undefined
+
     while (blockStart + 4 < ba.length) {
       const blockSize = dataView.getInt32(blockStart, true)
       const blockEnd = blockStart + 4 + blockSize - 1
@@ -377,44 +385,59 @@ export default class BamFile {
 
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
-        const feature = new BAMFeature({
-          bytes: {
-            byteArray: ba,
-            start: blockStart,
-            end: blockEnd,
-          },
-          // the below results in an automatically calculated file-offset based
-          // ID if the info for that is available, otherwise crc32 of the
-          // features
-          //
-          // cpositions[pos] refers to actual file offset of a bgzip block
-          // boundaries
-          //
-          // we multiply by (1 <<8) in order to make sure each block has a
-          // "unique" address space so that data in that block could never
-          // overlap
-          //
-          // then the blockStart-dpositions is an uncompressed file offset from
-          // that bgzip block boundary, and since the cpositions are multiplied
-          // by (1 << 8) these uncompressed offsets get a unique space
-          //
-          // this has an extra chunk.minv.dataPosition added on because it
-          // blockStart starts at 0 instead of chunk.minv.dataPosition
-          //
-          // the +1 is just to avoid any possible uniqueId 0 but this does not
-          // realistically happen
-          fileOffset: hasCpositions
-            ? cpositions[pos]! * (1 << 8) +
-              (blockStart - dpositions[pos]!) +
-              chunk.minv.dataPosition +
-              1
-            : // this shift >>> 0 is equivalent to crc32(b).unsigned but uses the
-              // internal calculator of crc32 to avoid accidentally importing buffer
-              // https://github.com/alexgorbatchev/crc/blob/31fc3853e417b5fb5ec83335428805842575f699/src/define_crc.ts#L5
-              crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
-        })
+        // Pre-filter: check ref_id and start position before creating the feature
+        // ref_id is at offset 4, start is at offset 8 from blockStart
+        let shouldCreate = true
+        if (hasFilter && blockStart + 12 < ba.length) {
+          const ref_id = dataView.getInt32(blockStart + 4, true)
+          const start = dataView.getInt32(blockStart + 8, true)
 
-        sink.push(feature)
+          // Skip if different chromosome or clearly out of range
+          if (ref_id !== chrId || start >= max!) {
+            shouldCreate = false
+          }
+        }
+
+        if (shouldCreate) {
+          const feature = new BAMFeature({
+            bytes: {
+              byteArray: ba,
+              start: blockStart,
+              end: blockEnd,
+            },
+            // the below results in an automatically calculated file-offset based
+            // ID if the info for that is available, otherwise crc32 of the
+            // features
+            //
+            // cpositions[pos] refers to actual file offset of a bgzip block
+            // boundaries
+            //
+            // we multiply by (1 <<8) in order to make sure each block has a
+            // "unique" address space so that data in that block could never
+            // overlap
+            //
+            // then the blockStart-dpositions is an uncompressed file offset from
+            // that bgzip block boundary, and since the cpositions are multiplied
+            // by (1 << 8) these uncompressed offsets get a unique space
+            //
+            // this has an extra chunk.minv.dataPosition added on because it
+            // blockStart starts at 0 instead of chunk.minv.dataPosition
+            //
+            // the +1 is just to avoid any possible uniqueId 0 but this does not
+            // realistically happen
+            fileOffset: hasCpositions
+              ? cpositions[pos]! * (1 << 8) +
+                (blockStart - dpositions[pos]!) +
+                chunk.minv.dataPosition +
+                1
+              : // this shift >>> 0 is equivalent to crc32(b).unsigned but uses the
+                // internal calculator of crc32 to avoid accidentally importing buffer
+                // https://github.com/alexgorbatchev/crc/blob/31fc3853e417b5fb5ec83335428805842575f699/src/define_crc.ts#L5
+                crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
+          })
+
+          sink.push(feature)
+        }
       }
 
       blockStart = blockEnd + 1
