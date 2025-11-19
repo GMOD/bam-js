@@ -329,14 +329,13 @@ export default class BamRecord {
         length_on_ref: lop,
       }
     } else {
-      const CIGAR = new Array(numCigarOps)
+      let CIGAR = ''
       let lref = 0
-      let idx = 0
       for (let c = 0; c < numCigarOps; ++c) {
         cigop = this._dataView.getInt32(p, true)
         lop = cigop >> 4
         op = CIGAR_DECODER[cigop & 0xf]!
-        CIGAR[idx++] = lop + op
+        CIGAR += lop + op
         // soft clip, hard clip, and insertion don't count toward the length on
         // the reference
         if (op !== 'H' && op !== 'S' && op !== 'I') {
@@ -347,7 +346,7 @@ export default class BamRecord {
       }
 
       return {
-        CIGAR: CIGAR.join(''),
+        CIGAR,
         length_on_ref: lref,
       }
     }
@@ -376,22 +375,20 @@ export default class BamRecord {
   get seq() {
     const p = this.b0 + this.read_name_length + this.num_cigar_ops * 4
     const len = this.seq_length
-    const buf = new Array(len)
-    let i = 0
     const fullBytes = len >> 1
+    let result = ''
 
-    for (let j = 0; j < fullBytes; ++j) {
+    for (let j = 0; j < fullBytes; j++) {
       const sb = this.byteArray[p + j]!
-      buf[i++] = SEQRET_DECODER[(sb & 0xf0) >> 4]
-      buf[i++] = SEQRET_DECODER[sb & 0x0f]
+      result += SEQRET_DECODER[(sb & 0xf0) >> 4]! + SEQRET_DECODER[sb & 0x0f]!
     }
 
-    if (i < len) {
+    if ((len & 1) !== 0) {
       const sb = this.byteArray[p + fullBytes]!
-      buf[i] = SEQRET_DECODER[(sb & 0xf0) >> 4]
+      result += SEQRET_DECODER[(sb & 0xf0) >> 4]!
     }
 
-    return buf.join('')
+    return result
   }
 
   // adapted from igv.js
