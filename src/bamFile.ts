@@ -9,7 +9,7 @@ import CSI from './csi.ts'
 import NullFilehandle from './nullFilehandle.ts'
 import BAMFeature from './record.ts'
 import { parseHeaderText } from './sam.ts'
-import { checkAbortSignal, gen2array, makeOpts, timeout } from './util.ts'
+import { gen2array, makeOpts } from './util.ts'
 
 import type { BamOpts, BaseOpts } from './util.ts'
 import type { GenericFilehandle } from 'generic-filehandle2'
@@ -24,7 +24,6 @@ export default class BamFile {
   public header?: string
   public chrToIndex?: Record<string, number>
   public indexToChr?: { refName: string; length: number }[]
-  public yieldThreadTime: number
   public index?: BAI | CSI
   public htsget = false
   public headerP?: ReturnType<BamFile['getHeaderPre']>
@@ -43,7 +42,6 @@ export default class BamFile {
     csiFilehandle,
     csiUrl,
     htsget,
-    yieldThreadTime = 100,
     renameRefSeqs = n => n,
   }: {
     bamFilehandle?: GenericFilehandle
@@ -56,7 +54,6 @@ export default class BamFile {
     csiFilehandle?: GenericFilehandle
     csiUrl?: string
     renameRefSeqs?: (a: string) => string
-    yieldThreadTime?: number
     htsget?: boolean
   }) {
     this.renameRefSeq = renameRefSeqs
@@ -94,7 +91,6 @@ export default class BamFile {
     } else {
       throw new Error('unable to infer index format')
     }
-    this.yieldThreadTime = yieldThreadTime
   }
 
   async getHeaderPre(origOpts?: BaseOpts) {
@@ -239,6 +235,9 @@ export default class BamFile {
         cpositions,
         dpositions,
         chunk,
+        chrId,
+        min,
+        max,
       )
 
       const recs = [] as BAMFeature[]
@@ -261,7 +260,6 @@ export default class BamFile {
       }
     }
 
-    checkAbortSignal(opts.signal)
     if (viewAsPairs) {
       yield this.fetchPairs(chrId, feats, opts)
     }
@@ -271,7 +269,7 @@ export default class BamFile {
     const { pairAcrossChr, maxInsertSize = 200000 } = opts
     const unmatedPairs: Record<string, boolean> = {}
     const readIds: Record<string, number> = {}
-    feats.map(ret => {
+    for (const ret of feats) {
       const readNames: Record<string, number> = {}
       for (const element of ret) {
         const name = element.name
@@ -287,10 +285,10 @@ export default class BamFile {
           unmatedPairs[k] = true
         }
       }
-    })
+    }
 
     const matePromises: Promise<Chunk[]>[] = []
-    feats.map(ret => {
+    for (const ret of feats) {
       for (const f of ret) {
         const name = f.name
         const start = f.start
@@ -307,7 +305,7 @@ export default class BamFile {
           )
         }
       }
-    })
+    }
 
     // filter out duplicate chunks (the blocks are lists of chunks, blocks are
     // concatenated, then filter dup chunks)
@@ -362,54 +360,73 @@ export default class BamFile {
     cpositions: number[],
     dpositions: number[],
     chunk: Chunk,
+    chrId?: number,
+    min?: number,
+    max?: number,
   ) {
     let blockStart = 0
     const sink = [] as BAMFeature[]
     let pos = 0
-    let last = Date.now()
 
     const dataView = new DataView(ba.buffer)
+    const hasDpositions = dpositions.length > 0
+    const hasCpositions = cpositions.length > 0
+    const hasFilter =
+      chrId !== undefined && min !== undefined && max !== undefined
+
     while (blockStart + 4 < ba.length) {
       const blockSize = dataView.getInt32(blockStart, true)
       const blockEnd = blockStart + 4 + blockSize - 1
 
       // increment position to the current decompressed status
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (dpositions) {
+      if (hasDpositions) {
         while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]!) {}
         pos--
       }
 
       // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
-        const feature = new BAMFeature({
-          bytes: {
-            byteArray: ba,
-            start: blockStart,
-            end: blockEnd,
-          },
-          // the below results in an automatically calculated file-offset based
-          // ID if the info for that is available, otherwise crc32 of the
-          // features
-          //
-          // cpositions[pos] refers to actual file offset of a bgzip block
-          // boundaries
-          //
-          // we multiply by (1 <<8) in order to make sure each block has a
-          // "unique" address space so that data in that block could never
-          // overlap
-          //
-          // then the blockStart-dpositions is an uncompressed file offset from
-          // that bgzip block boundary, and since the cpositions are multiplied
-          // by (1 << 8) these uncompressed offsets get a unique space
-          //
-          // this has an extra chunk.minv.dataPosition added on because it
-          // blockStart starts at 0 instead of chunk.minv.dataPosition
-          //
-          // the +1 is just to avoid any possible uniqueId 0 but this does not
-          // realistically happen
-          fileOffset:
-            cpositions.length > 0
+        // Pre-filter: check ref_id and start position before creating the feature
+        // ref_id is at offset 4, start is at offset 8 from blockStart
+        let shouldCreate = true
+        if (hasFilter && blockStart + 12 < ba.length) {
+          const ref_id = dataView.getInt32(blockStart + 4, true)
+          const start = dataView.getInt32(blockStart + 8, true)
+
+          // Skip if different chromosome or clearly out of range
+          if (ref_id !== chrId || start >= max) {
+            shouldCreate = false
+          }
+        }
+
+        if (shouldCreate) {
+          const feature = new BAMFeature({
+            bytes: {
+              byteArray: ba,
+              start: blockStart,
+              end: blockEnd,
+            },
+            // the below results in an automatically calculated file-offset based
+            // ID if the info for that is available, otherwise crc32 of the
+            // features
+            //
+            // cpositions[pos] refers to actual file offset of a bgzip block
+            // boundaries
+            //
+            // we multiply by (1 <<8) in order to make sure each block has a
+            // "unique" address space so that data in that block could never
+            // overlap
+            //
+            // then the blockStart-dpositions is an uncompressed file offset from
+            // that bgzip block boundary, and since the cpositions are multiplied
+            // by (1 << 8) these uncompressed offsets get a unique space
+            //
+            // this has an extra chunk.minv.dataPosition added on because it
+            // blockStart starts at 0 instead of chunk.minv.dataPosition
+            //
+            // the +1 is just to avoid any possible uniqueId 0 but this does not
+            // realistically happen
+            fileOffset: hasCpositions
               ? cpositions[pos]! * (1 << 8) +
                 (blockStart - dpositions[pos]!) +
                 chunk.minv.dataPosition +
@@ -418,12 +435,9 @@ export default class BamFile {
                 // internal calculator of crc32 to avoid accidentally importing buffer
                 // https://github.com/alexgorbatchev/crc/blob/31fc3853e417b5fb5ec83335428805842575f699/src/define_crc.ts#L5
                 crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
-        })
+          })
 
-        sink.push(feature)
-        if (this.yieldThreadTime && Date.now() - last > this.yieldThreadTime) {
-          await timeout(1)
-          last = Date.now()
+          sink.push(feature)
         }
       }
 

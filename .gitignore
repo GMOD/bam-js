@@ -7,3 +7,4 @@ dist
 .vscode/
 .eslintcache
 esm
+*.cpuprofile

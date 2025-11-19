@@ -8,6 +8,7 @@ export default defineConfig(
   {
     ignores: [
       'webpack.config.js',
+      'benchmarks/*',
       'dist/*',
       'esm/*',
       'example/*',

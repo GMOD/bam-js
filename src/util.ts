@@ -2,51 +2,6 @@ import Chunk from './chunk.ts'
 import { longFromBytesToUnsigned } from './long.ts'
 import { Offset, VirtualOffset } from './virtualOffset.ts'
 
-export function timeout(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-/**
- * Properly check if the given AbortSignal is aborted.
- *
- * Per the standard, if the signal reads as aborted, this function throws
- * either a DOMException AbortError, or a regular error with a `code` attribute
- * set to `ERR_ABORTED`.
- *
- * For convenience, passing `undefined` is a no-op
- *
- * @param {AbortSignal} [signal] an AbortSignal, or anything with an `aborted` attribute
- * @returns nothing
- */
-export function checkAbortSignal(signal?: AbortSignal) {
-  if (!signal) {
-    return
-  }
-
-  if (signal.aborted) {
-    // console.log('bam aborted!')
-    if (typeof DOMException === 'undefined') {
-      const e = new Error('aborted')
-      // @ts-ignore
-      e.code = 'ERR_ABORTED'
-      throw e
-    } else {
-      throw new DOMException('aborted', 'AbortError')
-    }
-  }
-}
-
-/**
- * Skips to the next tick, then runs `checkAbortSignal`.
- * Await this to inside an otherwise synchronous loop to
- * provide a place to break when an abort signal is received.
- * @param {AbortSignal} signal
- */
-export async function abortBreakPoint(signal?: AbortSignal) {
-  await Promise.resolve()
-  checkAbortSignal(signal)
-}
-
 export function canMergeBlocks(chunk1: Chunk, chunk2: Chunk) {
   return (
     chunk2.minv.blockPosition - chunk1.maxv.blockPosition < 65000 &&
@@ -146,15 +101,12 @@ export function parseNameBytes(
   return { refNameToId, refIdToName }
 }
 
-export function sum(array: Uint8Array[]) {
-  let sum = 0
-  for (const entry of array) {
-    sum += entry.length
-  }
-  return sum
-}
 export function concatUint8Array(args: Uint8Array[]) {
-  const mergedArray = new Uint8Array(sum(args))
+  let totalLength = 0
+  for (const entry of args) {
+    totalLength += entry.length
+  }
+  const mergedArray = new Uint8Array(totalLength)
   let offset = 0
   for (const entry of args) {
     mergedArray.set(entry, offset)
@@ -164,9 +116,11 @@ export function concatUint8Array(args: Uint8Array[]) {
 }
 
 export async function gen2array<T>(gen: AsyncIterable<T[]>): Promise<T[]> {
-  let out: T[] = []
+  const out: T[] = []
   for await (const x of gen) {
-    out = out.concat(x)
+    for (const item of x) {
+      out.push(item)
+    }
   }
   return out
 }
