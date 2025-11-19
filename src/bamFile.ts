@@ -371,7 +371,8 @@ export default class BamFile {
     const dataView = new DataView(ba.buffer)
     const hasDpositions = dpositions.length > 0
     const hasCpositions = cpositions.length > 0
-    const hasFilter = chrId !== undefined && min !== undefined && max !== undefined
+    const hasFilter =
+      chrId !== undefined && min !== undefined && max !== undefined
 
     while (blockStart + 4 < ba.length) {
       const blockSize = dataView.getInt32(blockStart, true)
@@ -393,7 +394,7 @@ export default class BamFile {
           const start = dataView.getInt32(blockStart + 8, true)
 
           // Skip if different chromosome or clearly out of range
-          if (ref_id !== chrId || start >= max!) {
+          if (ref_id !== chrId || start >= max) {
             shouldCreate = false
           }
         }
