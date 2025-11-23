@@ -1,4 +1,4 @@
-import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
+import { unzip, unzipChunkSlice } from './unzip'
 import crc32 from 'crc/calculators/crc32'
 import { LocalFile, RemoteFile } from 'generic-filehandle2'
 import QuickLRU from 'quick-lru'
@@ -226,19 +226,7 @@ export default class BamFile {
     let done = false
 
     for (const chunk of chunks) {
-      const { data, cpositions, dpositions } = await this._readChunk({
-        chunk,
-        opts,
-      })
-      const records = await this.readBamFeatures(
-        data,
-        cpositions,
-        dpositions,
-        chunk,
-        chrId,
-        min,
-        max,
-      )
+      const records = await this.readBamFeatures(chunk, opts, chrId, min, max)
 
       const recs = [] as BAMFeature[]
       for (const feature of records) {
@@ -356,14 +344,20 @@ export default class BamFile {
   }
 
   async readBamFeatures(
-    ba: Uint8Array,
-    cpositions: number[],
-    dpositions: number[],
     chunk: Chunk,
+    opts: BamOpts = {},
     chrId?: number,
     min?: number,
     max?: number,
   ) {
+    const {
+      data: ba,
+      cpositions,
+      dpositions,
+    } = await this._readChunk({
+      chunk,
+      opts,
+    })
     let blockStart = 0
     const sink = [] as BAMFeature[]
     let pos = 0
