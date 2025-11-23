@@ -50,6 +50,9 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   public cache = new QuickLRU<string, { buffer: Uint8Array; nextIn: number }>({
     maxSize: 1000,
   })
+  public featureCache = new QuickLRU<number, T[]>({
+    maxSize: 1000,
+  })
   private recordFactory: (args: BamRecordConstructorArgs) => T
 
   static create(
@@ -71,22 +74,20 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     })
   }
 
-  constructor(
-    {
-      bamFilehandle,
-      bamPath,
-      bamUrl,
-      baiPath,
-      baiFilehandle,
-      baiUrl,
-      csiPath,
-      csiFilehandle,
-      csiUrl,
-      htsget,
-      renameRefSeqs = n => n,
-      recordFactory,
-    }: BamFileOptions<T> & { recordFactory?: BamRecordFactory<T> } = {},
-  ) {
+  constructor({
+    bamFilehandle,
+    bamPath,
+    bamUrl,
+    baiPath,
+    baiFilehandle,
+    baiUrl,
+    csiPath,
+    csiFilehandle,
+    csiUrl,
+    htsget,
+    renameRefSeqs = n => n,
+    recordFactory,
+  }: BamFileOptions<T> & { recordFactory?: BamRecordFactory<T> } = {}) {
     this.renameRefSeq = renameRefSeqs
     this.recordFactory =
       recordFactory ??
@@ -256,7 +257,6 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     max: number,
     opts: BamOpts = {},
   ) {
-    const { viewAsPairs } = opts
     const feats = [] as T[][]
     let done = false
 
@@ -294,88 +294,10 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
         break
       }
     }
-
-    if (viewAsPairs) {
-      yield this.fetchPairs(chrId, feats, opts)
-    }
-  }
-
-  async fetchPairs(chrId: number, feats: T[][], opts: BamOpts) {
-    const { pairAcrossChr, maxInsertSize = 200000 } = opts
-    const unmatedPairs: Record<string, boolean> = {}
-    const readIds: Record<string, number> = {}
-    for (const ret of feats) {
-      const readNames: Record<string, number> = {}
-      for (const element of ret) {
-        const name = element.name
-        const id = element.id
-        if (!readNames[name]) {
-          readNames[name] = 0
-        }
-        readNames[name]++
-        readIds[id] = 1
-      }
-      for (const [k, v] of Object.entries(readNames)) {
-        if (v === 1) {
-          unmatedPairs[k] = true
-        }
-      }
-    }
-
-    const matePromises: Promise<Chunk[]>[] = []
-    for (const ret of feats) {
-      for (const f of ret) {
-        const name = f.name
-        const start = f.start
-        const pnext = f.next_pos
-        const rnext = f.next_refid
-        if (
-          this.index &&
-          unmatedPairs[name] &&
-          (pairAcrossChr ||
-            (rnext === chrId && Math.abs(start - pnext) < maxInsertSize))
-        ) {
-          matePromises.push(
-            this.index.blocksForRange(rnext, pnext, pnext + 1, opts),
-          )
-        }
-      }
-    }
-
-    // filter out duplicate chunks (the blocks are lists of chunks, blocks are
-    // concatenated, then filter dup chunks)
-    const map = new Map<string, Chunk>()
-    const res = await Promise.all(matePromises)
-    for (const m of res.flat()) {
-      if (!map.has(m.toString())) {
-        map.set(m.toString(), m)
-      }
-    }
-
-    const mateFeatPromises = await Promise.all(
-      [...map.values()].map(async c => {
-        const { data, cpositions, dpositions, chunk } = await this._readChunk({
-          chunk: c,
-          opts,
-        })
-        const mateRecs = [] as T[]
-        for (const feature of await this.readBamFeatures(
-          data,
-          cpositions,
-          dpositions,
-          chunk,
-        )) {
-          if (unmatedPairs[feature.name] && !readIds[feature.id]) {
-            mateRecs.push(feature)
-          }
-        }
-        return mateRecs
-      }),
-    )
-    return mateFeatPromises.flat()
   }
 
   async _readChunk({ chunk, opts }: { chunk: Chunk; opts: BaseOpts }) {
+    console.log('_readChunk', { chunk: JSON.stringify(chunk) })
     const buf = await this.bam.read(
       chunk.fetchedSize(),
       chunk.minv.blockPosition,
@@ -387,6 +309,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       cpositions,
       dpositions,
     } = await unzipChunkSlice(buf, chunk, this.cache)
+    this.printCacheSize()
     return { data, cpositions, dpositions, chunk }
   }
 
@@ -399,6 +322,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     min?: number,
     max?: number,
   ) {
+    console.log('readBamFeatures', { chrId, min, max })
     let blockStart = 0
     const sink = [] as T[]
     let pos = 0
@@ -408,6 +332,21 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     const hasCpositions = cpositions.length > 0
     const hasFilter =
       chrId !== undefined && min !== undefined && max !== undefined
+
+    // Track features per block for caching
+    const blockFeatures = new Map<number, T[]>()
+    let currentBlockPos = hasCpositions ? cpositions[0]! : -1
+    let currentBlockFeatures: T[] = []
+
+    // Check if we can use cached features for the first block
+    if (hasCpositions) {
+      const cached = this.featureCache.get(currentBlockPos)
+      if (cached) {
+        console.log(`Feature cache hit for block ${currentBlockPos}`)
+        currentBlockFeatures = cached
+        blockFeatures.set(currentBlockPos, cached)
+      }
+    }
 
     while (blockStart + 4 < ba.length) {
       const blockSize = dataView.getInt32(blockStart, true)
@@ -419,65 +358,122 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
         pos--
       }
 
-      // only try to read the feature if we have all the bytes for it
-      if (blockEnd < ba.length) {
-        // Pre-filter: check ref_id and start position before creating the feature
-        // ref_id is at offset 4, start is at offset 8 from blockStart
-        let shouldCreate = true
-        if (hasFilter && blockStart + 12 < ba.length) {
-          const ref_id = dataView.getInt32(blockStart + 4, true)
-          const start = dataView.getInt32(blockStart + 8, true)
-
-          // Skip if different chromosome or clearly out of range
-          if (ref_id !== chrId || start >= max) {
-            shouldCreate = false
-          }
+      // Check if we moved to a new block
+      if (hasCpositions && cpositions[pos] !== currentBlockPos) {
+        // Save previous block's features to cache
+        if (currentBlockFeatures.length > 0 && currentBlockPos !== -1) {
+          this.featureCache.set(currentBlockPos, currentBlockFeatures)
+          console.log(
+            `Cached ${currentBlockFeatures.length} features for block ${currentBlockPos}`,
+          )
         }
 
-        if (shouldCreate) {
-          const feature = this.recordFactory({
-            bytes: {
-              byteArray: ba,
-              start: blockStart,
-              end: blockEnd,
-            },
-            // the below results in an automatically calculated file-offset based
-            // ID if the info for that is available, otherwise crc32 of the
-            // features
-            //
-            // cpositions[pos] refers to actual file offset of a bgzip block
-            // boundaries
-            //
-            // we multiply by (1 <<8) in order to make sure each block has a
-            // "unique" address space so that data in that block could never
-            // overlap
-            //
-            // then the blockStart-dpositions is an uncompressed file offset from
-            // that bgzip block boundary, and since the cpositions are multiplied
-            // by (1 << 8) these uncompressed offsets get a unique space
-            //
-            // this has an extra chunk.minv.dataPosition added on because it
-            // blockStart starts at 0 instead of chunk.minv.dataPosition
-            //
-            // the +1 is just to avoid any possible uniqueId 0 but this does not
-            // realistically happen
-            fileOffset: hasCpositions
-              ? cpositions[pos]! * (1 << 8) +
-                (blockStart - dpositions[pos]!) +
-                chunk.minv.dataPosition +
-                1
-              : // this shift >>> 0 is equivalent to crc32(b).unsigned but uses the
-                // internal calculator of crc32 to avoid accidentally importing buffer
-                // https://github.com/alexgorbatchev/crc/blob/31fc3853e417b5fb5ec83335428805842575f699/src/define_crc.ts#L5
-                crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
-          })
+        // Move to new block
+        currentBlockPos = cpositions[pos]!
+        const cached = this.featureCache.get(currentBlockPos)
+        if (cached) {
+          console.log(`Feature cache hit for block ${currentBlockPos}`)
+          currentBlockFeatures = cached
+          blockFeatures.set(currentBlockPos, cached)
+        } else {
+          currentBlockFeatures = []
+        }
+      }
 
-          sink.push(feature)
+      // only try to read the feature if we have all the bytes for it
+      if (blockEnd < ba.length) {
+        // Skip parsing if this block's features are already cached
+        const isCached = hasCpositions && blockFeatures.has(cpositions[pos]!)
+        if (!isCached) {
+          // Pre-filter: check ref_id and start position before creating the feature
+          // ref_id is at offset 4, start is at offset 8 from blockStart
+          let shouldCreate = true
+          if (hasFilter && blockStart + 12 < ba.length) {
+            const ref_id = dataView.getInt32(blockStart + 4, true)
+            const start = dataView.getInt32(blockStart + 8, true)
+
+            // Skip if different chromosome or clearly out of range
+            if (ref_id !== chrId || start >= max) {
+              shouldCreate = false
+            }
+          }
+
+          if (shouldCreate) {
+            const feature = this.recordFactory({
+              bytes: {
+                byteArray: ba,
+                start: blockStart,
+                end: blockEnd,
+              },
+              // the below results in an automatically calculated file-offset based
+              // ID if the info for that is available, otherwise crc32 of the
+              // features
+              //
+              // cpositions[pos] refers to actual file offset of a bgzip block
+              // boundaries
+              //
+              // we multiply by (1 <<8) in order to make sure each block has a
+              // "unique" address space so that data in that block could never
+              // overlap
+              //
+              // then the blockStart-dpositions is an uncompressed file offset from
+              // that bgzip block boundary, and since the cpositions are multiplied
+              // by (1 << 8) these uncompressed offsets get a unique space
+              //
+              // this has an extra chunk.minv.dataPosition added on because it
+              // blockStart starts at 0 instead of chunk.minv.dataPosition
+              //
+              // the +1 is just to avoid any possible uniqueId 0 but this does not
+              // realistically happen
+              fileOffset: hasCpositions
+                ? cpositions[pos]! * (1 << 8) +
+                  (blockStart - dpositions[pos]!) +
+                  chunk.minv.dataPosition +
+                  1
+                : // this shift >>> 0 is equivalent to crc32(b).unsigned but uses the
+                  // internal calculator of crc32 to avoid accidentally importing buffer
+                  // https://github.com/alexgorbatchev/crc/blob/31fc3853e417b5fb5ec83335428805842575f699/src/define_crc.ts#L5
+                  crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
+            })
+
+            currentBlockFeatures.push(feature)
+            sink.push(feature)
+          }
+        } else {
+          // Use cached features - but we still need to filter them
+          const blockCached = blockFeatures.get(cpositions[pos]!)!
+          for (const feature of blockCached) {
+            if (hasFilter) {
+              if (
+                feature.ref_id === chrId &&
+                feature.end >= min &&
+                feature.start < max
+              ) {
+                sink.push(feature)
+              }
+            } else {
+              sink.push(feature)
+            }
+          }
         }
       }
 
       blockStart = blockEnd + 1
     }
+
+    // Cache the last block's features
+    if (
+      hasCpositions &&
+      currentBlockFeatures.length > 0 &&
+      currentBlockPos !== -1 &&
+      !blockFeatures.has(currentBlockPos)
+    ) {
+      this.featureCache.set(currentBlockPos, currentBlockFeatures)
+      console.log(
+        `Cached ${currentBlockFeatures.length} features for block ${currentBlockPos}`,
+      )
+    }
+
     return sink
   }
 
@@ -514,5 +510,25 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     return seqId === undefined
       ? []
       : this.index.blocksForRange(seqId, start, end, opts)
+  }
+
+  printCacheSize() {
+    const blockCacheSize = this.cache.size
+    let totalBytes = 0
+    for (const [, value] of this.cache) {
+      totalBytes += value.buffer.byteLength
+    }
+    console.log(`Block cache entries: ${blockCacheSize}`)
+    console.log(
+      `Block cache size: ${totalBytes} bytes (${(totalBytes / 1024 / 1024).toFixed(2)} MB)`,
+    )
+
+    const featureCacheSize = this.featureCache.size
+    let totalFeatures = 0
+    for (const [, features] of this.featureCache) {
+      totalFeatures += features.length
+    }
+    console.log(`Feature cache entries: ${featureCacheSize}`)
+    console.log(`Total cached features: ${totalFeatures}`)
   }
 }
