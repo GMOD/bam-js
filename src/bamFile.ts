@@ -53,6 +53,12 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   public featureCache = new QuickLRU<number, T[]>({
     maxSize: 1000,
   })
+  public chunkCache = new QuickLRU<
+    string,
+    { features: T[]; cpositions: number[]; dpositions: number[] }
+  >({
+    maxSize: 500,
+  })
   private recordFactory: (args: BamRecordConstructorArgs) => T
 
   static create(
@@ -257,26 +263,43 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     max: number,
     opts: BamOpts = {},
   ) {
+    // console.log(
+    //   `_fetchChunkFeatures: processing ${chunks.length} chunks for chr=${chrId}, range=${min}-${max}`,
+    // )
     const feats = [] as T[][]
     let done = false
 
     for (const chunk of chunks) {
-      const { data, cpositions, dpositions } = await this._readChunk({
+      const result = await this._readChunk({
         chunk,
         opts,
       })
-      const records = await this.readBamFeatures(
-        data,
-        cpositions,
-        dpositions,
-        chunk,
-        chrId,
-        min,
-        max,
-      )
 
+      let allFeatures: T[]
+      if ('cachedFeatures' in result && result.cachedFeatures) {
+        // Use cached features directly
+        allFeatures = result.cachedFeatures
+      } else {
+        // Parse ALL features (without filtering) for caching
+        allFeatures = await this.readBamFeatures(
+          result.data,
+          result.cpositions,
+          result.dpositions,
+          result.chunk,
+        )
+
+        // Cache the chunk with all its features
+        const chunkKey = `${chunk.minv.blockPosition}-${chunk.maxv.blockPosition}`
+        this.chunkCache.set(chunkKey, {
+          features: allFeatures,
+          cpositions: result.cpositions,
+          dpositions: result.dpositions,
+        })
+      }
+
+      // Apply filtering to get records for this query
       const recs = [] as T[]
-      for (const feature of records) {
+      for (const feature of allFeatures) {
         if (feature.ref_id === chrId) {
           if (feature.start >= max) {
             // past end of range, can stop iterating
@@ -297,7 +320,24 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   }
 
   async _readChunk({ chunk, opts }: { chunk: Chunk; opts: BaseOpts }) {
-    console.log('_readChunk', { chunk: JSON.stringify(chunk) })
+    // Create a cache key based on chunk position
+    const chunkKey = `${chunk.minv.blockPosition}-${chunk.maxv.blockPosition}`
+
+    // Check chunk cache first
+    const cachedChunk = this.chunkCache.get(chunkKey)
+    if (cachedChunk) {
+      console.log(`✅ CHUNK CACHE HIT - skipping decompression for ${chunkKey}`)
+      // Return cached data without decompressing
+      return {
+        data: new Uint8Array(0), // Empty buffer since we won't use it
+        cpositions: cachedChunk.cpositions,
+        dpositions: cachedChunk.dpositions,
+        chunk,
+        cachedFeatures: cachedChunk.features,
+      }
+    }
+
+    console.log(`❌ CHUNK CACHE MISS - decompressing ${chunkKey}`)
     const buf = await this.bam.read(
       chunk.fetchedSize(),
       chunk.minv.blockPosition,
@@ -309,7 +349,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       cpositions,
       dpositions,
     } = await unzipChunkSlice(buf, chunk, this.cache)
-    this.printCacheSize()
+
     return { data, cpositions, dpositions, chunk }
   }
 
@@ -322,7 +362,16 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     min?: number,
     max?: number,
   ) {
-    console.log('readBamFeatures', { chrId, min, max })
+    // console.log('readBamFeatures', { chrId, min, max })
+
+    // // Log the blocks we're processing
+    // if (cpositions.length > 0) {
+    //   const uniqueBlocks = new Set(cpositions)
+    //   console.log(
+    //     `Processing ${uniqueBlocks.size} unique blocks: [${Array.from(uniqueBlocks).slice(0, 5).join(', ')}${uniqueBlocks.size > 5 ? '...' : ''}]`,
+    //   )
+    // }
+
     let blockStart = 0
     const sink = [] as T[]
     let pos = 0
@@ -338,13 +387,24 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     let currentBlockPos = hasCpositions ? cpositions[0]! : -1
     let currentBlockFeatures: T[] = []
 
+    // Stats for this call
+    let featureCacheHits = 0
+    let featureCacheMisses = 0
+    let featuresParsed = 0
+    let featuresFromCache = 0
+    const blocksEncountered = new Set<number>()
+
     // Check if we can use cached features for the first block
     if (hasCpositions) {
+      blocksEncountered.add(currentBlockPos)
       const cached = this.featureCache.get(currentBlockPos)
       if (cached) {
-        console.log(`Feature cache hit for block ${currentBlockPos}`)
+        featureCacheHits++
+        featuresFromCache += cached.length
         currentBlockFeatures = cached
         blockFeatures.set(currentBlockPos, cached)
+      } else {
+        featureCacheMisses++
       }
     }
 
@@ -363,19 +423,19 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
         // Save previous block's features to cache
         if (currentBlockFeatures.length > 0 && currentBlockPos !== -1) {
           this.featureCache.set(currentBlockPos, currentBlockFeatures)
-          console.log(
-            `Cached ${currentBlockFeatures.length} features for block ${currentBlockPos}`,
-          )
         }
 
         // Move to new block
         currentBlockPos = cpositions[pos]!
+        blocksEncountered.add(currentBlockPos)
         const cached = this.featureCache.get(currentBlockPos)
         if (cached) {
-          console.log(`Feature cache hit for block ${currentBlockPos}`)
+          featureCacheHits++
+          featuresFromCache += cached.length
           currentBlockFeatures = cached
           blockFeatures.set(currentBlockPos, cached)
         } else {
+          featureCacheMisses++
           currentBlockFeatures = []
         }
       }
@@ -385,64 +445,64 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
         // Skip parsing if this block's features are already cached
         const isCached = hasCpositions && blockFeatures.has(cpositions[pos]!)
         if (!isCached) {
-          // Pre-filter: check ref_id and start position before creating the feature
-          // ref_id is at offset 4, start is at offset 8 from blockStart
-          let shouldCreate = true
-          if (hasFilter && blockStart + 12 < ba.length) {
-            const ref_id = dataView.getInt32(blockStart + 4, true)
-            const start = dataView.getInt32(blockStart + 8, true)
+          // Parse the feature WITHOUT filtering - we cache all features
+          const feature = this.recordFactory({
+            bytes: {
+              byteArray: ba,
+              start: blockStart,
+              end: blockEnd,
+            },
+            // the below results in an automatically calculated file-offset based
+            // ID if the info for that is available, otherwise crc32 of the
+            // features
+            //
+            // cpositions[pos] refers to actual file offset of a bgzip block
+            // boundaries
+            //
+            // we multiply by (1 <<8) in order to make sure each block has a
+            // "unique" address space so that data in that block could never
+            // overlap
+            //
+            // then the blockStart-dpositions is an uncompressed file offset from
+            // that bgzip block boundary, and since the cpositions are multiplied
+            // by (1 << 8) these uncompressed offsets get a unique space
+            //
+            // this has an extra chunk.minv.dataPosition added on because it
+            // blockStart starts at 0 instead of chunk.minv.dataPosition
+            //
+            // the +1 is just to avoid any possible uniqueId 0 but this does not
+            // realistically happen
+            fileOffset: hasCpositions
+              ? cpositions[pos]! * (1 << 8) +
+                (blockStart - dpositions[pos]!) +
+                chunk.minv.dataPosition +
+                1
+              : // this shift >>> 0 is equivalent to crc32(b).unsigned but uses the
+                // internal calculator of crc32 to avoid accidentally importing buffer
+                // https://github.com/alexgorbatchev/crc/blob/31fc3853e417b5fb5ec83335428805842575f699/src/define_crc.ts#L5
+                crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
+          })
 
-            // Skip if different chromosome or clearly out of range
-            if (ref_id !== chrId || start >= max) {
-              shouldCreate = false
+          featuresParsed++
+          currentBlockFeatures.push(feature)
+
+          // Apply filter when adding to sink
+          if (hasFilter) {
+            if (
+              feature.ref_id === chrId &&
+              feature.end >= min &&
+              feature.start < max
+            ) {
+              sink.push(feature)
             }
-          }
-
-          if (shouldCreate) {
-            const feature = this.recordFactory({
-              bytes: {
-                byteArray: ba,
-                start: blockStart,
-                end: blockEnd,
-              },
-              // the below results in an automatically calculated file-offset based
-              // ID if the info for that is available, otherwise crc32 of the
-              // features
-              //
-              // cpositions[pos] refers to actual file offset of a bgzip block
-              // boundaries
-              //
-              // we multiply by (1 <<8) in order to make sure each block has a
-              // "unique" address space so that data in that block could never
-              // overlap
-              //
-              // then the blockStart-dpositions is an uncompressed file offset from
-              // that bgzip block boundary, and since the cpositions are multiplied
-              // by (1 << 8) these uncompressed offsets get a unique space
-              //
-              // this has an extra chunk.minv.dataPosition added on because it
-              // blockStart starts at 0 instead of chunk.minv.dataPosition
-              //
-              // the +1 is just to avoid any possible uniqueId 0 but this does not
-              // realistically happen
-              fileOffset: hasCpositions
-                ? cpositions[pos]! * (1 << 8) +
-                  (blockStart - dpositions[pos]!) +
-                  chunk.minv.dataPosition +
-                  1
-                : // this shift >>> 0 is equivalent to crc32(b).unsigned but uses the
-                  // internal calculator of crc32 to avoid accidentally importing buffer
-                  // https://github.com/alexgorbatchev/crc/blob/31fc3853e417b5fb5ec83335428805842575f699/src/define_crc.ts#L5
-                  crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
-            })
-
-            currentBlockFeatures.push(feature)
+          } else {
             sink.push(feature)
           }
         } else {
           // Use cached features - but we still need to filter them
           const blockCached = blockFeatures.get(cpositions[pos]!)!
           for (const feature of blockCached) {
+            featuresFromCache++
             if (hasFilter) {
               if (
                 feature.ref_id === chrId &&
@@ -469,8 +529,14 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       !blockFeatures.has(currentBlockPos)
     ) {
       this.featureCache.set(currentBlockPos, currentBlockFeatures)
+    }
+
+    // Summary statistics for this readBamFeatures call
+    const totalBlocks = blocksEncountered.size
+    if (totalBlocks > 0) {
+      const hitRate = ((featureCacheHits / totalBlocks) * 100).toFixed(1)
       console.log(
-        `Cached ${currentBlockFeatures.length} features for block ${currentBlockPos}`,
+        `📊 Feature cache: ${featureCacheHits}/${totalBlocks} blocks (${hitRate}% hit), ${featuresParsed} parsed, ${featuresFromCache} from cache, ${sink.length} returned`,
       )
     }
 
@@ -518,10 +584,10 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     for (const [, value] of this.cache) {
       totalBytes += value.buffer.byteLength
     }
-    console.log(`Block cache entries: ${blockCacheSize}`)
-    console.log(
-      `Block cache size: ${totalBytes} bytes (${(totalBytes / 1024 / 1024).toFixed(2)} MB)`,
-    )
+    // console.log(`Block cache entries: ${blockCacheSize}`)
+    // console.log(
+    //   `Block cache size: ${totalBytes} bytes (${(totalBytes / 1024 / 1024).toFixed(2)} MB)`,
+    // )
 
     const featureCacheSize = this.featureCache.size
     let totalFeatures = 0
@@ -529,6 +595,6 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       totalFeatures += features.length
     }
     console.log(`Feature cache entries: ${featureCacheSize}`)
-    console.log(`Total cached features: ${totalFeatures}`)
+    // console.log(`Total cached features: ${totalFeatures}`)
   }
 }
