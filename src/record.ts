@@ -1,13 +1,9 @@
 import Constants from './constants.ts'
 
+import type { Bytes } from './bamRecordFactory.ts'
+
 const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
 const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
-
-interface Bytes {
-  start: number
-  end: number
-  byteArray: Uint8Array
-}
 
 export default class BamRecord {
   public fileOffset: number

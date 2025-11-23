@@ -13,12 +13,32 @@ import { gen2array, makeOpts } from './util.ts'
 
 import type { BamOpts, BaseOpts } from './util.ts'
 import type { GenericFilehandle } from 'generic-filehandle2'
+import type {
+  BamRecordConstructorArgs,
+  BamRecordFactory,
+  BamRecordLike,
+} from './bamRecordFactory.ts'
 
 export const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
 
-export default class BamFile {
+interface BamFileOptions<T extends BamRecordLike> {
+  bamFilehandle?: GenericFilehandle
+  bamPath?: string
+  bamUrl?: string
+  baiPath?: string
+  baiFilehandle?: GenericFilehandle
+  baiUrl?: string
+  csiPath?: string
+  csiFilehandle?: GenericFilehandle
+  csiUrl?: string
+  renameRefSeqs?: (a: string) => string
+  htsget?: boolean
+  recordFactory?: BamRecordFactory<T>
+}
+
+export default class BamFile<T extends BamRecordLike = BAMFeature> {
   public renameRefSeq: (a: string) => string
   public bam: GenericFilehandle
   public header?: string
@@ -26,37 +46,52 @@ export default class BamFile {
   public indexToChr?: { refName: string; length: number }[]
   public index?: BAI | CSI
   public htsget = false
-  public headerP?: ReturnType<BamFile['getHeaderPre']>
+  public headerP?: ReturnType<BamFile<T>['getHeaderPre']>
   public cache = new QuickLRU<string, { buffer: Uint8Array; nextIn: number }>({
     maxSize: 1000,
   })
+  private recordFactory: (args: BamRecordConstructorArgs) => T
 
-  constructor({
-    bamFilehandle,
-    bamPath,
-    bamUrl,
-    baiPath,
-    baiFilehandle,
-    baiUrl,
-    csiPath,
-    csiFilehandle,
-    csiUrl,
-    htsget,
-    renameRefSeqs = n => n,
-  }: {
-    bamFilehandle?: GenericFilehandle
-    bamPath?: string
-    bamUrl?: string
-    baiPath?: string
-    baiFilehandle?: GenericFilehandle
-    baiUrl?: string
-    csiPath?: string
-    csiFilehandle?: GenericFilehandle
-    csiUrl?: string
-    renameRefSeqs?: (a: string) => string
-    htsget?: boolean
-  }) {
+  static create(
+    options?: Omit<BamFileOptions<BAMFeature>, 'recordFactory'>,
+  ): BamFile<BAMFeature>
+  static create<T extends BamRecordLike>(
+    options: BamFileOptions<T> & { recordFactory: BamRecordFactory<T> },
+  ): BamFile<T>
+  static create<T extends BamRecordLike>(
+    options: BamFileOptions<T> = {},
+  ): BamFile<BAMFeature> | BamFile<T> {
+    if (options.recordFactory) {
+      return new BamFile({ ...options, recordFactory: options.recordFactory })
+    }
+    // When no factory provided, explicitly construct BamFile<BAMFeature>
+    return new BamFile<BAMFeature>({
+      ...options,
+      recordFactory: (args: BamRecordConstructorArgs) => new BAMFeature(args),
+    })
+  }
+
+  constructor(
+    {
+      bamFilehandle,
+      bamPath,
+      bamUrl,
+      baiPath,
+      baiFilehandle,
+      baiUrl,
+      csiPath,
+      csiFilehandle,
+      csiUrl,
+      htsget,
+      renameRefSeqs = n => n,
+      recordFactory,
+    }: BamFileOptions<T> & { recordFactory?: BamRecordFactory<T> } = {},
+  ) {
     this.renameRefSeq = renameRefSeqs
+    this.recordFactory =
+      recordFactory ??
+      (((args: BamRecordConstructorArgs) =>
+        new BAMFeature(args)) as unknown as BamRecordFactory<T>)
 
     if (bamFilehandle) {
       this.bam = bamFilehandle
@@ -222,7 +257,7 @@ export default class BamFile {
     opts: BamOpts = {},
   ) {
     const { viewAsPairs } = opts
-    const feats = [] as BAMFeature[][]
+    const feats = [] as T[][]
     let done = false
 
     for (const chunk of chunks) {
@@ -240,7 +275,7 @@ export default class BamFile {
         max,
       )
 
-      const recs = [] as BAMFeature[]
+      const recs = [] as T[]
       for (const feature of records) {
         if (feature.ref_id === chrId) {
           if (feature.start >= max) {
@@ -265,7 +300,7 @@ export default class BamFile {
     }
   }
 
-  async fetchPairs(chrId: number, feats: BAMFeature[][], opts: BamOpts) {
+  async fetchPairs(chrId: number, feats: T[][], opts: BamOpts) {
     const { pairAcrossChr, maxInsertSize = 200000 } = opts
     const unmatedPairs: Record<string, boolean> = {}
     const readIds: Record<string, number> = {}
@@ -323,7 +358,7 @@ export default class BamFile {
           chunk: c,
           opts,
         })
-        const mateRecs = [] as BAMFeature[]
+        const mateRecs = [] as T[]
         for (const feature of await this.readBamFeatures(
           data,
           cpositions,
@@ -365,7 +400,7 @@ export default class BamFile {
     max?: number,
   ) {
     let blockStart = 0
-    const sink = [] as BAMFeature[]
+    const sink = [] as T[]
     let pos = 0
 
     const dataView = new DataView(ba.buffer)
@@ -400,7 +435,7 @@ export default class BamFile {
         }
 
         if (shouldCreate) {
-          const feature = new BAMFeature({
+          const feature = this.recordFactory({
             bytes: {
               byteArray: ba,
               start: blockStart,
