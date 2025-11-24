@@ -2,6 +2,9 @@ import Constants from './constants.ts'
 
 const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
 const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
+const NUMERIC_CIGAR_CODES = [
+  77, 73, 68, 78, 83, 72, 80, 61, 88, 63, 63, 63, 63, 63, 63, 63,
+]
 
 interface Bytes {
   start: number
@@ -302,7 +305,7 @@ export default class BamRecord {
     if (this.isSegmentUnmapped()) {
       return {
         length_on_ref: 0,
-        CIGAR: '',
+        NUMERIC_CIGAR: [] as number[],
       }
     }
 
@@ -313,33 +316,44 @@ export default class BamRecord {
     // that consumes entire seqLen
     let cigop = this._dataView.getInt32(p, true)
     let lop = cigop >> 4
-    let op = CIGAR_DECODER[cigop & 0xf]
-    if (op === 'S' && lop === this.seq_length) {
+    let opCode = NUMERIC_CIGAR_CODES[cigop & 0xf]!
+    if (opCode === 83 && lop === this.seq_length) {
       // if there is a CG the second CIGAR field will be a N tag the represents
       // the length on ref
       p += 4
       cigop = this._dataView.getInt32(p, true)
       lop = cigop >> 4
-      op = CIGAR_DECODER[cigop & 0xf]
-      if (op !== 'N') {
+      opCode = NUMERIC_CIGAR_CODES[cigop & 0xf]!
+      if (opCode !== 78) {
         console.warn('CG tag with no N tag')
       }
+      const cgString = this.tags.CG as string
+      const NUMERIC_CIGAR: number[] = []
+      let currentNum = 0
+      for (let i = 0; i < cgString.length; i++) {
+        const code = cgString.charCodeAt(i)
+        if (code >= 48 && code <= 57) {
+          currentNum = currentNum * 10 + (code - 48)
+        } else {
+          NUMERIC_CIGAR.push(currentNum, code)
+          currentNum = 0
+        }
+      }
       return {
-        CIGAR: this.tags.CG as string,
+        NUMERIC_CIGAR,
         length_on_ref: lop,
       }
     } else {
-      const CIGAR = new Array(numCigarOps)
+      const NUMERIC_CIGAR: number[] = []
       let lref = 0
-      let idx = 0
       for (let c = 0; c < numCigarOps; ++c) {
         cigop = this._dataView.getInt32(p, true)
         lop = cigop >> 4
-        op = CIGAR_DECODER[cigop & 0xf]!
-        CIGAR[idx++] = lop + op
+        opCode = NUMERIC_CIGAR_CODES[cigop & 0xf]!
+        NUMERIC_CIGAR.push(lop, opCode)
         // soft clip, hard clip, and insertion don't count toward the length on
         // the reference
-        if (op !== 'H' && op !== 'S' && op !== 'I') {
+        if (opCode !== 72 && opCode !== 83 && opCode !== 73) {
           lref += lop
         }
 
@@ -347,7 +361,7 @@ export default class BamRecord {
       }
 
       return {
-        CIGAR: CIGAR.join(''),
+        NUMERIC_CIGAR,
         length_on_ref: lref,
       }
     }
@@ -357,8 +371,17 @@ export default class BamRecord {
     return this.cigarAndLength.length_on_ref
   }
 
+  get NUMERIC_CIGAR() {
+    return this.cigarAndLength.NUMERIC_CIGAR
+  }
+
   get CIGAR() {
-    return this.cigarAndLength.CIGAR
+    const numeric = this.NUMERIC_CIGAR
+    let result = ''
+    for (let i = 0, l = numeric.length; i < l; i += 2) {
+      result += numeric[i] + String.fromCharCode(numeric[i + 1]!)
+    }
+    return result
   }
 
   get num_cigar_ops() {
