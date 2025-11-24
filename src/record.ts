@@ -357,21 +357,27 @@ export default class BamRecord {
     return (this.seq_length + 1) >> 1
   }
 
-  get seq() {
+  get NUMERIC_SEQ() {
     const p = this.b0 + this.read_name_length + this.num_cigar_ops * 4
+    const seqBytes = this.byteArray.slice(p, p + this.num_seq_bytes)
+    return new Uint8Array(seqBytes.buffer, seqBytes.byteOffset, this.num_seq_bytes)
+  }
+
+  get seq() {
+    const numeric = this.NUMERIC_SEQ
     const len = this.seq_length
     const buf = new Array(len)
     let i = 0
     const fullBytes = len >> 1
 
     for (let j = 0; j < fullBytes; ++j) {
-      const sb = this.byteArray[p + j]!
+      const sb = numeric[j]!
       buf[i++] = SEQRET_DECODER[(sb & 0xf0) >> 4]
       buf[i++] = SEQRET_DECODER[sb & 0x0f]
     }
 
     if (i < len) {
-      const sb = this.byteArray[p + fullBytes]!
+      const sb = numeric[fullBytes]!
       buf[i] = SEQRET_DECODER[(sb & 0xf0) >> 4]
     }
 
