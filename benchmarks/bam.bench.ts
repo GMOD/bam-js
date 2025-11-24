@@ -1,7 +1,11 @@
+import { readFileSync } from 'node:fs'
 import { bench, describe } from 'vitest'
 
-import { BamFile as BamFileMaster } from '../esm_master/index.js'
-import { BamFile as BamFileOptimized } from '../esm_thisbranch/index.js'
+import { BamFile as BamFileBranch1 } from '../esm_branch1/index.js'
+import { BamFile as BamFileBranch2 } from '../esm_branch2/index.js'
+
+const branch1Name = readFileSync('esm_branch1/branchname.txt', 'utf8').trim()
+const branch2Name = readFileSync('esm_branch2/branchname.txt', 'utf8').trim()
 
 function benchBam(
   name: string,
@@ -13,9 +17,9 @@ function benchBam(
 ) {
   describe(name, () => {
     bench(
-      'master',
+      branch1Name,
       async () => {
-        const bam = new BamFileMaster({ bamPath })
+        const bam = new BamFileBranch1({ bamPath })
         await bam.getHeader()
         await bam.getRecordsForRange(refSeq, start, end)
       },
@@ -23,9 +27,9 @@ function benchBam(
     )
 
     bench(
-      'optimized',
+      branch2Name,
       async () => {
-        const bam = new BamFileOptimized({ bamPath })
+        const bam = new BamFileBranch2({ bamPath })
         await bam.getHeader()
         await bam.getRecordsForRange(refSeq, start, end)
       },

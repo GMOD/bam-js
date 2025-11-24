@@ -167,15 +167,13 @@ export default class BamRecord {
           p += 4
           if (Btype === 'i') {
             if (tag === 'CG') {
-              const value = []
-              for (let k = 0; k < limit; k++) {
-                const cigop = this._dataView.getInt32(p, true)
-                const lop = cigop >> 4
-                const op = CIGAR_DECODER[cigop & 0xf]!
-                value.push(lop + op)
-                p += 4
-              }
-              tags[tag] = value.join('')
+              const cigarBytes = this.byteArray.slice(p, p + limit * 4)
+              tags[tag] = new Uint32Array(
+                cigarBytes.buffer,
+                cigarBytes.byteOffset,
+                limit,
+              )
+              p += limit * 4
             } else {
               const value = []
               for (let k = 0; k < limit; k++) {
@@ -186,15 +184,13 @@ export default class BamRecord {
             }
           } else if (Btype === 'I') {
             if (tag === 'CG') {
-              const value = []
-              for (let k = 0; k < limit; k++) {
-                const cigop = this._dataView.getUint32(p, true)
-                const lop = cigop >> 4
-                const op = CIGAR_DECODER[cigop & 0xf]!
-                value.push(lop + op)
-                p += 4
-              }
-              tags[tag] = value.join('')
+              const cigarBytes = this.byteArray.slice(p, p + limit * 4)
+              tags[tag] = new Uint32Array(
+                cigarBytes.buffer,
+                cigarBytes.byteOffset,
+                limit,
+              )
+              p += limit * 4
             } else {
               const value = []
               for (let k = 0; k < limit; k++) {
@@ -325,34 +321,22 @@ export default class BamRecord {
 
     // check for CG tag by inspecting whether the CIGAR field contains a clip
     // that consumes entire seqLen
-    let cigop = this._dataView.getInt32(p, true)
-    let lop = cigop >> 4
+    const cigop = this._dataView.getInt32(p, true)
+    const lop = cigop >> 4
     let opCode = NUMERIC_CIGAR_CODES[cigop & 0xf]!
     if (opCode === 83 && lop === this.seq_length) {
       // if there is a CG the second CIGAR field will be a N tag the represents
       // the length on ref
       p += 4
-      cigop = this._dataView.getInt32(p, true)
-      lop = cigop >> 4
+      const cigop = this._dataView.getInt32(p, true)
+      const lop = cigop >> 4
       opCode = NUMERIC_CIGAR_CODES[cigop & 0xf]!
       if (opCode !== 78) {
         console.warn('CG tag with no N tag')
       }
-      const cgString = this.tags.CG as string
-      const temp: number[] = []
-      let currentNum = 0
-      for (let i = 0; i < cgString.length; i++) {
-        const code = cgString.charCodeAt(i)
-        if (code >= 48 && code <= 57) {
-          currentNum = currentNum * 10 + (code - 48)
-        } else {
-          const opIndex = CIGAR_CODE_TO_INDEX[code]!
-          temp.push((currentNum << 4) | opIndex)
-          currentNum = 0
-        }
-      }
+      const cgArray = this.tags.CG as Uint32Array
       return {
-        NUMERIC_CIGAR: new Uint32Array(temp),
+        NUMERIC_CIGAR: cgArray,
         length_on_ref: lop,
       }
     } else {
@@ -364,15 +348,12 @@ export default class BamRecord {
       )
       let lref = 0
       for (let c = 0; c < numCigarOps; ++c) {
-        cigop = cigarView[c]!
-        lop = cigop >> 4
-        opCode = NUMERIC_CIGAR_CODES[cigop & 0xf]!
-        // NUMERIC_CIGAR[idx++] = lop
-        // NUMERIC_CIGAR[idx++] = opCode
+        const cigop = cigarView[c]!
+        const opCode = NUMERIC_CIGAR_CODES[cigop & 0xf]!
         // soft clip, hard clip, and insertion don't count toward the length on
         // the reference
         if (opCode !== 72 && opCode !== 83 && opCode !== 73) {
-          lref += lop
+          lref += cigop >> 4
         }
       }
 

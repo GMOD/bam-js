@@ -1,24 +1,28 @@
 #!/bin/bash
 
 set -e
-rm -rf esm_master esm_thisbranch
 
 CURRENT_BRANCH=$(git branch --show-current)
+BRANCH1="${1:-master}"
+BRANCH2="${2:-$CURRENT_BRANCH}"
 
-echo "Current branch: $CURRENT_BRANCH"
-echo "Building master branch..."
+rm -rf esm_branch1 esm_branch2
+
+echo "Building $BRANCH1 branch..."
 
 git stash
-git checkout master
+git checkout "$BRANCH1"
 yarn build
-mv esm esm_master
+mv esm esm_branch1
+echo "$BRANCH1" > esm_branch1/branchname.txt
 
-echo "Building $CURRENT_BRANCH branch..."
-git checkout "$CURRENT_BRANCH"
+echo "Building $BRANCH2 branch..."
+git checkout "$BRANCH2"
 yarn build
-mv esm esm_thisbranch
+mv esm esm_branch2
+echo "$BRANCH2" > esm_branch2/branchname.txt
 
 echo "Build complete!"
-echo "Master build: esm_master/index.js"
-echo "Current branch build: esm_thisbranch/index.js"
+echo "$BRANCH1 build: esm_branch1/index.js"
+echo "$BRANCH2 build: esm_branch2/index.js"
 git stash pop
