@@ -1,10 +1,10 @@
 ## [7.0.1](https://github.com/GMOD/bam-js/compare/v7.0.0...v7.0.1) (2025-11-24)
 
-
+- Added NUMERIC_SEQ to get the raw encoded seq array
 
 # [7.0.0](https://github.com/GMOD/bam-js/compare/v6.1.1...v7.0.0) (2025-11-24)
 
-
+- Introduced the idea of returning TypedArrays for different tag types
 
 ## [6.1.1](https://github.com/GMOD/bam-js/compare/v6.1.0...v6.1.1) (2025-10-02)
 
