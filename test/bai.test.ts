@@ -157,9 +157,12 @@ test('BamFile with B tags', async () => {
   const features = await b.getRecordsForRange('chr1', 980654, 981663)
   // ZC:B:i,364,359,1,0    ZD:B:f,0.01,0.02,0.03   ZE:B:c,0,1,2,3  ZK:B:s,45,46,47
   const ret = features[1].tags.ZD as number[]
-  expect(features[1].tags.ZC).toEqual([364, 359, 1, 0])
-  expect(features[1].tags.ZE).toEqual([0, 1, 2, 3])
-  expect(features[1].tags.ZK).toEqual([45, 46, 47])
+  // @ts-expect-error
+  expect([...features[1].tags.ZC]).toEqual([364, 359, 1, 0])
+  // @ts-expect-error
+  expect([...features[1].tags.ZE]).toEqual([0, 1, 2, 3])
+  // @ts-expect-error
+  expect([...features[1].tags.ZK]).toEqual([45, 46, 47])
   expect(ret[0]).toBeCloseTo(0.01)
   expect(ret[1]).toBeCloseTo(0.02)
   expect(ret[2]).toBeCloseTo(0.03)

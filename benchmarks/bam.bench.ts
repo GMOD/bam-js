@@ -1,7 +1,11 @@
+import { readFileSync } from 'node:fs'
 import { bench, describe } from 'vitest'
 
-import { BamFile as BamFileMaster } from '../esm_master/index.js'
-import { BamFile as BamFileOptimized } from '../esm_thisbranch/index.js'
+import { BamFile as BamFileBranch1 } from '../esm_branch1/index.js'
+import { BamFile as BamFileBranch2 } from '../esm_branch2/index.js'
+
+const branch1Name = readFileSync('esm_branch1/branchname.txt', 'utf8').trim()
+const branch2Name = readFileSync('esm_branch2/branchname.txt', 'utf8').trim()
 
 function benchBam(
   name: string,
@@ -9,13 +13,13 @@ function benchBam(
   refSeq: string,
   start: number,
   end: number,
-  opts?: { time?: number },
+  opts?: { iterations?: number; warmupIterations?: number },
 ) {
   describe(name, () => {
     bench(
-      'master',
+      branch1Name,
       async () => {
-        const bam = new BamFileMaster({ bamPath })
+        const bam = new BamFileBranch1({ bamPath })
         await bam.getHeader()
         await bam.getRecordsForRange(refSeq, start, end)
       },
@@ -23,9 +27,9 @@ function benchBam(
     )
 
     bench(
-      'optimized',
+      branch2Name,
       async () => {
-        const bam = new BamFileOptimized({ bamPath })
+        const bam = new BamFileBranch2({ bamPath })
         await bam.getHeader()
         await bam.getRecordsForRange(refSeq, start, end)
       },
@@ -34,16 +38,29 @@ function benchBam(
   })
 }
 
-benchBam('tiny.bam (711B)', 'test/data/tiny.bam', 'ctgA', 0, 1000)
-benchBam('samspec.bam (375B)', 'test/data/samspec.bam', 'ref', 0, 10000)
-benchBam('paired.bam (82KB)', 'test/data/paired.bam', 'ctgA', 0, 100000)
-benchBam('cho.bam (293KB)', 'test/data/cho.bam', 'chr10', 0, 1000000)
+benchBam('tiny.bam (711B)', 'test/data/tiny.bam', 'ctgA', 0, 1000, {
+  iterations: 5000,
+  warmupIterations: 500,
+})
+benchBam('samspec.bam (375B)', 'test/data/samspec.bam', 'ref', 0, 10000, {
+  iterations: 5000,
+  warmupIterations: 500,
+})
+benchBam('paired.bam (82KB)', 'test/data/paired.bam', 'ctgA', 0, 100000, {
+  iterations: 2000,
+  warmupIterations: 200,
+})
+benchBam('cho.bam (293KB)', 'test/data/cho.bam', 'chr10', 0, 1000000, {
+  iterations: 1000,
+  warmupIterations: 100,
+})
 benchBam(
   'volvox-sorted.bam (386KB)',
   'test/data/volvox-sorted.bam',
   'ctgA',
   0,
   100000,
+  { iterations: 1000, warmupIterations: 100 },
 )
 benchBam(
   'ecoli_nanopore.bam (1.1MB)',
@@ -51,6 +68,7 @@ benchBam(
   'ref000001',
   0,
   5000000,
+  { iterations: 500, warmupIterations: 25 },
 )
 benchBam(
   'another_chm1_id_difference.bam (1.4MB)',
@@ -58,6 +76,7 @@ benchBam(
   'chr20',
   0,
   100000000,
+  { iterations: 500, warmupIterations: 25 },
 )
 benchBam(
   'shortreads_300x.bam (4.9MB)',
@@ -65,6 +84,7 @@ benchBam(
   'ctgA',
   0,
   100000,
+  { iterations: 500, warmupIterations: 25 },
 )
 benchBam(
   'chr22_nanopore_subset.bam (13MB)',
@@ -72,6 +92,7 @@ benchBam(
   'chr22',
   0,
   100000000,
+  { iterations: 200, warmupIterations: 10 },
 )
 benchBam(
   'ultralong',
@@ -79,5 +100,5 @@ benchBam(
   '9',
   0,
   226_105_551,
-  { time: 10000 },
+  { iterations: 100, warmupIterations: 5 },
 )

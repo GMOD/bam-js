@@ -1,7 +1,19 @@
 import Constants from './constants.ts'
 
 const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
-const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
+const ASCII_CIGAR_CODES = [
+  77, 73, 68, 78, 83, 72, 80, 61, 88, 63, 63, 63, 63, 63, 63, 63,
+]
+
+// const CIGAR_MATCH = 0
+const CIGAR_INS = 1
+// const CIGAR_DEL = 2
+const CIGAR_REF_SKIP = 3
+const CIGAR_SOFT_CLIP = 4
+const CIGAR_HARD_CLIP = 5
+// const CIGAR_PAD = 6
+// const CIGAR_EQUAL = 7
+// const CIGAR_DIFF = 8
 
 interface Bytes {
   start: number
@@ -152,78 +164,33 @@ export default class BamRecord {
           const limit = this._dataView.getInt32(p, true)
           p += 4
           if (Btype === 'i') {
-            if (tag === 'CG') {
-              const value = []
-              for (let k = 0; k < limit; k++) {
-                const cigop = this._dataView.getInt32(p, true)
-                const lop = cigop >> 4
-                const op = CIGAR_DECODER[cigop & 0xf]!
-                value.push(lop + op)
-                p += 4
-              }
-              tags[tag] = value.join('')
-            } else {
-              const value = []
-              for (let k = 0; k < limit; k++) {
-                value.push(this._dataView.getInt32(p, true))
-                p += 4
-              }
-              tags[tag] = value
-            }
+            const bytes = this.byteArray.slice(p, p + limit * 4)
+            tags[tag] = new Int32Array(bytes.buffer, bytes.byteOffset, limit)
+            p += limit * 4
           } else if (Btype === 'I') {
-            if (tag === 'CG') {
-              const value = []
-              for (let k = 0; k < limit; k++) {
-                const cigop = this._dataView.getUint32(p, true)
-                const lop = cigop >> 4
-                const op = CIGAR_DECODER[cigop & 0xf]!
-                value.push(lop + op)
-                p += 4
-              }
-              tags[tag] = value.join('')
-            } else {
-              const value = []
-              for (let k = 0; k < limit; k++) {
-                value.push(this._dataView.getUint32(p, true))
-                p += 4
-              }
-              tags[tag] = value
-            }
+            const bytes = this.byteArray.slice(p, p + limit * 4)
+            tags[tag] = new Uint32Array(bytes.buffer, bytes.byteOffset, limit)
+            p += limit * 4
           } else if (Btype === 's') {
-            const value = []
-            for (let k = 0; k < limit; k++) {
-              value.push(this._dataView.getInt16(p, true))
-              p += 2
-            }
-            tags[tag] = value
+            const bytes = this.byteArray.slice(p, p + limit * 2)
+            tags[tag] = new Int16Array(bytes.buffer, bytes.byteOffset, limit)
+            p += limit * 2
           } else if (Btype === 'S') {
-            const value = []
-            for (let k = 0; k < limit; k++) {
-              value.push(this._dataView.getUint16(p, true))
-              p += 2
-            }
-            tags[tag] = value
+            const bytes = this.byteArray.slice(p, p + limit * 2)
+            tags[tag] = new Uint16Array(bytes.buffer, bytes.byteOffset, limit)
+            p += limit * 2
           } else if (Btype === 'c') {
-            const value = []
-            for (let k = 0; k < limit; k++) {
-              value.push(this._dataView.getInt8(p))
-              p += 1
-            }
-            tags[tag] = value
+            const bytes = this.byteArray.slice(p, p + limit)
+            tags[tag] = new Int8Array(bytes.buffer, bytes.byteOffset, limit)
+            p += limit
           } else if (Btype === 'C') {
-            const value = []
-            for (let k = 0; k < limit; k++) {
-              value.push(this._dataView.getUint8(p))
-              p += 1
-            }
-            tags[tag] = value
+            const bytes = this.byteArray.slice(p, p + limit)
+            tags[tag] = new Uint8Array(bytes.buffer, bytes.byteOffset, limit)
+            p += limit
           } else if (Btype === 'f') {
-            const value = []
-            for (let k = 0; k < limit; k++) {
-              value.push(this._dataView.getFloat32(p, true))
-              p += 4
-            }
-            tags[tag] = value
+            const bytes = this.byteArray.slice(p, p + limit * 4)
+            tags[tag] = new Float32Array(bytes.buffer, bytes.byteOffset, limit)
+            p += limit * 4
           }
           break
         }
@@ -302,7 +269,7 @@ export default class BamRecord {
     if (this.isSegmentUnmapped()) {
       return {
         length_on_ref: 0,
-        CIGAR: '',
+        NUMERIC_CIGAR: new Uint32Array(0),
       }
     }
 
@@ -311,43 +278,48 @@ export default class BamRecord {
 
     // check for CG tag by inspecting whether the CIGAR field contains a clip
     // that consumes entire seqLen
-    let cigop = this._dataView.getInt32(p, true)
-    let lop = cigop >> 4
-    let op = CIGAR_DECODER[cigop & 0xf]
-    if (op === 'S' && lop === this.seq_length) {
+    const cigop = this._dataView.getInt32(p, true)
+    const lop = cigop >> 4
+    const op = cigop & 0xf
+    if (op === CIGAR_SOFT_CLIP && lop === this.seq_length) {
       // if there is a CG the second CIGAR field will be a N tag the represents
       // the length on ref
       p += 4
-      cigop = this._dataView.getInt32(p, true)
-      lop = cigop >> 4
-      op = CIGAR_DECODER[cigop & 0xf]
-      if (op !== 'N') {
+      const cigop = this._dataView.getInt32(p, true)
+      const lop = cigop >> 4
+      const op = cigop & 0xf
+      if (op !== CIGAR_REF_SKIP) {
         console.warn('CG tag with no N tag')
       }
+      const cgArray = this.tags.CG as Uint32Array
       return {
-        CIGAR: this.tags.CG as string,
+        NUMERIC_CIGAR: cgArray,
         length_on_ref: lop,
       }
     } else {
-      const CIGAR = new Array(numCigarOps)
+      const cigarBytes = this.byteArray.slice(p, p + numCigarOps * 4)
+      const cigarView = new Uint32Array(
+        cigarBytes.buffer,
+        cigarBytes.byteOffset,
+        numCigarOps,
+      )
       let lref = 0
-      let idx = 0
       for (let c = 0; c < numCigarOps; ++c) {
-        cigop = this._dataView.getInt32(p, true)
-        lop = cigop >> 4
-        op = CIGAR_DECODER[cigop & 0xf]!
-        CIGAR[idx++] = lop + op
+        const cigop = cigarView[c]!
+        const op = cigop & 0xf
         // soft clip, hard clip, and insertion don't count toward the length on
         // the reference
-        if (op !== 'H' && op !== 'S' && op !== 'I') {
-          lref += lop
+        if (
+          op !== CIGAR_HARD_CLIP &&
+          op !== CIGAR_SOFT_CLIP &&
+          op !== CIGAR_INS
+        ) {
+          lref += cigop >> 4
         }
-
-        p += 4
       }
 
       return {
-        CIGAR: CIGAR.join(''),
+        NUMERIC_CIGAR: cigarView,
         length_on_ref: lref,
       }
     }
@@ -357,8 +329,20 @@ export default class BamRecord {
     return this.cigarAndLength.length_on_ref
   }
 
+  get NUMERIC_CIGAR() {
+    return this.cigarAndLength.NUMERIC_CIGAR
+  }
+
   get CIGAR() {
-    return this.cigarAndLength.CIGAR
+    const numeric = this.NUMERIC_CIGAR
+    let result = ''
+    for (let i = 0, l = numeric.length; i < l; i++) {
+      const packed = numeric[i]!
+      const length = packed >> 4
+      const opCode = ASCII_CIGAR_CODES[packed & 0xf]!
+      result += length + String.fromCharCode(opCode)
+    }
+    return result
   }
 
   get num_cigar_ops() {
