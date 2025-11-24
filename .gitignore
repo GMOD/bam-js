@@ -8,3 +8,4 @@ dist
 .eslintcache
 esm
 *.cpuprofile
+esm_*/

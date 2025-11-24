@@ -30,6 +30,8 @@
   "scripts": {
     "test": "vitest",
     "bench": "vitest bench",
+    "benchonly": "vitest bench",
+    "prebench": "./scripts/build-both-branches.sh",
     "lint": "eslint --report-unused-disable-directives --max-warnings 0",
     "clean": "rimraf dist esm",
     "format": "prettier --write .",
@@ -49,7 +51,6 @@
     "genomics"
   ],
   "dependencies": {
-    "@gmod/abortable-promise-cache": "^3.0.1",
     "@gmod/bgzf-filehandle": "^4.2.1",
     "crc": "^4.3.2",
     "generic-filehandle2": "^2.0.1",

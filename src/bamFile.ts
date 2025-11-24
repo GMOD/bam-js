@@ -96,20 +96,19 @@ export default class BamFile {
   async getHeaderPre(origOpts?: BaseOpts) {
     const opts = makeOpts(origOpts)
     if (!this.index) {
-      return
+      return undefined
     }
     const indexData = await this.index.parse(opts)
-    const ret = indexData.firstDataLine
-      ? indexData.firstDataLine.blockPosition + 65535
-      : undefined
-    let buffer
-    if (ret) {
-      const s = ret + blockLen
-      buffer = await this.bam.read(s, 0)
-    } else {
-      buffer = await this.bam.readFile(opts)
-    }
 
+    // firstDataLine is not defined in cases where there is no data in the file
+    // (just bam header and nothing else)
+    const buffer =
+      indexData.firstDataLine === undefined
+        ? await this.bam.readFile()
+        : await this.bam.read(
+            indexData.firstDataLine.blockPosition + blockLen,
+            0,
+          )
     const uncba = await unzip(buffer)
     const dataView = new DataView(uncba.buffer)
 
@@ -117,14 +116,10 @@ export default class BamFile {
       throw new Error('Not a BAM file')
     }
     const headLen = dataView.getInt32(4, true)
-
     const decoder = new TextDecoder('utf8')
     this.header = decoder.decode(uncba.subarray(8, 8 + headLen))
-    const { chrToIndex, indexToChr } = await this._readRefSeqs(
-      headLen + 8,
-      65535,
-      opts,
-    )
+
+    const { chrToIndex, indexToChr } = this._parseRefSeqs(uncba, headLen + 8)
     this.chrToIndex = chrToIndex
     this.indexToChr = indexToChr
 
@@ -146,29 +141,28 @@ export default class BamFile {
     return this.header
   }
 
-  // the full length of the refseq block is not given in advance so this grabs
-  // a chunk and doubles it if all refseqs haven't been processed
-  async _readRefSeqs(
+  _parseRefSeqs(
+    uncba: Uint8Array,
     start: number,
-    refSeqBytes: number,
-    opts?: BaseOpts,
-  ): Promise<{
+  ): {
     chrToIndex: Record<string, number>
     indexToChr: { refName: string; length: number }[]
-  }> {
-    if (start > refSeqBytes) {
-      return this._readRefSeqs(start, refSeqBytes * 2, opts)
-    }
-    // const size = refSeqBytes + blockLen <-- use this?
-    const buffer = await this.bam.read(refSeqBytes, 0, opts)
-    const uncba = await unzip(buffer)
+  } {
     const dataView = new DataView(uncba.buffer)
     const nRef = dataView.getInt32(start, true)
     let p = start + 4
+
     const chrToIndex: Record<string, number> = {}
     const indexToChr: { refName: string; length: number }[] = []
     const decoder = new TextDecoder('utf8')
+
     for (let i = 0; i < nRef; i += 1) {
+      if (p + 8 > uncba.length) {
+        throw new Error(
+          `Insufficient data for reference sequences: need more than ${uncba.length} bytes`,
+        )
+      }
+
       const lName = dataView.getInt32(p, true)
       const refName = this.renameRefSeq(
         decoder.decode(uncba.subarray(p + 4, p + 4 + lName - 1)),
@@ -179,13 +173,8 @@ export default class BamFile {
       indexToChr.push({ refName, length: lRef })
 
       p = p + 8 + lName
-      if (p > uncba.length) {
-        console.warn(
-          `BAM header is very big.  Re-fetching ${refSeqBytes} bytes.`,
-        )
-        return this._readRefSeqs(start, refSeqBytes * 2, opts)
-      }
     }
+
     return { chrToIndex, indexToChr }
   }
 
@@ -207,11 +196,10 @@ export default class BamFile {
     await this.getHeader(opts)
     const chrId = this.chrToIndex?.[chr]
     if (chrId === undefined || !this.index) {
-      yield []
-    } else {
-      const chunks = await this.index.blocksForRange(chrId, min - 1, max, opts)
-      yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
+      return
     }
+    const chunks = await this.index.blocksForRange(chrId, min - 1, max, opts)
+    yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
   async *_fetchChunkFeatures(
@@ -378,72 +366,52 @@ export default class BamFile {
       const blockSize = dataView.getInt32(blockStart, true)
       const blockEnd = blockStart + 4 + blockSize - 1
 
-      // increment position to the current decompressed status
       if (hasDpositions) {
         while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]!) {}
         pos--
       }
 
-      // only try to read the feature if we have all the bytes for it
       if (blockEnd < ba.length) {
-        // Pre-filter: check ref_id and start position before creating the feature
-        // ref_id is at offset 4, start is at offset 8 from blockStart
-        let shouldCreate = true
-        if (hasFilter && blockStart + 12 < ba.length) {
-          const ref_id = dataView.getInt32(blockStart + 4, true)
-          const start = dataView.getInt32(blockStart + 8, true)
-
-          // Skip if different chromosome or clearly out of range
-          if (ref_id !== chrId || start >= max) {
-            shouldCreate = false
-          }
+        if (
+          hasFilter &&
+          blockStart + 12 < ba.length &&
+          !this._shouldIncludeFeature(dataView, blockStart, chrId, max)
+        ) {
+          blockStart = blockEnd + 1
+          continue
         }
 
-        if (shouldCreate) {
-          const feature = new BAMFeature({
-            bytes: {
-              byteArray: ba,
-              start: blockStart,
-              end: blockEnd,
-            },
-            // the below results in an automatically calculated file-offset based
-            // ID if the info for that is available, otherwise crc32 of the
-            // features
-            //
-            // cpositions[pos] refers to actual file offset of a bgzip block
-            // boundaries
-            //
-            // we multiply by (1 <<8) in order to make sure each block has a
-            // "unique" address space so that data in that block could never
-            // overlap
-            //
-            // then the blockStart-dpositions is an uncompressed file offset from
-            // that bgzip block boundary, and since the cpositions are multiplied
-            // by (1 << 8) these uncompressed offsets get a unique space
-            //
-            // this has an extra chunk.minv.dataPosition added on because it
-            // blockStart starts at 0 instead of chunk.minv.dataPosition
-            //
-            // the +1 is just to avoid any possible uniqueId 0 but this does not
-            // realistically happen
-            fileOffset: hasCpositions
-              ? cpositions[pos]! * (1 << 8) +
-                (blockStart - dpositions[pos]!) +
-                chunk.minv.dataPosition +
-                1
-              : // this shift >>> 0 is equivalent to crc32(b).unsigned but uses the
-                // internal calculator of crc32 to avoid accidentally importing buffer
-                // https://github.com/alexgorbatchev/crc/blob/31fc3853e417b5fb5ec83335428805842575f699/src/define_crc.ts#L5
-                crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
-          })
+        const feature = new BAMFeature({
+          bytes: {
+            byteArray: ba,
+            start: blockStart,
+            end: blockEnd,
+          },
+          fileOffset: hasCpositions
+            ? cpositions[pos]! * (1 << 8) +
+              (blockStart - dpositions[pos]!) +
+              chunk.minv.dataPosition +
+              1
+            : crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
+        })
 
-          sink.push(feature)
-        }
+        sink.push(feature)
       }
 
       blockStart = blockEnd + 1
     }
     return sink
+  }
+
+  _shouldIncludeFeature(
+    dataView: DataView,
+    blockStart: number,
+    chrId: number,
+    max: number,
+  ) {
+    const ref_id = dataView.getInt32(blockStart + 4, true)
+    const start = dataView.getInt32(blockStart + 8, true)
+    return ref_id === chrId && start < max
   }
 
   async hasRefSeq(seqName: string) {
