@@ -163,33 +163,76 @@ export default class BamRecord {
           const Btype = String.fromCharCode(cc)
           const limit = this._dataView.getInt32(p, true)
           p += 4
+          const absOffset = this.byteArray.byteOffset + p
           if (Btype === 'i') {
-            const bytes = this.byteArray.slice(p, p + limit * 4)
-            tags[tag] = new Int32Array(bytes.buffer, bytes.byteOffset, limit)
+            if (absOffset % 4 === 0) {
+              tags[tag] = new Int32Array(
+                this.byteArray.buffer,
+                absOffset,
+                limit,
+              )
+            } else {
+              const bytes = this.byteArray.slice(p, p + limit * 4)
+              tags[tag] = new Int32Array(bytes.buffer, bytes.byteOffset, limit)
+            }
             p += limit * 4
           } else if (Btype === 'I') {
-            const bytes = this.byteArray.slice(p, p + limit * 4)
-            tags[tag] = new Uint32Array(bytes.buffer, bytes.byteOffset, limit)
+            if (absOffset % 4 === 0) {
+              tags[tag] = new Uint32Array(
+                this.byteArray.buffer,
+                absOffset,
+                limit,
+              )
+            } else {
+              const bytes = this.byteArray.slice(p, p + limit * 4)
+              tags[tag] = new Uint32Array(bytes.buffer, bytes.byteOffset, limit)
+            }
             p += limit * 4
           } else if (Btype === 's') {
-            const bytes = this.byteArray.slice(p, p + limit * 2)
-            tags[tag] = new Int16Array(bytes.buffer, bytes.byteOffset, limit)
+            if (absOffset % 2 === 0) {
+              tags[tag] = new Int16Array(
+                this.byteArray.buffer,
+                absOffset,
+                limit,
+              )
+            } else {
+              const bytes = this.byteArray.slice(p, p + limit * 2)
+              tags[tag] = new Int16Array(bytes.buffer, bytes.byteOffset, limit)
+            }
             p += limit * 2
           } else if (Btype === 'S') {
-            const bytes = this.byteArray.slice(p, p + limit * 2)
-            tags[tag] = new Uint16Array(bytes.buffer, bytes.byteOffset, limit)
+            if (absOffset % 2 === 0) {
+              tags[tag] = new Uint16Array(
+                this.byteArray.buffer,
+                absOffset,
+                limit,
+              )
+            } else {
+              const bytes = this.byteArray.slice(p, p + limit * 2)
+              tags[tag] = new Uint16Array(bytes.buffer, bytes.byteOffset, limit)
+            }
             p += limit * 2
           } else if (Btype === 'c') {
-            const bytes = this.byteArray.slice(p, p + limit)
-            tags[tag] = new Int8Array(bytes.buffer, bytes.byteOffset, limit)
+            tags[tag] = new Int8Array(this.byteArray.buffer, absOffset, limit)
             p += limit
           } else if (Btype === 'C') {
-            const bytes = this.byteArray.slice(p, p + limit)
-            tags[tag] = new Uint8Array(bytes.buffer, bytes.byteOffset, limit)
+            tags[tag] = new Uint8Array(this.byteArray.buffer, absOffset, limit)
             p += limit
           } else if (Btype === 'f') {
-            const bytes = this.byteArray.slice(p, p + limit * 4)
-            tags[tag] = new Float32Array(bytes.buffer, bytes.byteOffset, limit)
+            if (absOffset % 4 === 0) {
+              tags[tag] = new Float32Array(
+                this.byteArray.buffer,
+                absOffset,
+                limit,
+              )
+            } else {
+              const bytes = this.byteArray.slice(p, p + limit * 4)
+              tags[tag] = new Float32Array(
+                bytes.buffer,
+                bytes.byteOffset,
+                limit,
+              )
+            }
             p += limit * 4
           }
           break
@@ -297,12 +340,15 @@ export default class BamRecord {
         length_on_ref: lop,
       }
     } else {
-      const cigarBytes = this.byteArray.slice(p, p + numCigarOps * 4)
-      const cigarView = new Uint32Array(
-        cigarBytes.buffer,
-        cigarBytes.byteOffset,
-        numCigarOps,
-      )
+      const absOffset = this.byteArray.byteOffset + p
+      const cigarView =
+        absOffset % 4 === 0
+          ? new Uint32Array(this.byteArray.buffer, absOffset, numCigarOps)
+          : new Uint32Array(
+              this.byteArray.slice(p, p + numCigarOps * 4).buffer,
+              0,
+              numCigarOps,
+            )
       let lref = 0
       for (let c = 0; c < numCigarOps; ++c) {
         const cigop = cigarView[c]!
@@ -359,8 +405,12 @@ export default class BamRecord {
 
   get NUMERIC_SEQ() {
     const p = this.b0 + this.read_name_length + this.num_cigar_ops * 4
-    const seqBytes = this.byteArray.slice(p, p + this.num_seq_bytes)
-    return new Uint8Array(seqBytes.buffer, seqBytes.byteOffset, this.num_seq_bytes)
+    const seqBytes = this.byteArray.subarray(p, p + this.num_seq_bytes)
+    return new Uint8Array(
+      seqBytes.buffer,
+      seqBytes.byteOffset,
+      this.num_seq_bytes,
+    )
   }
 
   get seq() {
