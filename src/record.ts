@@ -5,6 +5,17 @@ const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
 const NUMERIC_CIGAR_CODES = [
   77, 73, 68, 78, 83, 72, 80, 61, 88, 63, 63, 63, 63, 63, 63, 63,
 ]
+const CIGAR_CODE_TO_INDEX: Record<number, number> = {
+  77: 0, // M
+  73: 1, // I
+  68: 2, // D
+  78: 3, // N
+  83: 4, // S
+  72: 5, // H
+  80: 6, // P
+  61: 7, // =
+  88: 8, // X
+}
 
 interface Bytes {
   start: number
@@ -305,7 +316,7 @@ export default class BamRecord {
     if (this.isSegmentUnmapped()) {
       return {
         length_on_ref: 0,
-        NUMERIC_CIGAR: [] as number[],
+        NUMERIC_CIGAR: new Uint32Array(0),
       }
     }
 
@@ -328,40 +339,45 @@ export default class BamRecord {
         console.warn('CG tag with no N tag')
       }
       const cgString = this.tags.CG as string
-      const NUMERIC_CIGAR: number[] = []
+      const temp: number[] = []
       let currentNum = 0
       for (let i = 0; i < cgString.length; i++) {
         const code = cgString.charCodeAt(i)
         if (code >= 48 && code <= 57) {
           currentNum = currentNum * 10 + (code - 48)
         } else {
-          NUMERIC_CIGAR.push(currentNum, code)
+          const opIndex = CIGAR_CODE_TO_INDEX[code]!
+          temp.push((currentNum << 4) | opIndex)
           currentNum = 0
         }
       }
       return {
-        NUMERIC_CIGAR,
+        NUMERIC_CIGAR: new Uint32Array(temp),
         length_on_ref: lop,
       }
     } else {
-      const NUMERIC_CIGAR: number[] = []
+      const cigarBytes = this.byteArray.slice(p, p + numCigarOps * 4)
+      const cigarView = new Uint32Array(
+        cigarBytes.buffer,
+        cigarBytes.byteOffset,
+        numCigarOps,
+      )
       let lref = 0
       for (let c = 0; c < numCigarOps; ++c) {
-        cigop = this._dataView.getInt32(p, true)
+        cigop = cigarView[c]!
         lop = cigop >> 4
         opCode = NUMERIC_CIGAR_CODES[cigop & 0xf]!
-        NUMERIC_CIGAR.push(lop, opCode)
+        // NUMERIC_CIGAR[idx++] = lop
+        // NUMERIC_CIGAR[idx++] = opCode
         // soft clip, hard clip, and insertion don't count toward the length on
         // the reference
         if (opCode !== 72 && opCode !== 83 && opCode !== 73) {
           lref += lop
         }
-
-        p += 4
       }
 
       return {
-        NUMERIC_CIGAR,
+        NUMERIC_CIGAR: cigarView,
         length_on_ref: lref,
       }
     }
@@ -378,8 +394,11 @@ export default class BamRecord {
   get CIGAR() {
     const numeric = this.NUMERIC_CIGAR
     let result = ''
-    for (let i = 0, l = numeric.length; i < l; i += 2) {
-      result += numeric[i] + String.fromCharCode(numeric[i + 1]!)
+    for (let i = 0, l = numeric.length; i < l; i++) {
+      const packed = numeric[i]!
+      const length = packed >> 4
+      const opCode = NUMERIC_CIGAR_CODES[packed & 0xf]!
+      result += length + String.fromCharCode(opCode)
     }
     return result
   }
