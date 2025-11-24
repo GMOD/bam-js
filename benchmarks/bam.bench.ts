@@ -34,16 +34,25 @@ function benchBam(
   })
 }
 
-benchBam('tiny.bam (711B)', 'test/data/tiny.bam', 'ctgA', 0, 1000)
-benchBam('samspec.bam (375B)', 'test/data/samspec.bam', 'ref', 0, 10000)
-benchBam('paired.bam (82KB)', 'test/data/paired.bam', 'ctgA', 0, 100000)
-benchBam('cho.bam (293KB)', 'test/data/cho.bam', 'chr10', 0, 1000000)
+benchBam('tiny.bam (711B)', 'test/data/tiny.bam', 'ctgA', 0, 1000, {
+  time: 8000,
+})
+benchBam('samspec.bam (375B)', 'test/data/samspec.bam', 'ref', 0, 10000, {
+  time: 8000,
+})
+benchBam('paired.bam (82KB)', 'test/data/paired.bam', 'ctgA', 0, 100000, {
+  time: 8000,
+})
+benchBam('cho.bam (293KB)', 'test/data/cho.bam', 'chr10', 0, 1000000, {
+  time: 8000,
+})
 benchBam(
   'volvox-sorted.bam (386KB)',
   'test/data/volvox-sorted.bam',
   'ctgA',
   0,
   100000,
+  { time: 8000 },
 )
 benchBam(
   'ecoli_nanopore.bam (1.1MB)',
@@ -51,6 +60,7 @@ benchBam(
   'ref000001',
   0,
   5000000,
+  { time: 8000 },
 )
 benchBam(
   'another_chm1_id_difference.bam (1.4MB)',
@@ -58,6 +68,7 @@ benchBam(
   'chr20',
   0,
   100000000,
+  { time: 8000 },
 )
 benchBam(
   'shortreads_300x.bam (4.9MB)',
@@ -65,6 +76,7 @@ benchBam(
   'ctgA',
   0,
   100000,
+  { time: 8000 },
 )
 benchBam(
   'chr22_nanopore_subset.bam (13MB)',
@@ -72,6 +84,7 @@ benchBam(
   'chr22',
   0,
   100000000,
+  { time: 8000 },
 )
 benchBam(
   'ultralong',
@@ -79,5 +92,5 @@ benchBam(
   '9',
   0,
   226_105_551,
-  { time: 10000 },
+  { time: 8000 },
 )
