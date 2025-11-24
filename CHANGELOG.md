@@ -1,3 +1,7 @@
+## [7.0.2](https://github.com/GMOD/bam-js/compare/v7.0.1...v7.0.2) (2025-11-24)
+
+
+
 ## [7.0.1](https://github.com/GMOD/bam-js/compare/v7.0.0...v7.0.1) (2025-11-24)
 
 - Added NUMERIC_SEQ to get the raw encoded seq array
