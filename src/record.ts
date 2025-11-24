@@ -1,21 +1,19 @@
 import Constants from './constants.ts'
 
 const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
-const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
-const NUMERIC_CIGAR_CODES = [
+const ASCII_CIGAR_CODES = [
   77, 73, 68, 78, 83, 72, 80, 61, 88, 63, 63, 63, 63, 63, 63, 63,
 ]
-const CIGAR_CODE_TO_INDEX: Record<number, number> = {
-  77: 0, // M
-  73: 1, // I
-  68: 2, // D
-  78: 3, // N
-  83: 4, // S
-  72: 5, // H
-  80: 6, // P
-  61: 7, // =
-  88: 8, // X
-}
+
+// const CIGAR_MATCH = 0
+const CIGAR_INS = 1
+// const CIGAR_DEL = 2
+const CIGAR_REF_SKIP = 3
+const CIGAR_SOFT_CLIP = 4
+const CIGAR_HARD_CLIP = 5
+// const CIGAR_PAD = 6
+// const CIGAR_EQUAL = 7
+// const CIGAR_DIFF = 8
 
 interface Bytes {
   start: number
@@ -167,59 +165,31 @@ export default class BamRecord {
           p += 4
           if (Btype === 'i') {
             const bytes = this.byteArray.slice(p, p + limit * 4)
-            tags[tag] = new Int32Array(
-              bytes.buffer,
-              bytes.byteOffset,
-              limit,
-            )
+            tags[tag] = new Int32Array(bytes.buffer, bytes.byteOffset, limit)
             p += limit * 4
           } else if (Btype === 'I') {
             const bytes = this.byteArray.slice(p, p + limit * 4)
-            tags[tag] = new Uint32Array(
-              bytes.buffer,
-              bytes.byteOffset,
-              limit,
-            )
+            tags[tag] = new Uint32Array(bytes.buffer, bytes.byteOffset, limit)
             p += limit * 4
           } else if (Btype === 's') {
             const bytes = this.byteArray.slice(p, p + limit * 2)
-            tags[tag] = new Int16Array(
-              bytes.buffer,
-              bytes.byteOffset,
-              limit,
-            )
+            tags[tag] = new Int16Array(bytes.buffer, bytes.byteOffset, limit)
             p += limit * 2
           } else if (Btype === 'S') {
             const bytes = this.byteArray.slice(p, p + limit * 2)
-            tags[tag] = new Uint16Array(
-              bytes.buffer,
-              bytes.byteOffset,
-              limit,
-            )
+            tags[tag] = new Uint16Array(bytes.buffer, bytes.byteOffset, limit)
             p += limit * 2
           } else if (Btype === 'c') {
             const bytes = this.byteArray.slice(p, p + limit)
-            tags[tag] = new Int8Array(
-              bytes.buffer,
-              bytes.byteOffset,
-              limit,
-            )
+            tags[tag] = new Int8Array(bytes.buffer, bytes.byteOffset, limit)
             p += limit
           } else if (Btype === 'C') {
             const bytes = this.byteArray.slice(p, p + limit)
-            tags[tag] = new Uint8Array(
-              bytes.buffer,
-              bytes.byteOffset,
-              limit,
-            )
+            tags[tag] = new Uint8Array(bytes.buffer, bytes.byteOffset, limit)
             p += limit
           } else if (Btype === 'f') {
             const bytes = this.byteArray.slice(p, p + limit * 4)
-            tags[tag] = new Float32Array(
-              bytes.buffer,
-              bytes.byteOffset,
-              limit,
-            )
+            tags[tag] = new Float32Array(bytes.buffer, bytes.byteOffset, limit)
             p += limit * 4
           }
           break
@@ -310,15 +280,15 @@ export default class BamRecord {
     // that consumes entire seqLen
     const cigop = this._dataView.getInt32(p, true)
     const lop = cigop >> 4
-    let opCode = NUMERIC_CIGAR_CODES[cigop & 0xf]!
-    if (opCode === 83 && lop === this.seq_length) {
+    const op = cigop & 0xf
+    if (op === CIGAR_SOFT_CLIP && lop === this.seq_length) {
       // if there is a CG the second CIGAR field will be a N tag the represents
       // the length on ref
       p += 4
       const cigop = this._dataView.getInt32(p, true)
       const lop = cigop >> 4
-      opCode = NUMERIC_CIGAR_CODES[cigop & 0xf]!
-      if (opCode !== 78) {
+      const op = cigop & 0xf
+      if (op !== CIGAR_REF_SKIP) {
         console.warn('CG tag with no N tag')
       }
       const cgArray = this.tags.CG as Uint32Array
@@ -336,10 +306,14 @@ export default class BamRecord {
       let lref = 0
       for (let c = 0; c < numCigarOps; ++c) {
         const cigop = cigarView[c]!
-        const opCode = NUMERIC_CIGAR_CODES[cigop & 0xf]!
+        const op = cigop & 0xf
         // soft clip, hard clip, and insertion don't count toward the length on
         // the reference
-        if (opCode !== 72 && opCode !== 83 && opCode !== 73) {
+        if (
+          op !== CIGAR_HARD_CLIP &&
+          op !== CIGAR_SOFT_CLIP &&
+          op !== CIGAR_INS
+        ) {
           lref += cigop >> 4
         }
       }
@@ -365,7 +339,7 @@ export default class BamRecord {
     for (let i = 0, l = numeric.length; i < l; i++) {
       const packed = numeric[i]!
       const length = packed >> 4
-      const opCode = NUMERIC_CIGAR_CODES[packed & 0xf]!
+      const opCode = ASCII_CIGAR_CODES[packed & 0xf]!
       result += length + String.fromCharCode(opCode)
     }
     return result
