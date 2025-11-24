@@ -10,7 +10,13 @@ rm -rf esm_branch1 esm_branch2
 
 echo "Building $BRANCH1 branch..."
 
-git stash
+STASH_OUTPUT=$(git stash)
+if [[ "$STASH_OUTPUT" != "No local changes to save" ]]; then
+  STASHED=1
+else
+  STASHED=0
+fi
+
 git checkout "$BRANCH1"
 yarn build
 mv esm esm_branch1
@@ -25,4 +31,7 @@ echo "$BRANCH2" > esm_branch2/branchname.txt
 echo "Build complete!"
 echo "$BRANCH1 build: esm_branch1/index.js"
 echo "$BRANCH2 build: esm_branch2/index.js"
-git stash pop
+
+if [[ $STASHED -eq 1 ]]; then
+  git stash pop
+fi

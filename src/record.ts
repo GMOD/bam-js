@@ -166,74 +166,61 @@ export default class BamRecord {
           const limit = this._dataView.getInt32(p, true)
           p += 4
           if (Btype === 'i') {
-            if (tag === 'CG') {
-              const cigarBytes = this.byteArray.slice(p, p + limit * 4)
-              tags[tag] = new Uint32Array(
-                cigarBytes.buffer,
-                cigarBytes.byteOffset,
-                limit,
-              )
-              p += limit * 4
-            } else {
-              const value = []
-              for (let k = 0; k < limit; k++) {
-                value.push(this._dataView.getInt32(p, true))
-                p += 4
-              }
-              tags[tag] = value
-            }
+            const bytes = this.byteArray.slice(p, p + limit * 4)
+            tags[tag] = new Int32Array(
+              bytes.buffer,
+              bytes.byteOffset,
+              limit,
+            )
+            p += limit * 4
           } else if (Btype === 'I') {
-            if (tag === 'CG') {
-              const cigarBytes = this.byteArray.slice(p, p + limit * 4)
-              tags[tag] = new Uint32Array(
-                cigarBytes.buffer,
-                cigarBytes.byteOffset,
-                limit,
-              )
-              p += limit * 4
-            } else {
-              const value = []
-              for (let k = 0; k < limit; k++) {
-                value.push(this._dataView.getUint32(p, true))
-                p += 4
-              }
-              tags[tag] = value
-            }
+            const bytes = this.byteArray.slice(p, p + limit * 4)
+            tags[tag] = new Uint32Array(
+              bytes.buffer,
+              bytes.byteOffset,
+              limit,
+            )
+            p += limit * 4
           } else if (Btype === 's') {
-            const value = []
-            for (let k = 0; k < limit; k++) {
-              value.push(this._dataView.getInt16(p, true))
-              p += 2
-            }
-            tags[tag] = value
+            const bytes = this.byteArray.slice(p, p + limit * 2)
+            tags[tag] = new Int16Array(
+              bytes.buffer,
+              bytes.byteOffset,
+              limit,
+            )
+            p += limit * 2
           } else if (Btype === 'S') {
-            const value = []
-            for (let k = 0; k < limit; k++) {
-              value.push(this._dataView.getUint16(p, true))
-              p += 2
-            }
-            tags[tag] = value
+            const bytes = this.byteArray.slice(p, p + limit * 2)
+            tags[tag] = new Uint16Array(
+              bytes.buffer,
+              bytes.byteOffset,
+              limit,
+            )
+            p += limit * 2
           } else if (Btype === 'c') {
-            const value = []
-            for (let k = 0; k < limit; k++) {
-              value.push(this._dataView.getInt8(p))
-              p += 1
-            }
-            tags[tag] = value
+            const bytes = this.byteArray.slice(p, p + limit)
+            tags[tag] = new Int8Array(
+              bytes.buffer,
+              bytes.byteOffset,
+              limit,
+            )
+            p += limit
           } else if (Btype === 'C') {
-            const value = []
-            for (let k = 0; k < limit; k++) {
-              value.push(this._dataView.getUint8(p))
-              p += 1
-            }
-            tags[tag] = value
+            const bytes = this.byteArray.slice(p, p + limit)
+            tags[tag] = new Uint8Array(
+              bytes.buffer,
+              bytes.byteOffset,
+              limit,
+            )
+            p += limit
           } else if (Btype === 'f') {
-            const value = []
-            for (let k = 0; k < limit; k++) {
-              value.push(this._dataView.getFloat32(p, true))
-              p += 4
-            }
-            tags[tag] = value
+            const bytes = this.byteArray.slice(p, p + limit * 4)
+            tags[tag] = new Float32Array(
+              bytes.buffer,
+              bytes.byteOffset,
+              limit,
+            )
+            p += limit * 4
           }
           break
         }
