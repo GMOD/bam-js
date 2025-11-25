@@ -30,6 +30,9 @@ export default class BamFile {
   public cache = new QuickLRU<string, { buffer: Uint8Array; nextIn: number }>({
     maxSize: 1000,
   })
+  public featureCache = new QuickLRU<number, BAMFeature>({
+    maxSize: 10000,
+  })
 
   constructor({
     bamFilehandle,
@@ -366,6 +369,8 @@ export default class BamFile {
     let blockStart = 0
     const sink = [] as BAMFeature[]
     let pos = 0
+    let cacheHits = 0
+    let cacheMisses = 0
 
     const dataView = new DataView(ba.buffer)
     const hasDpositions = dpositions.length > 0
@@ -392,25 +397,37 @@ export default class BamFile {
           continue
         }
 
-        const feature = new BAMFeature({
-          bytes: {
-            byteArray: ba,
-            start: blockStart,
-            end: blockEnd,
-          },
-          fileOffset: hasCpositions
-            ? cpositions[pos]! * (1 << 8) +
-              (blockStart - dpositions[pos]!) +
-              chunk.minv.dataPosition +
-              1
-            : crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
-        })
+        const fileOffset = hasCpositions
+          ? cpositions[pos]! * (1 << 8) +
+            (blockStart - dpositions[pos]!) +
+            chunk.minv.dataPosition +
+            1
+          : crc32(ba.subarray(blockStart, blockEnd)) >>> 0
+
+        let feature = this.featureCache.get(fileOffset)
+        if (feature) {
+          cacheHits++
+        } else {
+          cacheMisses++
+          feature = new BAMFeature({
+            bytes: {
+              byteArray: ba,
+              start: blockStart,
+              end: blockEnd,
+            },
+            fileOffset,
+          })
+          this.featureCache.set(fileOffset, feature)
+        }
 
         sink.push(feature)
       }
 
       blockStart = blockEnd + 1
     }
+    console.log(
+      `[readBamFeatures] cacheHits=${cacheHits}, cacheMisses=${cacheMisses}`,
+    )
     return sink
   }
 
