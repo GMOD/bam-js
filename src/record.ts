@@ -12,6 +12,10 @@ const CIGAR_REF_SKIP = 3
 const CIGAR_SOFT_CLIP = 4
 const CIGAR_HARD_CLIP = 5
 // const CIGAR_PAD = 6
+
+// ops that don't consume reference: INS, SOFT_CLIP, HARD_CLIP
+const CIGAR_SKIP_MASK =
+  (1 << CIGAR_INS) | (1 << CIGAR_SOFT_CLIP) | (1 << CIGAR_HARD_CLIP)
 // const CIGAR_EQUAL = 7
 // const CIGAR_DIFF = 8
 
@@ -74,7 +78,7 @@ export default class BamRecord {
     const p =
       this.b0 +
       this.read_name_length +
-      this.num_cigar_ops * 4 +
+      this.num_cigar_bytes +
       this.num_seq_bytes
     return this.byteArray.subarray(p, p + this.seq_length)
   }
@@ -98,7 +102,7 @@ export default class BamRecord {
     let p =
       this.b0 +
       this.read_name_length +
-      this.num_cigar_ops * 4 +
+      this.num_cigar_bytes +
       this.num_seq_bytes +
       this.seq_length
 
@@ -172,10 +176,10 @@ export default class BamRecord {
                 limit,
               )
             } else {
-              const bytes = this.byteArray.slice(p, p + limit * 4)
+              const bytes = this.byteArray.slice(p, p + (limit << 2))
               tags[tag] = new Int32Array(bytes.buffer, bytes.byteOffset, limit)
             }
-            p += limit * 4
+            p += limit << 2
           } else if (Btype === 'I') {
             if (absOffset % 4 === 0) {
               tags[tag] = new Uint32Array(
@@ -184,10 +188,10 @@ export default class BamRecord {
                 limit,
               )
             } else {
-              const bytes = this.byteArray.slice(p, p + limit * 4)
+              const bytes = this.byteArray.slice(p, p + (limit << 2))
               tags[tag] = new Uint32Array(bytes.buffer, bytes.byteOffset, limit)
             }
-            p += limit * 4
+            p += limit << 2
           } else if (Btype === 's') {
             if (absOffset % 2 === 0) {
               tags[tag] = new Int16Array(
@@ -196,10 +200,10 @@ export default class BamRecord {
                 limit,
               )
             } else {
-              const bytes = this.byteArray.slice(p, p + limit * 2)
+              const bytes = this.byteArray.slice(p, p + (limit << 1))
               tags[tag] = new Int16Array(bytes.buffer, bytes.byteOffset, limit)
             }
-            p += limit * 2
+            p += limit << 1
           } else if (Btype === 'S') {
             if (absOffset % 2 === 0) {
               tags[tag] = new Uint16Array(
@@ -208,10 +212,10 @@ export default class BamRecord {
                 limit,
               )
             } else {
-              const bytes = this.byteArray.slice(p, p + limit * 2)
+              const bytes = this.byteArray.slice(p, p + (limit << 1))
               tags[tag] = new Uint16Array(bytes.buffer, bytes.byteOffset, limit)
             }
-            p += limit * 2
+            p += limit << 1
           } else if (Btype === 'c') {
             tags[tag] = new Int8Array(this.byteArray.buffer, absOffset, limit)
             p += limit
@@ -226,14 +230,14 @@ export default class BamRecord {
                 limit,
               )
             } else {
-              const bytes = this.byteArray.slice(p, p + limit * 4)
+              const bytes = this.byteArray.slice(p, p + (limit << 2))
               tags[tag] = new Float32Array(
                 bytes.buffer,
                 bytes.byteOffset,
                 limit,
               )
             }
-            p += limit * 4
+            p += limit << 2
           }
           break
         }
@@ -345,7 +349,7 @@ export default class BamRecord {
         absOffset % 4 === 0
           ? new Uint32Array(this.byteArray.buffer, absOffset, numCigarOps)
           : new Uint32Array(
-              this.byteArray.slice(p, p + numCigarOps * 4).buffer,
+              this.byteArray.slice(p, p + (numCigarOps << 2)).buffer,
               0,
               numCigarOps,
             )
@@ -353,13 +357,7 @@ export default class BamRecord {
       for (let c = 0; c < numCigarOps; ++c) {
         const cigop = cigarView[c]!
         const op = cigop & 0xf
-        // soft clip, hard clip, and insertion don't count toward the length on
-        // the reference
-        if (
-          op !== CIGAR_HARD_CLIP &&
-          op !== CIGAR_SOFT_CLIP &&
-          op !== CIGAR_INS
-        ) {
+        if (!((1 << op) & CIGAR_SKIP_MASK)) {
           lref += cigop >> 4
         }
       }
@@ -395,6 +393,10 @@ export default class BamRecord {
     return this.flag_nc & 0xffff
   }
 
+  get num_cigar_bytes() {
+    return this.num_cigar_ops << 2
+  }
+
   get read_name_length() {
     return this.bin_mq_nl & 0xff
   }
@@ -404,7 +406,7 @@ export default class BamRecord {
   }
 
   get NUMERIC_SEQ() {
-    const p = this.b0 + this.read_name_length + this.num_cigar_ops * 4
+    const p = this.b0 + this.read_name_length + this.num_cigar_bytes
     const seqBytes = this.byteArray.subarray(p, p + this.num_seq_bytes)
     return new Uint8Array(
       seqBytes.buffer,
@@ -500,7 +502,7 @@ export default class BamRecord {
       const byteIndex = idx >> 1
       const sb =
         this.byteArray[
-          this.b0 + this.read_name_length + this.num_cigar_ops * 4 + byteIndex
+          this.b0 + this.read_name_length + this.num_cigar_bytes + byteIndex
         ]!
 
       return idx % 2 === 0

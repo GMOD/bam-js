@@ -1,6 +1,7 @@
 export const TWO_PWR_16_DBL = 1 << 16
 export const TWO_PWR_32_DBL = TWO_PWR_16_DBL * TWO_PWR_16_DBL
 
+// avoids dependency on long.js
 export function longFromBytesToUnsigned(source: Uint8Array, i = 0) {
   const low =
     source[i]! |
