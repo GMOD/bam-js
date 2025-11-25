@@ -105,7 +105,8 @@ export default class BamFile {
     const buffer =
       indexData.firstDataLine === undefined
         ? await this.bam.readFile()
-        : await this.bam.read(
+        : // the logic indexData.firstDataLine is a virtualOffset telling us where the data is. It is in the middle of a virtualOffset (provided by the bgzip block offset at blockPosition + the virtualOffset dataPosition, so we add one extra blockLen to make sure we consume the full header)
+          await this.bam.read(
             indexData.firstDataLine.blockPosition + blockLen,
             0,
           )
@@ -122,7 +123,6 @@ export default class BamFile {
     const { chrToIndex, indexToChr } = this._parseRefSeqs(uncba, headLen + 8)
     this.chrToIndex = chrToIndex
     this.indexToChr = indexToChr
-
     return parseHeaderText(this.header)
   }
 
