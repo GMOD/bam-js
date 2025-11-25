@@ -6,17 +6,14 @@ CURRENT_BRANCH=$(git branch --show-current)
 BRANCH1="${1:-master}"
 BRANCH2="${2:-$CURRENT_BRANCH}"
 
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "Error: Uncommitted changes detected. Please commit or stash your changes first."
+  exit 1
+fi
+
 rm -rf esm_branch1 esm_branch2
 
 echo "Building $BRANCH1 branch..."
-
-STASH_OUTPUT=$(git stash)
-if [[ "$STASH_OUTPUT" != "No local changes to save" ]]; then
-  STASHED=1
-else
-  STASHED=0
-fi
-
 git checkout "$BRANCH1"
 yarn
 yarn build
@@ -33,7 +30,3 @@ echo "$BRANCH2" >esm_branch2/branchname.txt
 echo "Build complete!"
 echo "$BRANCH1 build: esm_branch1/index.js"
 echo "$BRANCH2 build: esm_branch2/index.js"
-
-if [[ $STASHED -eq 1 ]]; then
-  git stash pop
-fi
