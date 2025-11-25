@@ -30,8 +30,8 @@ export default class BamFile {
   public cache = new QuickLRU<string, { buffer: Uint8Array; nextIn: number }>({
     maxSize: 1000,
   })
-  public featureCache = new QuickLRU<number, BAMFeature>({
-    maxSize: 10000,
+  public chunkFeatureCache = new QuickLRU<string, BAMFeature[]>({
+    maxSize: 100,
   })
 
   constructor({
@@ -226,21 +226,24 @@ export default class BamFile {
     const { viewAsPairs } = opts
     const feats = [] as BAMFeature[][]
     let done = false
+    let chunkCacheHits = 0
+    let chunkCacheMisses = 0
 
     for (const chunk of chunks) {
-      const { data, cpositions, dpositions } = await this._readChunk({
-        chunk,
-        opts,
-      })
-      const records = await this.readBamFeatures(
-        data,
-        cpositions,
-        dpositions,
-        chunk,
-        chrId,
-        min,
-        max,
-      )
+      const chunkKey = `${chunk.minv.blockPosition}-${chunk.maxv.blockPosition}`
+      let records = this.chunkFeatureCache.get(chunkKey)
+
+      if (records) {
+        chunkCacheHits++
+      } else {
+        chunkCacheMisses++
+        const { data, cpositions, dpositions } = await this._readChunk({
+          chunk,
+          opts,
+        })
+        records = await this.readBamFeatures(data, cpositions, dpositions, chunk)
+        this.chunkFeatureCache.set(chunkKey, records)
+      }
 
       const recs = [] as BAMFeature[]
       for (const feature of records) {
@@ -261,6 +264,9 @@ export default class BamFile {
         break
       }
     }
+    console.log(
+      `[_fetchChunkFeatures] chunkCacheHits=${chunkCacheHits}, chunkCacheMisses=${chunkCacheMisses}`,
+    )
 
     if (viewAsPairs) {
       yield this.fetchPairs(chrId, feats, opts)
@@ -362,21 +368,14 @@ export default class BamFile {
     cpositions: number[],
     dpositions: number[],
     chunk: Chunk,
-    chrId?: number,
-    min?: number,
-    max?: number,
   ) {
     let blockStart = 0
     const sink = [] as BAMFeature[]
     let pos = 0
-    let cacheHits = 0
-    let cacheMisses = 0
 
     const dataView = new DataView(ba.buffer)
     const hasDpositions = dpositions.length > 0
     const hasCpositions = cpositions.length > 0
-    const hasFilter =
-      chrId !== undefined && min !== undefined && max !== undefined
 
     while (blockStart + 4 < ba.length) {
       const blockSize = dataView.getInt32(blockStart, true)
@@ -388,15 +387,6 @@ export default class BamFile {
       }
 
       if (blockEnd < ba.length) {
-        if (
-          hasFilter &&
-          blockStart + 12 < ba.length &&
-          !this._shouldIncludeFeature(dataView, blockStart, chrId, max)
-        ) {
-          blockStart = blockEnd + 1
-          continue
-        }
-
         const fileOffset = hasCpositions
           ? cpositions[pos]! * (1 << 8) +
             (blockStart - dpositions[pos]!) +
@@ -404,42 +394,21 @@ export default class BamFile {
             1
           : crc32(ba.subarray(blockStart, blockEnd)) >>> 0
 
-        let feature = this.featureCache.get(fileOffset)
-        if (feature) {
-          cacheHits++
-        } else {
-          cacheMisses++
-          feature = new BAMFeature({
-            bytes: {
-              byteArray: ba,
-              start: blockStart,
-              end: blockEnd,
-            },
-            fileOffset,
-          })
-          this.featureCache.set(fileOffset, feature)
-        }
+        const feature = new BAMFeature({
+          bytes: {
+            byteArray: ba,
+            start: blockStart,
+            end: blockEnd,
+          },
+          fileOffset,
+        })
 
         sink.push(feature)
       }
 
       blockStart = blockEnd + 1
     }
-    console.log(
-      `[readBamFeatures] cacheHits=${cacheHits}, cacheMisses=${cacheMisses}`,
-    )
     return sink
-  }
-
-  _shouldIncludeFeature(
-    dataView: DataView,
-    blockStart: number,
-    chrId: number,
-    max: number,
-  ) {
-    const ref_id = dataView.getInt32(blockStart + 4, true)
-    const start = dataView.getInt32(blockStart + 8, true)
-    return ref_id === chrId && start < max
   }
 
   async hasRefSeq(seqName: string) {

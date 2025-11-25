@@ -10,7 +10,7 @@ const branch2Name = readFileSync('esm_branch2/branchname.txt', 'utf8').trim()
 const bamPath = 'test/data/chr22_nanopore_subset.bam'
 const refSeq = '22'
 const startPosition = 16560000
-const windowSize = 100
+const windowSize = 10000
 const numWindows = 5
 
 describe('chr22_nanopore_subset.bam sliding window (5x100bp)', () => {
