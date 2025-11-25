@@ -29,13 +29,6 @@ export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
     return chunks
   }
 
-  console.log(`[optimizeChunks] Before merge: ${chunks.length} chunks`)
-  for (const chunk of chunks) {
-    console.log(
-      `[optimizeChunks]   blockPos=${chunk.minv.blockPosition}-${chunk.maxv.blockPosition}, bin=${chunk.bin}`,
-    )
-  }
-
   chunks.sort((c0, c1) => {
     const dif = c0.minv.blockPosition - c1.minv.blockPosition
     return dif === 0 ? c0.minv.dataPosition - c1.minv.dataPosition : dif
@@ -57,13 +50,6 @@ export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
         }
       }
     }
-  }
-
-  console.log(`[optimizeChunks] After merge: ${mergedChunks.length} chunks`)
-  for (const chunk of mergedChunks) {
-    console.log(
-      `[optimizeChunks]   blockPos=${chunk.minv.blockPosition}-${chunk.maxv.blockPosition}, bin=${chunk.bin}, fetchedSize=${chunk.fetchedSize()}`,
-    )
   }
 
   return mergedChunks

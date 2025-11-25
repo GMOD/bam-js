@@ -206,13 +206,6 @@ export default class BamFile {
       return
     }
     const chunks = await this.index.blocksForRange(chrId, min - 1, max, opts)
-    console.log(`[getFeaturesForRange] Request: ${chr}:${min}-${max}`)
-    console.log(`[getFeaturesForRange] Chunks returned: ${chunks.length}`)
-    for (const chunk of chunks) {
-      console.log(
-        `[getFeaturesForRange]   Chunk: blockPos=${chunk.minv.blockPosition}-${chunk.maxv.blockPosition}, bin=${chunk.bin}, fetchedSize=${chunk.fetchedSize()}`,
-      )
-    }
     yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
@@ -226,17 +219,12 @@ export default class BamFile {
     const { viewAsPairs } = opts
     const feats = [] as BAMFeature[][]
     let done = false
-    let chunkCacheHits = 0
-    let chunkCacheMisses = 0
 
     for (const chunk of chunks) {
       const chunkKey = `${chunk.minv.blockPosition}-${chunk.maxv.blockPosition}`
       let records = this.chunkFeatureCache.get(chunkKey)
 
-      if (records) {
-        chunkCacheHits++
-      } else {
-        chunkCacheMisses++
+      if (!records) {
         const { data, cpositions, dpositions } = await this._readChunk({
           chunk,
           opts,
@@ -264,9 +252,6 @@ export default class BamFile {
         break
       }
     }
-    console.log(
-      `[_fetchChunkFeatures] chunkCacheHits=${chunkCacheHits}, chunkCacheMisses=${chunkCacheMisses}`,
-    )
 
     if (viewAsPairs) {
       yield this.fetchPairs(chrId, feats, opts)
