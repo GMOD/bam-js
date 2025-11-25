@@ -25,11 +25,140 @@ export default class BamRecord {
   public fileOffset: number
   private bytes: Bytes
   private _dataView: DataView
+  private _tagCache: Record<string, unknown> | undefined
 
   constructor(args: { bytes: Bytes; fileOffset: number }) {
     this.bytes = args.bytes
     this.fileOffset = args.fileOffset
     this._dataView = new DataView(this.bytes.byteArray.buffer)
+  }
+
+  private _tagStart() {
+    return (
+      this.b0 +
+      this.read_name_length +
+      this.num_cigar_ops * 4 +
+      this.num_seq_bytes +
+      this.seq_length
+    )
+  }
+
+  private _skipTagValue(p: number, typeCode: number) {
+    const ba = this.byteArray
+    const blockEnd = this.bytes.end
+    // A=65, c=99, C=67, s=115, S=83, i=105, I=73, f=102, Z=90, H=72, B=66
+    if (typeCode === 65 || typeCode === 99 || typeCode === 67) {
+      return p + 1
+    }
+    if (typeCode === 115 || typeCode === 83) {
+      return p + 2
+    }
+    if (typeCode === 105 || typeCode === 73 || typeCode === 102) {
+      return p + 4
+    }
+    if (typeCode === 90 || typeCode === 72) {
+      while (p < blockEnd && ba[p] !== 0) {
+        p++
+      }
+      return p + 1
+    }
+    if (typeCode === 66) {
+      const Btype = ba[p]!
+      const count = this._dataView.getInt32(p + 1, true)
+      p += 5
+      // c=99, C=67, s=115, S=83, i=105, I=73, f=102
+      if (Btype === 99 || Btype === 67) {
+        return p + count
+      }
+      if (Btype === 115 || Btype === 83) {
+        return p + count * 2
+      }
+      return p + count * 4
+    }
+    return p
+  }
+
+  private _parseTagValue(p: number, typeCode: number) {
+    const ba = this.byteArray
+    const dv = this._dataView
+    // A=65, c=99, C=67, s=115, S=83, i=105, I=73, f=102, Z=90, H=72, B=66
+    if (typeCode === 65) {
+      return String.fromCharCode(ba[p]!)
+    }
+    if (typeCode === 105) {
+      return dv.getInt32(p, true)
+    }
+    if (typeCode === 73) {
+      return dv.getUint32(p, true)
+    }
+    if (typeCode === 99) {
+      return dv.getInt8(p)
+    }
+    if (typeCode === 67) {
+      return dv.getUint8(p)
+    }
+    if (typeCode === 115) {
+      return dv.getInt16(p, true)
+    }
+    if (typeCode === 83) {
+      return dv.getUint16(p, true)
+    }
+    if (typeCode === 102) {
+      return dv.getFloat32(p, true)
+    }
+    if (typeCode === 90 || typeCode === 72) {
+      let str = ''
+      while (ba[p] !== 0) {
+        str += String.fromCharCode(ba[p]!)
+        p++
+      }
+      return str
+    }
+    if (typeCode === 66) {
+      const Btype = ba[p]!
+      const count = dv.getInt32(p + 1, true)
+      p += 5
+      const result: number[] = new Array(count)
+      // c=99, C=67, s=115, S=83, i=105, I=73, f=102
+      if (Btype === 99) {
+        for (let i = 0; i < count; i++) {
+          result[i] = dv.getInt8(p)
+          p++
+        }
+      } else if (Btype === 67) {
+        for (let i = 0; i < count; i++) {
+          result[i] = dv.getUint8(p)
+          p++
+        }
+      } else if (Btype === 115) {
+        for (let i = 0; i < count; i++) {
+          result[i] = dv.getInt16(p, true)
+          p += 2
+        }
+      } else if (Btype === 83) {
+        for (let i = 0; i < count; i++) {
+          result[i] = dv.getUint16(p, true)
+          p += 2
+        }
+      } else if (Btype === 105) {
+        for (let i = 0; i < count; i++) {
+          result[i] = dv.getInt32(p, true)
+          p += 4
+        }
+      } else if (Btype === 73) {
+        for (let i = 0; i < count; i++) {
+          result[i] = dv.getUint32(p, true)
+          p += 4
+        }
+      } else if (Btype === 102) {
+        for (let i = 0; i < count; i++) {
+          result[i] = dv.getFloat32(p, true)
+          p += 4
+        }
+      }
+      return result
+    }
+    return undefined
   }
 
   get byteArray() {
@@ -94,155 +223,49 @@ export default class BamRecord {
     return str
   }
 
-  get tags() {
-    let p =
-      this.b0 +
-      this.read_name_length +
-      this.num_cigar_ops * 4 +
-      this.num_seq_bytes +
-      this.seq_length
-
+  getTag(name: string) {
+    if (this._tagCache) {
+      const cached = this._tagCache[name]
+      if (cached !== undefined) {
+        return cached
+      }
+    } else {
+      this._tagCache = {}
+    }
+    const ba = this.byteArray
     const blockEnd = this.bytes.end
-    const tags = {} as Record<string, unknown>
+    const c0 = name.charCodeAt(0)
+    const c1 = name.charCodeAt(1)
+    let p = this._tagStart()
+    while (p < blockEnd) {
+      const t0 = ba[p]!
+      const t1 = ba[p + 1]!
+      const typeCode = ba[p + 2]!
+      p += 3
+      if (t0 === c0 && t1 === c1) {
+        const value = this._parseTagValue(p, typeCode)
+        this._tagCache[name] = value
+        return value
+      }
+      p = this._skipTagValue(p, typeCode)
+    }
+    return undefined
+  }
+
+  getAllTags() {
+    const ba = this.byteArray
+    const blockEnd = this.bytes.end
+    const result = {} as Record<string, unknown>
+    let p = this._tagStart()
     while (p < blockEnd) {
       const tag =
-        String.fromCharCode(this.byteArray[p]!) +
-        String.fromCharCode(this.byteArray[p + 1]!)
-      const type = String.fromCharCode(this.byteArray[p + 2]!)
+        String.fromCharCode(ba[p]!) + String.fromCharCode(ba[p + 1]!)
+      const typeCode = ba[p + 2]!
       p += 3
-
-      switch (type) {
-        case 'A':
-          tags[tag] = String.fromCharCode(this.byteArray[p]!)
-          p += 1
-          break
-        case 'i':
-          tags[tag] = this._dataView.getInt32(p, true)
-          p += 4
-          break
-        case 'I':
-          tags[tag] = this._dataView.getUint32(p, true)
-          p += 4
-          break
-        case 'c':
-          tags[tag] = this._dataView.getInt8(p)
-          p += 1
-          break
-        case 'C':
-          tags[tag] = this._dataView.getUint8(p)
-          p += 1
-          break
-        case 's':
-          tags[tag] = this._dataView.getInt16(p, true)
-          p += 2
-          break
-        case 'S':
-          tags[tag] = this._dataView.getUint16(p, true)
-          p += 2
-          break
-        case 'f':
-          tags[tag] = this._dataView.getFloat32(p, true)
-          p += 4
-          break
-        case 'Z':
-        case 'H': {
-          const value = []
-          while (p <= blockEnd) {
-            const cc = this.byteArray[p++]!
-            if (cc !== 0) {
-              value.push(String.fromCharCode(cc))
-            } else {
-              break
-            }
-          }
-          tags[tag] = value.join('')
-          break
-        }
-        case 'B': {
-          const cc = this.byteArray[p++]!
-          const Btype = String.fromCharCode(cc)
-          const limit = this._dataView.getInt32(p, true)
-          p += 4
-          const absOffset = this.byteArray.byteOffset + p
-          if (Btype === 'i') {
-            if (absOffset % 4 === 0) {
-              tags[tag] = new Int32Array(
-                this.byteArray.buffer,
-                absOffset,
-                limit,
-              )
-            } else {
-              const bytes = this.byteArray.slice(p, p + limit * 4)
-              tags[tag] = new Int32Array(bytes.buffer, bytes.byteOffset, limit)
-            }
-            p += limit * 4
-          } else if (Btype === 'I') {
-            if (absOffset % 4 === 0) {
-              tags[tag] = new Uint32Array(
-                this.byteArray.buffer,
-                absOffset,
-                limit,
-              )
-            } else {
-              const bytes = this.byteArray.slice(p, p + limit * 4)
-              tags[tag] = new Uint32Array(bytes.buffer, bytes.byteOffset, limit)
-            }
-            p += limit * 4
-          } else if (Btype === 's') {
-            if (absOffset % 2 === 0) {
-              tags[tag] = new Int16Array(
-                this.byteArray.buffer,
-                absOffset,
-                limit,
-              )
-            } else {
-              const bytes = this.byteArray.slice(p, p + limit * 2)
-              tags[tag] = new Int16Array(bytes.buffer, bytes.byteOffset, limit)
-            }
-            p += limit * 2
-          } else if (Btype === 'S') {
-            if (absOffset % 2 === 0) {
-              tags[tag] = new Uint16Array(
-                this.byteArray.buffer,
-                absOffset,
-                limit,
-              )
-            } else {
-              const bytes = this.byteArray.slice(p, p + limit * 2)
-              tags[tag] = new Uint16Array(bytes.buffer, bytes.byteOffset, limit)
-            }
-            p += limit * 2
-          } else if (Btype === 'c') {
-            tags[tag] = new Int8Array(this.byteArray.buffer, absOffset, limit)
-            p += limit
-          } else if (Btype === 'C') {
-            tags[tag] = new Uint8Array(this.byteArray.buffer, absOffset, limit)
-            p += limit
-          } else if (Btype === 'f') {
-            if (absOffset % 4 === 0) {
-              tags[tag] = new Float32Array(
-                this.byteArray.buffer,
-                absOffset,
-                limit,
-              )
-            } else {
-              const bytes = this.byteArray.slice(p, p + limit * 4)
-              tags[tag] = new Float32Array(
-                bytes.buffer,
-                bytes.byteOffset,
-                limit,
-              )
-            }
-            p += limit * 4
-          }
-          break
-        }
-        default:
-          console.error('Unknown BAM tag type', type)
-          break
-      }
+      result[tag] = this._parseTagValue(p, typeCode)
+      p = this._skipTagValue(p, typeCode)
     }
-    return tags
+    return result
   }
 
   /**
@@ -334,7 +357,7 @@ export default class BamRecord {
       if (op !== CIGAR_REF_SKIP) {
         console.warn('CG tag with no N tag')
       }
-      const cgArray = this.tags.CG as Uint32Array
+      const cgArray = this.getTag('CG') as number[]
       return {
         NUMERIC_CIGAR: cgArray,
         length_on_ref: lop,
@@ -544,7 +567,6 @@ function cacheGetter<T>(ctor: { prototype: T }, prop: keyof T): void {
   })
 }
 
-cacheGetter(BamRecord, 'tags')
 cacheGetter(BamRecord, 'cigarAndLength')
 cacheGetter(BamRecord, 'seq')
 cacheGetter(BamRecord, 'qual')

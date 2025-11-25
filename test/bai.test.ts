@@ -49,7 +49,7 @@ test('gets features from volvox-sorted.bam', async () => {
   expect(records[0].qual?.join(',')).toEqual(
     '17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17',
   )
-  expect(records[0].tags.MD).toEqual('100')
+  expect(records[0].getTag('MD')).toEqual('100')
   expect(records[0].seq).toEqual(
     'TTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG',
   )
@@ -156,13 +156,10 @@ test('BamFile with B tags', async () => {
 
   const features = await b.getRecordsForRange('chr1', 980654, 981663)
   // ZC:B:i,364,359,1,0    ZD:B:f,0.01,0.02,0.03   ZE:B:c,0,1,2,3  ZK:B:s,45,46,47
-  const ret = features[1].tags.ZD as number[]
-  // @ts-expect-error
-  expect([...features[1].tags.ZC]).toEqual([364, 359, 1, 0])
-  // @ts-expect-error
-  expect([...features[1].tags.ZE]).toEqual([0, 1, 2, 3])
-  // @ts-expect-error
-  expect([...features[1].tags.ZK]).toEqual([45, 46, 47])
+  const ret = features[1].getTag('ZD') as number[]
+  expect(features[1].getTag('ZC')).toEqual([364, 359, 1, 0])
+  expect(features[1].getTag('ZE')).toEqual([0, 1, 2, 3])
+  expect(features[1].getTag('ZK')).toEqual([45, 46, 47])
   expect(ret[0]).toBeCloseTo(0.01)
   expect(ret[1]).toBeCloseTo(0.02)
   expect(ret[2]).toBeCloseTo(0.03)
@@ -230,8 +227,8 @@ test('SAM spec pdf', async () => {
 
   const features = await b.getRecordsForRange('ref', 1, 100)
   expect(features.length).toEqual(6)
-  expect(features[2].tags.SA).toEqual('ref,29,-,6H5M,17,0;')
-  expect(features[4].tags.SA).toEqual('ref,9,+,5S6M,30,1;')
+  expect(features[2].getTag('SA')).toEqual('ref,29,-,6H5M,17,0;')
+  expect(features[4].getTag('SA')).toEqual('ref,9,+,5S6M,30,1;')
 })
 test('trigger range out of bounds file', async () => {
   const b = new BamFile({ bamPath: 'test/data/cho.bam' })
@@ -357,7 +354,7 @@ test('long tag list', async () => {
   const ti = new BamFile({ bamPath: 'test/data/long_tag_list.bam' })
   await ti.getHeader()
   const ret1 = await ti.getRecordsForRange('1', 0, 3000000)
-  expect(ret1[0].tags).toMatchSnapshot()
+  expect(ret1[0].getAllTags()).toMatchSnapshot()
 })
 
 test('fix decoding error for ID tag', async () => {
@@ -365,15 +362,15 @@ test('fix decoding error for ID tag', async () => {
 
   await ti1.getHeader()
   const ret1 = await ti1.getRecordsForRange('1', 0, 3000000)
-  expect(ret1[0].tags.ID).toBe(78190)
-  expect(ret1[1].tags.ID).toBe(4440)
+  expect(ret1[0].getTag('ID')).toBe(78190)
+  expect(ret1[1].getTag('ID')).toBe(4440)
 })
 test('fix decoding error for DI tag', async () => {
   const ti1 = new BamFile({ bamPath: 'test/data/long_tag_list2.bam' })
   await ti1.getHeader()
   const ret1 = await ti1.getRecordsForRange('1', 0, 3000000)
-  expect(ret1[0].tags.DI).toBe(78190)
-  expect(ret1[1].tags.DI).toBe(4440)
+  expect(ret1[0].getTag('DI')).toBe(78190)
+  expect(ret1[1].getTag('DI')).toBe(4440)
 })
 
 test('get CIGAR from a CG long tag', async () => {
