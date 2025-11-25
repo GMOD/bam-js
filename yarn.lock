@@ -239,14 +239,6 @@
     "@eslint/core" "^0.17.0"
     levn "^0.4.1"
 
-"@gmod/bgzf-filehandle@^5.0.2":
-  version "5.0.2"
-  resolved "https://registry.yarnpkg.com/@gmod/bgzf-filehandle/-/bgzf-filehandle-5.0.2.tgz#58c6cd335a7374e2af312f72041c1b0f04fd8645"
-  integrity sha512-MUlq381hj9eah251JKGuCpUSLoeq+2Mbf/AAIk77LD2cHJhfAYAbELnnWb3Jq2DA6+ISF2NXZ8zWzdHSHx4xbw==
-  dependencies:
-    generic-filehandle2 "^2.0.5"
-    pako-esm2 "^1.0.1"
-
 "@humanfs/core@^0.19.1":
   version "0.19.1"
   resolved "https://registry.yarnpkg.com/@humanfs/core/-/core-0.19.1.tgz#17c55ca7d426733fe3c561906b8173c336b40a77"
@@ -1500,7 +1492,7 @@ generator-function@^2.0.0:
   resolved "https://registry.yarnpkg.com/generator-function/-/generator-function-2.0.1.tgz#0e75dd410d1243687a0ba2e951b94eedb8f737a2"
   integrity sha512-SFdFmIJi+ybC0vjlHN0ZGVGHc3lgE0DxPAT0djjVg+kjOnSqclqmj0KQ7ykTOLP6YxoqOvuAODGdcHJn+43q3g==
 
-generic-filehandle2@^2.0.1, generic-filehandle2@^2.0.5:
+generic-filehandle2@^2.0.1:
   version "2.0.14"
   resolved "https://registry.yarnpkg.com/generic-filehandle2/-/generic-filehandle2-2.0.14.tgz#bf56dbba9bd39ae8375d5c6b0b9bf8d070ca8180"
   integrity sha512-Gg0EQY2Rd3wlusat7wbmAozxADzmsHKcko+b3/hRM/mh6eGheeyyVEpXoYpFbhlov2QTbjnBOSsPCP8gwywJHQ==

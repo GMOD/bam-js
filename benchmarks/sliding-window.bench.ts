@@ -25,7 +25,7 @@ describe('chr22_nanopore_subset.bam sliding window (5x100bp)', () => {
         await bam.getRecordsForRange(refSeq, start, end)
       }
     },
-    { iterations: 50, warmupIterations: 5 },
+    { iterations: 10, warmupIterations: 1 },
   )
 
   bench(
@@ -39,6 +39,6 @@ describe('chr22_nanopore_subset.bam sliding window (5x100bp)', () => {
         await bam.getRecordsForRange(refSeq, start, end)
       }
     },
-    { iterations: 50, warmupIterations: 5 },
+    { iterations: 10, warmupIterations: 1 },
   )
 })

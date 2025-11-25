@@ -50,9 +50,9 @@
     "genomics"
   ],
   "dependencies": {
-    "@gmod/bgzf-filehandle": "^5.0.2",
     "crc": "^4.3.2",
     "generic-filehandle2": "^2.0.1",
+    "pako-esm2": "^1.0.1",
     "quick-lru": "^4.0.0"
   },
   "devDependencies": {

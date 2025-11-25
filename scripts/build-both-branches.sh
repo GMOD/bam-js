@@ -19,14 +19,14 @@ fi
 
 git checkout "$BRANCH1"
 yarn
-yarn build
+yarn build:esm
 mv esm esm_branch1
 echo "$BRANCH1" >esm_branch1/branchname.txt
 
 echo "Building $BRANCH2 branch..."
 git checkout "$BRANCH2"
 yarn
-yarn build
+yarn build:esm
 mv esm esm_branch2
 echo "$BRANCH2" >esm_branch2/branchname.txt
 

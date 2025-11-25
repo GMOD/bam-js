@@ -1,4 +1,4 @@
-import { unzip } from '@gmod/bgzf-filehandle'
+import { unzip } from './unzip.ts'
 import QuickLRU from 'quick-lru'
 
 import Chunk from './chunk.ts'

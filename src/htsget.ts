@@ -1,4 +1,4 @@
-import { unzip } from '@gmod/bgzf-filehandle'
+import { unzip } from './unzip.ts'
 
 import BamFile, { BAM_MAGIC } from './bamFile.ts'
 import Chunk from './chunk.ts'

@@ -1,4 +1,4 @@
-import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
+import { unzip, unzipChunkSlice } from './unzip.ts'
 import crc32 from 'crc/calculators/crc32'
 import { LocalFile, RemoteFile } from 'generic-filehandle2'
 import QuickLRU from 'quick-lru'
