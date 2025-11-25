@@ -3,10 +3,7 @@ import { longFromBytesToUnsigned } from './long.ts'
 import { Offset, VirtualOffset } from './virtualOffset.ts'
 
 export function canMergeBlocks(chunk1: Chunk, chunk2: Chunk) {
-  return (
-    chunk2.minv.blockPosition - chunk1.maxv.blockPosition < 65000 &&
-    chunk2.maxv.blockPosition - chunk1.minv.blockPosition < 5000000
-  )
+  return chunk2.minv.blockPosition - chunk1.maxv.blockPosition < 65000
 }
 
 export interface BamOpts {
@@ -32,6 +29,13 @@ export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
     return chunks
   }
 
+  console.log(`[optimizeChunks] Before merge: ${chunks.length} chunks`)
+  for (const chunk of chunks) {
+    console.log(
+      `[optimizeChunks]   blockPos=${chunk.minv.blockPosition}-${chunk.maxv.blockPosition}, bin=${chunk.bin}`,
+    )
+  }
+
   chunks.sort((c0, c1) => {
     const dif = c0.minv.blockPosition - c1.minv.blockPosition
     return dif === 0 ? c0.minv.dataPosition - c1.minv.dataPosition : dif
@@ -53,6 +57,13 @@ export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
         }
       }
     }
+  }
+
+  console.log(`[optimizeChunks] After merge: ${mergedChunks.length} chunks`)
+  for (const chunk of mergedChunks) {
+    console.log(
+      `[optimizeChunks]   blockPos=${chunk.minv.blockPosition}-${chunk.maxv.blockPosition}, bin=${chunk.bin}, fetchedSize=${chunk.fetchedSize()}`,
+    )
   }
 
   return mergedChunks
