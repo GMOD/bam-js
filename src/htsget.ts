@@ -118,7 +118,6 @@ export default class HtsgetFile extends BamFile {
     }
   }
 
-  // @ts-expect-error
   async _readChunk({ chunk }: { chunk: Chunk; opts: BaseOpts }) {
     if (!chunk.buffer) {
       throw new Error('expected chunk.buffer in htsget')

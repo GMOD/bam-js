@@ -2,7 +2,7 @@ import { Offset } from './virtualOffset.ts'
 
 // little class representing a chunk in the index
 export default class Chunk {
-  public buffer?: Uint8Array
+  public buffer?: Uint8Array<ArrayBuffer>
 
   constructor(
     public minv: Offset,
