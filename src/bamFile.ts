@@ -227,9 +227,6 @@ export default class BamFile {
         cpositions,
         dpositions,
         chunk,
-        chrId,
-        min,
-        max,
       )
 
       const recs = [] as BAMFeature[]
@@ -352,9 +349,6 @@ export default class BamFile {
     cpositions: number[],
     dpositions: number[],
     chunk: Chunk,
-    chrId?: number,
-    min?: number,
-    max?: number,
   ) {
     let blockStart = 0
     const sink = [] as BAMFeature[]
@@ -363,8 +357,6 @@ export default class BamFile {
     const dataView = new DataView(ba.buffer)
     const hasDpositions = dpositions.length > 0
     const hasCpositions = cpositions.length > 0
-    const hasFilter =
-      chrId !== undefined && min !== undefined && max !== undefined
 
     while (blockStart + 4 < ba.length) {
       const blockSize = dataView.getInt32(blockStart, true)
@@ -376,15 +368,6 @@ export default class BamFile {
       }
 
       if (blockEnd < ba.length) {
-        if (
-          hasFilter &&
-          blockStart + 12 < ba.length &&
-          !this._shouldIncludeFeature(dataView, blockStart, chrId, max)
-        ) {
-          blockStart = blockEnd + 1
-          continue
-        }
-
         const feature = new BAMFeature({
           bytes: {
             byteArray: ba,
