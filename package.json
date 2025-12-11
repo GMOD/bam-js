@@ -50,23 +50,23 @@
     "genomics"
   ],
   "dependencies": {
-    "@gmod/bgzf-filehandle": "^5.0.2",
+    "@gmod/bgzf-filehandle": "^6.0.3",
     "crc": "^4.3.2",
     "generic-filehandle2": "^2.0.1",
     "quick-lru": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",
-    "@vitest/coverage-v8": "^4.0.14",
+    "@vitest/coverage-v8": "^4.0.15",
     "eslint": "^9.9.0",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-unicorn": "^62.0.0",
-    "prettier": "^3.3.3",
+    "prettier": "^3.7.4",
     "rimraf": "^6.1.2",
     "standard-changelog": "^7.0.1",
     "typescript": "^5.0.4",
-    "typescript-eslint": "^8.48.0",
-    "vitest": "^4.0.14"
+    "typescript-eslint": "^8.49.0",
+    "vitest": "^4.0.15"
   },
   "publishConfig": {
     "access": "public"

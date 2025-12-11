@@ -27,7 +27,10 @@ export default class BamFile {
   public index?: BAI | CSI
   public htsget = false
   public headerP?: ReturnType<BamFile['getHeaderPre']>
-  public cache = new QuickLRU<string, { buffer: Uint8Array; nextIn: number }>({
+  public cache = new QuickLRU<
+    string,
+    { bytesRead: number; buffer: Uint8Array; nextIn: number }
+  >({
     maxSize: 1000,
   })
 
