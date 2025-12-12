@@ -389,6 +389,15 @@ test('get header text', async () => {
   expect(ret?.startsWith('@HD')).toBeTruthy()
 })
 
+test('NUMERIC_MD returns MD tag as Uint8Array', async () => {
+  const ti = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await ti.getHeader()
+  const records = await ti.getRecordsForRange('ctgA', 0, 1000)
+  const md = records[0].NUMERIC_MD
+  expect(md).toBeInstanceOf(Uint8Array)
+  expect(new TextDecoder().decode(md)).toEqual(records[0].tags.MD)
+})
+
 test('estimatedBytesForRegions estimates download size', async () => {
   const ti = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
   await ti.getHeader()
