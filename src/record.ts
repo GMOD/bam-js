@@ -98,6 +98,68 @@ export default class BamRecord {
     return str
   }
 
+  get NUMERIC_MD() {
+    let p =
+      this.b0 +
+      this.read_name_length +
+      this.num_cigar_bytes +
+      this.num_seq_bytes +
+      this.seq_length
+
+    const blockEnd = this.bytes.end
+    while (p < blockEnd) {
+      const tag =
+        String.fromCharCode(this.byteArray[p]!) +
+        String.fromCharCode(this.byteArray[p + 1]!)
+      const type = String.fromCharCode(this.byteArray[p + 2]!)
+      p += 3
+
+      if (tag === 'MD' && type === 'Z') {
+        const start = p
+        while (p < blockEnd && this.byteArray[p] !== 0) {
+          p++
+        }
+        return this.byteArray.subarray(start, p)
+      }
+
+      switch (type) {
+        case 'A':
+          p += 1
+          break
+        case 'i':
+        case 'I':
+        case 'f':
+          p += 4
+          break
+        case 'c':
+        case 'C':
+          p += 1
+          break
+        case 's':
+        case 'S':
+          p += 2
+          break
+        case 'Z':
+        case 'H':
+          while (p <= blockEnd && this.byteArray[p++] !== 0) {}
+          break
+        case 'B': {
+          const Btype = String.fromCharCode(this.byteArray[p++]!)
+          const limit = this._dataView.getInt32(p, true)
+          p += 4
+          if (Btype === 'i' || Btype === 'I' || Btype === 'f') {
+            p += limit << 2
+          } else if (Btype === 's' || Btype === 'S') {
+            p += limit << 1
+          } else if (Btype === 'c' || Btype === 'C') {
+            p += limit
+          }
+          break
+        }
+      }
+    }
+    return undefined
+  }
   get tags() {
     let p =
       this.b0 +
