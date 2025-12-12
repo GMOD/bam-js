@@ -246,30 +246,25 @@ export default class BAI extends IndexFile {
     const chunks: Chunk[] = []
 
     // Find chunks in overlapping bins.  Leaf bins (< 4681) are not pruned
+    const { binIndex } = ba
     for (const [start, end] of overlappingBins) {
       for (let bin = start; bin <= end; bin++) {
-        if (ba.binIndex[bin]) {
-          const binChunks = ba.binIndex[bin]!
-          for (const binChunk of binChunks) {
-            chunks.push(new Chunk(binChunk.minv, binChunk.maxv, bin))
+        const binChunks = binIndex[bin]
+        if (binChunks) {
+          for (let i = 0; i < binChunks.length; i++) {
+            chunks.push(binChunks[i]!)
           }
         }
       }
     }
 
     // Use the linear index to find minimum file position of chunks that could
-    // contain alignments in the region
-    const nintv = ba.linearIndex.length
-    let lowest: VirtualOffset | undefined
+    // contain alignments in the region. Linear index entries are monotonically
+    // non-decreasing, so the first entry at minLin is the minimum.
+    const { linearIndex } = ba
+    const nintv = linearIndex.length
     const minLin = Math.min(min >> 14, nintv - 1)
-    const maxLin = Math.min(max >> 14, nintv - 1)
-    for (let i = minLin; i <= maxLin; ++i) {
-      const vp = ba.linearIndex[i]
-
-      if (vp && (!lowest || vp.compareTo(lowest) < 0)) {
-        lowest = vp
-      }
-    }
+    const lowest = linearIndex[minLin]
 
     return optimizeChunks(chunks, lowest)
   }

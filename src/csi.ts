@@ -215,12 +215,13 @@ export default class CSI extends IndexFile {
 
     const chunks = []
     // Find chunks in overlapping bins.  Leaf bins (< 4681) are not pruned
+    const { binIndex } = ba
     for (const [start, end] of overlappingBins) {
       for (let bin = start; bin <= end; bin++) {
-        if (ba.binIndex[bin]) {
-          const binChunks = ba.binIndex[bin]!
-          for (const c of binChunks) {
-            chunks.push(c)
+        const binChunks = binIndex[bin]
+        if (binChunks) {
+          for (let i = 0; i < binChunks.length; i++) {
+            chunks.push(binChunks[i]!)
           }
         }
       }

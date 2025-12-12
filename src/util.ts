@@ -25,33 +25,56 @@ export function makeOpts(obj: AbortSignal | BaseOpts = {}): BaseOpts {
 }
 
 export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
-  const mergedChunks: Chunk[] = []
-  let lastChunk: Chunk | undefined
-
-  if (chunks.length === 0) {
+  const n = chunks.length
+  if (n === 0) {
     return chunks
   }
 
-  chunks.sort((c0, c1) => {
+  // Pre-filter chunks below lowest threshold before sorting
+  let filtered: Chunk[]
+  if (lowest) {
+    const lowestBlock = lowest.blockPosition
+    const lowestData = lowest.dataPosition
+    filtered = []
+    for (let i = 0; i < n; i++) {
+      const chunk = chunks[i]!
+      const maxv = chunk.maxv
+      const cmp =
+        maxv.blockPosition - lowestBlock || maxv.dataPosition - lowestData
+      if (cmp > 0) {
+        filtered.push(chunk)
+      }
+    }
+    if (filtered.length === 0) {
+      return filtered
+    }
+  } else {
+    filtered = chunks
+  }
+
+  filtered.sort((c0, c1) => {
     const dif = c0.minv.blockPosition - c1.minv.blockPosition
-    return dif === 0 ? c0.minv.dataPosition - c1.minv.dataPosition : dif
+    return dif !== 0 ? dif : c0.minv.dataPosition - c1.minv.dataPosition
   })
 
-  for (const chunk of chunks) {
-    if (!lowest || chunk.maxv.compareTo(lowest) > 0) {
-      if (lastChunk === undefined) {
-        mergedChunks.push(chunk)
-        lastChunk = chunk
-      } else {
-        if (canMergeBlocks(lastChunk, chunk)) {
-          if (chunk.maxv.compareTo(lastChunk.maxv) > 0) {
-            lastChunk.maxv = chunk.maxv
-          }
-        } else {
-          mergedChunks.push(chunk)
-          lastChunk = chunk
-        }
+  const mergedChunks: Chunk[] = []
+  let lastChunk = filtered[0]!
+  mergedChunks.push(lastChunk)
+
+  for (let i = 1; i < filtered.length; i++) {
+    const chunk = filtered[i]!
+    if (canMergeBlocks(lastChunk, chunk)) {
+      const chunkMaxv = chunk.maxv
+      const lastMaxv = lastChunk.maxv
+      const cmp =
+        chunkMaxv.blockPosition - lastMaxv.blockPosition ||
+        chunkMaxv.dataPosition - lastMaxv.dataPosition
+      if (cmp > 0) {
+        lastChunk.maxv = chunkMaxv
       }
+    } else {
+      mergedChunks.push(chunk)
+      lastChunk = chunk
     }
   }
 
