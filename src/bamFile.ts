@@ -34,6 +34,13 @@ export default class BamFile {
     maxSize: 1000,
   })
 
+  // Cache for parsed features by chunk
+  // When a new chunk overlaps a cached chunk, we evict the cached one
+  public chunkFeatureCache = new QuickLRU<
+    string,
+    { minBlock: number; maxBlock: number; features: BAMFeature[] }
+  >({ maxSize: 100 })
+
   constructor({
     bamFilehandle,
     bamPath,
@@ -209,6 +216,34 @@ export default class BamFile {
     yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
+  private chunkCacheKey(chunk: Chunk) {
+    const { minv, maxv } = chunk
+    return `${minv.blockPosition}:${minv.dataPosition}-${maxv.blockPosition}:${maxv.dataPosition}`
+  }
+
+  private blocksOverlap(
+    minBlock1: number,
+    maxBlock1: number,
+    minBlock2: number,
+    maxBlock2: number,
+  ) {
+    return minBlock1 <= maxBlock2 && maxBlock1 >= minBlock2
+  }
+
+  // Evict any cached chunks that overlap with the given block range
+  private evictOverlappingChunks(minBlock: number, maxBlock: number) {
+    for (const [key, entry] of this.chunkFeatureCache) {
+      if (
+        this.blocksOverlap(minBlock, maxBlock, entry.minBlock, entry.maxBlock)
+      ) {
+        // console.log(
+        //   `[BAM Cache] Evicting overlapping chunk: ${key} (${entry.features.length} features, blocks ${entry.minBlock}-${entry.maxBlock})`,
+        // )
+        this.chunkFeatureCache.delete(key)
+      }
+    }
+  }
+
   async *_fetchChunkFeatures(
     chunks: Chunk[],
     chrId: number,
@@ -219,28 +254,46 @@ export default class BamFile {
     const { viewAsPairs } = opts
     const feats = [] as BAMFeature[][]
     let done = false
+    // let cacheHits = 0
+    // let cacheMisses = 0
 
     for (const chunk of chunks) {
-      const { data, cpositions, dpositions } = await this._readChunk({
-        chunk,
-        opts,
-      })
-      const records = await this.readBamFeatures(
-        data,
-        cpositions,
-        dpositions,
-        chunk,
-      )
+      const cacheKey = this.chunkCacheKey(chunk)
+      const minBlock = chunk.minv.blockPosition
+      const maxBlock = chunk.maxv.blockPosition
+
+      let records: BAMFeature[]
+      const cached = this.chunkFeatureCache.get(cacheKey)
+      if (cached) {
+        records = cached.features
+        // cacheHits++
+      } else {
+        this.evictOverlappingChunks(minBlock, maxBlock)
+        const { data, cpositions, dpositions } = await this._readChunk({
+          chunk,
+          opts,
+        })
+        records = await this.readBamFeatures(
+          data,
+          cpositions,
+          dpositions,
+          chunk,
+        )
+        this.chunkFeatureCache.set(cacheKey, {
+          minBlock,
+          maxBlock,
+          features: records,
+        })
+        // cacheMisses++
+      }
 
       const recs = [] as BAMFeature[]
       for (const feature of records) {
         if (feature.ref_id === chrId) {
           if (feature.start >= max) {
-            // past end of range, can stop iterating
             done = true
             break
           } else if (feature.end >= min) {
-            // must be in range
             recs.push(feature)
           }
         }
@@ -251,6 +304,14 @@ export default class BamFile {
         break
       }
     }
+
+    // const total = cacheHits + cacheMisses
+    // if (total > 0) {
+    //   const hitRate = (cacheHits / total) * 100
+    //   console.log(
+    //     `[BAM Cache] chunks: ${total}, hits: ${cacheHits}, misses: ${cacheMisses}, rate: ${hitRate.toFixed(1)}%, cacheSize: ${this.chunkFeatureCache.size}`,
+    //   )
+    // }
 
     if (viewAsPairs) {
       yield this.fetchPairs(chrId, feats, opts)
@@ -437,5 +498,9 @@ export default class BamFile {
     return seqId === undefined
       ? []
       : this.index.blocksForRange(seqId, start, end, opts)
+  }
+
+  clearFeatureCache() {
+    this.chunkFeatureCache.clear()
   }
 }
