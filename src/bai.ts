@@ -251,7 +251,7 @@ export default class BAI extends IndexFile {
       for (let bin = start; bin <= end; bin++) {
         const binChunks = binIndex[bin]
         if (binChunks) {
-          for (let i = 0; i < binChunks.length; i++) {
+          for (let i = 0, l = binChunks.length; i < l; i++) {
             chunks.push(binChunks[i]!)
           }
         }

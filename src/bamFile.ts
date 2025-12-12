@@ -503,4 +503,25 @@ export default class BamFile {
   clearFeatureCache() {
     this.chunkFeatureCache.clear()
   }
+
+  async estimatedBytesForRegions(
+    regions: { refName: string; start: number; end: number }[],
+    opts?: BaseOpts,
+  ) {
+    if (!this.index) {
+      return 0
+    }
+    await this.getHeader(opts)
+    if (!this.chrToIndex) {
+      throw new Error('Header not yet parsed')
+    }
+    const regionsWithIds = regions.map(r => {
+      const refId = this.chrToIndex![r.refName]
+      if (refId === undefined) {
+        throw new Error(`Unknown reference name: ${r.refName}`)
+      }
+      return { refId, start: r.start, end: r.end }
+    })
+    return this.index.estimatedBytesForRegions(regionsWithIds, opts)
+  }
 }

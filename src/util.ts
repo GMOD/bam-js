@@ -61,20 +61,32 @@ export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
   let lastChunk = filtered[0]!
   mergedChunks.push(lastChunk)
 
+  let lastMinBlock = lastChunk.minv.blockPosition
+  let lastMaxBlock = lastChunk.maxv.blockPosition
+
   for (let i = 1; i < filtered.length; i++) {
     const chunk = filtered[i]!
-    if (canMergeBlocks(lastChunk, chunk)) {
+    const chunkMinBlock = chunk.minv.blockPosition
+    const chunkMaxBlock = chunk.maxv.blockPosition
+    // Inlined canMergeBlocks: check if chunks are close enough to merge
+    if (
+      chunkMinBlock - lastMaxBlock < 65000 &&
+      chunkMaxBlock - lastMinBlock < 5000000
+    ) {
       const chunkMaxv = chunk.maxv
       const lastMaxv = lastChunk.maxv
       const cmp =
-        chunkMaxv.blockPosition - lastMaxv.blockPosition ||
+        chunkMaxBlock - lastMaxBlock ||
         chunkMaxv.dataPosition - lastMaxv.dataPosition
       if (cmp > 0) {
         lastChunk.maxv = chunkMaxv
+        lastMaxBlock = chunkMaxBlock
       }
     } else {
       mergedChunks.push(chunk)
       lastChunk = chunk
+      lastMinBlock = chunkMinBlock
+      lastMaxBlock = chunkMaxBlock
     }
   }
 

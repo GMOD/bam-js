@@ -239,10 +239,10 @@
     "@eslint/core" "^0.17.0"
     levn "^0.4.1"
 
-"@gmod/bgzf-filehandle@^6.0.5":
-  version "6.0.5"
-  resolved "https://registry.yarnpkg.com/@gmod/bgzf-filehandle/-/bgzf-filehandle-6.0.5.tgz#50e74e04f2c09bebbb9732feb9d5a1c6c912c16e"
-  integrity sha512-rAO1CiWQbjR9Q8wMK1AleUmWMY/KRon5y1cCkR8fTrEEClLwAI9S/R3tuQ2iaxCYQEgUeXchGENu8y3rwuU2eA==
+"@gmod/bgzf-filehandle@^6.0.6":
+  version "6.0.6"
+  resolved "https://registry.yarnpkg.com/@gmod/bgzf-filehandle/-/bgzf-filehandle-6.0.6.tgz#60b775fea0161ab92cd191cb460b71799666103b"
+  integrity sha512-W+Lcrem13zi25ZagwoNbAcSel6gDRRKy0/t6Z1/e0r5dRB5YyHIZxQBWnHKUVncuWrW4fDLv/396CRaK6IZwnw==
   dependencies:
     generic-filehandle2 "^2.0.5"
     pako-esm2 "^2.0.2"

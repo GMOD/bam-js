@@ -1,7 +1,13 @@
 import Chunk from './chunk.ts'
-import { BaseOpts } from './util.ts'
+import { BaseOpts, optimizeChunks } from './util.ts'
 
 import type { GenericFilehandle } from 'generic-filehandle2'
+
+export interface Region {
+  refId: number
+  start: number
+  end: number
+}
 
 export default abstract class IndexFile {
   public filehandle: GenericFilehandle
@@ -30,4 +36,19 @@ export default abstract class IndexFile {
     end: number,
     opts?: BaseOpts,
   ): Promise<Chunk[]>
+
+  async estimatedBytesForRegions(regions: Region[], opts?: BaseOpts) {
+    const blockResults = await Promise.all(
+      regions.map(r => this.blocksForRange(r.refId, r.start, r.end, opts)),
+    )
+
+    // Deduplicate and merge overlapping blocks across all regions
+    const mergedBlocks = optimizeChunks(blockResults.flat())
+
+    let total = 0
+    for (const block of mergedBlocks) {
+      total += block.fetchedSize()
+    }
+    return total
+  }
 }

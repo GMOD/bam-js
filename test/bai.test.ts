@@ -389,6 +389,37 @@ test('get header text', async () => {
   expect(ret?.startsWith('@HD')).toBeTruthy()
 })
 
+test('estimatedBytesForRegions estimates download size', async () => {
+  const ti = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await ti.getHeader()
+
+  const bytes = await ti.estimatedBytesForRegions([
+    { refName: 'ctgA', start: 0, end: 1000 },
+  ])
+  expect(bytes).toBeGreaterThan(0)
+
+  // Multiple regions should return more bytes than single region
+  const bytesMultiple = await ti.estimatedBytesForRegions([
+    { refName: 'ctgA', start: 0, end: 1000 },
+    { refName: 'ctgA', start: 40000, end: 50000 },
+  ])
+  expect(bytesMultiple).toBeGreaterThan(bytes)
+
+  // Overlapping regions should deduplicate blocks
+  const bytesOverlapping = await ti.estimatedBytesForRegions([
+    { refName: 'ctgA', start: 0, end: 1000 },
+    { refName: 'ctgA', start: 500, end: 1500 },
+  ])
+  const bytesSeparate = await ti.estimatedBytesForRegions([
+    { refName: 'ctgA', start: 0, end: 1000 },
+  ])
+  const bytesSeparate2 = await ti.estimatedBytesForRegions([
+    { refName: 'ctgA', start: 500, end: 1500 },
+  ])
+  // Overlapping should be less than or equal to sum of separate
+  expect(bytesOverlapping).toBeLessThanOrEqual(bytesSeparate + bytesSeparate2)
+})
+
 // use on any large long read data file
 // test('speed test', async () => {
 //   const ti = new BamFile({ bamPath: 'test/data/400x.longread.bam' })
