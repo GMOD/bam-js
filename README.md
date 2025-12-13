@@ -186,6 +186,35 @@ record.seqAt(idx) // get single base at position
 record.toJSON() // serialize record
 ```
 
+### Custom BamRecord class
+
+You can provide your own BamRecord class to add custom properties or methods:
+
+```typescript
+import { BamFile, BamRecord } from '@gmod/bam'
+
+class CustomBamRecord extends BamRecord {
+  get customProperty() {
+    return `custom-${this.name}`
+  }
+
+  getDoubleStart() {
+    return this.start * 2
+  }
+}
+
+const bam = new BamFile<CustomBamRecord>({
+  bamPath: 'test.bam',
+  recordClass: CustomBamRecord,
+})
+
+await bam.getHeader()
+const records = await bam.getRecordsForRange('ctgA', 0, 50000)
+// records are typed as CustomBamRecord[]
+console.log(records[0].customProperty)
+console.log(records[0].getDoubleStart())
+```
+
 ## License
 
 MIT © [Colin Diesh](https://github.com/cmdcolin)
