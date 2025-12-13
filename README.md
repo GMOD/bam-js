@@ -141,21 +141,49 @@ refName not exist in sample
 
 Returns whether we have this refName in the sample
 
-### Returned features
-
-Example
+### BamRecord properties
 
 ```typescript
-feature.ref_id // numerical sequence id corresponding to position in the sam header
-feature.start // 0-based half open start coordinate
-feature.end // 0-based half open end coordinate
-feature.name // QNAME
-feature.seq // feature sequence
-feature.qual // qualities
-feature.CIGAR // CIGAR string
-feature.tags // tags
-feature.flags // flags
-feature.template_length // TLEN
+// Core alignment fields
+record.ref_id       // numerical sequence id from SAM header
+record.start        // 0-based start coordinate
+record.end          // 0-based end coordinate
+record.name         // QNAME
+record.seq          // sequence string
+record.qual         // Uint8Array of quality scores (null if unmapped)
+record.CIGAR        // CIGAR string e.g. "50M2I48M"
+record.flags        // SAM flags integer
+record.mq           // mapping quality (undefined if 255)
+record.strand       // 1 or -1
+record.template_length // TLEN
+
+// Auxiliary data
+record.tags         // object with all aux tags e.g. {MD: "100", NM: 0}
+record.NUMERIC_MD   // MD tag as Uint8Array (for fast mismatch rendering)
+record.NUMERIC_CIGAR // Uint32Array of packed CIGAR operations
+record.NUMERIC_SEQ  // Uint8Array of packed sequence (4-bit encoded)
+
+// Mate info
+record.next_refid   // mate reference id
+record.next_pos     // mate position
+
+// Flag methods
+record.isPaired()
+record.isProperlyPaired()
+record.isSegmentUnmapped()
+record.isMateUnmapped()
+record.isReverseComplemented()
+record.isMateReverseComplemented()
+record.isRead1()
+record.isRead2()
+record.isSecondary()
+record.isFailedQc()
+record.isDuplicate()
+record.isSupplementary()
+
+// Utility
+record.seqAt(idx)   // get single base at position
+record.toJSON()     // serialize record
 ```
 
 ## License
