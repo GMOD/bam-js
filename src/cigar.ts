@@ -1,0 +1,9 @@
+export const CIGAR_MATCH = 0
+export const CIGAR_INS = 1
+export const CIGAR_DEL = 2
+export const CIGAR_REF_SKIP = 3
+export const CIGAR_SOFT_CLIP = 4
+export const CIGAR_HARD_CLIP = 5
+export const CIGAR_PAD = 6
+export const CIGAR_EQUAL = 7
+export const CIGAR_DIFF = 8
