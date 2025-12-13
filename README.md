@@ -145,27 +145,27 @@ Returns whether we have this refName in the sample
 
 ```typescript
 // Core alignment fields
-record.ref_id       // numerical sequence id from SAM header
-record.start        // 0-based start coordinate
-record.end          // 0-based end coordinate
-record.name         // QNAME
-record.seq          // sequence string
-record.qual         // Uint8Array of quality scores (null if unmapped)
-record.CIGAR        // CIGAR string e.g. "50M2I48M"
-record.flags        // SAM flags integer
-record.mq           // mapping quality (undefined if 255)
-record.strand       // 1 or -1
+record.ref_id // numerical sequence id from SAM header
+record.start // 0-based start coordinate
+record.end // 0-based end coordinate
+record.name // QNAME
+record.seq // sequence string
+record.qual // Uint8Array of quality scores (null if unmapped)
+record.CIGAR // CIGAR string e.g. "50M2I48M"
+record.flags // SAM flags integer
+record.mq // mapping quality (undefined if 255)
+record.strand // 1 or -1
 record.template_length // TLEN
 
 // Auxiliary data
-record.tags         // object with all aux tags e.g. {MD: "100", NM: 0}
-record.NUMERIC_MD   // MD tag as Uint8Array (for fast mismatch rendering)
+record.tags // object with all aux tags e.g. {MD: "100", NM: 0}
+record.NUMERIC_MD // MD tag as Uint8Array (for fast mismatch rendering)
 record.NUMERIC_CIGAR // Uint32Array of packed CIGAR operations
-record.NUMERIC_SEQ  // Uint8Array of packed sequence (4-bit encoded)
+record.NUMERIC_SEQ // Uint8Array of packed sequence (4-bit encoded)
 
 // Mate info
-record.next_refid   // mate reference id
-record.next_pos     // mate position
+record.next_refid // mate reference id
+record.next_pos // mate position
 
 // Flag methods
 record.isPaired()
@@ -182,8 +182,8 @@ record.isDuplicate()
 record.isSupplementary()
 
 // Utility
-record.seqAt(idx)   // get single base at position
-record.toJSON()     // serialize record
+record.seqAt(idx) // get single base at position
+record.toJSON() // serialize record
 ```
 
 ## License

@@ -15,7 +15,7 @@ const ASCII_CIGAR_CODES = [
 const CIGAR_SKIP_MASK =
   (1 << CIGAR_INS) | (1 << CIGAR_SOFT_CLIP) | (1 << CIGAR_HARD_CLIP)
 
-interface Bytes {
+export interface Bytes {
   start: number
   end: number
   byteArray: Uint8Array

@@ -441,3 +441,36 @@ test('estimatedBytesForRegions estimates download size', async () => {
 //   )
 //   console.timeEnd('timerecord')
 // })
+
+test('custom BamRecord class', async () => {
+  class CustomBamRecord extends BamRecord {
+    // constructor(args: { bytes: Bytes; fileOffset: number }) {
+    //   super(args)
+    // }
+
+    get customProperty() {
+      return `custom-${this.name}`
+    }
+
+    getDoubleStart() {
+      return this.start * 2
+    }
+  }
+
+  const ti = new BamFile<CustomBamRecord>({
+    bamPath: 'test/data/volvox-sorted.bam',
+    recordClass: CustomBamRecord,
+  })
+  await ti.getHeader()
+  const records = await ti.getRecordsForRange('ctgA', 0, 1000)
+
+  expect(records.length).toEqual(131)
+  expect(records[0]).toBeInstanceOf(CustomBamRecord)
+  expect(records[0]).toBeInstanceOf(BamRecord)
+  expect(records[0].customProperty).toEqual(
+    'custom-ctgA_3_555_0:0:0_2:0:0_102d',
+  )
+  expect(records[0].getDoubleStart()).toEqual(4)
+  expect(records[0].start).toEqual(2)
+  expect(records[0].CIGAR).toEqual('100M')
+})

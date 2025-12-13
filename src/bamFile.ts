@@ -11,14 +11,30 @@ import BAMFeature from './record.ts'
 import { parseHeaderText } from './sam.ts'
 import { gen2array, makeOpts } from './util.ts'
 
+import type { Bytes } from './record.ts'
 import type { BamOpts, BaseOpts } from './util.ts'
 import type { GenericFilehandle } from 'generic-filehandle2'
+
+export interface BamRecordLike {
+  ref_id: number
+  start: number
+  end: number
+  name: string
+  id: number
+  next_pos: number
+  next_refid: number
+}
+
+export type BamRecordClass<T extends BamRecordLike = BAMFeature> = new (args: {
+  bytes: Bytes
+  fileOffset: number
+}) => T
 
 export const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
 
-export default class BamFile {
+export default class BamFile<T extends BamRecordLike = BAMFeature> {
   public renameRefSeq: (a: string) => string
   public bam: GenericFilehandle
   public header?: string
@@ -26,7 +42,7 @@ export default class BamFile {
   public indexToChr?: { refName: string; length: number }[]
   public index?: BAI | CSI
   public htsget = false
-  public headerP?: ReturnType<BamFile['getHeaderPre']>
+  public headerP?: ReturnType<BamFile<T>['getHeaderPre']>
   public cache = new QuickLRU<
     string,
     { bytesRead: number; buffer: Uint8Array; nextIn: number }
@@ -38,8 +54,10 @@ export default class BamFile {
   // When a new chunk overlaps a cached chunk, we evict the cached one
   public chunkFeatureCache = new QuickLRU<
     string,
-    { minBlock: number; maxBlock: number; features: BAMFeature[] }
+    { minBlock: number; maxBlock: number; features: T[] }
   >({ maxSize: 100 })
+
+  private RecordClass: BamRecordClass<T>
 
   constructor({
     bamFilehandle,
@@ -53,6 +71,7 @@ export default class BamFile {
     csiUrl,
     htsget,
     renameRefSeqs = n => n,
+    recordClass,
   }: {
     bamFilehandle?: GenericFilehandle
     bamPath?: string
@@ -65,8 +84,10 @@ export default class BamFile {
     csiUrl?: string
     renameRefSeqs?: (a: string) => string
     htsget?: boolean
+    recordClass?: BamRecordClass<T>
   }) {
     this.renameRefSeq = renameRefSeqs
+    this.RecordClass = (recordClass ?? BAMFeature) as BamRecordClass<T>
 
     if (bamFilehandle) {
       this.bam = bamFilehandle
@@ -252,7 +273,7 @@ export default class BamFile {
     opts: BamOpts = {},
   ) {
     const { viewAsPairs } = opts
-    const feats = [] as BAMFeature[][]
+    const feats = [] as T[][]
     let done = false
     // let cacheHits = 0
     // let cacheMisses = 0
@@ -262,7 +283,7 @@ export default class BamFile {
       const minBlock = chunk.minv.blockPosition
       const maxBlock = chunk.maxv.blockPosition
 
-      let records: BAMFeature[]
+      let records: T[]
       const cached = this.chunkFeatureCache.get(cacheKey)
       if (cached) {
         records = cached.features
@@ -287,7 +308,7 @@ export default class BamFile {
         // cacheMisses++
       }
 
-      const recs = [] as BAMFeature[]
+      const recs = [] as T[]
       for (const feature of records) {
         if (feature.ref_id === chrId) {
           if (feature.start >= max) {
@@ -318,7 +339,7 @@ export default class BamFile {
     }
   }
 
-  async fetchPairs(chrId: number, feats: BAMFeature[][], opts: BamOpts) {
+  async fetchPairs(chrId: number, feats: T[][], opts: BamOpts) {
     const { pairAcrossChr, maxInsertSize = 200000 } = opts
     const unmatedPairs: Record<string, boolean> = {}
     const readIds: Record<string, number> = {}
@@ -376,7 +397,7 @@ export default class BamFile {
           chunk: c,
           opts,
         })
-        const mateRecs = [] as BAMFeature[]
+        const mateRecs = [] as T[]
         for (const feature of await this.readBamFeatures(
           data,
           cpositions,
@@ -415,7 +436,7 @@ export default class BamFile {
     chunk: Chunk,
   ) {
     let blockStart = 0
-    const sink = [] as BAMFeature[]
+    const sink = [] as T[]
     let pos = 0
 
     const dataView = new DataView(ba.buffer)
@@ -432,7 +453,7 @@ export default class BamFile {
       }
 
       if (blockEnd < ba.length) {
-        const feature = new BAMFeature({
+        const feature = new this.RecordClass({
           bytes: {
             byteArray: ba,
             start: blockStart,
