@@ -20,7 +20,7 @@ export interface BamRecordLike {
   start: number
   end: number
   name: string
-  id: number
+  id: string
   next_pos: number
   next_refid: number
 }

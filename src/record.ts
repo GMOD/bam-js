@@ -67,7 +67,7 @@ export default class BamRecord {
   }
 
   get id() {
-    return this.fileOffset
+    return `${this.fileOffset}`
   }
 
   get mq() {
