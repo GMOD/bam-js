@@ -107,51 +107,52 @@ export default class BamRecord {
       this.seq_length
 
     const blockEnd = this.bytes.end
+    const ba = this.byteArray
     while (p < blockEnd) {
-      const tag =
-        String.fromCharCode(this.byteArray[p]!) +
-        String.fromCharCode(this.byteArray[p + 1]!)
-      const type = String.fromCharCode(this.byteArray[p + 2]!)
+      const tag1 = ba[p]!
+      const tag2 = ba[p + 1]!
+      const type = ba[p + 2]!
       p += 3
 
-      if (tag === 'MD' && type === 'Z') {
+      // 'M' = 0x4D, 'D' = 0x44, 'Z' = 0x5A
+      if (tag1 === 0x4d && tag2 === 0x44 && type === 0x5a) {
         const start = p
-        while (p < blockEnd && this.byteArray[p] !== 0) {
+        while (p < blockEnd && ba[p] !== 0) {
           p++
         }
-        return this.byteArray.subarray(start, p)
+        return ba.subarray(start, p)
       }
 
       switch (type) {
-        case 'A':
+        case 0x41: // 'A'
           p += 1
           break
-        case 'i':
-        case 'I':
-        case 'f':
+        case 0x69: // 'i'
+        case 0x49: // 'I'
+        case 0x66: // 'f'
           p += 4
           break
-        case 'c':
-        case 'C':
+        case 0x63: // 'c'
+        case 0x43: // 'C'
           p += 1
           break
-        case 's':
-        case 'S':
+        case 0x73: // 's'
+        case 0x53: // 'S'
           p += 2
           break
-        case 'Z':
-        case 'H':
-          while (p <= blockEnd && this.byteArray[p++] !== 0) {}
+        case 0x5a: // 'Z'
+        case 0x48: // 'H'
+          while (p <= blockEnd && ba[p++] !== 0) {}
           break
-        case 'B': {
-          const Btype = String.fromCharCode(this.byteArray[p++]!)
+        case 0x42: { // 'B'
+          const Btype = ba[p++]!
           const limit = this._dataView.getInt32(p, true)
           p += 4
-          if (Btype === 'i' || Btype === 'I' || Btype === 'f') {
+          if (Btype === 0x69 || Btype === 0x49 || Btype === 0x66) {
             p += limit << 2
-          } else if (Btype === 's' || Btype === 'S') {
+          } else if (Btype === 0x73 || Btype === 0x53) {
             p += limit << 1
-          } else if (Btype === 'c' || Btype === 'C') {
+          } else if (Btype === 0x63 || Btype === 0x43) {
             p += limit
           }
           break
@@ -613,3 +614,4 @@ cacheGetter(BamRecord, 'cigarAndLength')
 cacheGetter(BamRecord, 'seq')
 cacheGetter(BamRecord, 'qual')
 cacheGetter(BamRecord, 'end')
+cacheGetter(BamRecord, 'NUMERIC_MD')
