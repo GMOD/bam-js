@@ -20,7 +20,7 @@ export interface BamRecordLike {
   start: number
   end: number
   name: string
-  id: string
+  fileOffset: number
   next_pos: number
   next_refid: number
 }
@@ -347,7 +347,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       const readNames: Record<string, number> = {}
       for (const element of ret) {
         const name = element.name
-        const id = element.id
+        const id = element.fileOffset
         if (!readNames[name]) {
           readNames[name] = 0
         }
@@ -404,7 +404,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
           dpositions,
           chunk,
         )) {
-          if (unmatedPairs[feature.name] && !readIds[feature.id]) {
+          if (unmatedPairs[feature.name] && !readIds[feature.fileOffset]) {
             mateRecs.push(feature)
           }
         }
@@ -473,17 +473,6 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       blockStart = blockEnd + 1
     }
     return sink
-  }
-
-  _shouldIncludeFeature(
-    dataView: DataView,
-    blockStart: number,
-    chrId: number,
-    max: number,
-  ) {
-    const ref_id = dataView.getInt32(blockStart + 4, true)
-    const start = dataView.getInt32(blockStart + 8, true)
-    return ref_id === chrId && start < max
   }
 
   async hasRefSeq(seqName: string) {

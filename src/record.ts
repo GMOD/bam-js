@@ -66,10 +66,6 @@ export default class BamRecord {
     return this.start + this.length_on_ref
   }
 
-  get id() {
-    return `${this.fileOffset}`
-  }
-
   get mq() {
     const mq = (this.bin_mq_nl & 0xff00) >> 8
     return mq === 255 ? undefined : mq

@@ -143,8 +143,7 @@ Returns whether we have this refName in the sample
 
 ```typescript
 // Core alignment fields
-record.id // unique identifier string (stringified fileOffset)
-record.fileOffset // raw file offset (number)
+record.fileOffset // "file offset" based id -- not a true file offset
 record.ref_id // numerical sequence id from SAM header
 record.start // 0-based start coordinate
 record.end // 0-based end coordinate
