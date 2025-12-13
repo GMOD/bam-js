@@ -70,10 +70,8 @@ The BAM class constructor accepts arguments
 - `csiPath`/`csiUrl`/`csiFilehandle` - a CSI index for the BAM file, required
   for long chromosomes greater than 2^29 in length
 - `baiPath`/`baiUrl`/`baiFilehandle` - a BAI index for the BAM file
-- `cacheSize` - limit on number of chunks to cache. default: 50
-- `yieldThreadTime` - the interval at which the code yields to the main thread
-  when it is parsing a lot of data. default: 100ms. Set to 0 to performed no
-  yielding
+- `recordClass` - a custom class extending BamRecord to use for records (see
+  Custom BamRecord class section below)
 
 Note: filehandles implement the Filehandle interface from
 https://www.npmjs.com/package/generic-filehandle2.
@@ -145,6 +143,8 @@ Returns whether we have this refName in the sample
 
 ```typescript
 // Core alignment fields
+record.id // unique identifier string (stringified fileOffset)
+record.fileOffset // raw file offset (number)
 record.ref_id // numerical sequence id from SAM header
 record.start // 0-based start coordinate
 record.end // 0-based end coordinate
