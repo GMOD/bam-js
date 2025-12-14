@@ -268,6 +268,31 @@ function computeCigarPlainArray(
   }
 }
 
+// Plain array with |0 to force 32-bit integer representation
+function computeCigarPlainArrayInt32(
+  byteArray: Uint8Array,
+  dataView: DataView,
+  cigarOffset: number,
+  numCigarOps: number,
+) {
+  const cigarArray: number[] = new Array(numCigarOps)
+  let lref = 0
+
+  for (let c = 0; c < numCigarOps; ++c) {
+    const cigop = dataView.getInt32(cigarOffset + c * 4, true) | 0
+    cigarArray[c] = cigop
+    const op = (cigop & 0xf) | 0
+    if (!((1 << op) & CIGAR_SKIP_MASK)) {
+      lref = (lref + (cigop >> 4)) | 0
+    }
+  }
+
+  return {
+    NUMERIC_CIGAR: cigarArray,
+    length_on_ref: lref,
+  }
+}
+
 // Hybrid: plain array for small, Uint32Array for large
 function computeCigarHybrid(
   byteArray: Uint8Array,
@@ -380,6 +405,9 @@ describe('Simple CIGAR 100M (aligned)', () => {
   bench('plainArray', () => {
     computeCigarPlainArray(byteArray, dataView, cigarOffset, numCigarOps)
   })
+  bench('plainArrayInt32', () => {
+    computeCigarPlainArrayInt32(byteArray, dataView, cigarOffset, numCigarOps)
+  })
   bench('hybrid50', () => {
     computeCigarHybrid(byteArray, dataView, cigarOffset, numCigarOps, 50)
   })
@@ -408,6 +436,9 @@ describe('Typical short read 5S+90M+5S (aligned)', () => {
   bench('plainArray', () => {
     computeCigarPlainArray(byteArray, dataView, cigarOffset, numCigarOps)
   })
+  bench('plainArrayInt32', () => {
+    computeCigarPlainArrayInt32(byteArray, dataView, cigarOffset, numCigarOps)
+  })
   bench('hybrid50', () => {
     computeCigarHybrid(byteArray, dataView, cigarOffset, numCigarOps, 50)
   })
@@ -435,6 +466,9 @@ describe('Long read 50 ops (aligned)', () => {
   })
   bench('plainArray', () => {
     computeCigarPlainArray(byteArray, dataView, cigarOffset, numCigarOps)
+  })
+  bench('plainArrayInt32', () => {
+    computeCigarPlainArrayInt32(byteArray, dataView, cigarOffset, numCigarOps)
   })
   bench('hybrid25', () => {
     computeCigarHybrid(byteArray, dataView, cigarOffset, numCigarOps, 25)

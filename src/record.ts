@@ -382,7 +382,11 @@ export default class BamRecord {
   //   - Plain array is 9-10x faster for small CIGARs (1-7 ops)
   //   - Uint32Array slice+copy only wins at extreme sizes (10000 ops: 1.4x faster)
   //
-  // Strategy: use plain array for small aligned (<= 50 ops) and all unaligned,
+  // Using |0 to force 32-bit integers in plain array path:
+  //   - 1.67x faster for medium CIGARs (50 ops)
+  //   - Neutral for small CIGARs (1-7 ops)
+  //
+  // Strategy: use plain array with |0 for small aligned (≤50 ops) and all unaligned,
   // Uint32Array view only for large aligned CIGARs.
   private _computeCigarAndLength() {
     if (this.isSegmentUnmapped()) {
@@ -443,11 +447,11 @@ export default class BamRecord {
     const cigarArray: number[] = new Array(numCigarOps)
     let lref = 0
     for (let c = 0; c < numCigarOps; ++c) {
-      const cigop = this._dataView.getInt32(p + c * 4, true)
+      const cigop = this._dataView.getInt32(p + c * 4, true) | 0
       cigarArray[c] = cigop
-      const op = cigop & 0xf
+      const op = (cigop & 0xf) | 0
       if (!((1 << op) & CIGAR_SKIP_MASK)) {
-        lref += cigop >> 4
+        lref = (lref + (cigop >> 4)) | 0
       }
     }
     return {
