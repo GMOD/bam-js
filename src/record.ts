@@ -23,7 +23,7 @@ export interface Bytes {
 
 interface CIGAR_AND_LENGTH {
   length_on_ref: number
-  NUMERIC_CIGAR: Uint32Array
+  NUMERIC_CIGAR: Uint32Array | number[]
 }
 
 export default class BamRecord {
@@ -370,6 +370,20 @@ export default class BamRecord {
     return this._cachedCigarAndLength
   }
 
+  // Benchmark results for CIGAR parsing strategies (see benchmarks/cigar-lifecycle.bench.ts):
+  //
+  // Aligned data:
+  //   - Plain array is 1.6-1.8x faster than Uint32Array for small CIGARs (≤50 ops)
+  //   - Uint32Array view is 1.3-2.2x faster for large CIGARs (≥200 ops)
+  //   - Crossover point is around 50-100 ops
+  //
+  // Unaligned data (requires slice+copy for Uint32Array):
+  //   - Plain array is 3.7-6.1x faster for typical sizes (50-200 ops)
+  //   - Plain array is 9-10x faster for small CIGARs (1-7 ops)
+  //   - Uint32Array slice+copy only wins at extreme sizes (10000 ops: 1.4x faster)
+  //
+  // Strategy: use plain array for small aligned (<= 50 ops) and all unaligned,
+  // Uint32Array view only for large aligned CIGARs.
   private _computeCigarAndLength() {
     if (this.isSegmentUnmapped()) {
       return {
@@ -402,26 +416,42 @@ export default class BamRecord {
         length_on_ref: lop,
       }
     }
+
     const absOffset = this.byteArray.byteOffset + p
-    const cigarView =
-      absOffset % 4 === 0
-        ? new Uint32Array(this.byteArray.buffer, absOffset, numCigarOps)
-        : new Uint32Array(
-            this.byteArray.slice(p, p + (numCigarOps << 2)).buffer,
-            0,
-            numCigarOps,
-          )
+    const isAligned = absOffset % 4 === 0
+
+    if (isAligned && numCigarOps > 50) {
+      const cigarView = new Uint32Array(
+        this.byteArray.buffer,
+        absOffset,
+        numCigarOps,
+      )
+      let lref = 0
+      for (let c = 0; c < numCigarOps; ++c) {
+        const cigop = cigarView[c]!
+        const op = cigop & 0xf
+        if (!((1 << op) & CIGAR_SKIP_MASK)) {
+          lref += cigop >> 4
+        }
+      }
+      return {
+        NUMERIC_CIGAR: cigarView,
+        length_on_ref: lref,
+      }
+    }
+
+    const cigarArray: number[] = new Array(numCigarOps)
     let lref = 0
     for (let c = 0; c < numCigarOps; ++c) {
-      const cigop = cigarView[c]!
+      const cigop = this._dataView.getInt32(p + c * 4, true)
+      cigarArray[c] = cigop
       const op = cigop & 0xf
       if (!((1 << op) & CIGAR_SKIP_MASK)) {
         lref += cigop >> 4
       }
     }
-
     return {
-      NUMERIC_CIGAR: cigarView,
+      NUMERIC_CIGAR: cigarArray,
       length_on_ref: lref,
     }
   }
