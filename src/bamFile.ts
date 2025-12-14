@@ -34,6 +34,12 @@ export const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
 
+interface ChunkEntry<T> {
+  minBlock: number
+  maxBlock: number
+  features: T[]
+}
+
 export default class BamFile<T extends BamRecordLike = BAMFeature> {
   public renameRefSeq: (a: string) => string
   public bam: GenericFilehandle
@@ -43,19 +49,12 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   public index?: BAI | CSI
   public htsget = false
   public headerP?: ReturnType<BamFile<T>['getHeaderPre']>
-  public cache = new QuickLRU<
-    string,
-    { bytesRead: number; buffer: Uint8Array; nextIn: number }
-  >({
-    maxSize: 1000,
-  })
 
   // Cache for parsed features by chunk
   // When a new chunk overlaps a cached chunk, we evict the cached one
-  public chunkFeatureCache = new QuickLRU<
-    string,
-    { minBlock: number; maxBlock: number; features: T[] }
-  >({ maxSize: 100 })
+  public chunkFeatureCache = new QuickLRU<string, ChunkEntry<T>>({
+    maxSize: 100,
+  })
 
   private RecordClass: BamRecordClass<T>
 
@@ -425,7 +424,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       buffer: data,
       cpositions,
       dpositions,
-    } = await unzipChunkSlice(buf, chunk, this.cache)
+    } = await unzipChunkSlice(buf, chunk)
     return { data, cpositions, dpositions, chunk }
   }
 
@@ -530,7 +529,11 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       if (refId === undefined) {
         throw new Error(`Unknown reference name: ${r.refName}`)
       }
-      return { refId, start: r.start, end: r.end }
+      return {
+        refId,
+        start: r.start,
+        end: r.end,
+      }
     })
     return this.index.estimatedBytesForRegions(regionsWithIds, opts)
   }

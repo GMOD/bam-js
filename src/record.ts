@@ -32,6 +32,9 @@ export default class BamRecord {
   private _dataView: DataView
 
   private _cachedFlags?: number
+  private _cachedRefId?: number
+  private _cachedStart?: number
+  private _cachedEnd?: number
   private _cachedTags?: Record<string, unknown>
   private _cachedCigarAndLength?: CIGAR_AND_LENGTH
   private _cachedNUMERIC_MD?: Uint8Array | null
@@ -55,15 +58,24 @@ export default class BamRecord {
     return this._cachedFlags
   }
   get ref_id() {
-    return this._dataView.getInt32(this.bytes.start + 4, true)
+    if (this._cachedRefId === undefined) {
+      this._cachedRefId = this._dataView.getInt32(this.bytes.start + 4, true)
+    }
+    return this._cachedRefId
   }
 
   get start() {
-    return this._dataView.getInt32(this.bytes.start + 8, true)
+    if (this._cachedStart === undefined) {
+      this._cachedStart = this._dataView.getInt32(this.bytes.start + 8, true)
+    }
+    return this._cachedStart
   }
 
   get end() {
-    return this.start + this.length_on_ref
+    if (this._cachedEnd === undefined) {
+      this._cachedEnd = this.start + this.length_on_ref
+    }
+    return this._cachedEnd
   }
 
   get mq() {
@@ -95,12 +107,16 @@ export default class BamRecord {
   get b0() {
     return this.bytes.start + 36
   }
+  // batch fromCharCode: fastest for typical name lengths (see benchmarks/string-building.bench.ts)
   get name() {
-    let str = ''
-    for (let i = 0; i < this.read_name_length - 1; i++) {
-      str += String.fromCharCode(this.byteArray[this.b0 + i]!)
+    const len = this.read_name_length - 1
+    const start = this.b0
+    const ba = this.byteArray
+    const codes = new Array(len)
+    for (let i = 0; i < len; i++) {
+      codes[i] = ba[start + i]!
     }
-    return str
+    return String.fromCharCode(...codes)
   }
 
   get NUMERIC_MD() {
@@ -523,6 +539,7 @@ export default class BamRecord {
   }
 
   // adapted from igv.js
+  // uses template literal instead of array+join (6.4x faster, see benchmarks/string-building.bench.ts)
   get pair_orientation() {
     if (
       !this.isSegmentUnmapped() &&
@@ -541,20 +558,9 @@ export default class BamRecord {
         o2 = '1'
       }
 
-      const tmp = []
-      const isize = this.template_length
-      if (isize > 0) {
-        tmp[0] = s1
-        tmp[1] = o1
-        tmp[2] = s2
-        tmp[3] = o2
-      } else {
-        tmp[2] = s1
-        tmp[3] = o1
-        tmp[0] = s2
-        tmp[1] = o2
-      }
-      return tmp.join('')
+      return this.template_length > 0
+        ? `${s1}${o1}${s2}${o2}`
+        : `${s2}${o2}${s1}${o1}`
     }
     return undefined
   }
