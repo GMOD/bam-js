@@ -23,7 +23,7 @@ export interface Bytes {
 
 interface CIGAR_AND_LENGTH {
   length_on_ref: number
-  NUMERIC_CIGAR: Uint32Array
+  NUMERIC_CIGAR: Uint32Array | number[]
 }
 
 export default class BamRecord {
@@ -32,6 +32,9 @@ export default class BamRecord {
   private _dataView: DataView
 
   private _cachedFlags?: number
+  private _cachedRefId?: number
+  private _cachedStart?: number
+  private _cachedEnd?: number
   private _cachedTags?: Record<string, unknown>
   private _cachedCigarAndLength?: CIGAR_AND_LENGTH
   private _cachedNUMERIC_MD?: Uint8Array | null
@@ -55,15 +58,24 @@ export default class BamRecord {
     return this._cachedFlags
   }
   get ref_id() {
-    return this._dataView.getInt32(this.bytes.start + 4, true)
+    if (this._cachedRefId === undefined) {
+      this._cachedRefId = this._dataView.getInt32(this.bytes.start + 4, true)
+    }
+    return this._cachedRefId
   }
 
   get start() {
-    return this._dataView.getInt32(this.bytes.start + 8, true)
+    if (this._cachedStart === undefined) {
+      this._cachedStart = this._dataView.getInt32(this.bytes.start + 8, true)
+    }
+    return this._cachedStart
   }
 
   get end() {
-    return this.start + this.length_on_ref
+    if (this._cachedEnd === undefined) {
+      this._cachedEnd = this.start + this.length_on_ref
+    }
+    return this._cachedEnd
   }
 
   get mq() {
@@ -95,12 +107,16 @@ export default class BamRecord {
   get b0() {
     return this.bytes.start + 36
   }
+  // batch fromCharCode: fastest for typical name lengths (see benchmarks/string-building.bench.ts)
   get name() {
-    let str = ''
-    for (let i = 0; i < this.read_name_length - 1; i++) {
-      str += String.fromCharCode(this.byteArray[this.b0 + i]!)
+    const len = this.read_name_length - 1
+    const start = this.b0
+    const ba = this.byteArray
+    const codes = new Array(len)
+    for (let i = 0; i < len; i++) {
+      codes[i] = ba[start + i]!
     }
-    return str
+    return String.fromCharCode(...codes)
   }
 
   get NUMERIC_MD() {
@@ -370,6 +386,24 @@ export default class BamRecord {
     return this._cachedCigarAndLength
   }
 
+  // Benchmark results for CIGAR parsing strategies (see benchmarks/cigar-lifecycle.bench.ts):
+  //
+  // Aligned data:
+  //   - Plain array is 1.6-1.8x faster than Uint32Array for small CIGARs (≤50 ops)
+  //   - Uint32Array view is 1.3-2.2x faster for large CIGARs (≥200 ops)
+  //   - Crossover point is around 50-100 ops
+  //
+  // Unaligned data (requires slice+copy for Uint32Array):
+  //   - Plain array is 3.7-6.1x faster for typical sizes (50-200 ops)
+  //   - Plain array is 9-10x faster for small CIGARs (1-7 ops)
+  //   - Uint32Array slice+copy only wins at extreme sizes (10000 ops: 1.4x faster)
+  //
+  // Using |0 to force 32-bit integers in plain array path:
+  //   - 1.67x faster for medium CIGARs (50 ops)
+  //   - Neutral for small CIGARs (1-7 ops)
+  //
+  // Strategy: use plain array with |0 for small aligned (≤50 ops) and all unaligned,
+  // Uint32Array view only for large aligned CIGARs.
   private _computeCigarAndLength() {
     if (this.isSegmentUnmapped()) {
       return {
@@ -402,26 +436,42 @@ export default class BamRecord {
         length_on_ref: lop,
       }
     }
+
     const absOffset = this.byteArray.byteOffset + p
-    const cigarView =
-      absOffset % 4 === 0
-        ? new Uint32Array(this.byteArray.buffer, absOffset, numCigarOps)
-        : new Uint32Array(
-            this.byteArray.slice(p, p + (numCigarOps << 2)).buffer,
-            0,
-            numCigarOps,
-          )
-    let lref = 0
-    for (let c = 0; c < numCigarOps; ++c) {
-      const cigop = cigarView[c]!
-      const op = cigop & 0xf
-      if (!((1 << op) & CIGAR_SKIP_MASK)) {
-        lref += cigop >> 4
+    const isAligned = absOffset % 4 === 0
+
+    if (isAligned && numCigarOps > 50) {
+      const cigarView = new Uint32Array(
+        this.byteArray.buffer,
+        absOffset,
+        numCigarOps,
+      )
+      let lref = 0
+      for (let c = 0; c < numCigarOps; ++c) {
+        const cigop = cigarView[c]!
+        const op = cigop & 0xf
+        if (!((1 << op) & CIGAR_SKIP_MASK)) {
+          lref += cigop >> 4
+        }
+      }
+      return {
+        NUMERIC_CIGAR: cigarView,
+        length_on_ref: lref,
       }
     }
 
+    const cigarArray: number[] = new Array(numCigarOps)
+    let lref = 0
+    for (let c = 0; c < numCigarOps; ++c) {
+      const cigop = this._dataView.getInt32(p + c * 4, true) | 0
+      cigarArray[c] = cigop
+      const op = (cigop & 0xf) | 0
+      if (!((1 << op) & CIGAR_SKIP_MASK)) {
+        lref = (lref + (cigop >> 4)) | 0
+      }
+    }
     return {
-      NUMERIC_CIGAR: cigarView,
+      NUMERIC_CIGAR: cigarArray,
       length_on_ref: lref,
     }
   }
@@ -489,6 +539,7 @@ export default class BamRecord {
   }
 
   // adapted from igv.js
+  // uses template literal instead of array+join (6.4x faster, see benchmarks/string-building.bench.ts)
   get pair_orientation() {
     if (
       !this.isSegmentUnmapped() &&
@@ -507,20 +558,9 @@ export default class BamRecord {
         o2 = '1'
       }
 
-      const tmp = []
-      const isize = this.template_length
-      if (isize > 0) {
-        tmp[0] = s1
-        tmp[1] = o1
-        tmp[2] = s2
-        tmp[3] = o2
-      } else {
-        tmp[2] = s1
-        tmp[3] = o1
-        tmp[0] = s2
-        tmp[1] = o2
-      }
-      return tmp.join('')
+      return this.template_length > 0
+        ? `${s1}${o1}${s2}${o2}`
+        : `${s2}${o2}${s1}${o1}`
     }
     return undefined
   }
