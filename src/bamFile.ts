@@ -9,10 +9,16 @@ import CSI from './csi.ts'
 import NullFilehandle from './nullFilehandle.ts'
 import BAMFeature from './record.ts'
 import { parseHeaderText } from './sam.ts'
-import { gen2array, makeOpts } from './util.ts'
+import {
+  filterCacheKey,
+  filterReadFlag,
+  filterTagValue,
+  gen2array,
+  makeOpts,
+} from './util.ts'
 
 import type { Bytes } from './record.ts'
-import type { BamOpts, BaseOpts } from './util.ts'
+import type { BamOpts, BaseOpts, FilterBy } from './util.ts'
 import type { GenericFilehandle } from 'generic-filehandle2'
 
 export interface BamRecordLike {
@@ -23,6 +29,8 @@ export interface BamRecordLike {
   fileOffset: number
   next_pos: number
   next_refid: number
+  flags: number
+  tags: Record<string, unknown>
 }
 
 export type BamRecordClass<T extends BamRecordLike = BAMFeature> = new (args: {
@@ -236,9 +244,9 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
-  private chunkCacheKey(chunk: Chunk) {
+  private chunkCacheKey(chunk: Chunk, filterBy?: FilterBy) {
     const { minv, maxv } = chunk
-    return `${minv.blockPosition}:${minv.dataPosition}-${maxv.blockPosition}:${maxv.dataPosition}`
+    return `${minv.blockPosition}:${minv.dataPosition}-${maxv.blockPosition}:${maxv.dataPosition}${filterCacheKey(filterBy)}`
   }
 
   private blocksOverlap(
@@ -271,14 +279,15 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     max: number,
     opts: BamOpts = {},
   ) {
-    const { viewAsPairs } = opts
+    const { viewAsPairs, filterBy } = opts
+    const { flagInclude = 0, flagExclude = 0, tagFilter } = filterBy || {}
     const feats = [] as T[][]
     let done = false
     // let cacheHits = 0
     // let cacheMisses = 0
 
     for (const chunk of chunks) {
-      const cacheKey = this.chunkCacheKey(chunk)
+      const cacheKey = this.chunkCacheKey(chunk, filterBy)
       const minBlock = chunk.minv.blockPosition
       const maxBlock = chunk.maxv.blockPosition
 
@@ -293,12 +302,26 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
           chunk,
           opts,
         })
-        records = await this.readBamFeatures(
+        const allRecords = await this.readBamFeatures(
           data,
           cpositions,
           dpositions,
           chunk,
         )
+        records = filterBy
+          ? allRecords.filter(record => {
+              if (filterReadFlag(record.flags, flagInclude, flagExclude)) {
+                return false
+              }
+              if (
+                tagFilter &&
+                filterTagValue(record.tags[tagFilter.tag], tagFilter.value)
+              ) {
+                return false
+              }
+              return true
+            })
+          : allRecords
         this.chunkFeatureCache.set(cacheKey, {
           minBlock,
           maxBlock,

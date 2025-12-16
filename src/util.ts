@@ -9,11 +9,23 @@ export function canMergeBlocks(chunk1: Chunk, chunk2: Chunk) {
   )
 }
 
+export interface TagFilter {
+  tag: string
+  value?: string
+}
+
+export interface FilterBy {
+  flagInclude?: number
+  flagExclude?: number
+  tagFilter?: TagFilter
+}
+
 export interface BamOpts {
   viewAsPairs?: boolean
   pairAcrossChr?: boolean
   maxInsertSize?: number
   signal?: AbortSignal
+  filterBy?: FilterBy
 }
 
 export interface BaseOpts {
@@ -158,4 +170,33 @@ export async function gen2array<T>(gen: AsyncIterable<T[]>): Promise<T[]> {
     }
   }
   return out
+}
+
+export function filterReadFlag(
+  flags: number,
+  flagInclude: number,
+  flagExclude: number,
+) {
+  if ((flags & flagInclude) !== flagInclude) {
+    return true
+  }
+  if (flags & flagExclude) {
+    return true
+  }
+  return false
+}
+
+export function filterTagValue(readVal: unknown, filterVal?: string) {
+  return filterVal === '*'
+    ? readVal === undefined
+    : `${readVal}` !== `${filterVal}`
+}
+
+export function filterCacheKey(filterBy?: FilterBy) {
+  if (!filterBy) {
+    return ''
+  }
+  const { flagInclude = 0, flagExclude = 0, tagFilter } = filterBy
+  const tagPart = tagFilter ? `:${tagFilter.tag}=${tagFilter.value ?? '*'}` : ''
+  return `:f${flagInclude}x${flagExclude}${tagPart}`
 }

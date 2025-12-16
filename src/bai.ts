@@ -192,7 +192,7 @@ export default class BAI extends IndexFile {
     if (!seqIdx) {
       return []
     }
-    const { linearIndex = [], stats } = seqIdx
+    const { linearIndex, stats } = seqIdx
     if (linearIndex.length === 0) {
       return []
     }
