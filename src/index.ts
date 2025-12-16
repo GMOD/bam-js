@@ -7,3 +7,4 @@ export {
 export { default as CSI } from './csi.ts'
 export { type Bytes, default as BamRecord } from './record.ts'
 export { default as HtsgetFile } from './htsget.ts'
+export { type FilterBy, type TagFilter } from './util.ts'
