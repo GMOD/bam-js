@@ -13,7 +13,6 @@ import {
   filterCacheKey,
   filterReadFlag,
   filterTagValue,
-  gen2array,
   makeOpts,
 } from './util.ts'
 
@@ -212,7 +211,10 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       const lRef = dataView.getInt32(p + lName + 4, true)
 
       chrToIndex[refName] = i
-      indexToChr.push({ refName, length: lRef })
+      indexToChr.push({
+        refName,
+        length: lRef,
+      })
 
       p = p + 8 + lName
     }
@@ -226,22 +228,13 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     max: number,
     opts?: BamOpts,
   ) {
-    return gen2array(this.streamRecordsForRange(chr, min, max, opts))
-  }
-
-  async *streamRecordsForRange(
-    chr: string,
-    min: number,
-    max: number,
-    opts?: BamOpts,
-  ) {
     await this.getHeader(opts)
     const chrId = this.chrToIndex?.[chr]
     if (chrId === undefined || !this.index) {
-      return
+      return []
     }
     const chunks = await this.index.blocksForRange(chrId, min - 1, max, opts)
-    yield* this._fetchChunkFeatures(chunks, chrId, min, max, opts)
+    return this._fetchChunkFeaturesDirect(chunks, chrId, min, max, opts)
   }
 
   private chunkCacheKey(chunk: Chunk, filterBy?: FilterBy) {
@@ -264,15 +257,12 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       if (
         this.blocksOverlap(minBlock, maxBlock, entry.minBlock, entry.maxBlock)
       ) {
-        // console.log(
-        //   `[BAM Cache] Evicting overlapping chunk: ${key} (${entry.features.length} features, blocks ${entry.minBlock}-${entry.maxBlock})`,
-        // )
         this.chunkFeatureCache.delete(key)
       }
     }
   }
 
-  async *_fetchChunkFeatures(
+  private async _fetchChunkFeaturesDirect(
     chunks: Chunk[],
     chrId: number,
     min: number,
@@ -281,12 +271,10 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   ) {
     const { viewAsPairs, filterBy } = opts
     const { flagInclude = 0, flagExclude = 0, tagFilter } = filterBy || {}
-    const feats = [] as T[][]
-    let done = false
-    // let cacheHits = 0
-    // let cacheMisses = 0
+    const result: T[] = []
 
-    for (const chunk of chunks) {
+    for (let ci = 0, cl = chunks.length; ci < cl; ci++) {
+      const chunk = chunks[ci]!
       const cacheKey = this.chunkCacheKey(chunk, filterBy)
       const minBlock = chunk.minv.blockPosition
       const maxBlock = chunk.maxv.blockPosition
@@ -295,7 +283,6 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       const cached = this.chunkFeatureCache.get(cacheKey)
       if (cached) {
         records = cached.features
-        // cacheHits++
       } else {
         this.evictOverlappingChunks(minBlock, maxBlock)
         const { data, cpositions, dpositions } = await this._readChunk({
@@ -308,108 +295,102 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
           dpositions,
           chunk,
         )
-        records = filterBy
-          ? allRecords.filter(record => {
-              if (filterReadFlag(record.flags, flagInclude, flagExclude)) {
-                return false
-              }
-              if (
-                tagFilter &&
-                filterTagValue(record.tags[tagFilter.tag], tagFilter.value)
-              ) {
-                return false
-              }
-              return true
-            })
-          : allRecords
+        if (filterBy) {
+          records = []
+          for (let i = 0, l = allRecords.length; i < l; i++) {
+            const record = allRecords[i]!
+            if (filterReadFlag(record.flags, flagInclude, flagExclude)) {
+              continue
+            }
+            if (
+              tagFilter &&
+              filterTagValue(record.tags[tagFilter.tag], tagFilter.value)
+            ) {
+              continue
+            }
+            records.push(record)
+          }
+        } else {
+          records = allRecords
+        }
         this.chunkFeatureCache.set(cacheKey, {
           minBlock,
           maxBlock,
           features: records,
         })
-        // cacheMisses++
       }
 
-      const recs = [] as T[]
-      for (const feature of records) {
+      let done = false
+      for (let i = 0, l = records.length; i < l; i++) {
+        const feature = records[i]!
         if (feature.ref_id === chrId) {
           if (feature.start >= max) {
             done = true
             break
           } else if (feature.end >= min) {
-            recs.push(feature)
+            result.push(feature)
           }
         }
       }
-      feats.push(recs)
-      yield recs
       if (done) {
         break
       }
     }
 
-    // const total = cacheHits + cacheMisses
-    // if (total > 0) {
-    //   const hitRate = (cacheHits / total) * 100
-    //   console.log(
-    //     `[BAM Cache] chunks: ${total}, hits: ${cacheHits}, misses: ${cacheMisses}, rate: ${hitRate.toFixed(1)}%, cacheSize: ${this.chunkFeatureCache.size}`,
-    //   )
-    // }
-
     if (viewAsPairs) {
-      yield this.fetchPairs(chrId, feats, opts)
+      const pairs = await this.fetchPairs(chrId, result, opts)
+      for (let i = 0, l = pairs.length; i < l; i++) {
+        result.push(pairs[i]!)
+      }
     }
+
+    return result
   }
 
-  async fetchPairs(chrId: number, feats: T[][], opts: BamOpts) {
+  async fetchPairs(chrId: number, records: T[], opts: BamOpts) {
     const { pairAcrossChr, maxInsertSize = 200000 } = opts
-    const unmatedPairs: Record<string, boolean> = {}
-    const readIds: Record<string, number> = {}
-    for (const ret of feats) {
-      const readNames: Record<string, number> = {}
-      for (const element of ret) {
-        const name = element.name
-        const id = element.fileOffset
-        if (!readNames[name]) {
-          readNames[name] = 0
-        }
-        readNames[name]++
-        readIds[id] = 1
-      }
-      for (const [k, v] of Object.entries(readNames)) {
-        if (v === 1) {
-          unmatedPairs[k] = true
-        }
-      }
+    const readNameCounts: Record<string, number> = {}
+    const readIds: Record<number, number> = {}
+
+    for (let i = 0, l = records.length; i < l; i++) {
+      const r = records[i]!
+      const name = r.name
+      readNameCounts[name] = (readNameCounts[name] || 0) + 1
+      readIds[r.fileOffset] = 1
     }
 
     const matePromises: Promise<Chunk[]>[] = []
-    for (const ret of feats) {
-      for (const f of ret) {
-        const name = f.name
-        const start = f.start
-        const pnext = f.next_pos
-        const rnext = f.next_refid
-        if (
-          this.index &&
-          unmatedPairs[name] &&
-          (pairAcrossChr ||
-            (rnext === chrId && Math.abs(start - pnext) < maxInsertSize))
-        ) {
-          matePromises.push(
-            this.index.blocksForRange(rnext, pnext, pnext + 1, opts),
-          )
-        }
+    for (let i = 0, l = records.length; i < l; i++) {
+      const f = records[i]!
+      const name = f.name
+      if (
+        this.index &&
+        readNameCounts[name] === 1 &&
+        (pairAcrossChr ||
+          (f.next_refid === chrId &&
+            Math.abs(f.start - f.next_pos) < maxInsertSize))
+      ) {
+        matePromises.push(
+          this.index.blocksForRange(
+            f.next_refid,
+            f.next_pos,
+            f.next_pos + 1,
+            opts,
+          ),
+        )
       }
     }
 
-    // filter out duplicate chunks (the blocks are lists of chunks, blocks are
-    // concatenated, then filter dup chunks)
     const map = new Map<string, Chunk>()
     const res = await Promise.all(matePromises)
-    for (const m of res.flat()) {
-      if (!map.has(m.toString())) {
-        map.set(m.toString(), m)
+    for (let i = 0, l = res.length; i < l; i++) {
+      const chunks = res[i]!
+      for (let j = 0, jl = chunks.length; j < jl; j++) {
+        const m = chunks[j]!
+        const key = m.toString()
+        if (!map.has(key)) {
+          map.set(key, m)
+        }
       }
     }
 
@@ -420,13 +401,18 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
           opts,
         })
         const mateRecs = [] as T[]
-        for (const feature of await this.readBamFeatures(
+        const features = await this.readBamFeatures(
           data,
           cpositions,
           dpositions,
           chunk,
-        )) {
-          if (unmatedPairs[feature.name] && !readIds[feature.fileOffset]) {
+        )
+        for (let i = 0, l = features.length; i < l; i++) {
+          const feature = features[i]!
+          if (
+            readNameCounts[feature.name] === 1 &&
+            !readIds[feature.fileOffset]
+          ) {
             mateRecs.push(feature)
           }
         }
@@ -547,17 +533,19 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     if (!this.chrToIndex) {
       throw new Error('Header not yet parsed')
     }
-    const regionsWithIds = regions.map(r => {
-      const refId = this.chrToIndex![r.refName]
-      if (refId === undefined) {
-        throw new Error(`Unknown reference name: ${r.refName}`)
-      }
-      return {
-        refId,
-        start: r.start,
-        end: r.end,
-      }
-    })
-    return this.index.estimatedBytesForRegions(regionsWithIds, opts)
+    return this.index.estimatedBytesForRegions(
+      regions.map(r => {
+        const refId = this.chrToIndex![r.refName]
+        if (refId === undefined) {
+          throw new Error(`Unknown reference name: ${r.refName}`)
+        }
+        return {
+          refId,
+          start: r.start,
+          end: r.end,
+        }
+      }),
+      opts,
+    )
   }
 }

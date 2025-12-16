@@ -66,7 +66,7 @@ export default class HtsgetFile<
     this.trackId = args.trackId
   }
 
-  async *streamRecordsForRange(
+  async getRecordsForRange(
     chr: string,
     min: number,
     max: number,
@@ -76,66 +76,34 @@ export default class HtsgetFile<
     const url = `${base}?referenceName=${chr}&start=${min}&end=${max}&format=BAM`
     const chrId = this.chrToIndex?.[chr]
     if (chrId === undefined) {
-      yield []
-    } else {
-      const result = await fetch(url, { ...opts })
-      if (!result.ok) {
-        throw new Error(
-          `HTTP ${result.status} fetching ${url}: ${await result.text()}`,
-        )
-      }
-      const data = await result.json()
-      const uncba = await concat(data.htsget.urls.slice(1), opts)
-
-      yield* this._fetchChunkFeatures(
-        [
-          // fake stuff to pretend to be a Chunk
-          {
-            buffer: uncba,
-            _fetchedSize: undefined,
-            bin: 0,
-            compareTo() {
-              return 0
-            },
-            toUniqueString() {
-              return `${chr}_${min}_${max}`
-            },
-            fetchedSize() {
-              return 0
-            },
-            minv: {
-              dataPosition: 0,
-              blockPosition: 0,
-              compareTo: () => 0,
-            },
-            maxv: {
-              dataPosition: Number.MAX_SAFE_INTEGER,
-              blockPosition: 0,
-              compareTo: () => 0,
-            },
-            toString() {
-              return `${chr}_${min}_${max}`
-            },
-          },
-        ],
-        chrId,
-        min,
-        max,
-        opts,
+      return []
+    }
+    const result = await fetch(url, { ...opts })
+    if (!result.ok) {
+      throw new Error(
+        `HTTP ${result.status} fetching ${url}: ${await result.text()}`,
       )
     }
-  }
+    const data = await result.json()
+    const uncba = await concat(data.htsget.urls.slice(1), opts)
 
-  async _readChunk({ chunk }: { chunk: Chunk; opts: BaseOpts }) {
-    if (!chunk.buffer) {
-      throw new Error('expected chunk.buffer in htsget')
+    const allRecords = await this.readBamFeatures(uncba, [], [], {
+      minv: { dataPosition: 0, blockPosition: 0 },
+      maxv: { dataPosition: 0, blockPosition: 0 },
+    } as Chunk)
+
+    const records: T[] = []
+    for (let i = 0, l = allRecords.length; i < l; i++) {
+      const feature = allRecords[i]!
+      if (feature.ref_id === chrId) {
+        if (feature.start >= max) {
+          break
+        } else if (feature.end >= min) {
+          records.push(feature)
+        }
+      }
     }
-    return {
-      data: chunk.buffer,
-      cpositions: [],
-      dpositions: [],
-      chunk,
-    }
+    return records
   }
 
   async getHeader(opts: BaseOpts = {}) {
