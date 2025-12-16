@@ -1,22 +1,12 @@
 ## [7.1.10](https://github.com/GMOD/bam-js/compare/v7.1.9...v7.1.10) (2025-12-15)
 
-
-
 ## [7.1.9](https://github.com/GMOD/bam-js/compare/v7.1.8...v7.1.9) (2025-12-13)
-
-
 
 ## [7.1.8](https://github.com/GMOD/bam-js/compare/v7.1.7...v7.1.8) (2025-12-13)
 
-
-
 ## [7.1.7](https://github.com/GMOD/bam-js/compare/v7.1.6...v7.1.7) (2025-12-13)
 
-
-
 ## [7.1.6](https://github.com/GMOD/bam-js/compare/v7.1.5...v7.1.6) (2025-12-13)
-
-
 
 ## [7.1.5](https://github.com/GMOD/bam-js/compare/v7.1.4...v7.1.5) (2025-12-13)
 
