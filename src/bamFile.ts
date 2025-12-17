@@ -1,7 +1,7 @@
 import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
+import QuickLRU from '@jbrowse/quick-lru'
 import crc32 from 'crc/calculators/crc32'
 import { LocalFile, RemoteFile } from 'generic-filehandle2'
-import QuickLRU from 'quick-lru'
 
 import BAI from './bai.ts'
 import Chunk from './chunk.ts'

@@ -239,14 +239,13 @@
     "@eslint/core" "^0.17.0"
     levn "^0.4.1"
 
-"@gmod/bgzf-filehandle@^6.0.8":
-  version "6.0.8"
-  resolved "https://registry.yarnpkg.com/@gmod/bgzf-filehandle/-/bgzf-filehandle-6.0.8.tgz#064b7e457a241bc5f93f228287eb6c28f72dfd42"
-  integrity sha512-+si/NFdaQb8ohwFxgA6lguyxIiJo/goQdDDPAex/on9iCioVosLTiYhSowvIuDTgPAYtg3zRqNttK0pJRJdOOg==
+"@gmod/bgzf-filehandle@^6.0.9":
+  version "6.0.9"
+  resolved "https://registry.yarnpkg.com/@gmod/bgzf-filehandle/-/bgzf-filehandle-6.0.9.tgz#e10990b0d5e77fd928157bae3798dcc49fba7399"
+  integrity sha512-Ia6SThW+4IdbGQiP/vER6xNpN7btKgegDildA7kgRLtTX3Ap4wkBuOCvRp2Zr7nQE8GISB9RnOCdGS8rVLoVBw==
   dependencies:
     generic-filehandle2 "^2.0.16"
     pako-esm2 "^2.0.2"
-    quick-lru "4.0.0"
 
 "@humanfs/core@^0.19.1":
   version "0.19.1"
@@ -2270,11 +2269,6 @@ punycode@^2.1.0:
   version "2.3.1"
   resolved "https://registry.yarnpkg.com/punycode/-/punycode-2.3.1.tgz#027422e2faec0b25e1549c3e1bd8309b9133b6e5"
   integrity sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==
-
-quick-lru@4.0.0:
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/quick-lru/-/quick-lru-4.0.0.tgz#a44d44010a776d787af65b1226566dd1ae7b9649"
-  integrity sha512-5cS39FEMrySKt/8c66v10HrmoexP2iYOsJBhtbVrlAr6Cbuc6khFMN8CHJG87c+QsdxBABivfVscgk20I/rPDw==
 
 reflect.getprototypeof@^1.0.6, reflect.getprototypeof@^1.0.9:
   version "1.0.10"
