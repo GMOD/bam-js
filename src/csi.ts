@@ -1,5 +1,5 @@
 import { unzip } from '@gmod/bgzf-filehandle'
-import QuickLRU from 'quick-lru'
+import QuickLRU from '@jbrowse/quick-lru'
 
 import Chunk from './chunk.ts'
 import IndexFile from './indexFile.ts'
