@@ -1,9 +1,4 @@
-import {
-  CIGAR_HARD_CLIP,
-  CIGAR_INS,
-  CIGAR_REF_SKIP,
-  CIGAR_SOFT_CLIP,
-} from './cigar.ts'
+import { CIGAR_REF_SKIP, CIGAR_SOFT_CLIP } from './cigar.ts'
 import Constants from './constants.ts'
 
 const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
@@ -11,9 +6,9 @@ const ASCII_CIGAR_CODES = [
   77, 73, 68, 78, 83, 72, 80, 61, 88, 63, 63, 63, 63, 63, 63, 63,
 ]
 
-// ops that don't consume reference: INS, SOFT_CLIP, HARD_CLIP
-const CIGAR_SKIP_MASK =
-  (1 << CIGAR_INS) | (1 << CIGAR_SOFT_CLIP) | (1 << CIGAR_HARD_CLIP)
+// Bitmask for ops that consume ref: M=0, D=2, N=3, P=6, ==7, X=8
+// Binary: 0b111001101 = 0x1CD
+const CIGAR_CONSUMES_REF_MASK = 0x1cd
 
 // Bitmask for ops that consume ref: M=0, D=2, N=3, P=6, ==7, X=8
 // Binary: 0b111001101 = 0x1CD
