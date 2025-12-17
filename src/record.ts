@@ -15,6 +15,10 @@ const ASCII_CIGAR_CODES = [
 const CIGAR_SKIP_MASK =
   (1 << CIGAR_INS) | (1 << CIGAR_SOFT_CLIP) | (1 << CIGAR_HARD_CLIP)
 
+// Bitmask for ops that consume ref: M=0, D=2, N=3, P=6, ==7, X=8
+// Binary: 0b111001101 = 0x1CD
+const CIGAR_CONSUMES_REF_MASK = 0x1cd
+
 export interface Bytes {
   start: number
   end: number
@@ -584,10 +588,7 @@ export default class BamRecord {
       let lref = 0
       for (let c = 0; c < numCigarOps; ++c) {
         const cigop = cigarView[c]!
-        const op = cigop & 0xf
-        if (!((1 << op) & CIGAR_SKIP_MASK)) {
-          lref += cigop >> 4
-        }
+        lref += (cigop >> 4) * ((CIGAR_CONSUMES_REF_MASK >> (cigop & 0xf)) & 1)
       }
       return {
         NUMERIC_CIGAR: cigarView,
@@ -600,10 +601,7 @@ export default class BamRecord {
     for (let c = 0; c < numCigarOps; ++c) {
       const cigop = this._dataView.getInt32(p + c * 4, true) | 0
       cigarArray[c] = cigop
-      const op = (cigop & 0xf) | 0
-      if (!((1 << op) & CIGAR_SKIP_MASK)) {
-        lref = (lref + (cigop >> 4)) | 0
-      }
+      lref += (cigop >> 4) * ((CIGAR_CONSUMES_REF_MASK >> (cigop & 0xf)) & 1)
     }
     return {
       NUMERIC_CIGAR: cigarArray,
