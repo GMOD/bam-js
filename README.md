@@ -140,6 +140,8 @@ record.template_length // TLEN
 
 // Auxiliary data
 record.tags // object with all aux tags e.g. {MD: "100", NM: 0}
+record.getTag('MD') // get a single tag (more efficient than record.tags when you only need one)
+record.getTagRaw('MD') // get tag as Uint8Array for string tags (avoids string conversion)
 record.NUMERIC_MD // MD tag as Uint8Array (for fast mismatch rendering)
 record.NUMERIC_CIGAR // Uint32Array of packed CIGAR operations
 record.NUMERIC_SEQ // Uint8Array of packed sequence (4-bit encoded)
