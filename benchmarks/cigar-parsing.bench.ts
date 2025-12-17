@@ -65,10 +65,10 @@ function directBytesBitmask(
   for (let c = 0; c < numOps; ++c) {
     const offset = c * 4
     const cigop =
-      (byteArray[offset]! |
-        (byteArray[offset + 1]! << 8) |
-        (byteArray[offset + 2]! << 16) |
-        (byteArray[offset + 3]! << 24)) |
+      byteArray[offset]! |
+      (byteArray[offset + 1]! << 8) |
+      (byteArray[offset + 2]! << 16) |
+      (byteArray[offset + 3]! << 24) |
       0
     cigarArray[c] = cigop
     lref += (cigop >> 4) * ((CIGAR_CONSUMES_REF_MASK >> (cigop & 0xf)) & 1)
@@ -86,10 +86,10 @@ function directBytesLookup(
   for (let c = 0; c < numOps; ++c) {
     const offset = c * 4
     const cigop =
-      (byteArray[offset]! |
-        (byteArray[offset + 1]! << 8) |
-        (byteArray[offset + 2]! << 16) |
-        (byteArray[offset + 3]! << 24)) |
+      byteArray[offset]! |
+      (byteArray[offset + 1]! << 8) |
+      (byteArray[offset + 2]! << 16) |
+      (byteArray[offset + 3]! << 24) |
       0
     cigarArray[c] = cigop
     lref += (cigop >> 4) * CIGAR_CONSUMES_REF_TABLE[cigop & 0xf]!
@@ -133,11 +133,7 @@ function uint32SliceCopy(
   numOps: number,
 ): { lref: number; cigar: Uint32Array } {
   const copy = byteArray.slice(0, numOps * 4)
-  const cigarView = new Uint32Array(
-    copy.buffer,
-    copy.byteOffset,
-    numOps,
-  )
+  const cigarView = new Uint32Array(copy.buffer, copy.byteOffset, numOps)
   let lref = 0
   for (let c = 0; c < numOps; ++c) {
     const cigop = cigarView[c]!

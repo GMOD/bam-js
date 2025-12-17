@@ -10,10 +10,6 @@ const ASCII_CIGAR_CODES = [
 // Binary: 0b111001101 = 0x1CD
 const CIGAR_CONSUMES_REF_MASK = 0x1cd
 
-// Bitmask for ops that consume ref: M=0, D=2, N=3, P=6, ==7, X=8
-// Binary: 0b111001101 = 0x1CD
-const CIGAR_CONSUMES_REF_MASK = 0x1cd
-
 export interface Bytes {
   start: number
   end: number
