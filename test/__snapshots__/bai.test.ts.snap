@@ -85,61 +85,61 @@ exports[`check ecoli header and records 1`] = `
 exports[`check ecoli header and records 2`] = `
 [
   {
-    "fileOffset": 6645730,
+    "fileOffset": 93441,
   },
   {
-    "fileOffset": 6647152,
+    "fileOffset": 94863,
   },
   {
-    "fileOffset": 6649116,
+    "fileOffset": 96827,
   },
   {
-    "fileOffset": 6651523,
+    "fileOffset": 99234,
   },
   {
-    "fileOffset": 6655211,
+    "fileOffset": 102922,
   },
   {
-    "fileOffset": 6658886,
+    "fileOffset": 106597,
   },
   {
-    "fileOffset": 6666142,
+    "fileOffset": 113853,
   },
   {
-    "fileOffset": 6673752,
+    "fileOffset": 121463,
   },
   {
-    "fileOffset": 6682819,
+    "fileOffset": 130530,
   },
   {
-    "fileOffset": 6691689,
+    "fileOffset": 139400,
   },
   {
-    "fileOffset": 13886185,
+    "fileOffset": 6702081,
   },
   {
-    "fileOffset": 13898957,
+    "fileOffset": 6714853,
   },
   {
-    "fileOffset": 13899467,
+    "fileOffset": 6715363,
   },
   {
-    "fileOffset": 13906392,
+    "fileOffset": 6722288,
   },
   {
-    "fileOffset": 13913893,
+    "fileOffset": 6729789,
   },
   {
-    "fileOffset": 13917686,
+    "fileOffset": 6733582,
   },
   {
-    "fileOffset": 13922994,
+    "fileOffset": 6738890,
   },
   {
-    "fileOffset": 13926392,
+    "fileOffset": 6742288,
   },
   {
-    "fileOffset": 13934351,
+    "fileOffset": 6750247,
   },
 ]
 `;
@@ -147,7 +147,7 @@ exports[`check ecoli header and records 2`] = `
 exports[`deep check 1000 genomes bai 1`] = `
 [
   {
-    "fileOffset": 636682,
+    "fileOffset": 536833,
   },
 ]
 `;
@@ -155,10 +155,10 @@ exports[`deep check 1000 genomes bai 1`] = `
 exports[`deep check volvox-sorted.bam 1`] = `
 [
   {
-    "fileOffset": 2501248,
+    "fileOffset": 17665,
   },
   {
-    "fileOffset": 2501501,
+    "fileOffset": 17918,
   },
 ]
 `;

@@ -7,6 +7,7 @@ const DEFAULT_MAX_FEATURES = 50000
 interface CacheEntry<T> {
   features: T[]
   featureCount: number
+  nextBlockSkipBytes: number
 }
 
 export default class BlockFeatureCache<T> {
@@ -19,7 +20,7 @@ export default class BlockFeatureCache<T> {
     this.maxFeatures = config?.maxFeatures ?? DEFAULT_MAX_FEATURES
   }
 
-  get(blockPosition: number): T[] | undefined {
+  get(blockPosition: number): CacheEntry<T> | undefined {
     const entry = this.cache.get(blockPosition)
     if (entry) {
       const idx = this.accessOrder.indexOf(blockPosition)
@@ -27,12 +28,12 @@ export default class BlockFeatureCache<T> {
         this.accessOrder.splice(idx, 1)
         this.accessOrder.push(blockPosition)
       }
-      return entry.features
+      return entry
     }
     return undefined
   }
 
-  set(blockPosition: number, features: T[]) {
+  set(blockPosition: number, features: T[], nextBlockSkipBytes: number) {
     if (this.cache.has(blockPosition)) {
       return
     }
@@ -54,9 +55,13 @@ export default class BlockFeatureCache<T> {
       }
     }
 
-    this.cache.set(blockPosition, { features, featureCount })
+    this.cache.set(blockPosition, { features, featureCount, nextBlockSkipBytes })
     this.accessOrder.push(blockPosition)
     this.currentFeatures += featureCount
+  }
+
+  has(blockPosition: number): boolean {
+    return this.cache.has(blockPosition)
   }
 
   clear() {
