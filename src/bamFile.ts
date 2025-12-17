@@ -1,12 +1,8 @@
-import {
-  decompressSingleBlock,
-  getBlockPositions,
-  unzip,
-} from '@gmod/bgzf-filehandle'
+import { ByteCache, decompressChunkCached, unzip } from '@gmod/bgzf-filehandle'
 import { LocalFile, RemoteFile } from 'generic-filehandle2'
 
 import BAI from './bai.ts'
-import ByteCache from './byteCache.ts'
+import BlockFeatureCache from './blockFeatureCache.ts'
 import Chunk from './chunk.ts'
 import CSI from './csi.ts'
 import NullFilehandle from './nullFilehandle.ts'
@@ -51,6 +47,9 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
   // LRU cache for decompressed BGZF block bytes
   public byteCache = new ByteCache()
+
+  // LRU cache for parsed features by block position
+  public featureCache = new BlockFeatureCache<T>()
 
   private RecordClass: BamRecordClass<T>
 
@@ -239,114 +238,154 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
     for (let ci = 0, cl = chunks.length; ci < cl; ci++) {
       const chunk = chunks[ci]!
-      const { minv, maxv } = chunk
+      const { minv } = chunk
 
-      const buf = await this.bam.read(
-        chunk.fetchedSize(),
-        minv.blockPosition,
+      // Decompress chunk using byte cache
+      const { buffer, cpositions, dpositions } = await decompressChunkCached(
+        this.bam,
+        chunk,
+        this.byteCache,
         opts,
       )
 
-      // Get block boundaries
-      const blockInfos = await getBlockPositions(buf, minv.blockPosition)
-
-      // Filter to blocks within chunk range
-      const relevantBlocks = blockInfos.filter(
-        b => b.blockPosition <= maxv.blockPosition,
-      )
-
-      // Decompress blocks (using cache where possible)
-      const decompressedBlocks: Uint8Array[] = []
-      const cpositions: number[] = []
-      const dpositions: number[] = []
-      let totalDecompressedSize = 0
-
-      for (const blockInfo of relevantBlocks) {
-        let blockData = this.byteCache.get(blockInfo.blockPosition)
-
-        if (!blockData) {
-          const decompressed = await decompressSingleBlock(buf, blockInfo)
-          blockData = decompressed.data
-          this.byteCache.set(blockInfo.blockPosition, blockData)
-        }
-
-        cpositions.push(blockInfo.blockPosition)
-        dpositions.push(totalDecompressedSize)
-        decompressedBlocks.push(blockData)
-        totalDecompressedSize += blockData.length
-      }
-
-      // Concatenate all decompressed data
-      const buffer = new Uint8Array(totalDecompressedSize)
-      let bufferOffset = 0
-      for (const block of decompressedBlocks) {
-        buffer.set(block, bufferOffset)
-        bufferOffset += block.length
-      }
-
-      // Parse records starting from minv.dataPosition
       const dataView = new DataView(
         buffer.buffer,
         buffer.byteOffset,
         buffer.byteLength,
       )
       let done = false
-      let offset = minv.dataPosition
 
-      while (offset + 4 < buffer.length) {
-        const recordSize = dataView.getInt32(offset, true)
-        if (recordSize < 0) {
-          break
-        }
-        const recordEnd = offset + 4 + recordSize - 1
-        if (recordEnd >= buffer.length) {
+      // Process each block in the chunk, using feature cache where possible
+      for (let blockIdx = 0; blockIdx < cpositions.length; blockIdx++) {
+        if (done) {
           break
         }
 
-        // Calculate fileOffset using cpositions/dpositions
-        // Virtual offset format: (blockPosition << 16) | offsetInBlock
-        let fileOffset = 0
-        for (let i = 0; i < dpositions.length; i++) {
-          if (offset >= dpositions[i]!) {
-            fileOffset =
-              cpositions[i]! * (1 << 8) + (offset - dpositions[i]!) + 1
+        const blockPosition = cpositions[blockIdx]!
+        const blockStart = dpositions[blockIdx]!
+        const blockEnd =
+          blockIdx + 1 < dpositions.length
+            ? dpositions[blockIdx + 1]!
+            : buffer.length
+
+        // Determine start offset within this block
+        let startOffset = blockStart
+        if (blockIdx === 0) {
+          // First block: start from minv.dataPosition
+          startOffset = blockStart + minv.dataPosition
+        } else {
+          // Subsequent blocks: check if we need to skip bytes from spanning record
+          const prevBlockPos = cpositions[blockIdx - 1]!
+          const prevCacheEntry = this.featureCache.get(prevBlockPos)
+          if (prevCacheEntry && prevCacheEntry.nextBlockSkipBytes > 0) {
+            startOffset = blockStart + prevCacheEntry.nextBlockSkipBytes
           }
         }
 
-        const feature = new this.RecordClass({
-          bytes: {
-            byteArray: buffer,
-            start: offset,
-            end: recordEnd,
-          },
-          fileOffset,
-        })
-        offset = recordEnd + 1
-
-        if (filterBy) {
-          if (filterReadFlag(feature.flags, flagInclude, flagExclude)) {
-            continue
+        // Check feature cache for this block
+        const cachedEntry = this.featureCache.get(blockPosition)
+        if (cachedEntry) {
+          // Use cached features
+          for (let i = 0, l = cachedEntry.features.length; i < l; i++) {
+            const feature = cachedEntry.features[i]!
+            if (filterBy) {
+              if (filterReadFlag(feature.flags, flagInclude, flagExclude)) {
+                continue
+              }
+              if (
+                tagFilter &&
+                filterTagValue(feature.tags[tagFilter.tag], tagFilter.value)
+              ) {
+                continue
+              }
+            }
+            if (feature.ref_id === chrId) {
+              if (feature.start >= max) {
+                done = true
+                break
+              }
+              if (feature.end >= min) {
+                result.push(feature)
+              }
+            }
           }
-          if (
-            tagFilter &&
-            filterTagValue(feature.tags[tagFilter.tag], tagFilter.value)
-          ) {
-            continue
-          }
+          continue
         }
 
-        if (feature.ref_id === chrId) {
-          if (feature.start >= max) {
-            done = true
+        // Parse features for this block
+        const blockFeatures: T[] = []
+        let offset = startOffset
+        let nextBlockSkipBytes = 0
+
+        while (offset + 4 < buffer.length) {
+          const recordSize = dataView.getInt32(offset, true)
+          if (recordSize < 0) {
             break
           }
-          if (feature.end >= min) {
-            result.push(feature)
+          const recordEnd = offset + 4 + recordSize - 1
+          if (recordEnd >= buffer.length) {
+            break
+          }
+
+          // Calculate fileOffset
+          let fileOffset = 0
+          for (let i = 0; i < dpositions.length; i++) {
+            if (offset >= dpositions[i]!) {
+              fileOffset =
+                cpositions[i]! * (1 << 8) + (offset - dpositions[i]!) + 1
+            }
+          }
+
+          const feature = new this.RecordClass({
+            bytes: {
+              byteArray: buffer,
+              start: offset,
+              end: recordEnd,
+            },
+            fileOffset,
+          })
+
+          // Only include features that START in this block
+          if (offset < blockEnd) {
+            blockFeatures.push(feature)
+          }
+
+          offset = recordEnd + 1
+
+          // If we've crossed into the next block, calculate skip bytes and stop
+          if (offset >= blockEnd && blockIdx + 1 < cpositions.length) {
+            nextBlockSkipBytes = offset - blockEnd
+            break
           }
         }
-      }
-      if (done) {
-        break
+
+        // Cache the features for this block
+        this.featureCache.set(blockPosition, blockFeatures, nextBlockSkipBytes)
+
+        // Add matching features to result
+        for (let i = 0, l = blockFeatures.length; i < l; i++) {
+          const feature = blockFeatures[i]!
+          if (filterBy) {
+            if (filterReadFlag(feature.flags, flagInclude, flagExclude)) {
+              continue
+            }
+            if (
+              tagFilter &&
+              filterTagValue(feature.tags[tagFilter.tag], tagFilter.value)
+            ) {
+              continue
+            }
+          }
+          if (feature.ref_id === chrId) {
+            if (feature.start >= max) {
+              done = true
+              break
+            }
+            if (feature.end >= min) {
+              result.push(feature)
+            }
+          }
+        }
       }
     }
 
@@ -358,6 +397,57 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     }
 
     return result
+  }
+
+  // Used by HtsgetFile to parse records from pre-decompressed data
+  async readBamFeatures(
+    buffer: Uint8Array,
+    cpositions: number[],
+    dpositions: number[],
+    _chunk: Chunk,
+  ): Promise<T[]> {
+    const dataView = new DataView(
+      buffer.buffer,
+      buffer.byteOffset,
+      buffer.byteLength,
+    )
+    const features: T[] = []
+    let offset = 0
+
+    while (offset + 4 < buffer.length) {
+      const recordSize = dataView.getInt32(offset, true)
+      if (recordSize < 0) {
+        break
+      }
+      const recordEnd = offset + 4 + recordSize - 1
+      if (recordEnd >= buffer.length) {
+        break
+      }
+
+      // Calculate fileOffset
+      let fileOffset = offset + 1
+      if (cpositions.length > 0 && dpositions.length > 0) {
+        for (let i = 0; i < dpositions.length; i++) {
+          if (offset >= dpositions[i]!) {
+            fileOffset =
+              cpositions[i]! * (1 << 8) + (offset - dpositions[i]!) + 1
+          }
+        }
+      }
+
+      const feature = new this.RecordClass({
+        bytes: {
+          byteArray: buffer,
+          start: offset,
+          end: recordEnd,
+        },
+        fileOffset,
+      })
+      features.push(feature)
+      offset = recordEnd + 1
+    }
+
+    return features
   }
 
   async fetchPairs(chrId: number, records: T[], opts: BamOpts) {
@@ -409,49 +499,15 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
     const mateFeatPromises = await Promise.all(
       [...map.values()].map(async chunk => {
-        const { minv, maxv } = chunk
-        const buf = await this.bam.read(
-          chunk.fetchedSize(),
-          minv.blockPosition,
+        const { minv } = chunk
+
+        // Decompress chunk using byte cache
+        const { buffer, cpositions, dpositions } = await decompressChunkCached(
+          this.bam,
+          chunk,
+          this.byteCache,
           opts,
         )
-
-        // Get block boundaries
-        const blockInfos = await getBlockPositions(buf, minv.blockPosition)
-
-        // Filter to blocks within chunk range
-        const relevantBlocks = blockInfos.filter(
-          b => b.blockPosition <= maxv.blockPosition,
-        )
-
-        // Decompress blocks (using cache where possible)
-        const decompressedBlocks: Uint8Array[] = []
-        const cpositions: number[] = []
-        const dpositions: number[] = []
-        let totalDecompressedSize = 0
-
-        for (const blockInfo of relevantBlocks) {
-          let blockData = this.byteCache.get(blockInfo.blockPosition)
-
-          if (!blockData) {
-            const decompressed = await decompressSingleBlock(buf, blockInfo)
-            blockData = decompressed.data
-            this.byteCache.set(blockInfo.blockPosition, blockData)
-          }
-
-          cpositions.push(blockInfo.blockPosition)
-          dpositions.push(totalDecompressedSize)
-          decompressedBlocks.push(blockData)
-          totalDecompressedSize += blockData.length
-        }
-
-        // Concatenate all decompressed data
-        const buffer = new Uint8Array(totalDecompressedSize)
-        let bufferOffset = 0
-        for (const block of decompressedBlocks) {
-          buffer.set(block, bufferOffset)
-          bufferOffset += block.length
-        }
 
         const dataView = new DataView(
           buffer.buffer,
@@ -459,43 +515,101 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
           buffer.byteLength,
         )
         const mateRecs: T[] = []
-        let offset = minv.dataPosition
 
-        while (offset + 4 < buffer.length) {
-          const recordSize = dataView.getInt32(offset, true)
-          if (recordSize < 0) {
-            break
-          }
-          const recordEnd = offset + 4 + recordSize - 1
-          if (recordEnd >= buffer.length) {
-            break
-          }
+        // Process each block in the chunk, using feature cache where possible
+        for (let blockIdx = 0; blockIdx < cpositions.length; blockIdx++) {
+          const blockPosition = cpositions[blockIdx]!
+          const blockStart = dpositions[blockIdx]!
+          const blockEnd =
+            blockIdx + 1 < dpositions.length
+              ? dpositions[blockIdx + 1]!
+              : buffer.length
 
-          // Calculate fileOffset using cpositions/dpositions
-          // Virtual offset format: (blockPosition << 16) | offsetInBlock
-          let fileOffset = 0
-          for (let i = 0; i < dpositions.length; i++) {
-            if (offset >= dpositions[i]!) {
-              fileOffset =
-                cpositions[i]! * (1 << 8) + (offset - dpositions[i]!) + 1
+          // Determine start offset within this block
+          let startOffset = blockStart
+          if (blockIdx === 0) {
+            startOffset = blockStart + minv.dataPosition
+          } else {
+            const prevBlockPos = cpositions[blockIdx - 1]!
+            const prevCacheEntry = this.featureCache.get(prevBlockPos)
+            if (prevCacheEntry && prevCacheEntry.nextBlockSkipBytes > 0) {
+              startOffset = blockStart + prevCacheEntry.nextBlockSkipBytes
             }
           }
 
-          const feature = new this.RecordClass({
-            bytes: {
-              byteArray: buffer,
-              start: offset,
-              end: recordEnd,
-            },
-            fileOffset,
-          })
-          offset = recordEnd + 1
+          // Check feature cache for this block
+          const cachedEntry = this.featureCache.get(blockPosition)
+          if (cachedEntry) {
+            for (let i = 0, l = cachedEntry.features.length; i < l; i++) {
+              const feature = cachedEntry.features[i]!
+              if (
+                readNameCounts[feature.name] === 1 &&
+                !readIds[feature.fileOffset]
+              ) {
+                mateRecs.push(feature)
+              }
+            }
+            continue
+          }
 
-          if (
-            readNameCounts[feature.name] === 1 &&
-            !readIds[feature.fileOffset]
-          ) {
-            mateRecs.push(feature)
+          // Parse features for this block
+          const blockFeatures: T[] = []
+          let offset = startOffset
+          let nextBlockSkipBytes = 0
+
+          while (offset + 4 < buffer.length) {
+            const recordSize = dataView.getInt32(offset, true)
+            if (recordSize < 0) {
+              break
+            }
+            const recordEnd = offset + 4 + recordSize - 1
+            if (recordEnd >= buffer.length) {
+              break
+            }
+
+            let fileOffset = 0
+            for (let i = 0; i < dpositions.length; i++) {
+              if (offset >= dpositions[i]!) {
+                fileOffset =
+                  cpositions[i]! * (1 << 8) + (offset - dpositions[i]!) + 1
+              }
+            }
+
+            const feature = new this.RecordClass({
+              bytes: {
+                byteArray: buffer,
+                start: offset,
+                end: recordEnd,
+              },
+              fileOffset,
+            })
+
+            if (offset < blockEnd) {
+              blockFeatures.push(feature)
+            }
+
+            offset = recordEnd + 1
+
+            if (offset >= blockEnd && blockIdx + 1 < cpositions.length) {
+              nextBlockSkipBytes = offset - blockEnd
+              break
+            }
+          }
+
+          this.featureCache.set(
+            blockPosition,
+            blockFeatures,
+            nextBlockSkipBytes,
+          )
+
+          for (let i = 0, l = blockFeatures.length; i < l; i++) {
+            const feature = blockFeatures[i]!
+            if (
+              readNameCounts[feature.name] === 1 &&
+              !readIds[feature.fileOffset]
+            ) {
+              mateRecs.push(feature)
+            }
           }
         }
 
@@ -542,6 +656,15 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
   clearByteCache() {
     this.byteCache.clear()
+  }
+
+  clearFeatureCache() {
+    this.featureCache.clear()
+  }
+
+  clearCache() {
+    this.byteCache.clear()
+    this.featureCache.clear()
   }
 
   async estimatedBytesForRegions(
