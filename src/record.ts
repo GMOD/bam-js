@@ -38,6 +38,7 @@ export default class BamRecord {
   private _cachedTags?: Record<string, unknown>
   private _cachedCigarAndLength?: CIGAR_AND_LENGTH
   private _cachedNUMERIC_MD?: Uint8Array | null
+  private _cachedTagsStart?: number
 
   constructor(args: { bytes: Bytes; fileOffset: number }) {
     this.bytes = args.bytes
@@ -107,6 +108,18 @@ export default class BamRecord {
   get b0() {
     return this.bytes.start + 36
   }
+
+  get tagsStart() {
+    if (this._cachedTagsStart === undefined) {
+      this._cachedTagsStart =
+        this.b0 +
+        this.read_name_length +
+        this.num_cigar_bytes +
+        this.num_seq_bytes +
+        this.seq_length
+    }
+    return this._cachedTagsStart
+  }
   // batch fromCharCode: fastest for typical name lengths (see benchmarks/string-building.bench.ts)
   get name() {
     const len = this.read_name_length - 1
@@ -121,67 +134,8 @@ export default class BamRecord {
 
   get NUMERIC_MD() {
     if (this._cachedNUMERIC_MD === undefined) {
-      let p =
-        this.b0 +
-        this.read_name_length +
-        this.num_cigar_bytes +
-        this.num_seq_bytes +
-        this.seq_length
-
-      const blockEnd = this.bytes.end
-      const ba = this.byteArray
-      while (p < blockEnd) {
-        const tag1 = ba[p]!
-        const tag2 = ba[p + 1]!
-        const type = ba[p + 2]!
-        p += 3
-
-        // 'M' = 0x4D, 'D' = 0x44, 'Z' = 0x5A
-        if (tag1 === 0x4d && tag2 === 0x44 && type === 0x5a) {
-          const start = p
-          while (p < blockEnd && ba[p] !== 0) {
-            p++
-          }
-          this._cachedNUMERIC_MD = ba.subarray(start, p)
-        }
-
-        switch (type) {
-          case 0x41: // 'A'
-            p += 1
-            break
-          case 0x69: // 'i'
-          case 0x49: // 'I'
-          case 0x66: // 'f'
-            p += 4
-            break
-          case 0x63: // 'c'
-          case 0x43: // 'C'
-            p += 1
-            break
-          case 0x73: // 's'
-          case 0x53: // 'S'
-            p += 2
-            break
-          case 0x5a: // 'Z'
-          case 0x48: // 'H'
-            while (p <= blockEnd && ba[p++] !== 0) {}
-            break
-          case 0x42: {
-            // 'B'
-            const Btype = ba[p++]!
-            const limit = this._dataView.getInt32(p, true)
-            p += 4
-            if (Btype === 0x69 || Btype === 0x49 || Btype === 0x66) {
-              p += limit << 2
-            } else if (Btype === 0x73 || Btype === 0x53) {
-              p += limit << 1
-            } else if (Btype === 0x63 || Btype === 0x43) {
-              p += limit
-            }
-            break
-          }
-        }
-      }
+      const result = this.getTagRaw('MD')
+      this._cachedNUMERIC_MD = result instanceof Uint8Array ? result : null
     }
     return this._cachedNUMERIC_MD === null ? undefined : this._cachedNUMERIC_MD
   }
@@ -193,13 +147,183 @@ export default class BamRecord {
     return this._cachedTags
   }
 
+  getTag(tagName: string) {
+    if (this._cachedTags !== undefined) {
+      return this._cachedTags[tagName]
+    }
+    return this._findTag(tagName, false)
+  }
+
+  getTagRaw(tagName: string) {
+    return this._findTag(tagName, true)
+  }
+
+  private _findTag(tagName: string, raw: boolean) {
+    const tag1 = tagName.charCodeAt(0)
+    const tag2 = tagName.charCodeAt(1)
+
+    let p = this.tagsStart
+
+    const blockEnd = this.bytes.end
+    const ba = this.byteArray
+    while (p < blockEnd) {
+      const currentTag1 = ba[p]!
+      const currentTag2 = ba[p + 1]!
+      const type = ba[p + 2]!
+      p += 3
+
+      const isMatch = currentTag1 === tag1 && currentTag2 === tag2
+
+      switch (type) {
+        case 0x41: // 'A'
+          if (isMatch) {
+            return String.fromCharCode(ba[p]!)
+          }
+          p += 1
+          break
+        case 0x69: // 'i'
+          if (isMatch) {
+            return this._dataView.getInt32(p, true)
+          }
+          p += 4
+          break
+        case 0x49: // 'I'
+          if (isMatch) {
+            return this._dataView.getUint32(p, true)
+          }
+          p += 4
+          break
+        case 0x63: // 'c'
+          if (isMatch) {
+            return this._dataView.getInt8(p)
+          }
+          p += 1
+          break
+        case 0x43: // 'C'
+          if (isMatch) {
+            return this._dataView.getUint8(p)
+          }
+          p += 1
+          break
+        case 0x73: // 's'
+          if (isMatch) {
+            return this._dataView.getInt16(p, true)
+          }
+          p += 2
+          break
+        case 0x53: // 'S'
+          if (isMatch) {
+            return this._dataView.getUint16(p, true)
+          }
+          p += 2
+          break
+        case 0x66: // 'f'
+          if (isMatch) {
+            return this._dataView.getFloat32(p, true)
+          }
+          p += 4
+          break
+        case 0x5a: // 'Z'
+        case 0x48: {
+          // 'H'
+          if (isMatch) {
+            const start = p
+            while (p < blockEnd && ba[p] !== 0) {
+              p++
+            }
+            if (raw) {
+              return ba.subarray(start, p)
+            }
+            const value = []
+            for (let i = start; i < p; i++) {
+              value.push(String.fromCharCode(ba[i]!))
+            }
+            return value.join('')
+          }
+          while (p <= blockEnd && ba[p++] !== 0) {}
+          break
+        }
+        case 0x42: {
+          // 'B'
+          const Btype = ba[p++]!
+          const limit = this._dataView.getInt32(p, true)
+          p += 4
+          const absOffset = ba.byteOffset + p
+          if (isMatch) {
+            if (Btype === 0x69) {
+              // 'i'
+              if (absOffset % 4 === 0) {
+                return new Int32Array(ba.buffer, absOffset, limit)
+              }
+              const arr: number[] = new Array(limit)
+              for (let i = 0; i < limit; i++) {
+                arr[i] = this._dataView.getInt32(p + i * 4, true)
+              }
+              return arr
+            } else if (Btype === 0x49) {
+              // 'I'
+              if (absOffset % 4 === 0) {
+                return new Uint32Array(ba.buffer, absOffset, limit)
+              }
+              const arr: number[] = new Array(limit)
+              for (let i = 0; i < limit; i++) {
+                arr[i] = this._dataView.getUint32(p + i * 4, true)
+              }
+              return arr
+            } else if (Btype === 0x73) {
+              // 's'
+              if (absOffset % 2 === 0) {
+                return new Int16Array(ba.buffer, absOffset, limit)
+              }
+              const arr: number[] = new Array(limit)
+              for (let i = 0; i < limit; i++) {
+                arr[i] = this._dataView.getInt16(p + i * 2, true)
+              }
+              return arr
+            } else if (Btype === 0x53) {
+              // 'S'
+              if (absOffset % 2 === 0) {
+                return new Uint16Array(ba.buffer, absOffset, limit)
+              }
+              const arr: number[] = new Array(limit)
+              for (let i = 0; i < limit; i++) {
+                arr[i] = this._dataView.getUint16(p + i * 2, true)
+              }
+              return arr
+            } else if (Btype === 0x63) {
+              // 'c'
+              return new Int8Array(ba.buffer, absOffset, limit)
+            } else if (Btype === 0x43) {
+              // 'C'
+              return new Uint8Array(ba.buffer, absOffset, limit)
+            } else if (Btype === 0x66) {
+              // 'f'
+              if (absOffset % 4 === 0) {
+                return new Float32Array(ba.buffer, absOffset, limit)
+              }
+              const arr: number[] = new Array(limit)
+              for (let i = 0; i < limit; i++) {
+                arr[i] = this._dataView.getFloat32(p + i * 4, true)
+              }
+              return arr
+            }
+          }
+          if (Btype === 0x69 || Btype === 0x49 || Btype === 0x66) {
+            p += limit << 2
+          } else if (Btype === 0x73 || Btype === 0x53) {
+            p += limit << 1
+          } else if (Btype === 0x63 || Btype === 0x43) {
+            p += limit
+          }
+          break
+        }
+      }
+    }
+    return undefined
+  }
+
   private _computeTags() {
-    let p =
-      this.b0 +
-      this.read_name_length +
-      this.num_cigar_bytes +
-      this.num_seq_bytes +
-      this.seq_length
+    let p = this.tagsStart
 
     const blockEnd = this.bytes.end
     const ba = this.byteArray
@@ -268,8 +392,11 @@ export default class BamRecord {
             if (absOffset % 4 === 0) {
               tags[tag] = new Int32Array(ba.buffer, absOffset, limit)
             } else {
-              const bytes = ba.slice(p, p + (limit << 2))
-              tags[tag] = new Int32Array(bytes.buffer, bytes.byteOffset, limit)
+              const arr: number[] = new Array(limit)
+              for (let i = 0; i < limit; i++) {
+                arr[i] = this._dataView.getInt32(p + i * 4, true)
+              }
+              tags[tag] = arr
             }
             p += limit << 2
           } else if (Btype === 0x49) {
@@ -277,8 +404,11 @@ export default class BamRecord {
             if (absOffset % 4 === 0) {
               tags[tag] = new Uint32Array(ba.buffer, absOffset, limit)
             } else {
-              const bytes = ba.slice(p, p + (limit << 2))
-              tags[tag] = new Uint32Array(bytes.buffer, bytes.byteOffset, limit)
+              const arr: number[] = new Array(limit)
+              for (let i = 0; i < limit; i++) {
+                arr[i] = this._dataView.getUint32(p + i * 4, true)
+              }
+              tags[tag] = arr
             }
             p += limit << 2
           } else if (Btype === 0x73) {
@@ -286,8 +416,11 @@ export default class BamRecord {
             if (absOffset % 2 === 0) {
               tags[tag] = new Int16Array(ba.buffer, absOffset, limit)
             } else {
-              const bytes = ba.slice(p, p + (limit << 1))
-              tags[tag] = new Int16Array(bytes.buffer, bytes.byteOffset, limit)
+              const arr: number[] = new Array(limit)
+              for (let i = 0; i < limit; i++) {
+                arr[i] = this._dataView.getInt16(p + i * 2, true)
+              }
+              tags[tag] = arr
             }
             p += limit << 1
           } else if (Btype === 0x53) {
@@ -295,8 +428,11 @@ export default class BamRecord {
             if (absOffset % 2 === 0) {
               tags[tag] = new Uint16Array(ba.buffer, absOffset, limit)
             } else {
-              const bytes = ba.slice(p, p + (limit << 1))
-              tags[tag] = new Uint16Array(bytes.buffer, bytes.byteOffset, limit)
+              const arr: number[] = new Array(limit)
+              for (let i = 0; i < limit; i++) {
+                arr[i] = this._dataView.getUint16(p + i * 2, true)
+              }
+              tags[tag] = arr
             }
             p += limit << 1
           } else if (Btype === 0x63) {
@@ -312,12 +448,11 @@ export default class BamRecord {
             if (absOffset % 4 === 0) {
               tags[tag] = new Float32Array(ba.buffer, absOffset, limit)
             } else {
-              const bytes = ba.slice(p, p + (limit << 2))
-              tags[tag] = new Float32Array(
-                bytes.buffer,
-                bytes.byteOffset,
-                limit,
-              )
+              const arr: number[] = new Array(limit)
+              for (let i = 0; i < limit; i++) {
+                arr[i] = this._dataView.getFloat32(p + i * 4, true)
+              }
+              tags[tag] = arr
             }
             p += limit << 2
           }
