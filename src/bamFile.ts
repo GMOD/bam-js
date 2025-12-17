@@ -1,21 +1,20 @@
-import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
-import crc32 from 'crc/calculators/crc32'
+import { unzip, unzipBlocks } from '@gmod/bgzf-filehandle'
 import { LocalFile, RemoteFile } from 'generic-filehandle2'
-import QuickLRU from 'quick-lru'
 
 import BAI from './bai.ts'
+import BlockFeatureCache from './blockFeatureCache.ts'
 import Chunk from './chunk.ts'
 import CSI from './csi.ts'
 import NullFilehandle from './nullFilehandle.ts'
 import BAMFeature from './record.ts'
 import { parseHeaderText } from './sam.ts'
 import {
-  filterCacheKey,
   filterReadFlag,
   filterTagValue,
   makeOpts,
 } from './util.ts'
 
+import type { DecompressedBlock } from '@gmod/bgzf-filehandle'
 import type { Bytes } from './record.ts'
 import type { BamOpts, BaseOpts, FilterBy } from './util.ts'
 import type { GenericFilehandle } from 'generic-filehandle2'
@@ -41,12 +40,6 @@ export const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
 
-interface ChunkEntry<T> {
-  minBlock: number
-  maxBlock: number
-  features: T[]
-}
-
 export default class BamFile<T extends BamRecordLike = BAMFeature> {
   public renameRefSeq: (a: string) => string
   public bam: GenericFilehandle
@@ -57,11 +50,8 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   public htsget = false
   public headerP?: ReturnType<BamFile<T>['getHeaderPre']>
 
-  // Cache for parsed features by chunk
-  // When a new chunk overlaps a cached chunk, we evict the cached one
-  public chunkFeatureCache = new QuickLRU<string, ChunkEntry<T>>({
-    maxSize: 100,
-  })
+  // Cache for parsed features by BGZF block position
+  public blockFeatureCache = new BlockFeatureCache<T>()
 
   private RecordClass: BamRecordClass<T>
 
@@ -237,29 +227,35 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     return this._fetchChunkFeaturesDirect(chunks, chrId, min, max, opts)
   }
 
-  private chunkCacheKey(chunk: Chunk, filterBy?: FilterBy) {
-    const { minv, maxv } = chunk
-    return `${minv.blockPosition}:${minv.dataPosition}-${maxv.blockPosition}:${maxv.dataPosition}${filterCacheKey(filterBy)}`
-  }
+  private parseFeaturesFromBlock(
+    block: DecompressedBlock,
+  ): T[] {
+    const { blockPosition, data } = block
+    const features: T[] = []
+    const dataView = new DataView(data.buffer, data.byteOffset, data.byteLength)
+    let offset = 0
 
-  private blocksOverlap(
-    minBlock1: number,
-    maxBlock1: number,
-    minBlock2: number,
-    maxBlock2: number,
-  ) {
-    return minBlock1 <= maxBlock2 && maxBlock1 >= minBlock2
-  }
+    while (offset + 4 < data.length) {
+      const recordSize = dataView.getInt32(offset, true)
+      const recordEnd = offset + 4 + recordSize - 1
 
-  // Evict any cached chunks that overlap with the given block range
-  private evictOverlappingChunks(minBlock: number, maxBlock: number) {
-    for (const [key, entry] of this.chunkFeatureCache) {
-      if (
-        this.blocksOverlap(minBlock, maxBlock, entry.minBlock, entry.maxBlock)
-      ) {
-        this.chunkFeatureCache.delete(key)
+      if (recordEnd >= data.length) {
+        break
       }
+
+      const feature = new this.RecordClass({
+        bytes: {
+          byteArray: data,
+          start: offset,
+          end: recordEnd,
+        },
+        fileOffset: blockPosition * (1 << 8) + offset + 1,
+      })
+      features.push(feature)
+      offset = recordEnd + 1
     }
+
+    return features
   }
 
   private async _fetchChunkFeaturesDirect(
@@ -275,63 +271,68 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
     for (let ci = 0, cl = chunks.length; ci < cl; ci++) {
       const chunk = chunks[ci]!
-      const cacheKey = this.chunkCacheKey(chunk, filterBy)
-      const minBlock = chunk.minv.blockPosition
-      const maxBlock = chunk.maxv.blockPosition
+      const { minv, maxv } = chunk
 
-      let records: T[]
-      const cached = this.chunkFeatureCache.get(cacheKey)
-      if (cached) {
-        records = cached.features
-      } else {
-        this.evictOverlappingChunks(minBlock, maxBlock)
-        const { data, cpositions, dpositions } = await this._readChunk({
-          chunk,
-          opts,
-        })
-        const allRecords = await this.readBamFeatures(
-          data,
-          cpositions,
-          dpositions,
-          chunk,
-        )
-        if (filterBy) {
-          records = []
-          for (let i = 0, l = allRecords.length; i < l; i++) {
-            const record = allRecords[i]!
-            if (filterReadFlag(record.flags, flagInclude, flagExclude)) {
+      const buf = await this.bam.read(
+        chunk.fetchedSize(),
+        minv.blockPosition,
+        opts,
+      )
+
+      const blocks = await unzipBlocks(buf, minv.blockPosition)
+
+      let done = false
+      for (let bi = 0; bi < blocks.length; bi++) {
+        const block = blocks[bi]!
+        const isFirstBlock = bi === 0
+        const isLastBlock = block.blockPosition >= maxv.blockPosition
+
+        let features = this.blockFeatureCache.get(block.blockPosition)
+        if (!features) {
+          features = this.parseFeaturesFromBlock(block)
+          this.blockFeatureCache.set(block.blockPosition, features)
+        }
+
+        for (let fi = 0; fi < features.length; fi++) {
+          const feature = features[fi]!
+          const featureDataOffset = (feature.fileOffset - 1) % (1 << 8)
+
+          if (isFirstBlock && featureDataOffset < minv.dataPosition) {
+            continue
+          }
+          if (isLastBlock && featureDataOffset > maxv.dataPosition) {
+            done = true
+            break
+          }
+
+          if (filterBy) {
+            if (filterReadFlag(feature.flags, flagInclude, flagExclude)) {
               continue
             }
             if (
               tagFilter &&
-              filterTagValue(record.tags[tagFilter.tag], tagFilter.value)
+              filterTagValue(feature.tags[tagFilter.tag], tagFilter.value)
             ) {
               continue
             }
-            records.push(record)
           }
-        } else {
-          records = allRecords
+
+          if (feature.ref_id === chrId) {
+            if (feature.start >= max) {
+              done = true
+              break
+            }
+            if (feature.end >= min) {
+              result.push(feature)
+            }
+          }
         }
-        this.chunkFeatureCache.set(cacheKey, {
-          minBlock,
-          maxBlock,
-          features: records,
-        })
+
+        if (done || isLastBlock) {
+          break
+        }
       }
 
-      let done = false
-      for (let i = 0, l = records.length; i < l; i++) {
-        const feature = records[i]!
-        if (feature.ref_id === chrId) {
-          if (feature.start >= max) {
-            done = true
-            break
-          } else if (feature.end >= min) {
-            result.push(feature)
-          }
-        }
-      }
       if (done) {
         break
       }
@@ -395,92 +396,55 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     }
 
     const mateFeatPromises = await Promise.all(
-      [...map.values()].map(async c => {
-        const { data, cpositions, dpositions, chunk } = await this._readChunk({
-          chunk: c,
+      [...map.values()].map(async chunk => {
+        const { minv, maxv } = chunk
+        const buf = await this.bam.read(
+          chunk.fetchedSize(),
+          minv.blockPosition,
           opts,
-        })
-        const mateRecs = [] as T[]
-        const features = await this.readBamFeatures(
-          data,
-          cpositions,
-          dpositions,
-          chunk,
         )
-        for (let i = 0, l = features.length; i < l; i++) {
-          const feature = features[i]!
-          if (
-            readNameCounts[feature.name] === 1 &&
-            !readIds[feature.fileOffset]
-          ) {
-            mateRecs.push(feature)
+        const blocks = await unzipBlocks(buf, minv.blockPosition)
+        const mateRecs: T[] = []
+
+        for (let bi = 0; bi < blocks.length; bi++) {
+          const block = blocks[bi]!
+          const isFirstBlock = bi === 0
+          const isLastBlock = block.blockPosition >= maxv.blockPosition
+
+          let features = this.blockFeatureCache.get(block.blockPosition)
+          if (!features) {
+            features = this.parseFeaturesFromBlock(block)
+            this.blockFeatureCache.set(block.blockPosition, features)
+          }
+
+          for (let fi = 0; fi < features.length; fi++) {
+            const feature = features[fi]!
+            const featureDataOffset = (feature.fileOffset - 1) % (1 << 8)
+
+            if (isFirstBlock && featureDataOffset < minv.dataPosition) {
+              continue
+            }
+            if (isLastBlock && featureDataOffset > maxv.dataPosition) {
+              break
+            }
+
+            if (
+              readNameCounts[feature.name] === 1 &&
+              !readIds[feature.fileOffset]
+            ) {
+              mateRecs.push(feature)
+            }
+          }
+
+          if (isLastBlock) {
+            break
           }
         }
+
         return mateRecs
       }),
     )
     return mateFeatPromises.flat()
-  }
-
-  async _readChunk({ chunk, opts }: { chunk: Chunk; opts: BaseOpts }) {
-    const buf = await this.bam.read(
-      chunk.fetchedSize(),
-      chunk.minv.blockPosition,
-      opts,
-    )
-
-    const {
-      buffer: data,
-      cpositions,
-      dpositions,
-    } = await unzipChunkSlice(buf, chunk)
-    return { data, cpositions, dpositions, chunk }
-  }
-
-  async readBamFeatures(
-    ba: Uint8Array,
-    cpositions: number[],
-    dpositions: number[],
-    chunk: Chunk,
-  ) {
-    let blockStart = 0
-    const sink = [] as T[]
-    let pos = 0
-
-    const dataView = new DataView(ba.buffer)
-    const hasDpositions = dpositions.length > 0
-    const hasCpositions = cpositions.length > 0
-
-    while (blockStart + 4 < ba.length) {
-      const blockSize = dataView.getInt32(blockStart, true)
-      const blockEnd = blockStart + 4 + blockSize - 1
-
-      if (hasDpositions) {
-        while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]!) {}
-        pos--
-      }
-
-      if (blockEnd < ba.length) {
-        const feature = new this.RecordClass({
-          bytes: {
-            byteArray: ba,
-            start: blockStart,
-            end: blockEnd,
-          },
-          fileOffset: hasCpositions
-            ? cpositions[pos]! * (1 << 8) +
-              (blockStart - dpositions[pos]!) +
-              chunk.minv.dataPosition +
-              1
-            : crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
-        })
-
-        sink.push(feature)
-      }
-
-      blockStart = blockEnd + 1
-    }
-    return sink
   }
 
   async hasRefSeq(seqName: string) {
@@ -519,7 +483,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   }
 
   clearFeatureCache() {
-    this.chunkFeatureCache.clear()
+    this.blockFeatureCache.clear()
   }
 
   async estimatedBytesForRegions(
