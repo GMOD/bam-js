@@ -54,6 +54,9 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   public chrToIndex?: Record<string, number>
   public indexToChr?: { refName: string; length: number }[]
   public index?: BAI | CSI
+  private fallbackIndex?: BAI | CSI
+  private indexResolved = false
+  private indexResolvePromise?: Promise<void>
   public htsget = false
   public headerP?: ReturnType<BamFile<T>['getHeaderPre']>
 
@@ -107,26 +110,69 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     } else {
       throw new Error('unable to initialize bam')
     }
-    if (csiFilehandle) {
+    if (baiFilehandle && csiFilehandle) {
+      this.index = new BAI({ filehandle: baiFilehandle })
+      this.fallbackIndex = new CSI({ filehandle: csiFilehandle })
+    } else if (csiFilehandle) {
       this.index = new CSI({ filehandle: csiFilehandle })
-    } else if (csiPath) {
-      this.index = new CSI({ filehandle: new LocalFile(csiPath) })
-    } else if (csiUrl) {
-      this.index = new CSI({ filehandle: new RemoteFile(csiUrl) })
     } else if (baiFilehandle) {
       this.index = new BAI({ filehandle: baiFilehandle })
+    } else if (baiPath && csiPath) {
+      this.index = new BAI({ filehandle: new LocalFile(baiPath) })
+      this.fallbackIndex = new CSI({ filehandle: new LocalFile(csiPath) })
+    } else if (csiPath) {
+      this.index = new CSI({ filehandle: new LocalFile(csiPath) })
     } else if (baiPath) {
       this.index = new BAI({ filehandle: new LocalFile(baiPath) })
+    } else if (baiUrl && csiUrl) {
+      this.index = new BAI({ filehandle: new RemoteFile(baiUrl) })
+      this.fallbackIndex = new CSI({ filehandle: new RemoteFile(csiUrl) })
+    } else if (csiUrl) {
+      this.index = new CSI({ filehandle: new RemoteFile(csiUrl) })
     } else if (baiUrl) {
       this.index = new BAI({ filehandle: new RemoteFile(baiUrl) })
     } else if (bamPath) {
       this.index = new BAI({ filehandle: new LocalFile(`${bamPath}.bai`) })
+      this.fallbackIndex = new CSI({ filehandle: new LocalFile(`${bamPath}.csi`) })
     } else if (bamUrl) {
       this.index = new BAI({ filehandle: new RemoteFile(`${bamUrl}.bai`) })
+      this.fallbackIndex = new CSI({ filehandle: new RemoteFile(`${bamUrl}.csi`) })
     } else if (htsget) {
       this.htsget = true
     } else {
       throw new Error('unable to infer index format')
+    }
+  }
+
+  private async ensureIndex(opts?: BaseOpts) {
+    if (this.indexResolved) {
+      return
+    }
+    if (!this.indexResolvePromise) {
+      this.indexResolvePromise = this.resolveIndex(opts)
+    }
+    return this.indexResolvePromise
+  }
+
+  private async resolveIndex(opts?: BaseOpts) {
+    if (!this.fallbackIndex || !this.index) {
+      this.indexResolved = true
+      return
+    }
+    try {
+      await this.index.parse(opts)
+      this.indexResolved = true
+    } catch (e) {
+      const isNotFound =
+        e instanceof Error &&
+        (/HTTP 404/.test(e.message) || /ENOENT/.test(e.message))
+      if (isNotFound) {
+        this.index = this.fallbackIndex
+        this.fallbackIndex = undefined
+        this.indexResolved = true
+      } else {
+        throw e
+      }
     }
   }
 
@@ -135,6 +181,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     if (!this.index) {
       return undefined
     }
+    await this.ensureIndex(opts)
     const indexData = await this.index.parse(opts)
 
     // firstDataLine is not defined in cases where there is no data in the file
@@ -229,6 +276,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     opts?: BamOpts,
   ) {
     await this.getHeader(opts)
+    await this.ensureIndex(opts)
     const chrId = this.chrToIndex?.[chr]
     if (chrId === undefined || !this.index) {
       return []
@@ -348,6 +396,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   }
 
   async fetchPairs(chrId: number, records: T[], opts: BamOpts) {
+    await this.ensureIndex(opts)
     const { pairAcrossChr, maxInsertSize = 200000 } = opts
     const readNameCounts: Record<string, number> = {}
     const readIds: Record<number, number> = {}
@@ -484,11 +533,13 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   }
 
   async hasRefSeq(seqName: string) {
+    await this.ensureIndex()
     const seqId = this.chrToIndex?.[seqName]
     return seqId === undefined ? false : this.index?.hasRefSeq(seqId)
   }
 
   async lineCount(seqName: string) {
+    await this.ensureIndex()
     const seqId = this.chrToIndex?.[seqName]
     return seqId === undefined || !this.index ? 0 : this.index.lineCount(seqId)
   }
@@ -497,6 +548,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     if (!this.index) {
       return []
     }
+    await this.ensureIndex()
     await this.index.parse()
     const seqId = this.chrToIndex?.[seqName]
     return seqId === undefined ? [] : this.index.indexCov(seqId, start, end)
@@ -511,6 +563,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     if (!this.index) {
       return []
     }
+    await this.ensureIndex(opts)
     await this.index.parse()
     const seqId = this.chrToIndex?.[seqName]
     return seqId === undefined
@@ -529,6 +582,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     if (!this.index) {
       return 0
     }
+    await this.ensureIndex(opts)
     await this.getHeader(opts)
     if (!this.chrToIndex) {
       throw new Error('Header not yet parsed')

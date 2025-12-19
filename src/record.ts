@@ -381,74 +381,61 @@ export default class BamRecord {
           const Btype = ba[p++]!
           const limit = this._dataView.getInt32(p, true)
           p += 4
-          const absOffset = ba.byteOffset + p
           if (Btype === 0x69) {
             // 'i'
-            if (absOffset % 4 === 0) {
-              tags[tag] = new Int32Array(ba.buffer, absOffset, limit)
-            } else {
-              const arr: number[] = new Array(limit)
-              for (let i = 0; i < limit; i++) {
-                arr[i] = this._dataView.getInt32(p + i * 4, true)
-              }
-              tags[tag] = arr
+            const arr: number[] = new Array(limit)
+            for (let i = 0; i < limit; i++) {
+              arr[i] = this._dataView.getInt32(p + i * 4, true)
             }
+            tags[tag] = arr
             p += limit << 2
           } else if (Btype === 0x49) {
             // 'I'
-            if (absOffset % 4 === 0) {
-              tags[tag] = new Uint32Array(ba.buffer, absOffset, limit)
-            } else {
-              const arr: number[] = new Array(limit)
-              for (let i = 0; i < limit; i++) {
-                arr[i] = this._dataView.getUint32(p + i * 4, true)
-              }
-              tags[tag] = arr
+            const arr: number[] = new Array(limit)
+            for (let i = 0; i < limit; i++) {
+              arr[i] = this._dataView.getUint32(p + i * 4, true)
             }
+            tags[tag] = arr
             p += limit << 2
           } else if (Btype === 0x73) {
             // 's'
-            if (absOffset % 2 === 0) {
-              tags[tag] = new Int16Array(ba.buffer, absOffset, limit)
-            } else {
-              const arr: number[] = new Array(limit)
-              for (let i = 0; i < limit; i++) {
-                arr[i] = this._dataView.getInt16(p + i * 2, true)
-              }
-              tags[tag] = arr
+            const arr: number[] = new Array(limit)
+            for (let i = 0; i < limit; i++) {
+              arr[i] = this._dataView.getInt16(p + i * 2, true)
             }
+            tags[tag] = arr
             p += limit << 1
           } else if (Btype === 0x53) {
             // 'S'
-            if (absOffset % 2 === 0) {
-              tags[tag] = new Uint16Array(ba.buffer, absOffset, limit)
-            } else {
-              const arr: number[] = new Array(limit)
-              for (let i = 0; i < limit; i++) {
-                arr[i] = this._dataView.getUint16(p + i * 2, true)
-              }
-              tags[tag] = arr
+            const arr: number[] = new Array(limit)
+            for (let i = 0; i < limit; i++) {
+              arr[i] = this._dataView.getUint16(p + i * 2, true)
             }
+            tags[tag] = arr
             p += limit << 1
           } else if (Btype === 0x63) {
             // 'c'
-            tags[tag] = new Int8Array(ba.buffer, absOffset, limit)
+            const arr: number[] = new Array(limit)
+            for (let i = 0; i < limit; i++) {
+              arr[i] = this._dataView.getInt8(p + i)
+            }
+            tags[tag] = arr
             p += limit
           } else if (Btype === 0x43) {
             // 'C'
-            tags[tag] = new Uint8Array(ba.buffer, absOffset, limit)
+            const arr: number[] = new Array(limit)
+            for (let i = 0; i < limit; i++) {
+              arr[i] = this._dataView.getUint8(p + i)
+            }
+            tags[tag] = arr
             p += limit
           } else if (Btype === 0x66) {
             // 'f'
-            if (absOffset % 4 === 0) {
-              tags[tag] = new Float32Array(ba.buffer, absOffset, limit)
-            } else {
-              const arr: number[] = new Array(limit)
-              for (let i = 0; i < limit; i++) {
-                arr[i] = this._dataView.getFloat32(p + i * 4, true)
-              }
-              tags[tag] = arr
+            const arr: number[] = new Array(limit)
+            for (let i = 0; i < limit; i++) {
+              arr[i] = this._dataView.getFloat32(p + i * 4, true)
             }
+            tags[tag] = arr
             p += limit << 2
           }
           break
