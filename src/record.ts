@@ -663,30 +663,28 @@ export default class BamRecord {
   }
 
   // adapted from igv.js
-  // uses template literal instead of array+join (6.4x faster, see benchmarks/string-building.bench.ts)
+  // inlines flag checks and uses template literal instead of array+join
   get pair_orientation() {
-    if (
-      !this.isSegmentUnmapped() &&
-      !this.isMateUnmapped() &&
-      this.ref_id === this.next_refid
-    ) {
-      const s1 = this.isReverseComplemented() ? 'R' : 'F'
-      const s2 = this.isMateReverseComplemented() ? 'R' : 'F'
-      let o1 = ' '
-      let o2 = ' '
-      if (this.isRead1()) {
-        o1 = '1'
-        o2 = '2'
-      } else if (this.isRead2()) {
-        o1 = '2'
-        o2 = '1'
-      }
-
-      return this.template_length > 0
-        ? `${s1}${o1}${s2}${o2}`
-        : `${s2}${o2}${s1}${o1}`
+    const f = this.flags
+    // combined check: unmapped (0x4) clear, mate unmapped (0x8) clear
+    if (f & 0xc || this.ref_id !== this.next_refid) {
+      return undefined
     }
-    return undefined
+    const s1 = f & 0x10 ? 'R' : 'F'
+    const s2 = f & 0x20 ? 'R' : 'F'
+    let o1 = ' '
+    let o2 = ' '
+    if (f & 0x40) {
+      o1 = '1'
+      o2 = '2'
+    } else if (f & 0x80) {
+      o1 = '2'
+      o2 = '1'
+    }
+
+    return this.template_length > 0
+      ? `${s1}${o1}${s2}${o2}`
+      : `${s2}${o2}${s1}${o1}`
   }
 
   get bin_mq_nl() {

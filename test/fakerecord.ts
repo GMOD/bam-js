@@ -15,34 +15,17 @@ export default class FakeRecord extends Record {
         ]),
       },
     })
-    this.read1 = read1
-    this.read2 = !read1
-    this.strand1 = strand1 === 'R'
-    this.strand2 = strand2 === 'R'
     this.tlen = tlen
     this.nextrefid = 1
     this.refid = 1
+    this._flags =
+      (read1 ? 0x40 : 0x80) |
+      (strand1 === 'R' ? 0x10 : 0) |
+      (strand2 === 'R' ? 0x20 : 0)
   }
 
-  // eslint-disable-next-line @typescript-eslint/class-literal-property-style
   get flags() {
-    return 0
-  }
-
-  isRead1() {
-    return this.read1
-  }
-
-  isRead2() {
-    return this.read2
-  }
-
-  isMateReverseComplemented() {
-    return this.strand2
-  }
-
-  isReverseComplemented() {
-    return this.strand1
+    return this._flags
   }
 
   get template_length() {
