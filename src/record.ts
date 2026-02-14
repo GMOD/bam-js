@@ -2,6 +2,17 @@ import { CIGAR_REF_SKIP, CIGAR_SOFT_CLIP } from './cigar.ts'
 import Constants from './constants.ts'
 
 const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
+
+// precomputed pair orientation strings indexed by ((flags >> 4) & 0xF) | (isize > 0 ? 16 : 0)
+// bits 0-3 encode flag bits 0x10(reverse),0x20(mate reverse),0x40(read1),0x80(read2)
+// bit 4 encodes whether isize > 0
+// prettier-ignore
+const PAIR_ORIENTATION_TABLE = [
+  'F F ','F R ','R F ','R R ','F2F1','F2R1','R2F1','R2R1',
+  'F1F2','F1R2','R1F2','R1R2','F2F1','F2R1','R2F1','R2R1',
+  'F F ','R F ','F R ','R R ','F1F2','R1F2','F1R2','R1R2',
+  'F2F1','R2F1','F2R1','R2R1','F1F2','R1F2','F1R2','R1R2',
+]
 const ASCII_CIGAR_CODES = [
   77, 73, 68, 78, 83, 72, 80, 61, 88, 63, 63, 63, 63, 63, 63, 63,
 ]
@@ -663,28 +674,16 @@ export default class BamRecord {
   }
 
   // adapted from igv.js
-  // inlines flag checks and uses template literal instead of array+join
+  // uses precomputed lookup table indexed by flag bits + isize sign
   get pair_orientation() {
     const f = this.flags
     // combined check: unmapped (0x4) clear, mate unmapped (0x8) clear
     if (f & 0xc || this.ref_id !== this.next_refid) {
       return undefined
     }
-    const s1 = f & 0x10 ? 'R' : 'F'
-    const s2 = f & 0x20 ? 'R' : 'F'
-    let o1 = ' '
-    let o2 = ' '
-    if (f & 0x40) {
-      o1 = '1'
-      o2 = '2'
-    } else if (f & 0x80) {
-      o1 = '2'
-      o2 = '1'
-    }
-
-    return this.template_length > 0
-      ? `${s1}${o1}${s2}${o2}`
-      : `${s2}${o2}${s1}${o1}`
+    return PAIR_ORIENTATION_TABLE[
+      ((f >> 4) & 0xf) | (this.template_length > 0 ? 16 : 0)
+    ]
   }
 
   get bin_mq_nl() {
