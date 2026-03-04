@@ -533,19 +533,13 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     if (!this.chrToIndex) {
       throw new Error('Header not yet parsed')
     }
-    return this.index.estimatedBytesForRegions(
-      regions.map(r => {
-        const refId = this.chrToIndex![r.refName]
-        if (refId === undefined) {
-          throw new Error(`Unknown reference name: ${r.refName}`)
-        }
-        return {
-          refId,
-          start: r.start,
-          end: r.end,
-        }
-      }),
-      opts,
-    )
+    const mapped = regions.flatMap(r => {
+      const refId = this.chrToIndex![r.refName]
+      if (refId === undefined) {
+        return []
+      }
+      return [{ refId, start: r.start, end: r.end }]
+    })
+    return this.index.estimatedBytesForRegions(mapped, opts)
   }
 }
