@@ -139,32 +139,49 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
     // firstDataLine is not defined in cases where there is no data in the file
     // (just bam header and nothing else)
-    const buffer =
+    let readLen =
       indexData.firstDataLine === undefined
+        ? undefined
+        : indexData.firstDataLine.blockPosition + blockLen
+
+    const buffer =
+      readLen === undefined
         ? await this.bam.readFile()
-        : // the logic indexData.firstDataLine is a virtualOffset telling us
-          // where the data is. It is in the middle of a virtualOffset
-          // (provided by the bgzip block offset at blockPosition + the
-          // virtualOffset dataPosition, so we add one extra blockLen to make
-          // sure we consume the full header)
-          await this.bam.read(
-            indexData.firstDataLine.blockPosition + blockLen,
-            0,
-          )
-    const uncba = await unzip(buffer)
+        : await this.bam.read(readLen, 0)
+    let uncba = await unzip(buffer)
     const dataView = new DataView(uncba.buffer)
 
     if (dataView.getInt32(0, true) !== BAM_MAGIC) {
       throw new Error('Not a BAM file')
     }
     const headLen = dataView.getInt32(4, true)
-    const decoder = new TextDecoder('utf8')
-    this.header = decoder.decode(uncba.subarray(8, 8 + headLen))
+    this.header = new TextDecoder('utf8').decode(uncba.subarray(8, 8 + headLen))
 
-    const { chrToIndex, indexToChr } = this._parseRefSeqs(uncba, headLen + 8)
-    this.chrToIndex = chrToIndex
-    this.indexToChr = indexToChr
-    return parseHeaderText(this.header)
+    // BAM files with many reference sequences may need more data than the
+    // initial read provides, so re-fetch with doubled size until it fits
+    const refSeqStart = headLen + 8
+    const maxRetries = 5
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      if (this._hasEnoughRefSeqData(uncba, refSeqStart)) {
+        const { chrToIndex, indexToChr } = this._parseRefSeqs(
+          uncba,
+          refSeqStart,
+        )
+        this.chrToIndex = chrToIndex
+        this.indexToChr = indexToChr
+        return parseHeaderText(this.header)
+      }
+      if (readLen === undefined) {
+        throw new Error(
+          `Insufficient data for reference sequences in ${uncba.length} bytes`,
+        )
+      }
+      readLen *= 2
+      uncba = await unzip(await this.bam.read(readLen, 0))
+    }
+    throw new Error(
+      `Insufficient data for reference sequences after ${maxRetries} retries`,
+    )
   }
 
   getHeader(opts?: BaseOpts) {
@@ -180,6 +197,23 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   async getHeaderText(opts: BaseOpts = {}) {
     await this.getHeader(opts)
     return this.header
+  }
+
+  _hasEnoughRefSeqData(uncba: Uint8Array, start: number) {
+    if (start + 4 > uncba.length) {
+      return false
+    }
+    const dataView = new DataView(uncba.buffer)
+    const nRef = dataView.getInt32(start, true)
+    let p = start + 4
+    for (let i = 0; i < nRef; i += 1) {
+      if (p + 8 > uncba.length) {
+        return false
+      }
+      const lName = dataView.getInt32(p, true)
+      p = p + 8 + lName
+    }
+    return true
   }
 
   _parseRefSeqs(
@@ -198,12 +232,6 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     const decoder = new TextDecoder('utf8')
 
     for (let i = 0; i < nRef; i += 1) {
-      if (p + 8 > uncba.length) {
-        throw new Error(
-          `Insufficient data for reference sequences: need more than ${uncba.length} bytes`,
-        )
-      }
-
       const lName = dataView.getInt32(p, true)
       const refName = this.renameRefSeq(
         decoder.decode(uncba.subarray(p + 4, p + 4 + lName - 1)),
