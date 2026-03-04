@@ -442,6 +442,17 @@ test('estimatedBytesForRegions estimates download size', async () => {
 //   console.timeEnd('timerecord')
 // })
 
+test('parse BAM with many reference sequences', async () => {
+  const ti = new BamFile({
+    bamPath: 'test/data/pha/Pm_st24_CTL1_subset.bam',
+  })
+  await ti.getHeader()
+  expect(ti.chrToIndex?.S6).toBeDefined()
+  expect(Object.keys(ti.chrToIndex || {}).length).toEqual(11003)
+  const records = await ti.getRecordsForRange('S6', 200000, 200100)
+  expect(records.length).toBeGreaterThan(0)
+})
+
 test('custom BamRecord class', async () => {
   class CustomBamRecord extends BamRecord {
     // constructor(args: { bytes: Bytes; fileOffset: number }) {
