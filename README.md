@@ -11,8 +11,7 @@ $ npm install --save @gmod/bam
 ## Usage
 
 ```typescript
-const { BamFile } = require('@gmod/bam')
-// or import {BamFile} from '@gmod/bam'
+import { BamFile } from '@gmod/bam'
 
 const t = new BamFile({
   bamPath: 'test.bam',
@@ -29,7 +28,9 @@ The `bamPath` argument only works on nodejs. In the browser, you should pass
 `bamFilehandle` with a generic-filehandle2 e.g. `RemoteFile`
 
 ```typescript
-const { RemoteFile } = require('generic-filehandle2')
+import { RemoteFile } from 'generic-filehandle2'
+import { BamFile } from '@gmod/bam'
+
 const bam = new BamFile({
   bamFilehandle: new RemoteFile('yourfile.bam'), // or a full http url
   baiFilehandle: new RemoteFile('yourfile.bam.bai'), // or a full http url
@@ -46,7 +47,7 @@ Since 1.0.41 we support usage of the htsget protocol
 Here is a small code snippet for this
 
 ```typescript
-const { HtsgetFile } = require('@gmod/bam')
+import { HtsgetFile } from '@gmod/bam'
 
 const ti = new HtsgetFile({
   baseUrl: 'http://htsnexus.rnd.dnanex.us/v1/reads',
