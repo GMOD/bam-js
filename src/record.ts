@@ -681,11 +681,9 @@ export default class BamRecord {
     if (f & 0xc || this.ref_id !== this.next_refid) {
       return undefined
     }
-    let tlen = this.template_length
-    if (this.start > this.next_pos && tlen > 0) {
-      tlen = -tlen
-    }
-    return PAIR_ORIENTATION_TABLE[((f >> 4) & 0xf) | (tlen > 0 ? 16 : 0)]
+    return PAIR_ORIENTATION_TABLE[
+      ((f >> 4) & 0xf) | (this.template_length > 0 ? 16 : 0)
+    ]
   }
 
   get bin_mq_nl() {
@@ -729,7 +727,7 @@ export default class BamRecord {
   }
 
   toJSON() {
-    const data: Record<string, any> = {}
+    const data: Record<string, unknown> = {}
     for (const k of Object.keys(this)) {
       if (k.startsWith('_') || k === 'bytes') {
         continue

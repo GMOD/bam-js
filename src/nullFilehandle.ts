@@ -1,16 +1,16 @@
 export default class NullFilehandle {
-  public read(): Promise<any> {
+  public read(): Promise<never> {
     throw new Error('never called')
   }
-  public stat(): Promise<any> {
-    throw new Error('never called')
-  }
-
-  public readFile(): Promise<any> {
+  public stat(): Promise<never> {
     throw new Error('never called')
   }
 
-  public close(): Promise<any> {
+  public readFile(): Promise<never> {
+    throw new Error('never called')
+  }
+
+  public close(): Promise<never> {
     throw new Error('never called')
   }
 }

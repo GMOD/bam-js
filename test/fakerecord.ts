@@ -1,19 +1,25 @@
-// @ts-nocheck
 import { Buffer } from 'buffer'
 
 import Record from '../src/record.ts'
 
 export default class FakeRecord extends Record {
-  constructor(read1, strand1, strand2, tlen) {
+  private tlen: number
+  private nextrefid: number
+  private refid: number
+  private _flags: number
+
+  constructor(read1: boolean, strand1: string, strand2: string, tlen: number) {
     super({
       bytes: {
         start: 0,
+        end: 0,
         byteArray: Buffer.from([
           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
           0, 0, 0, 0, 0, 0,
         ]),
       },
+      fileOffset: 0,
     })
     this.tlen = tlen
     this.nextrefid = 1
@@ -24,19 +30,19 @@ export default class FakeRecord extends Record {
       (strand2 === 'R' ? 0x20 : 0)
   }
 
-  get flags() {
+  override get flags() {
     return this._flags
   }
 
-  get template_length() {
+  override get template_length() {
     return this.tlen
   }
 
-  get next_refid() {
+  override get next_refid() {
     return this.nextrefid
   }
 
-  get ref_id() {
+  override get ref_id() {
     return this.refid
   }
 }

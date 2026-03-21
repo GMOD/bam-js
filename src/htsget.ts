@@ -1,12 +1,12 @@
 import { unzip } from '@gmod/bgzf-filehandle'
 
 import BamFile, { BAM_MAGIC } from './bamFile.ts'
-import type Chunk from './chunk.ts'
-import type BamRecord from './record.ts'
 import { parseHeaderText } from './sam.ts'
 import { concatUint8Array } from './util.ts'
 
 import type { BamRecordClass, BamRecordLike } from './bamFile.ts'
+import type Chunk from './chunk.ts'
+import type BamRecord from './record.ts'
 import type { BamOpts, BaseOpts } from './util.ts'
 
 interface HtsgetChunk {
@@ -14,7 +14,10 @@ interface HtsgetChunk {
   headers?: Record<string, string>
 }
 
-async function concat(arr: HtsgetChunk[], opts?: Record<string, any>) {
+async function concat(
+  arr: HtsgetChunk[],
+  opts?: { signal?: AbortSignal; headers?: Record<string, string> },
+) {
   const res = await Promise.all(
     arr.map(async chunk => {
       const { url, headers } = chunk
@@ -29,8 +32,7 @@ async function concat(arr: HtsgetChunk[], opts?: Record<string, any>) {
         return new Uint8Array(ret)
       } else {
         // remove referer header, it is not even allowed to be specified
-        // @ts-expect-error referer not in type
-
+        // @ts-expect-error referer is not a valid header to set programmatically
         const { referer, ...rest } = headers
         const res = await fetch(url, {
           ...opts,
