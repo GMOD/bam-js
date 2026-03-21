@@ -2,13 +2,15 @@ import QuickLRU from '@jbrowse/quick-lru'
 
 import Chunk from './chunk.ts'
 import IndexFile from './indexFile.ts'
+import type {
+  BaseOpts} from './util.ts'
 import {
-  BaseOpts,
   findFirstData,
   optimizeChunks,
   parsePseudoBin,
 } from './util.ts'
-import { VirtualOffset, fromBytes } from './virtualOffset.ts'
+import type { VirtualOffset} from './virtualOffset.ts'
+import { fromBytes } from './virtualOffset.ts'
 
 const BAI_MAGIC = 21578050 // BAI\1
 
@@ -231,7 +233,7 @@ export default class BAI extends IndexFile {
     }
 
     const indexData = await this.parse(opts)
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+     
     if (!indexData) {
       return []
     }

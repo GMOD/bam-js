@@ -1,6 +1,6 @@
-import Chunk from './chunk.ts'
+import type Chunk from './chunk.ts'
 import { longFromBytesToUnsigned } from './long.ts'
-import { Offset, VirtualOffset } from './virtualOffset.ts'
+import type { Offset, VirtualOffset } from './virtualOffset.ts'
 
 export function canMergeBlocks(chunk1: Chunk, chunk2: Chunk) {
   return (

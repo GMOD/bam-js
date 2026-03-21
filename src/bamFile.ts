@@ -4,7 +4,7 @@ import crc32 from 'crc/calculators/crc32'
 import { LocalFile, RemoteFile } from 'generic-filehandle2'
 
 import BAI from './bai.ts'
-import Chunk from './chunk.ts'
+import type Chunk from './chunk.ts'
 import CSI from './csi.ts'
 import NullFilehandle from './nullFilehandle.ts'
 import BAMFeature from './record.ts'
