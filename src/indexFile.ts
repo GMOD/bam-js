@@ -1,6 +1,6 @@
-import { GenericFilehandle } from 'generic-filehandle'
-import Chunk from './chunk'
-import { BaseOpts } from './util'
+import type { GenericFilehandle } from 'generic-filehandle'
+import type Chunk from './chunk'
+import type { BaseOpts } from './util'
 
 export default abstract class IndexFile {
   public filehandle: GenericFilehandle

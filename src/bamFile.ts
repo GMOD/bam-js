@@ -1,16 +1,18 @@
 import crc32 from 'buffer-crc32'
 import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
-import { LocalFile, RemoteFile, GenericFilehandle } from 'generic-filehandle'
+import type { GenericFilehandle } from 'generic-filehandle'
+import { LocalFile, RemoteFile } from 'generic-filehandle'
 import AbortablePromiseCache from 'abortable-promise-cache'
 import QuickLRU from 'quick-lru'
 
 // locals
 import BAI from './bai'
 import CSI from './csi'
-import Chunk from './chunk'
+import type Chunk from './chunk'
 import BAMFeature from './record'
 import { parseHeaderText } from './sam'
-import { checkAbortSignal, timeout, makeOpts, BamOpts, BaseOpts } from './util'
+import type { BamOpts, BaseOpts } from './util'
+import { checkAbortSignal, timeout, makeOpts } from './util'
 
 export const BAM_MAGIC = 21840194
 
@@ -30,18 +32,18 @@ interface Args {
 }
 
 class NullFilehandle {
-  public read(): Promise<any> {
+  public read(): Promise<never> {
     throw new Error('never called')
   }
-  public stat(): Promise<any> {
-    throw new Error('never called')
-  }
-
-  public readFile(): Promise<any> {
+  public stat(): Promise<never> {
     throw new Error('never called')
   }
 
-  public close(): Promise<any> {
+  public readFile(): Promise<never> {
+    throw new Error('never called')
+  }
+
+  public close(): Promise<never> {
     throw new Error('never called')
   }
 }
@@ -288,11 +290,11 @@ export default class BamFile {
       const recs = [] as BAMFeature[]
       for (const feature of records) {
         if (feature.seq_id() === chrId) {
-          if (feature.get('start') >= max) {
+          if ((feature.get('start') as number) >= max) {
             // past end of range, can stop iterating
             done = true
             break
-          } else if (feature.get('end') >= min) {
+          } else if ((feature.get('end') as number) >= min) {
             // must be in range
             recs.push(feature)
           }
@@ -337,7 +339,7 @@ export default class BamFile {
     feats.map(ret => {
       for (const f of ret) {
         const name = f.name()
-        const start = f.get('start')
+        const start = f.get('start') as number
         const pnext = f._next_pos()
         const rnext = f._next_refid()
         if (
@@ -376,7 +378,10 @@ export default class BamFile {
           dpositions,
           chunk,
         )) {
-          if (unmatedPairs[feature.get('name')] && !readIds[feature.id()]) {
+          if (
+            unmatedPairs[feature.get('name') as string] &&
+            !readIds[feature.id()]
+          ) {
             mateRecs.push(feature)
           }
         }

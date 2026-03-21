@@ -1,6 +1,6 @@
 import Long from 'long'
-import Chunk from './chunk'
-import VirtualOffset from './virtualOffset'
+import type Chunk from './chunk'
+import type VirtualOffset from './virtualOffset'
 
 export function timeout(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -35,8 +35,7 @@ export function checkAbortSignal(signal?: AbortSignal) {
   if (signal.aborted) {
     // console.log('bam aborted!')
     if (typeof DOMException === 'undefined') {
-      const e = new Error('aborted')
-      //@ts-ignore
+      const e = new Error('aborted') as Error & { code: string }
       e.code = 'ERR_ABORTED'
       throw e
     } else {

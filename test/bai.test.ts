@@ -1,4 +1,5 @@
-import { BAI, BamFile, BamRecord } from '../src'
+import type { BamRecord } from '../src'
+import { BAI, BamFile } from '../src'
 
 import { LocalFile } from 'generic-filehandle'
 import FakeRecord from './fakerecord'

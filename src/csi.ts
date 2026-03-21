@@ -1,12 +1,12 @@
 import { unzip } from '@gmod/bgzf-filehandle'
 import VirtualOffset, { fromBytes } from './virtualOffset'
 import Chunk from './chunk'
+import type { BaseOpts } from './util'
 import {
   optimizeChunks,
   findFirstData,
   parsePseudoBin,
   parseNameBytes,
-  BaseOpts,
 } from './util'
 
 import IndexFile from './indexFile'

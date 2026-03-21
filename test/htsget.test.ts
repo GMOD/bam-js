@@ -27,7 +27,7 @@ test('dnanexus with mock', async () => {
   fetchMock.mockIf(
     'https://dl.dnanex.us/F/D/Pb1QjgQx9j2bZ8Q44x50xf4fQV3YZBgkvkz23FFB/NA12878_recompressed.bam',
 
-    // @ts-expect-error
+    // @ts-expect-error - jest-fetch-mock handler type does not match actual API
     () => {
       const result = fs.readFileSync('test/htsget/data.bam')
       return {

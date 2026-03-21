@@ -1,14 +1,14 @@
 import { unzip } from '@gmod/bgzf-filehandle'
-import { BaseOpts, BamOpts } from './util'
+import type { BaseOpts, BamOpts } from './util'
 import BamFile, { BAM_MAGIC } from './bamFile'
-import Chunk from './chunk'
+import type Chunk from './chunk'
 import { parseHeaderText } from './sam'
 
 interface HtsgetChunk {
   url: string
   headers?: Record<string, string>
 }
-async function concat(arr: HtsgetChunk[], opts?: Record<string, any>) {
+async function concat(arr: HtsgetChunk[], opts?: BaseOpts) {
   const res = await Promise.all(
     arr.map(async chunk => {
       const { url, headers } = chunk
@@ -16,12 +16,12 @@ async function concat(arr: HtsgetChunk[], opts?: Record<string, any>) {
         return Buffer.from(url.split(',')[1], 'base64')
       } else {
         //remove referer header, it is not even allowed to be specified
-        // @ts-expect-error
+        // @ts-expect-error - referer key may not exist on the record type but we destructure it out
         //eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { referer, ...rest } = headers
         const res = await fetch(url, {
-          ...opts,
-          headers: { ...opts?.headers, ...rest },
+          signal: opts?.signal,
+          headers: { ...rest },
         })
         if (!res.ok) {
           throw new Error(

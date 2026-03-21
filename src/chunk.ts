@@ -1,4 +1,4 @@
-import VirtualOffset from './virtualOffset'
+import type VirtualOffset from './virtualOffset'
 
 // little class representing a chunk in the index
 export default class Chunk {

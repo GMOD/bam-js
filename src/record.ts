@@ -8,16 +8,21 @@ const CIGAR_DECODER = 'MIDNSHP=X???????'.split('')
  * Class of each BAM record returned by this API.
  */
 export default class BamRecord {
-  private data = {} as { [key: string]: any }
+  private data = {} as {
+    [key: string]: number | string | Uint8Array | undefined
+  }
   private bytes: { start: number; end: number; byteArray: Buffer }
   private _id: number
   private _tagOffset: number | undefined
   private _tagList: string[] = []
   private _allTagsParsed = false
 
-  public flags: any
-  public _refID: number
-  constructor(args: any) {
+  public flags = 0
+  public _refID = 0
+  constructor(args: {
+    bytes: { start: number; end: number; byteArray: Buffer }
+    fileOffset: number
+  }) {
     const { bytes, fileOffset } = args
     const { byteArray, start } = bytes
     this.data = {}
@@ -29,21 +34,24 @@ export default class BamRecord {
   }
 
   get(field: string) {
-    //@ts-ignore
+    // @ts-expect-error - accessing dynamic method by field name
     if (this[field]) {
-      //@ts-ignore
       if (this.data[field]) {
         return this.data[field]
       }
-      //@ts-ignore
+      // @ts-expect-error - calling dynamic method by field name
       this.data[field] = this[field]()
       return this.data[field]
     }
     return this._get(field.toLowerCase())
   }
 
+  private _getNum(field: string) {
+    return this.get(field) as number
+  }
+
   end() {
-    return this.get('start') + this.get('length_on_ref')
+    return this._getNum('start') + this._getNum('length_on_ref')
   }
 
   seq_id() {
@@ -123,7 +131,7 @@ export default class BamRecord {
    * Mapping quality score.
    */
   mq() {
-    const mq = (this.get('_bin_mq_nl') & 0xff00) >> 8
+    const mq = (this._getNum('_bin_mq_nl') & 0xff00) >> 8
     return mq === 255 ? undefined : mq
   }
 
@@ -144,10 +152,10 @@ export default class BamRecord {
     const p =
       start +
       36 +
-      this.get('_l_read_name') +
-      this.get('_n_cigar_op') * 4 +
-      this.get('_seq_bytes')
-    const lseq = this.get('seq_length')
+      this._getNum('_l_read_name') +
+      this._getNum('_n_cigar_op') * 4 +
+      this._getNum('_seq_bytes')
+    const lseq = this._getNum('seq_length')
     return byteArray.subarray(p, p + lseq)
   }
 
@@ -163,11 +171,11 @@ export default class BamRecord {
   }
 
   name() {
-    return this.get('_read_name')
+    return this.get('_read_name') as string
   }
 
   _read_name() {
-    const nl = this.get('_l_read_name')
+    const nl = this._getNum('_l_read_name')
     const { byteArray, start } = this.bytes
     return byteArray.toString('ascii', start + 36, start + 36 + nl - 1)
   }
@@ -189,10 +197,10 @@ export default class BamRecord {
       this._tagOffset ||
       start +
         36 +
-        this.get('_l_read_name') +
-        this.get('_n_cigar_op') * 4 +
-        this.get('_seq_bytes') +
-        this.get('seq_length')
+        this._getNum('_l_read_name') +
+        this._getNum('_n_cigar_op') * 4 +
+        this._getNum('_seq_bytes') +
+        this._getNum('seq_length')
 
     const blockEnd = this.bytes.end
     let lcTag
@@ -373,13 +381,10 @@ export default class BamRecord {
   }
 
   _parseCigar(cigar: string) {
-    return (
-      //@ts-ignore
-      cigar
-        .match(/\d+\D/g)
-        //@ts-ignore
-        .map(op => [op.match(/\D/)[0].toUpperCase(), Number.parseInt(op, 10)])
-    )
+    return (cigar.match(/\d+\D/g) ?? []).map((op: string) => [
+      (op.match(/\D/)?.[0] ?? '').toUpperCase(),
+      Number.parseInt(op, 10),
+    ])
   }
 
   /**
@@ -450,9 +455,9 @@ export default class BamRecord {
     }
 
     const { byteArray, start } = this.bytes
-    const numCigarOps = this.get('_n_cigar_op')
-    let p = start + 36 + this.get('_l_read_name')
-    const seqLen = this.get('seq_length')
+    const numCigarOps = this._getNum('_n_cigar_op')
+    let p = start + 36 + this._getNum('_l_read_name')
+    const seqLen = this._getNum('seq_length')
     let cigar = ''
     let lref = 0
 
@@ -506,18 +511,18 @@ export default class BamRecord {
   }
 
   _n_cigar_op() {
-    return this.get('_flag_nc') & 0xffff
+    return this._getNum('_flag_nc') & 0xffff
   }
 
   _l_read_name() {
-    return this.get('_bin_mq_nl') & 0xff
+    return this._getNum('_bin_mq_nl') & 0xff
   }
 
   /**
    * number of bytes in the sequence field
    */
   _seq_bytes() {
-    return (this.get('seq_length') + 1) >> 1
+    return (this._getNum('seq_length') + 1) >> 1
   }
 
   getReadBases() {
@@ -527,9 +532,12 @@ export default class BamRecord {
   seq() {
     const { byteArray, start } = this.bytes
     const p =
-      start + 36 + this.get('_l_read_name') + this.get('_n_cigar_op') * 4
-    const seqBytes = this.get('_seq_bytes')
-    const len = this.get('seq_length')
+      start +
+      36 +
+      this._getNum('_l_read_name') +
+      this._getNum('_n_cigar_op') * 4
+    const seqBytes = this._getNum('_seq_bytes')
+    const len = this._getNum('seq_length')
     let buf = ''
     let i = 0
     for (let j = 0; j < seqBytes; ++j) {
@@ -606,12 +614,12 @@ export default class BamRecord {
   }
 
   toJSON() {
-    const data: { [key: string]: any } = {}
+    const data: { [key: string]: number | string | Uint8Array | undefined } = {}
     for (const k of Object.keys(this)) {
       if (k.charAt(0) === '_' || k === 'bytes') {
         continue
       }
-      //@ts-ignore
+      // @ts-expect-error - accessing instance properties by dynamic key name
       data[k] = this[k]
     }
 

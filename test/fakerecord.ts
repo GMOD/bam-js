@@ -1,15 +1,22 @@
-// @ts-nocheck
 import Record from '../src/record'
 
 export default class FakeRecord extends Record {
-  constructor(read1, strand1, strand2, tlen) {
+  private read1: boolean
+  private read2: boolean
+  private strand1: boolean
+  private strand2: boolean
+  private tlen: number
+
+  constructor(read1: boolean, strand1: string, strand2: string, tlen: number) {
     super({
       bytes: {
         start: 0,
+        end: 22,
         byteArray: Buffer.from([
           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ]),
       },
+      fileOffset: 0,
     })
     this.read1 = read1
     this.read2 = !read1

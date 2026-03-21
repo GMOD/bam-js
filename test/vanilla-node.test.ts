@@ -6,7 +6,7 @@ describe('using vanilla node filehandles', () => {
     const filehandle = await fs.promises.open('test/data/volvox-sorted.bam.bai')
 
     const ti = new BAI({
-      // @ts-expect-error
+      // @ts-expect-error - fs.promises.FileHandle is not GenericFilehandle but compatible at runtime
       filehandle,
     })
     const indexData = await ti.parse()
@@ -20,9 +20,9 @@ describe('using vanilla node filehandles', () => {
     const bam = await fs.promises.open('test/data/volvox-sorted.bam')
     const bai = await fs.promises.open('test/data/volvox-sorted.bam.bai')
     const ti = new BamFile({
-      // @ts-expect-error
+      // @ts-expect-error - fs.promises.FileHandle is not GenericFilehandle but compatible at runtime
       bamFilehandle: bam,
-      // @ts-expect-error
+      // @ts-expect-error - fs.promises.FileHandle is not GenericFilehandle but compatible at runtime
       baiFilehandle: bai,
     })
     await ti.getHeader()
