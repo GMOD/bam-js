@@ -246,7 +246,9 @@ export default class BamRecord {
             }
             return value.join('')
           }
-          while (p <= blockEnd && ba[p++] !== 0) {}
+          while (p <= blockEnd && ba[p++] !== 0) {
+            /* scan to null terminator */
+          }
           break
         }
         case 0x42: {
@@ -626,7 +628,7 @@ export default class BamRecord {
       const packed = numeric[i]!
       const length = packed >> 4
       const opCode = ASCII_CIGAR_CODES[packed & 0xf]!
-      result += length + String.fromCharCode(opCode)
+      result += String(length) + String.fromCharCode(opCode)
     }
     return result
   }

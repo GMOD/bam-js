@@ -35,8 +35,10 @@ export default class CSI extends IndexFile {
     return indexData.indices(refId)?.stats?.lineCount || 0
   }
 
-  async indexCov() {
-    return []
+  indexCov() {
+    return Promise.resolve(
+      [] as { start: number; end: number; score: number }[],
+    )
   }
 
   parseAuxData(bytes: Uint8Array, offset: number) {

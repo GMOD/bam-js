@@ -189,7 +189,7 @@ export function filterReadFlag(
 export function filterTagValue(readVal: unknown, filterVal?: string) {
   return filterVal === '*'
     ? readVal === undefined
-    : `${readVal}` !== `${filterVal}`
+    : String(readVal) !== `${filterVal}`
 }
 
 export function filterCacheKey(filterBy?: FilterBy) {

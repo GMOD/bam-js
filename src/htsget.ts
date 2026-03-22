@@ -89,7 +89,7 @@ export default class HtsgetFile<
     const data = await result.json()
     const uncba = await concat(data.htsget.urls.slice(1), opts)
 
-    const allRecords = await this.readBamFeatures(uncba, [], [], {
+    const allRecords = this.readBamFeatures(uncba, [], [], {
       minv: { dataPosition: 0, blockPosition: 0 },
       maxv: { dataPosition: 0, blockPosition: 0 },
     } as Chunk)

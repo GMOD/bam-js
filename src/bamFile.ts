@@ -317,7 +317,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
           chunk,
           opts,
         })
-        const allRecords = await this.readBamFeatures(
+        const allRecords = this.readBamFeatures(
           data,
           cpositions,
           dpositions,
@@ -429,7 +429,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
           opts,
         })
         const mateRecs = [] as T[]
-        const features = await this.readBamFeatures(
+        const features = this.readBamFeatures(
           data,
           cpositions,
           dpositions,
@@ -465,7 +465,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     return { data, cpositions, dpositions, chunk }
   }
 
-  async readBamFeatures(
+  readBamFeatures(
     ba: Uint8Array,
     cpositions: number[],
     dpositions: number[],
@@ -484,7 +484,9 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       const blockEnd = blockStart + 4 + blockSize - 1
 
       if (hasDpositions) {
-        while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]!) {}
+        while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]!) {
+          /* advance pos */
+        }
         pos--
       }
 

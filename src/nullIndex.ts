@@ -8,7 +8,7 @@ export default class NullIndex extends IndexFile {
     throw new Error('never called')
   }
 
-  public async indexCov(): Promise<never> {
+  public indexCov(): Promise<never> {
     throw new Error('never called')
   }
 

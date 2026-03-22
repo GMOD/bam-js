@@ -197,7 +197,7 @@ test('read as pairs', async () => {
   expect(f.start).toEqual(f2.start)
 })
 
-test('test pair orientations', async () => {
+test('test pair orientations', () => {
   const b1 = new FakeRecord(true, 'F', 'F', 100)
   const b2 = new FakeRecord(true, 'F', 'R', 100)
   const b3 = new FakeRecord(true, 'R', 'R', 100)
