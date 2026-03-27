@@ -14,25 +14,16 @@ importers:
       '@jbrowse/quick-lru':
         specifier: ^7.3.5
         version: 7.3.5
-      abortable-promise-cache:
-        specifier: ^1.1.2
-        version: 1.5.0
       crc:
         specifier: ^4.3.2
         version: 4.3.2
       generic-filehandle2:
         specifier: ^2.0.18
         version: 2.0.18
-      long:
-        specifier: ^4.0.0
-        version: 4.0.0
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@9.39.4)
-      '@types/long':
-        specifier: ^4.0.0
-        version: 4.0.2
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.0
@@ -332,9 +323,6 @@ packages:
   '@types/json5@0.0.29':
     resolution: {integrity: sha512-dRLjCWHYg4oaA77cxO64oO+7JwCwnIzkZPdrrC71jQmQtlhM556pwKo5bUzqvZndkVbeFLIIi+9TC40JNF5hNQ==}
 
-  '@types/long@4.0.2':
-    resolution: {integrity: sha512-MqTGEo5bj5t157U6fA/BiDynNkn0YknVdh48CMPkTSpFTVmvao5UQmm7uEF6xBEo7qIMAlY/JSleYaE6VOdpaA==}
-
   '@types/node@25.5.0':
     resolution: {integrity: sha512-jp2P3tQMSxWugkCUKLRPVUpGaL5MVFwF8RDuSRztfwgN1wmqJeMSbKlnEtQqU8UrhTmzEmZdu2I6v2dpp7XIxw==}
 
@@ -437,13 +425,6 @@ packages:
 
   '@vitest/utils@4.1.1':
     resolution: {integrity: sha512-cNxAlaB3sHoCdL6pj6yyUXv9Gry1NHNg0kFTXdvSIZXLHsqKH7chiWOkwJ5s5+d/oMwcoG9T0bKU38JZWKusrQ==}
-
-  abortable-promise-cache@1.5.0:
-    resolution: {integrity: sha512-S2FfvU1As7Fve6ObCEsuOiE22UR7k91ytM+m4bzG6eAf+fb4TOAVEGZGAzlRfCo7/bZamL9d3ZeXc08MPm3azA==}
-    engines: {node: '>=6'}
-
-  abortcontroller-polyfill@1.7.8:
-    resolution: {integrity: sha512-9f1iZ2uWh92VcrU9Y8x+LdM4DLj75VE0MJB8zuF1iUnroEptStw+DQ8EQPMUdfe5k+PkB1uUfDQfWbhstH8LrQ==}
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
@@ -1228,9 +1209,6 @@ packages:
   lodash.merge@4.6.2:
     resolution: {integrity: sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ==}
 
-  long@4.0.0:
-    resolution: {integrity: sha512-XsP+KhQif4bjX1kbuSiySJFNAehNxgLb6hPRGJ9QsUr8ajHkuXGdrHmFUTUUXhDwVX2R5bY4JNZEwbUiMhV+MA==}
-
   lru-cache@10.4.3:
     resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
 
@@ -1965,8 +1943,6 @@ snapshots:
 
   '@types/json5@0.0.29': {}
 
-  '@types/long@4.0.2': {}
-
   '@types/node@25.5.0':
     dependencies:
       undici-types: 7.18.2
@@ -2118,12 +2094,6 @@ snapshots:
       '@vitest/pretty-format': 4.1.1
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
-
-  abortable-promise-cache@1.5.0:
-    dependencies:
-      abortcontroller-polyfill: 1.7.8
-
-  abortcontroller-polyfill@1.7.8: {}
 
   acorn-jsx@5.3.2(acorn@8.16.0):
     dependencies:
@@ -2989,8 +2959,6 @@ snapshots:
       p-locate: 5.0.0
 
   lodash.merge@4.6.2: {}
-
-  long@4.0.0: {}
 
   lru-cache@10.4.3: {}
 

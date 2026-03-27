@@ -1,11 +1,10 @@
 {
   "name": "@gmod/bam",
-  "version": "1.0.37",
+  "version": "7.1.19",
   "description": "Parser for BAM and BAM index (bai) files",
   "license": "MIT",
   "repository": "GMOD/bam-js",
   "type": "module",
-  "main": "dist/index.js",
   "exports": {
     ".": {
       "import": "./esm/index.js",
@@ -31,12 +30,12 @@
     "coverage": "vitest run --coverage",
     "lint": "eslint --report-unused-disable-directives --max-warnings 0",
     "clean": "rimraf dist esm",
-    "prebuild": "npm run clean && npm run lint",
+    "prebuild": "pnpm clean && pnpm lint",
     "build:esm": "tsc --outDir esm",
     "build:es5": "tsc --module commonjs --moduleResolution bundler --outDir dist",
-    "build": "npm run build:esm && npm run build:es5",
+    "build": "pnpm build:esm && pnpm build:es5",
     "postbuild:es5": "echo '{\"type\": \"commonjs\"}' > dist/package.json",
-    "preversion": "npm run lint && npm test && npm run build",
+    "preversion": "pnpm lint && npm test && pnpm build",
     "version": "standard-changelog && git add CHANGELOG.md",
     "postpublish": "git push origin master --follow-tags"
   },
@@ -49,14 +48,11 @@
   "dependencies": {
     "@gmod/bgzf-filehandle": "^6.0.12",
     "@jbrowse/quick-lru": "^7.3.5",
-    "abortable-promise-cache": "^1.1.2",
     "crc": "^4.3.2",
-    "generic-filehandle2": "^2.0.18",
-    "long": "^4.0.0"
+    "generic-filehandle2": "^2.0.18"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/long": "^4.0.0",
     "@types/node": "^25.5.0",
     "@vitest/coverage-v8": "^4.1.1",
     "eslint": "^9",
