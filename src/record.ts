@@ -674,10 +674,14 @@ export default class BamRecord {
   }
 
   // adapted from igv.js
-  // uses precomputed lookup table indexed by flag bits + isize sign
+  // uses precomputed lookup table indexed by flag bits + isize sign.
+  // the BAM spec defines tlen as positive for the leftmost segment and
+  // negative for the rightmost, so tlen > 0 reliably indicates which
+  // read comes first without needing position-based correction
+  // (see also: gmod/cram-js src/cramFile/record.ts getPairOrientation)
   get pair_orientation() {
     const f = this.flags
-    // combined check: unmapped (0x4) clear, mate unmapped (0x8) clear
+    // unmapped (0x4) or mate unmapped (0x8) -> undefined
     if (f & 0xc || this.ref_id !== this.next_refid) {
       return undefined
     }
@@ -727,7 +731,7 @@ export default class BamRecord {
   }
 
   toJSON() {
-    const data: Record<string, any> = {}
+    const data: Record<string, unknown> = {}
     for (const k of Object.keys(this)) {
       if (k.startsWith('_') || k === 'bytes') {
         continue

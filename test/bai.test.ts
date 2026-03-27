@@ -222,6 +222,35 @@ test('test pair orientations', async () => {
   expect(b10.pair_orientation).toEqual('R1F2')
   expect(b11.pair_orientation).toEqual('R1R2')
   expect(b12.pair_orientation).toEqual('F1R2')
+
+  // read1 with negative tlen (rightmost segment) should swap read order
+  const b13 = new FakeRecord(true, 'F', 'F', -100)
+  const b14 = new FakeRecord(true, 'F', 'R', -100)
+  const b15 = new FakeRecord(true, 'R', 'R', -100)
+  const b16 = new FakeRecord(true, 'R', 'F', -100)
+  expect(b13.pair_orientation).toEqual('F2F1')
+  expect(b14.pair_orientation).toEqual('R2F1')
+  expect(b15.pair_orientation).toEqual('R2R1')
+  expect(b16.pair_orientation).toEqual('F2R1')
+})
+
+test('pair orientation returns undefined for unmapped/cross-ref reads', () => {
+  // unmapped read (0x4)
+  const unmapped = new FakeRecord(true, 'F', 'F', 100, { extraFlags: 0x4 })
+  expect(unmapped.pair_orientation).toBeUndefined()
+
+  // mate unmapped (0x8)
+  const mateUnmapped = new FakeRecord(true, 'F', 'F', 100, {
+    extraFlags: 0x8,
+  })
+  expect(mateUnmapped.pair_orientation).toBeUndefined()
+
+  // different reference sequences
+  const diffRef = new FakeRecord(true, 'F', 'F', 100, {
+    refId: 1,
+    nextRefId: 2,
+  })
+  expect(diffRef.pair_orientation).toBeUndefined()
 })
 
 test('SAM spec pdf', async () => {

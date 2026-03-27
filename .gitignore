@@ -9,3 +9,4 @@ dist
 esm
 *.cpuprofile
 esm_*/
+pnpm-lock.yaml

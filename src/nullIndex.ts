@@ -1,18 +1,18 @@
 import IndexFile from './indexFile.ts'
 
 export default class NullIndex extends IndexFile {
-  public lineCount(): Promise<any> {
+  public lineCount(): Promise<never> {
     throw new Error('never called')
   }
-  protected _parse(): Promise<any> {
-    throw new Error('never called')
-  }
-
-  public async indexCov(): Promise<any> {
+  protected _parse(): Promise<never> {
     throw new Error('never called')
   }
 
-  public blocksForRange(): Promise<any> {
+  public async indexCov(): Promise<never> {
+    throw new Error('never called')
+  }
+
+  public blocksForRange(): Promise<never> {
     throw new Error('never called')
   }
 }

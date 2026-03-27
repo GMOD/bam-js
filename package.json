@@ -5,12 +5,10 @@
   "license": "MIT",
   "repository": "GMOD/bam-js",
   "type": "module",
-  "types": "./dist/index.d.ts",
+  "types": "./esm/index.d.ts",
   "exports": {
-    "import": {
-      "import": "./esm/index.js"
-    },
-    "require": {
+    ".": {
+      "import": "./esm/index.js",
       "require": "./dist/index.js"
     }
   },
@@ -20,7 +18,7 @@
     "url": "https://github.com/cmdcolin"
   },
   "engines": {
-    "node": ">=6"
+    "node": ">=20"
   },
   "files": [
     "dist",
@@ -35,11 +33,11 @@
     "clean": "rimraf dist esm",
     "format": "prettier --write .",
     "build:esm": "tsc --outDir esm",
-    "build:es5": "tsc --module commonjs --outDir dist",
-    "build": "yarn build:esm && yarn build:es5",
-    "prebuild": "yarn clean",
+    "build:es5": "tsc --module commonjs --moduleResolution bundler --outDir dist",
+    "build": "pnpm build:esm && pnpm build:es5",
+    "prebuild": "pnpm clean",
     "postbuild:es5": "echo '{\"type\": \"commonjs\"}' > dist/package.json",
-    "preversion": "yarn lint && yarn test --run && yarn build",
+    "preversion": "pnpm lint && pnpm test --run && pnpm build",
     "version": "standard-changelog && git add CHANGELOG.md",
     "postversion": "git push --follow-tags"
   },
@@ -59,14 +57,14 @@
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.3.3",
     "@vitest/coverage-v8": "^4.0.18",
-    "eslint": "^10.0.2",
+    "eslint": "^9.39.4",
     "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-unicorn": "^63.0.0",
+    "eslint-plugin-unicorn": "^64.0.0",
     "prettier": "^3.8.1",
     "rimraf": "^6.1.3",
     "standard-changelog": "^7.0.1",
-    "typescript": "^5.0.4",
-    "typescript-eslint": "^8.56.1",
+    "typescript": "^6.0.2",
+    "typescript-eslint": "^8.57.2",
     "vitest": "^4.0.18"
   },
   "publishConfig": {
