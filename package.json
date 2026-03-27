@@ -4,28 +4,38 @@
   "description": "Parser for BAM and BAM index (bai) files",
   "license": "MIT",
   "repository": "GMOD/bam-js",
+  "type": "module",
   "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./esm/index.js",
+      "require": "./dist/index.js"
+    }
+  },
   "author": {
     "name": "Colin Diesh",
     "email": "colin.diesh@gmail.com",
     "url": "https://github.com/cmdcolin"
   },
   "engines": {
-    "node": ">=6"
+    "node": ">=20"
   },
   "files": [
-    "dist"
+    "dist",
+    "esm",
+    "src"
   ],
   "scripts": {
     "format": "prettier --write .",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
     "lint": "eslint --report-unused-disable-directives --max-warnings 0",
-    "clean": "rimraf dist",
+    "clean": "rimraf dist esm",
     "prebuild": "npm run clean && npm run lint",
-    "build:types": "tsc --emitDeclarationOnly",
-    "build:js": "tsc --module commonjs --moduleResolution bundler --outDir dist",
-    "build": "npm run build:types && npm run build:js",
+    "build:esm": "tsc --outDir esm",
+    "build:es5": "tsc --module commonjs --moduleResolution bundler --outDir dist",
+    "build": "npm run build:esm && npm run build:es5",
+    "postbuild:es5": "echo '{\"type\": \"commonjs\"}' > dist/package.json",
     "preversion": "npm run lint && npm test && npm run build",
     "version": "standard-changelog && git add CHANGELOG.md",
     "postpublish": "git push origin master --follow-tags"
@@ -37,29 +47,16 @@
     "genomics"
   ],
   "dependencies": {
-    "@babel/runtime-corejs3": "^7.5.5",
     "@gmod/bgzf-filehandle": "^6.0.12",
     "@jbrowse/quick-lru": "^7.3.5",
-    "@types/long": "^4.0.0",
-    "@types/node": "^25.5.0",
     "abortable-promise-cache": "^1.1.2",
     "crc": "^4.3.2",
-    "cross-fetch": "^3.0.2",
-    "es6-promisify": "^6.0.1",
-    "generic-filehandle": "^2.0.0",
     "generic-filehandle2": "^2.0.18",
-    "long": "^4.0.0",
-    "object.entries-ponyfill": "^1.0.1",
-    "quick-lru": "^2.0.0"
+    "long": "^4.0.0"
   },
   "devDependencies": {
-    "@babel/cli": "^7.2.3",
-    "@babel/core": "^7.3.3",
-    "@babel/plugin-proposal-class-properties": "^7.5.5",
-    "@babel/plugin-transform-runtime": "^7.2.0",
-    "@babel/preset-env": "^7.3.1",
-    "@babel/preset-typescript": "^7.6.0",
     "@eslint/js": "^10.0.1",
+    "@types/long": "^4.0.0",
     "@types/node": "^25.5.0",
     "@vitest/coverage-v8": "^4.1.1",
     "eslint": "^9",

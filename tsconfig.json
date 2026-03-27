@@ -1,19 +1,19 @@
 {
   "include": ["src"],
   "compilerOptions": {
-    "outDir": "dist",
+    "outDir": "esm",
     "target": "es2020",
     "lib": ["dom", "esnext"],
     "declaration": true,
-    "moduleResolution": "bundler",
-    "module": "esnext",
+    "moduleResolution": "nodenext",
+    "module": "nodenext",
     "rootDir": "./src",
     "sourceMap": true,
     "strict": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
-    "allowImportingTsExtensions": true,
+    "allowImportingTsExtensions": false,
     "rewriteRelativeImportExtensions": true,
     "esModuleInterop": true
   }
