@@ -732,7 +732,7 @@ export default class BamRecord {
       if (k.startsWith('_') || k === 'bytes') {
         continue
       }
-      // @ts-expect-error dynamic field access
+      // @ts-ignore
       data[k] = this[k]
     }
 

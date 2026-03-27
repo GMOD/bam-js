@@ -1,8 +1,8 @@
 import { unzip } from '@gmod/bgzf-filehandle'
 
 import BamFile, { BAM_MAGIC } from './bamFile.ts'
-import type Chunk from './chunk.ts'
-import type BamRecord from './record.ts'
+import Chunk from './chunk.ts'
+import BamRecord from './record.ts'
 import { parseHeaderText } from './sam.ts'
 import { concatUint8Array } from './util.ts'
 
@@ -29,7 +29,7 @@ async function concat(arr: HtsgetChunk[], opts?: Record<string, any>) {
         return new Uint8Array(ret)
       } else {
         // remove referer header, it is not even allowed to be specified
-        // @ts-expect-error referer not in type
+        // @ts-expect-error
 
         const { referer, ...rest } = headers
         const res = await fetch(url, {

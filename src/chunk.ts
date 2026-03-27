@@ -1,4 +1,4 @@
-import type { Offset } from './virtualOffset.ts'
+import { Offset } from './virtualOffset.ts'
 
 // little class representing a chunk in the index
 export default class Chunk {
