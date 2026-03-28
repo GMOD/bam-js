@@ -1,12 +1,12 @@
 import { unzip } from '@gmod/bgzf-filehandle'
 
 import BamFile, { BAM_MAGIC } from './bamFile.ts'
-import Chunk from './chunk.ts'
-import BamRecord from './record.ts'
 import { parseHeaderText } from './sam.ts'
 import { concatUint8Array } from './util.ts'
 
 import type { BamRecordClass, BamRecordLike } from './bamFile.ts'
+import type Chunk from './chunk.ts'
+import type BamRecord from './record.ts'
 import type { BamOpts, BaseOpts } from './util.ts'
 
 interface HtsgetChunk {

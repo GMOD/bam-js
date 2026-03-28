@@ -42,6 +42,7 @@ export default defineConfig(
       ],
       'no-underscore-dangle': 'off',
       curly: 'error',
+      '@typescript-eslint/consistent-type-imports': 'error',
       semi: ['error', 'never'],
       'spaced-comment': [
         'error',

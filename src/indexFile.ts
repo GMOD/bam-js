@@ -1,6 +1,7 @@
-import Chunk from './chunk.ts'
-import { BaseOpts, optimizeChunks } from './util.ts'
+import { optimizeChunks } from './util.ts'
 
+import type Chunk from './chunk.ts'
+import type { BaseOpts } from './util.ts'
 import type { GenericFilehandle } from 'generic-filehandle2'
 
 export interface Region {
