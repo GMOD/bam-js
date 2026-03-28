@@ -17,10 +17,10 @@ const t = new BamFile({
 })
 
 // note: it's required to first run getHeader before any getRecordsForRange
-var header = await t.getHeader()
+const header = await t.getHeader()
 
 // this would get same records as samtools view ctgA:1-50000
-var records = await t.getRecordsForRange('ctgA', 0, 50000)
+const records = await t.getRecordsForRange('ctgA', 0, 50000)
 ```
 
 The `bamPath` argument only works on nodejs. In the browser, you should pass
@@ -53,7 +53,7 @@ const ti = new HtsgetFile({
   trackId: 'BroadHiSeqX_b37/NA12878',
 })
 await ti.getHeader()
-const records = await ti.getRecordsForRange(1, 2000000, 2000001)
+const records = await ti.getRecordsForRange('1', 2000000, 2000001)
 ```
 
 Our implementation makes some assumptions about how the protocol is implemented,
