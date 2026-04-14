@@ -3,7 +3,7 @@
 set -e
 
 CURRENT_BRANCH=$(git branch --show-current)
-BRANCH1="${1:-master}"
+BRANCH1="${1:-main}"
 BRANCH2="${2:-$CURRENT_BRANCH}"
 
 if ! git diff --quiet || ! git diff --cached --quiet; then
@@ -13,15 +13,15 @@ fi
 rm -rf esm_branch1 esm_branch2
 
 git checkout "$BRANCH1"
-yarn
-yarn build
+pnpm install
+pnpm build
 mv esm esm_branch1
 echo "$BRANCH1" >esm_branch1/branchname.txt
 
 echo "Building $BRANCH2 branch..."
 git checkout "$BRANCH2"
-yarn
-yarn build
+pnpm install
+pnpm build
 mv esm esm_branch2
 echo "$BRANCH2" >esm_branch2/branchname.txt
 
