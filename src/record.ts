@@ -17,6 +17,8 @@ const ASCII_CIGAR_CODES = [
   77, 73, 68, 78, 83, 72, 80, 61, 88, 63, 63, 63, 63, 63, 63, 63,
 ]
 
+const textDecoder = new TextDecoder()
+
 // Bitmask for ops that consume ref: M=0, D=2, N=3, P=6, ==7, X=8
 // Binary: 0b111001101 = 0x1CD
 const CIGAR_CONSUMES_REF_MASK = 0x1cd
@@ -36,20 +38,24 @@ export default class BamRecord {
   public fileOffset: number
   private bytes: Bytes
   private _dataView: DataView
+  private readonly _b0: number
 
   private _cachedFlags?: number
   private _cachedRefId?: number
   private _cachedStart?: number
   private _cachedEnd?: number
+  private _cachedSeqLength?: number
   private _cachedTags?: Record<string, unknown>
   private _cachedCigarAndLength?: CIGAR_AND_LENGTH
   private _cachedNUMERIC_MD?: Uint8Array | null
   private _cachedTagsStart?: number
 
-  constructor(args: { bytes: Bytes; fileOffset: number }) {
+  constructor(args: { bytes: Bytes; fileOffset: number; dataView?: DataView }) {
     this.bytes = args.bytes
     this.fileOffset = args.fileOffset
-    this._dataView = new DataView(this.bytes.byteArray.buffer)
+    this._b0 = args.bytes.start + 36
+    this._dataView =
+      args.dataView ?? new DataView(this.bytes.byteArray.buffer)
   }
 
   get byteArray() {
@@ -112,7 +118,7 @@ export default class BamRecord {
   }
 
   get b0() {
-    return this.bytes.start + 36
+    return this._b0
   }
 
   get tagsStart() {
@@ -240,11 +246,7 @@ export default class BamRecord {
             if (raw) {
               return ba.subarray(start, p)
             }
-            const value = []
-            for (let i = start; i < p; i++) {
-              value.push(String.fromCharCode(ba[i]!))
-            }
-            return value.join('')
+            return textDecoder.decode(ba.subarray(start, p))
           }
           while (p <= blockEnd && ba[p++] !== 0) {}
           break
@@ -375,16 +377,12 @@ export default class BamRecord {
         case 0x5a: // 'Z'
         case 0x48: {
           // 'H'
-          const value = []
-          while (p <= blockEnd) {
-            const cc = ba[p++]!
-            if (cc !== 0) {
-              value.push(String.fromCharCode(cc))
-            } else {
-              break
-            }
+          const start = p
+          while (p < blockEnd && ba[p] !== 0) {
+            p++
           }
-          tags[tag] = value.join('')
+          tags[tag] = textDecoder.decode(ba.subarray(start, p))
+          p++ // advance past null terminator
           break
         }
         case 0x42: {
@@ -699,7 +697,10 @@ export default class BamRecord {
   }
 
   get seq_length() {
-    return this._dataView.getInt32(this.bytes.start + 20, true)
+    if (this._cachedSeqLength === undefined) {
+      this._cachedSeqLength = this._dataView.getInt32(this.bytes.start + 20, true)
+    }
+    return this._cachedSeqLength
   }
 
   get next_refid() {

@@ -35,6 +35,7 @@ export interface BamRecordLike {
 export type BamRecordClass<T extends BamRecordLike = BAMFeature> = new (args: {
   bytes: Bytes
   fileOffset: number
+  dataView?: DataView
 }) => T
 
 export const BAM_MAGIC = 21840194
@@ -501,6 +502,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
               chunk.minv.dataPosition +
               1
             : crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
+          dataView,
         })
 
         sink.push(feature)
