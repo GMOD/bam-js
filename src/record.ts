@@ -36,50 +36,51 @@ interface CIGAR_AND_LENGTH {
 
 export default class BamRecord {
   public fileOffset: number
-  private bytes: Bytes
+  private _byteArray: Uint8Array
+  private _start: number
+  private _end: number
   private _dataView: DataView
-  private readonly _b0: number
 
   private _cachedFlags?: number
   private _cachedRefId?: number
   private _cachedStart?: number
   private _cachedEnd?: number
-  private _cachedSeqLength?: number
   private _cachedTags?: Record<string, unknown>
-  private _cachedCigarAndLength?: CIGAR_AND_LENGTH
+  private _cachedLengthOnRef?: number
+  private _cachedNumericCigar?: Uint32Array | number[]
   private _cachedNUMERIC_MD?: Uint8Array | null
   private _cachedTagsStart?: number
 
   constructor(args: { bytes: Bytes; fileOffset: number; dataView?: DataView }) {
-    this.bytes = args.bytes
+    this._byteArray = args.bytes.byteArray
+    this._start = args.bytes.start
+    this._end = args.bytes.end
     this.fileOffset = args.fileOffset
-    this._b0 = args.bytes.start + 36
-    this._dataView =
-      args.dataView ?? new DataView(this.bytes.byteArray.buffer)
+    this._dataView = args.dataView ?? new DataView(this._byteArray.buffer)
   }
 
   get byteArray() {
-    return this.bytes.byteArray
+    return this._byteArray
   }
 
   get flags() {
     if (this._cachedFlags === undefined) {
       this._cachedFlags =
-        (this._dataView.getInt32(this.bytes.start + 16, true) & 0xffff0000) >>
-        16
+        (this._dataView.getInt32(this._start + 16, true) & 0xffff0000) >> 16
     }
     return this._cachedFlags
   }
+
   get ref_id() {
     if (this._cachedRefId === undefined) {
-      this._cachedRefId = this._dataView.getInt32(this.bytes.start + 4, true)
+      this._cachedRefId = this._dataView.getInt32(this._start + 4, true)
     }
     return this._cachedRefId
   }
 
   get start() {
     if (this._cachedStart === undefined) {
-      this._cachedStart = this._dataView.getInt32(this.bytes.start + 8, true)
+      this._cachedStart = this._dataView.getInt32(this._start + 8, true)
     }
     return this._cachedStart
   }
@@ -104,12 +105,13 @@ export default class BamRecord {
     if (this.isSegmentUnmapped()) {
       return null
     } else {
+      const seqLen = this.seq_length
       const p =
         this.b0 +
         this.read_name_length +
         this.num_cigar_bytes +
-        this.num_seq_bytes
-      return this.byteArray.subarray(p, p + this.seq_length)
+        ((seqLen + 1) >> 1)
+      return this._byteArray.subarray(p, p + seqLen)
     }
   }
 
@@ -118,25 +120,27 @@ export default class BamRecord {
   }
 
   get b0() {
-    return this._b0
+    return this._start + 36
   }
 
   get tagsStart() {
     if (this._cachedTagsStart === undefined) {
+      const seqLen = this.seq_length
       this._cachedTagsStart =
         this.b0 +
         this.read_name_length +
         this.num_cigar_bytes +
-        this.num_seq_bytes +
-        this.seq_length
+        ((seqLen + 1) >> 1) +
+        seqLen
     }
     return this._cachedTagsStart
   }
+
   // batch fromCharCode: fastest for typical name lengths (see benchmarks/string-building.bench.ts)
   get name() {
     const len = this.read_name_length - 1
     const start = this.b0
-    const ba = this.byteArray
+    const ba = this._byteArray
     const codes = new Array(len)
     for (let i = 0; i < len; i++) {
       codes[i] = ba[start + i]!
@@ -176,8 +180,8 @@ export default class BamRecord {
 
     let p = this.tagsStart
 
-    const blockEnd = this.bytes.end
-    const ba = this.byteArray
+    const blockEnd = this._end
+    const ba = this._byteArray
     while (p < blockEnd) {
       const currentTag1 = ba[p]!
       const currentTag2 = ba[p + 1]!
@@ -333,8 +337,8 @@ export default class BamRecord {
   private _computeTags() {
     let p = this.tagsStart
 
-    const blockEnd = this.bytes.end
-    const ba = this.byteArray
+    const blockEnd = this._end
+    const ba = this._byteArray
     const tags = {} as Record<string, unknown>
     while (p < blockEnd) {
       const tag = String.fromCharCode(ba[p]!, ba[p + 1]!)
@@ -518,11 +522,12 @@ export default class BamRecord {
     return !!(this.flags & Constants.BAM_FSUPPLEMENTARY)
   }
 
-  get cigarAndLength() {
-    if (this._cachedCigarAndLength === undefined) {
-      this._cachedCigarAndLength = this._computeCigarAndLength()
+  // Compatibility getter — prefer length_on_ref and NUMERIC_CIGAR directly
+  get cigarAndLength(): CIGAR_AND_LENGTH {
+    return {
+      length_on_ref: this.length_on_ref,
+      NUMERIC_CIGAR: this.NUMERIC_CIGAR,
     }
-    return this._cachedCigarAndLength
   }
 
   // Benchmark results for CIGAR parsing strategies (see benchmarks/cigar-lifecycle.bench.ts):
@@ -543,78 +548,90 @@ export default class BamRecord {
   //
   // Strategy: use plain array with |0 for small aligned (≤50 ops) and all unaligned,
   // Uint32Array view only for large aligned CIGARs.
-  private _computeCigarAndLength() {
+  private _computeLengthOnRef(): number {
     if (this.isSegmentUnmapped()) {
-      return {
-        length_on_ref: 0,
-        NUMERIC_CIGAR: new Uint32Array(0),
-      }
+      return 0
     }
 
     const numCigarOps = this.num_cigar_ops
-    let p = this.b0 + this.read_name_length
+    const p = this.b0 + this.read_name_length
 
-    // check for CG tag by inspecting whether the CIGAR field contains a clip
-    // that consumes entire seqLen
+    // CG tag: first op is soft clip consuming the entire sequence; second op is N encoding length on ref
     const cigop = this._dataView.getInt32(p, true)
     const lop = cigop >> 4
     const op = cigop & 0xf
     if (op === CIGAR_SOFT_CLIP && lop === this.seq_length) {
-      // if there is a CG the second CIGAR field will be a N tag the represents
-      // the length on ref
-      p += 4
-      const cigop = this._dataView.getInt32(p, true)
-      const lop = cigop >> 4
-      const op = cigop & 0xf
-      if (op !== CIGAR_REF_SKIP) {
+      const cigop2 = this._dataView.getInt32(p + 4, true)
+      if ((cigop2 & 0xf) !== CIGAR_REF_SKIP) {
         console.warn('CG tag with no N tag')
       }
-      const cgArray = this.tags.CG as Uint32Array
-      return {
-        NUMERIC_CIGAR: cgArray,
-        length_on_ref: lop,
-      }
+      return cigop2 >> 4
     }
 
-    const absOffset = this.byteArray.byteOffset + p
-    const isAligned = absOffset % 4 === 0
-
-    if (isAligned && numCigarOps > 50) {
+    const absOffset = this._byteArray.byteOffset + p
+    if (absOffset % 4 === 0 && numCigarOps > 50) {
+      // Zero-copy view — cache NUMERIC_CIGAR as a side effect since it's free to do here
       const cigarView = new Uint32Array(
-        this.byteArray.buffer,
+        this._byteArray.buffer,
         absOffset,
         numCigarOps,
       )
+      this._cachedNumericCigar = cigarView
       let lref = 0
       for (let c = 0; c < numCigarOps; ++c) {
-        const cigop = cigarView[c]!
-        lref += (cigop >> 4) * ((CIGAR_CONSUMES_REF_MASK >> (cigop & 0xf)) & 1)
+        const co = cigarView[c]!
+        lref += (co >> 4) * ((CIGAR_CONSUMES_REF_MASK >> (co & 0xf)) & 1)
       }
-      return {
-        NUMERIC_CIGAR: cigarView,
-        length_on_ref: lref,
-      }
+      return lref
+    }
+
+    let lref = 0
+    for (let c = 0; c < numCigarOps; ++c) {
+      const co = this._dataView.getInt32(p + c * 4, true)
+      lref += (co >> 4) * ((CIGAR_CONSUMES_REF_MASK >> (co & 0xf)) & 1)
+    }
+    return lref
+  }
+
+  private _computeNumericCigar(): Uint32Array | number[] {
+    if (this.isSegmentUnmapped()) {
+      return new Uint32Array(0)
+    }
+
+    const numCigarOps = this.num_cigar_ops
+    const p = this.b0 + this.read_name_length
+
+    const cigop = this._dataView.getInt32(p, true)
+    const lop = cigop >> 4
+    const op = cigop & 0xf
+    if (op === CIGAR_SOFT_CLIP && lop === this.seq_length) {
+      return (this.tags.CG as Uint32Array | undefined) ?? new Uint32Array(0)
+    }
+
+    const absOffset = this._byteArray.byteOffset + p
+    if (absOffset % 4 === 0 && numCigarOps > 50) {
+      return new Uint32Array(this._byteArray.buffer, absOffset, numCigarOps)
     }
 
     const cigarArray: number[] = new Array(numCigarOps)
-    let lref = 0
     for (let c = 0; c < numCigarOps; ++c) {
-      const cigop = this._dataView.getInt32(p + c * 4, true) | 0
-      cigarArray[c] = cigop
-      lref += (cigop >> 4) * ((CIGAR_CONSUMES_REF_MASK >> (cigop & 0xf)) & 1)
+      cigarArray[c] = this._dataView.getInt32(p + c * 4, true) | 0
     }
-    return {
-      NUMERIC_CIGAR: cigarArray,
-      length_on_ref: lref,
-    }
+    return cigarArray
   }
 
   get length_on_ref() {
-    return this.cigarAndLength.length_on_ref
+    if (this._cachedLengthOnRef === undefined) {
+      this._cachedLengthOnRef = this._computeLengthOnRef()
+    }
+    return this._cachedLengthOnRef
   }
 
   get NUMERIC_CIGAR() {
-    return this.cigarAndLength.NUMERIC_CIGAR
+    if (this._cachedNumericCigar === undefined) {
+      this._cachedNumericCigar = this._computeNumericCigar()
+    }
+    return this._cachedNumericCigar
   }
 
   get CIGAR() {
@@ -647,24 +664,25 @@ export default class BamRecord {
 
   get NUMERIC_SEQ() {
     const p = this.b0 + this.read_name_length + this.num_cigar_bytes
-    return this.byteArray.subarray(p, p + this.num_seq_bytes)
+    return this._byteArray.subarray(p, p + this.num_seq_bytes)
   }
 
   get seq() {
-    const numeric = this.NUMERIC_SEQ
     const len = this.seq_length
+    const seqStart = this.b0 + this.read_name_length + this.num_cigar_bytes
+    const numeric = this._byteArray
     const buf = new Array(len)
     let i = 0
     const fullBytes = len >> 1
 
     for (let j = 0; j < fullBytes; ++j) {
-      const sb = numeric[j]!
+      const sb = numeric[seqStart + j]!
       buf[i++] = SEQRET_DECODER[(sb & 0xf0) >> 4]
       buf[i++] = SEQRET_DECODER[sb & 0x0f]
     }
 
     if (i < len) {
-      const sb = numeric[fullBytes]!
+      const sb = numeric[seqStart + fullBytes]!
       buf[i] = SEQRET_DECODER[(sb & 0xf0) >> 4]
     }
 
@@ -689,37 +707,34 @@ export default class BamRecord {
   }
 
   get bin_mq_nl() {
-    return this._dataView.getInt32(this.bytes.start + 12, true)
+    return this._dataView.getInt32(this._start + 12, true)
   }
 
   get flag_nc() {
-    return this._dataView.getInt32(this.bytes.start + 16, true)
+    return this._dataView.getInt32(this._start + 16, true)
   }
 
   get seq_length() {
-    if (this._cachedSeqLength === undefined) {
-      this._cachedSeqLength = this._dataView.getInt32(this.bytes.start + 20, true)
-    }
-    return this._cachedSeqLength
+    return this._dataView.getInt32(this._start + 20, true)
   }
 
   get next_refid() {
-    return this._dataView.getInt32(this.bytes.start + 24, true)
+    return this._dataView.getInt32(this._start + 24, true)
   }
 
   get next_pos() {
-    return this._dataView.getInt32(this.bytes.start + 28, true)
+    return this._dataView.getInt32(this._start + 28, true)
   }
 
   get template_length() {
-    return this._dataView.getInt32(this.bytes.start + 32, true)
+    return this._dataView.getInt32(this._start + 32, true)
   }
 
   seqAt(idx: number): string | undefined {
     if (idx < this.seq_length) {
       const byteIndex = idx >> 1
       const sb =
-        this.byteArray[
+        this._byteArray[
           this.b0 + this.read_name_length + this.num_cigar_bytes + byteIndex
         ]!
 
@@ -734,7 +749,7 @@ export default class BamRecord {
   toJSON() {
     const data: Record<string, unknown> = {}
     for (const k of Object.keys(this)) {
-      if (k.startsWith('_') || k === 'bytes') {
+      if (k.startsWith('_')) {
         continue
       }
       // @ts-ignore

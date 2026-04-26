@@ -34,7 +34,7 @@ export interface BaseOpts {
 }
 
 export function makeOpts(obj: AbortSignal | BaseOpts = {}): BaseOpts {
-  return 'aborted' in obj ? ({ signal: obj } as BaseOpts) : obj
+  return 'aborted' in obj ? { signal: obj } : obj
 }
 
 export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {

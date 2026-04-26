@@ -7,6 +7,7 @@ import tseslint from 'typescript-eslint'
 export default defineConfig(
   {
     ignores: [
+      'scripts',
       'webpack.config.js',
       'benchmarks/*',
       'dist/*',
