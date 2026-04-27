@@ -303,7 +303,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     const result: T[] = []
 
     for (let ci = 0, cl = chunks.length; ci < cl; ci++) {
-      const chunk = chunks[ci]
+      const chunk = chunks[ci]!
       const cacheKey = this.chunkCacheKey(chunk, filterBy)
       const minBlock = chunk.minv.blockPosition
       const maxBlock = chunk.maxv.blockPosition
@@ -327,7 +327,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
         if (filterBy) {
           records = []
           for (let i = 0, l = allRecords.length; i < l; i++) {
-            const record = allRecords[i]
+            const record = allRecords[i]!
             if (filterReadFlag(record.flags, flagInclude, flagExclude)) {
               continue
             }
@@ -351,7 +351,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
       let done = false
       for (let i = 0, l = records.length; i < l; i++) {
-        const feature = records[i]
+        const feature = records[i]!
         if (feature.ref_id === chrId) {
           if (feature.start >= max) {
             done = true
@@ -369,7 +369,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     if (viewAsPairs) {
       const pairs = await this.fetchPairs(chrId, result, opts)
       for (let i = 0, l = pairs.length; i < l; i++) {
-        result.push(pairs[i])
+        result.push(pairs[i]!)
       }
     }
 
@@ -382,7 +382,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     const readIds: Record<number, number> = {}
 
     for (let i = 0, l = records.length; i < l; i++) {
-      const r = records[i]
+      const r = records[i]!
       const name = r.name
       readNameCounts[name] = (readNameCounts[name] || 0) + 1
       readIds[r.fileOffset] = 1
@@ -390,7 +390,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
     const matePromises: Promise<Chunk[]>[] = []
     for (let i = 0, l = records.length; i < l; i++) {
-      const f = records[i]
+      const f = records[i]!
       const name = f.name
       if (
         this.index &&
@@ -413,9 +413,9 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     const map = new Map<string, Chunk>()
     const res = await Promise.all(matePromises)
     for (let i = 0, l = res.length; i < l; i++) {
-      const chunks = res[i]
+      const chunks = res[i]!
       for (let j = 0, jl = chunks.length; j < jl; j++) {
-        const m = chunks[j]
+        const m = chunks[j]!
         const key = m.toString()
         if (!map.has(key)) {
           map.set(key, m)
@@ -437,7 +437,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
           chunk,
         )
         for (let i = 0, l = features.length; i < l; i++) {
-          const feature = features[i]
+          const feature = features[i]!
           if (
             readNameCounts[feature.name] === 1 &&
             !readIds[feature.fileOffset]
@@ -485,7 +485,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       const blockEnd = blockStart + 4 + blockSize - 1
 
       if (hasDpositions) {
-        while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]) {}
+        while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]!) {}
         pos--
       }
 
@@ -497,8 +497,8 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
             end: blockEnd,
           },
           fileOffset: hasCpositions
-            ? cpositions[pos] * (1 << 8) +
-              (blockStart - dpositions[pos]) +
+            ? cpositions[pos]! * (1 << 8) +
+              (blockStart - dpositions[pos]!) +
               chunk.minv.dataPosition +
               1
             : crc32(ba.subarray(blockStart, blockEnd)) >>> 0,

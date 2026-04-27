@@ -50,7 +50,7 @@ export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
     const lowestData = lowest.dataPosition
     filtered = []
     for (let i = 0; i < n; i++) {
-      const chunk = chunks[i]
+      const chunk = chunks[i]!
       const maxv = chunk.maxv
       const cmp =
         maxv.blockPosition - lowestBlock || maxv.dataPosition - lowestData
@@ -71,14 +71,14 @@ export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
   })
 
   const mergedChunks: Chunk[] = []
-  let lastChunk = filtered[0]
+  let lastChunk = filtered[0]!
   mergedChunks.push(lastChunk)
 
   let lastMinBlock = lastChunk.minv.blockPosition
   let lastMaxBlock = lastChunk.maxv.blockPosition
 
   for (let i = 1; i < filtered.length; i++) {
-    const chunk = filtered[i]
+    const chunk = filtered[i]!
     const chunkMinBlock = chunk.minv.blockPosition
     const chunkMaxBlock = chunk.maxv.blockPosition
     // Inlined canMergeBlocks: check if chunks are close enough to merge

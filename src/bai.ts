@@ -199,18 +199,18 @@ export default class BAI extends IndexFile {
     const depths = range
       ? new Array((e - s) / v)
       : new Array(linearIndex.length - 1)
-    const totalSize = linearIndex[linearIndex.length - 1].blockPosition
+    const totalSize = linearIndex[linearIndex.length - 1]!.blockPosition
     if (e > (linearIndex.length - 1) * v) {
       throw new Error('query outside of range of linear index')
     }
-    let currentPos = linearIndex[s / v].blockPosition
+    let currentPos = linearIndex[s / v]!.blockPosition
     for (let i = s / v, j = 0; i < e / v; i++, j++) {
       depths[j] = {
-        score: linearIndex[i + 1].blockPosition - currentPos,
+        score: linearIndex[i + 1]!.blockPosition - currentPos,
         start: i * v,
         end: i * v + v,
       }
-      currentPos = linearIndex[i + 1].blockPosition
+      currentPos = linearIndex[i + 1]!.blockPosition
     }
     return depths.map(d => ({
       ...d,
@@ -250,7 +250,7 @@ export default class BAI extends IndexFile {
         const binChunks = binIndex[bin]
         if (binChunks) {
           for (let i = 0, l = binChunks.length; i < l; i++) {
-            chunks.push(binChunks[i])
+            chunks.push(binChunks[i]!)
           }
         }
       }

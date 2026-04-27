@@ -91,7 +91,7 @@ export default class HtsgetFile<
 
     const records: T[] = []
     for (let i = 0, l = allRecords.length; i < l; i++) {
-      const feature = allRecords[i]
+      const feature = allRecords[i]!
       if (feature.ref_id === chrId) {
         if (feature.start >= max) {
           break

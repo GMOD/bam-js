@@ -176,7 +176,7 @@ export default class BamRecord {
       switch (type) {
         case 0x41: // 'A'
           if (isMatch) {
-            return String.fromCharCode(ba[p])
+            return String.fromCharCode(ba[p]!)
           }
           p += 1
           break
@@ -327,13 +327,13 @@ export default class BamRecord {
     const ba = this._byteArray
     const tags: Record<string, unknown> = {}
     while (p < blockEnd) {
-      const tag = String.fromCharCode(ba[p], ba[p + 1])
-      const type = ba[p + 2]
+      const tag = String.fromCharCode(ba[p]!, ba[p + 1]!)
+      const type = ba[p + 2]!
       p += 3
 
       switch (type) {
         case 0x41: // 'A'
-          tags[tag] = String.fromCharCode(ba[p])
+          tags[tag] = String.fromCharCode(ba[p]!)
           p += 1
           break
         case 0x69: // 'i'
@@ -557,7 +557,7 @@ export default class BamRecord {
       this._cachedNumericCigar = cigarView
       let lref = 0
       for (let c = 0; c < numCigarOps; ++c) {
-        const co = cigarView[c]
+        const co = cigarView[c]!
         lref += (co >> 4) * ((CIGAR_CONSUMES_REF_MASK >> (co & 0xf)) & 1)
       }
       return lref
@@ -618,9 +618,9 @@ export default class BamRecord {
     const numeric = this.NUMERIC_CIGAR
     let result = ''
     for (let i = 0, l = numeric.length; i < l; i++) {
-      const packed = numeric[i]
+      const packed = numeric[i]!
       const length = packed >> 4
-      const opCode = ASCII_CIGAR_CODES[packed & 0xf]
+      const opCode = ASCII_CIGAR_CODES[packed & 0xf]!
       result += length + String.fromCharCode(opCode)
     }
     return result
@@ -656,14 +656,14 @@ export default class BamRecord {
     const fullBytes = len >> 1
 
     for (let j = 0; j < fullBytes; ++j) {
-      const sb = numeric[seqStart + j]
-      buf[i++] = SEQRET_DECODER[(sb & 0xf0) >> 4]
-      buf[i++] = SEQRET_DECODER[sb & 0x0f]
+      const sb = numeric[seqStart + j]!
+      buf[i++] = SEQRET_DECODER[(sb & 0xf0) >> 4]!
+      buf[i++] = SEQRET_DECODER[sb & 0x0f]!
     }
 
     if (i < len) {
-      const sb = numeric[seqStart + fullBytes]
-      buf[i] = SEQRET_DECODER[(sb & 0xf0) >> 4]
+      const sb = numeric[seqStart + fullBytes]!
+      buf[i] = SEQRET_DECODER[(sb & 0xf0) >> 4]!
     }
 
     return buf.join('')
@@ -716,11 +716,11 @@ export default class BamRecord {
       const sb =
         this._byteArray[
           this.b0 + this.read_name_length + this.num_cigar_bytes + byteIndex
-        ]
+        ]!
 
       return idx % 2 === 0
-        ? SEQRET_DECODER[(sb & 0xf0) >> 4]
-        : SEQRET_DECODER[sb & 0x0f]
+        ? SEQRET_DECODER[(sb & 0xf0) >> 4]!
+        : SEQRET_DECODER[sb & 0x0f]!
     } else {
       return undefined
     }
