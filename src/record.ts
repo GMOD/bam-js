@@ -29,7 +29,6 @@ export interface Bytes {
   byteArray: Uint8Array
 }
 
-
 export default class BamRecord {
   public fileOffset: number
   private _byteArray: Uint8Array
@@ -225,18 +224,12 @@ export default class BamRecord {
         case 0x5a: // 'Z'
         case 0x48: {
           // 'H'
-          if (isMatch) {
-            const start = p
-            while (p < blockEnd && ba[p] !== 0) {
-              p++
-            }
-            if (raw) {
-              return ba.subarray(start, p)
-            }
-            return textDecoder.decode(ba.subarray(start, p))
-          }
+          const start = p
           while (p < blockEnd && ba[p] !== 0) {
             p++
+          }
+          if (isMatch) {
+            return raw ? ba.subarray(start, p) : textDecoder.decode(ba.subarray(start, p))
           }
           p++ // advance past null terminator
           break
@@ -526,19 +519,23 @@ export default class BamRecord {
   //
   // Strategy: use plain array with |0 for small aligned (≤50 ops) and all unaligned,
   // Uint32Array view only for large aligned CIGARs.
+
+  // CG tag pattern: first op is soft-clip consuming entire sequence, second op is N encoding length-on-ref
+  private _isCGTagPattern(p: number) {
+    const cigop = this._dataView.getInt32(p, true)
+    return (cigop & 0xf) === CIGAR_SOFT_CLIP && (cigop >> 4) === this.seq_length
+  }
+
   private _computeLengthOnRef(): number {
-    if (this.isSegmentUnmapped()) {
+    const flag_nc = this._dataView.getInt32(this._start + 16, true)
+    if (flag_nc & (Constants.BAM_FUNMAP << 16)) {
       return 0
     }
 
-    const numCigarOps = this.num_cigar_ops
+    const numCigarOps = flag_nc & 0xffff
     const p = this.b0 + this.read_name_length
 
-    // CG tag: first op is soft clip consuming the entire sequence; second op is N encoding length on ref
-    const cigop = this._dataView.getInt32(p, true)
-    const lop = cigop >> 4
-    const op = cigop & 0xf
-    if (op === CIGAR_SOFT_CLIP && lop === this.seq_length) {
+    if (this._isCGTagPattern(p)) {
       const cigop2 = this._dataView.getInt32(p + 4, true)
       if ((cigop2 & 0xf) !== CIGAR_REF_SKIP) {
         console.warn('CG tag with no N tag')
@@ -548,12 +545,7 @@ export default class BamRecord {
 
     const absOffset = this._byteArray.byteOffset + p
     if (absOffset % 4 === 0 && numCigarOps > 50) {
-      // Zero-copy view — cache NUMERIC_CIGAR as a side effect since it's free to do here
-      const cigarView = new Uint32Array(
-        this._byteArray.buffer,
-        absOffset,
-        numCigarOps,
-      )
+      const cigarView = new Uint32Array(this._byteArray.buffer, absOffset, numCigarOps)
       this._cachedNumericCigar = cigarView
       let lref = 0
       for (let c = 0; c < numCigarOps; ++c) {
@@ -572,20 +564,16 @@ export default class BamRecord {
   }
 
   private _computeNumericCigar(): Uint32Array | number[] {
-    if (this.isSegmentUnmapped()) {
+    const flag_nc = this._dataView.getInt32(this._start + 16, true)
+    if (flag_nc & (Constants.BAM_FUNMAP << 16)) {
       return new Uint32Array(0)
     }
 
-    const numCigarOps = this.num_cigar_ops
+    const numCigarOps = flag_nc & 0xffff
     const p = this.b0 + this.read_name_length
 
-    const cigop = this._dataView.getInt32(p, true)
-    const lop = cigop >> 4
-    const op = cigop & 0xf
-    if (op === CIGAR_SOFT_CLIP && lop === this.seq_length) {
-      return (
-        (this.tags.CG as Uint32Array | number[] | undefined) ?? new Uint32Array(0)
-      )
+    if (this._isCGTagPattern(p)) {
+      return (this.tags.CG as Uint32Array | number[] | undefined) ?? new Uint32Array(0)
     }
 
     const absOffset = this._byteArray.byteOffset + p
@@ -732,7 +720,7 @@ export default class BamRecord {
       if (k.startsWith('_')) {
         continue
       }
-      // @ts-ignore
+      // @ts-expect-error
       data[k] = this[k]
     }
 
