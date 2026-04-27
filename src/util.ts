@@ -34,7 +34,7 @@ export interface BaseOpts {
 }
 
 export function makeOpts(obj: AbortSignal | BaseOpts = {}): BaseOpts {
-  return 'aborted' in obj ? ({ signal: obj } as BaseOpts) : obj
+  return 'aborted' in obj ? { signal: obj } : obj
 }
 
 export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
@@ -127,23 +127,22 @@ export function parseNameBytes(
   namesBytes: Uint8Array,
   renameRefSeq: (arg: string) => string = s => s,
 ) {
+  const decoder = new TextDecoder()
   let currRefId = 0
   let currNameStart = 0
-  const refIdToName = []
+  const refIdToName: string[] = []
   const refNameToId: Record<string, number> = {}
-  for (let i = 0; i < namesBytes.length; i += 1) {
+  for (let i = 0; i < namesBytes.length; i++) {
     if (!namesBytes[i]) {
       if (currNameStart < i) {
-        let refName = ''
-        for (let j = currNameStart; j < i; j++) {
-          refName += String.fromCharCode(namesBytes[j]!)
-        }
-        refName = renameRefSeq(refName)
+        const refName = renameRefSeq(
+          decoder.decode(namesBytes.subarray(currNameStart, i)),
+        )
         refIdToName[currRefId] = refName
         refNameToId[refName] = currRefId
       }
       currNameStart = i + 1
-      currRefId += 1
+      currRefId++
     }
   }
   return { refNameToId, refIdToName }

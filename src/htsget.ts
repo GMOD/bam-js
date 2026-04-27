@@ -1,11 +1,12 @@
 import { unzip } from '@gmod/bgzf-filehandle'
 
 import BamFile, { BAM_MAGIC } from './bamFile.ts'
+import Chunk from './chunk.ts'
 import { parseHeaderText } from './sam.ts'
 import { concatUint8Array } from './util.ts'
+import { VirtualOffset } from './virtualOffset.ts'
 
 import type { BamRecordClass, BamRecordLike } from './bamFile.ts'
-import type Chunk from './chunk.ts'
 import type BamRecord from './record.ts'
 import type { BamOpts, BaseOpts } from './util.ts'
 
@@ -14,7 +15,7 @@ interface HtsgetChunk {
   headers?: Record<string, string>
 }
 
-async function concat(arr: HtsgetChunk[], opts?: Record<string, any>) {
+async function concat(arr: HtsgetChunk[], opts?: RequestInit) {
   const res = await Promise.all(
     arr.map(async chunk => {
       const { url, headers } = chunk
@@ -29,12 +30,10 @@ async function concat(arr: HtsgetChunk[], opts?: Record<string, any>) {
         return new Uint8Array(ret)
       } else {
         // remove referer header, it is not even allowed to be specified
-        // @ts-expect-error
-
-        const { referer, ...rest } = headers
+        const { referer: _referer, ...rest } = headers ?? {}
         const res = await fetch(url, {
           ...opts,
-          headers: { ...opts?.headers, ...rest },
+          headers: rest,
         })
         if (!res.ok) {
           throw new Error(
@@ -85,12 +84,17 @@ export default class HtsgetFile<
       )
     }
     const data = await result.json()
-    const uncba = await concat(data.htsget.urls.slice(1), opts)
+    const uncba = await concat(data.htsget.urls.slice(1), {
+      signal: opts?.signal,
+    })
 
-    const allRecords = await this.readBamFeatures(uncba, [], [], {
-      minv: { dataPosition: 0, blockPosition: 0 },
-      maxv: { dataPosition: 0, blockPosition: 0 },
-    } as Chunk)
+    const zero = new VirtualOffset(0, 0)
+    const allRecords = await this.readBamFeatures(
+      uncba,
+      [],
+      [],
+      new Chunk(zero, zero, 0),
+    )
 
     const records: T[] = []
     for (let i = 0, l = allRecords.length; i < l; i++) {
@@ -115,7 +119,7 @@ export default class HtsgetFile<
       )
     }
     const data = await result.json()
-    const uncba = await concat(data.htsget.urls, opts)
+    const uncba = await concat(data.htsget.urls, { signal: opts.signal })
     const dataView = new DataView(uncba.buffer)
 
     if (dataView.getInt32(0, true) !== BAM_MAGIC) {
@@ -123,7 +127,7 @@ export default class HtsgetFile<
     }
     const headLen = dataView.getInt32(4, true)
 
-    const decoder = new TextDecoder('utf8')
+    const decoder = new TextDecoder()
     const headerText = decoder.decode(uncba.subarray(8, 8 + headLen))
     const samHeader = parseHeaderText(headerText)
 

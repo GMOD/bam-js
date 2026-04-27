@@ -15,17 +15,15 @@ export default class FakeRecord extends Record {
     tlen: number,
     { extraFlags = 0, refId = 1, nextRefId = 1 } = {},
   ) {
+    const byteArray = Buffer.from(new Uint8Array(52))
     super({
-      bytes: {
-        start: 0,
-        end: 0,
-        byteArray: Buffer.from([
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0,
-        ]),
-      },
+      bytes: { start: 0, end: 0, byteArray },
       fileOffset: 0,
+      dataView: new DataView(
+        byteArray.buffer,
+        byteArray.byteOffset,
+        byteArray.byteLength,
+      ),
     })
     this.tlen = tlen
     this.nextrefid = nextRefId

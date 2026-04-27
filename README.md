@@ -65,8 +65,8 @@ so let us know if it doesn't work for your use case
 
 The BAM class constructor accepts arguments
 
-- `bamPath`/`bamUrl`/`bamFilehandle` - a string file path to a local file or a
-  class object with a read method
+- `bamPath`/`bamUrl`/`bamFilehandle` - a local file path, remote URL string, or
+  a class object with a read method
 - `csiPath`/`csiUrl`/`csiFilehandle` - a CSI index for the BAM file, required
   for long chromosomes greater than 2^29 in length
 - `baiPath`/`baiUrl`/`baiFilehandle` - a BAI index for the BAM file
@@ -112,8 +112,8 @@ density across 16kb windows in the genome
 - `refName` - a string for the chrom to fetch from
 
 Returns number of features on refName, uses special pseudo-bin from the BAI/CSI
-index (e.g. bin 37450 from bai, returning n_mapped from SAM spec pdf) or -1 if
-refName not exist in sample
+index (e.g. bin 37450 from bai, returning n_mapped from SAM spec pdf) or 0 if
+refName does not exist in the sample
 
 ### async hasRefSeq(refName: string)
 
@@ -201,3 +201,12 @@ console.log(records[0].getDoubleStart())
 ## License
 
 MIT © [Colin Diesh](https://github.com/cmdcolin)
+
+## Publishing
+
+[Trusted publishing](https://docs.npmjs.com/about-trusted-publishing) via GitHub
+Actions.
+
+```bash
+npm version patch  # or minor/major
+```
