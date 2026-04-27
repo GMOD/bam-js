@@ -4,7 +4,7 @@
     "target": "es2022",
     "module": "nodenext",
     "moduleResolution": "nodenext",
-    "lib": ["dom", "esnext"],
+    "lib": ["esnext"],
     "types": ["node"],
     "rootDir": "src",
     "outDir": "dist",
