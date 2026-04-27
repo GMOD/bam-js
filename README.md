@@ -56,8 +56,7 @@ await ti.getHeader()
 const records = await ti.getRecordsForRange('1', 2000000, 2000001)
 ```
 
-Our implementation makes some assumptions about how the protocol is implemented,
-so let us know if it doesn't work for your use case
+Let us know if it doesn't work for your use case.
 
 ## Documentation
 
@@ -73,15 +72,12 @@ The BAM class constructor accepts arguments
 - `recordClass` - a custom class extending BamRecord to use for records (see
   Custom BamRecord class section below)
 
-Note: filehandles implement the Filehandle interface from
-https://www.npmjs.com/package/generic-filehandle2.
-
-This module offers the path and url arguments as convenience methods for
-supplying the LocalFile and RemoteFile
+Note: filehandles implement the Filehandle interface from generic-filehandle2.
+The `path` and `url` arguments are convenience wrappers for `LocalFile` and `RemoteFile`.
 
 ### async getRecordsForRange(refName, start, end, opts)
 
-Note: you must run getHeader before running getRecordsForRange
+Note: requires calling `getHeader` first.
 
 - `refName` - a string for the chrom to fetch from
 - `start` - a 0-based half open start coordinate
@@ -93,10 +89,9 @@ Note: you must run getHeader before running getRecordsForRange
 - `opts.maxInsertSize` - control the viewAsPairs option behavior to limit
   distance within a chromosome to fetch. default: 200kb
 
-### async getHeader(opts: {....anything to pass to generic-filehandle2 opts})
+### async getHeader(opts?)
 
-This obtains the header from `HtsgetFile` or `BamFile`. Retrieves BAM file and
-BAI/CSI header if applicable, or API request for refnames from htsget
+Fetches the header from `BamFile` or `HtsgetFile`. Must be called before `getRecordsForRange`.
 
 ### async indexCov(refName, start, end)
 
