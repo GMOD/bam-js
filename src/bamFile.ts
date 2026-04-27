@@ -35,7 +35,7 @@ export interface BamRecordLike {
 export type BamRecordClass<T extends BamRecordLike = BAMFeature> = new (args: {
   bytes: Bytes
   fileOffset: number
-  dataView?: DataView
+  dataView: DataView
 }) => T
 
 export const BAM_MAGIC = 21840194

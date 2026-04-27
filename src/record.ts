@@ -51,12 +51,12 @@ export default class BamRecord {
   private _cachedNUMERIC_MD?: Uint8Array | null
   private _cachedTagsStart?: number
 
-  constructor(args: { bytes: Bytes; fileOffset: number; dataView?: DataView }) {
+  constructor(args: { bytes: Bytes; fileOffset: number; dataView: DataView }) {
     this._byteArray = args.bytes.byteArray
     this._start = args.bytes.start
     this._end = args.bytes.end
     this.fileOffset = args.fileOffset
-    this._dataView = args.dataView ?? new DataView(this._byteArray.buffer)
+    this._dataView = args.dataView
   }
 
   get byteArray() {
@@ -252,7 +252,10 @@ export default class BamRecord {
             }
             return textDecoder.decode(ba.subarray(start, p))
           }
-          while (p <= blockEnd && ba[p++] !== 0) {}
+          while (p < blockEnd && ba[p] !== 0) {
+            p++
+          }
+          p++ // advance past null terminator
           break
         }
         case 0x42: {
@@ -339,7 +342,7 @@ export default class BamRecord {
 
     const blockEnd = this._end
     const ba = this._byteArray
-    const tags = {} as Record<string, unknown>
+    const tags: Record<string, unknown> = {}
     while (p < blockEnd) {
       const tag = String.fromCharCode(ba[p]!, ba[p + 1]!)
       const type = ba[p + 2]!
@@ -605,7 +608,9 @@ export default class BamRecord {
     const lop = cigop >> 4
     const op = cigop & 0xf
     if (op === CIGAR_SOFT_CLIP && lop === this.seq_length) {
-      return (this.tags.CG as Uint32Array | undefined) ?? new Uint32Array(0)
+      return (
+        (this.tags.CG as Uint32Array | number[] | undefined) ?? new Uint32Array(0)
+      )
     }
 
     const absOffset = this._byteArray.byteOffset + p
