@@ -229,7 +229,9 @@ export default class BamRecord {
             p++
           }
           if (isMatch) {
-            return raw ? ba.subarray(start, p) : textDecoder.decode(ba.subarray(start, p))
+            return raw
+              ? ba.subarray(start, p)
+              : textDecoder.decode(ba.subarray(start, p))
           }
           p++ // advance past null terminator
           break
@@ -523,7 +525,7 @@ export default class BamRecord {
   // CG tag pattern: first op is soft-clip consuming entire sequence, second op is N encoding length-on-ref
   private _isCGTagPattern(p: number) {
     const cigop = this._dataView.getInt32(p, true)
-    return (cigop & 0xf) === CIGAR_SOFT_CLIP && (cigop >> 4) === this.seq_length
+    return (cigop & 0xf) === CIGAR_SOFT_CLIP && cigop >> 4 === this.seq_length
   }
 
   private _computeLengthOnRef(): number {
@@ -545,7 +547,11 @@ export default class BamRecord {
 
     const absOffset = this._byteArray.byteOffset + p
     if (absOffset % 4 === 0 && numCigarOps > 50) {
-      const cigarView = new Uint32Array(this._byteArray.buffer, absOffset, numCigarOps)
+      const cigarView = new Uint32Array(
+        this._byteArray.buffer,
+        absOffset,
+        numCigarOps,
+      )
       this._cachedNumericCigar = cigarView
       let lref = 0
       for (let c = 0; c < numCigarOps; ++c) {
@@ -573,7 +579,10 @@ export default class BamRecord {
     const p = this.b0 + this.read_name_length
 
     if (this._isCGTagPattern(p)) {
-      return (this.tags.CG as Uint32Array | number[] | undefined) ?? new Uint32Array(0)
+      return (
+        (this.tags.CG as Uint32Array | number[] | undefined) ??
+        new Uint32Array(0)
+      )
     }
 
     const absOffset = this._byteArray.byteOffset + p

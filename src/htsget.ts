@@ -84,10 +84,17 @@ export default class HtsgetFile<
       )
     }
     const data = await result.json()
-    const uncba = await concat(data.htsget.urls.slice(1), { signal: opts?.signal })
+    const uncba = await concat(data.htsget.urls.slice(1), {
+      signal: opts?.signal,
+    })
 
     const zero = new VirtualOffset(0, 0)
-    const allRecords = await this.readBamFeatures(uncba, [], [], new Chunk(zero, zero, 0))
+    const allRecords = await this.readBamFeatures(
+      uncba,
+      [],
+      [],
+      new Chunk(zero, zero, 0),
+    )
 
     const records: T[] = []
     for (let i = 0, l = allRecords.length; i < l; i++) {
@@ -112,7 +119,7 @@ export default class HtsgetFile<
       )
     }
     const data = await result.json()
-    const uncba = await concat(data.htsget.urls, { signal: opts?.signal })
+    const uncba = await concat(data.htsget.urls, { signal: opts.signal })
     const dataView = new DataView(uncba.buffer)
 
     if (dataView.getInt32(0, true) !== BAM_MAGIC) {

@@ -65,8 +65,8 @@ so let us know if it doesn't work for your use case
 
 The BAM class constructor accepts arguments
 
-- `bamPath`/`bamUrl`/`bamFilehandle` - a local file path, remote URL string, or a
-  class object with a read method
+- `bamPath`/`bamUrl`/`bamFilehandle` - a local file path, remote URL string, or
+  a class object with a read method
 - `csiPath`/`csiUrl`/`csiFilehandle` - a CSI index for the BAM file, required
   for long chromosomes greater than 2^29 in length
 - `baiPath`/`baiUrl`/`baiFilehandle` - a BAI index for the BAM file
@@ -204,7 +204,8 @@ MIT © [Colin Diesh](https://github.com/cmdcolin)
 
 ## Publishing
 
-[Trusted publishing](https://docs.npmjs.com/about-trusted-publishing) via GitHub Actions.
+[Trusted publishing](https://docs.npmjs.com/about-trusted-publishing) via GitHub
+Actions.
 
 ```bash
 npm version patch  # or minor/major

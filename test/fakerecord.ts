@@ -19,7 +19,11 @@ export default class FakeRecord extends Record {
     super({
       bytes: { start: 0, end: 0, byteArray },
       fileOffset: 0,
-      dataView: new DataView(byteArray.buffer, byteArray.byteOffset, byteArray.byteLength),
+      dataView: new DataView(
+        byteArray.buffer,
+        byteArray.byteOffset,
+        byteArray.byteLength,
+      ),
     })
     this.tlen = tlen
     this.nextrefid = nextRefId
