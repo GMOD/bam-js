@@ -29,10 +29,6 @@ export interface Bytes {
   byteArray: Uint8Array
 }
 
-interface CIGAR_AND_LENGTH {
-  length_on_ref: number
-  NUMERIC_CIGAR: Uint32Array | number[]
-}
 
 export default class BamRecord {
   public fileOffset: number
@@ -41,9 +37,6 @@ export default class BamRecord {
   private _end: number
   private _dataView: DataView
 
-  private _cachedFlags?: number
-  private _cachedRefId?: number
-  private _cachedStart?: number
   private _cachedEnd?: number
   private _cachedTags?: Record<string, unknown>
   private _cachedLengthOnRef?: number
@@ -64,25 +57,15 @@ export default class BamRecord {
   }
 
   get flags() {
-    if (this._cachedFlags === undefined) {
-      this._cachedFlags =
-        (this._dataView.getInt32(this._start + 16, true) & 0xffff0000) >> 16
-    }
-    return this._cachedFlags
+    return (this._dataView.getInt32(this._start + 16, true) & 0xffff0000) >> 16
   }
 
   get ref_id() {
-    if (this._cachedRefId === undefined) {
-      this._cachedRefId = this._dataView.getInt32(this._start + 4, true)
-    }
-    return this._cachedRefId
+    return this._dataView.getInt32(this._start + 4, true)
   }
 
   get start() {
-    if (this._cachedStart === undefined) {
-      this._cachedStart = this._dataView.getInt32(this._start + 8, true)
-    }
-    return this._cachedStart
+    return this._dataView.getInt32(this._start + 8, true)
   }
 
   get end() {
@@ -523,14 +506,6 @@ export default class BamRecord {
 
   isSupplementary() {
     return !!(this.flags & Constants.BAM_FSUPPLEMENTARY)
-  }
-
-  // Compatibility getter — prefer length_on_ref and NUMERIC_CIGAR directly
-  get cigarAndLength(): CIGAR_AND_LENGTH {
-    return {
-      length_on_ref: this.length_on_ref,
-      NUMERIC_CIGAR: this.NUMERIC_CIGAR,
-    }
   }
 
   // Benchmark results for CIGAR parsing strategies (see benchmarks/cigar-lifecycle.bench.ts):
