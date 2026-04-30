@@ -46,7 +46,7 @@
     "genomics"
   ],
   "dependencies": {
-    "@gmod/bgzf-filehandle": "^6.0.18",
+    "@gmod/bgzf-filehandle": "^6.0.19",
     "@jbrowse/quick-lru": "^7.3.5",
     "crc": "^4.3.2",
     "generic-filehandle2": "^2.1.4"
@@ -62,7 +62,7 @@
     "rimraf": "^6.1.3",
     "standard-changelog": "^7.0.1",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.59.0",
+    "typescript-eslint": "^8.59.1",
     "vitest": "^4.1.5"
   },
   "publishConfig": {

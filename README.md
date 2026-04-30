@@ -73,7 +73,8 @@ The BAM class constructor accepts arguments
   Custom BamRecord class section below)
 
 Note: filehandles implement the Filehandle interface from generic-filehandle2.
-The `path` and `url` arguments are convenience wrappers for `LocalFile` and `RemoteFile`.
+The `path` and `url` arguments are convenience wrappers for `LocalFile` and
+`RemoteFile`.
 
 ### async getRecordsForRange(refName, start, end, opts)
 
@@ -91,7 +92,8 @@ Note: requires calling `getHeader` first.
 
 ### async getHeader(opts?)
 
-Fetches the header from `BamFile` or `HtsgetFile`. Must be called before `getRecordsForRange`.
+Fetches the header from `BamFile` or `HtsgetFile`. Must be called before
+`getRecordsForRange`.
 
 ### async indexCov(refName, start, end)
 
