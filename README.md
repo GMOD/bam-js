@@ -205,5 +205,5 @@ MIT © [Colin Diesh](https://github.com/cmdcolin)
 Actions.
 
 ```bash
-npm version patch  # or minor/major
+pnpm version patch  # or minor/major
 ```
