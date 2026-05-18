@@ -151,6 +151,7 @@ export function findFirstData(
     : virtualOffset
 }
 
+// SYNC: ~/src/gmod/tabix-js/src/util.ts parseNameBytes uses indexOf(0) instead of byte scan
 export function parseNameBytes(
   namesBytes: Uint8Array,
   renameRefSeq: (arg: string) => string = s => s,
