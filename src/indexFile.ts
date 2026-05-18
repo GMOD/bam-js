@@ -25,6 +25,7 @@ export interface ParsedIndexBase<R extends RefIndex = RefIndex> {
   indices: (refId: number) => R | undefined
 }
 
+// SYNC: ~/src/gmod/tabix-js/src/util.ts memoizeByRefId
 // LRU-cache the result of getIndices(refId) so repeated lookups for the same
 // reference don't re-walk the index bytes.
 export function memoizeByRefId<T>(

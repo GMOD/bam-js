@@ -90,6 +90,7 @@ export default class CSI extends IndexFile {
     const aux = auxLength >= 30 ? this.parseAuxData(bytes, 16) : undefined
     const refCount = dataView.getInt32(16 + auxLength, true)
 
+    // SYNC: ~/src/gmod/tabix-js/src/csi.ts _parse — two-pass structure
     // read the indexes for each reference sequence
     let curr = 16 + auxLength + 4
     let firstDataLine: VirtualOffset | undefined
@@ -176,6 +177,7 @@ export default class CSI extends IndexFile {
    * (zero-based half-open). Follows the reference implementation in hts-specs
    * CSIv1.tex.
    */
+  // SYNC: ~/src/gmod/tabix-js/src/csi.ts reg2bins
   protected reg2bins(beg: number, end: number) {
     // Clamp end to the maximum coordinate the index can address. With minShift
     // and depth, the index covers positions in [0, 2^(minShift + depth*3)).
