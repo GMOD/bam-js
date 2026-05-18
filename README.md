@@ -102,7 +102,8 @@ Fetches the header from `BamFile` or `HtsgetFile`. Must be called before
 - `end` - a 0-based half open end coordinate (optional)
 
 Returns features of the form {start, end, score} containing estimated feature
-density across 16kb windows in the genome
+density across 16kb windows in the genome. BAI-only: derived from the linear
+index, which CSI omits — calling on a CSI-indexed file returns `[]`.
 
 ### async lineCount(refName: string)
 
