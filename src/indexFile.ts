@@ -4,7 +4,7 @@ import { optimizeChunks } from './util.ts'
 
 import type Chunk from './chunk.ts'
 import type { BaseOpts } from './util.ts'
-import type { VirtualOffset } from './virtualOffset.ts'
+import type { Offset, VirtualOffset } from './virtualOffset.ts'
 import type { GenericFilehandle } from 'generic-filehandle2'
 
 export interface Region {
@@ -71,12 +71,52 @@ export default abstract class IndexFile<
     end?: number,
   ): Promise<{ start: number; end: number; score: number }[]>
 
-  public abstract blocksForRange(
-    chrId: number,
-    start: number,
-    end: number,
-    opts?: BaseOpts,
-  ): Promise<Chunk[]>
+  // Bin numbers that overlap [min, max). Subclasses implement BAI's fixed
+  // 5-level scheme or CSI's configurable scheme (SAMv1.pdf §5.1.1, CSIv1.tex §2).
+  protected abstract reg2bins(
+    min: number,
+    max: number,
+  ): readonly (readonly [number, number])[]
+
+  // Lower-bound virtual offset for chunks that could contain alignments in
+  // [min, ...). BAI uses its linear index; CSI has none and returns 0:0.
+  protected abstract getLowestChunk(
+    refIndex: RefIndex,
+    min: number,
+  ): Offset | undefined
+
+  async blocksForRange(
+    refId: number,
+    min: number,
+    max: number,
+    opts: BaseOpts = {},
+  ): Promise<Chunk[]> {
+    if (min < 0) {
+      min = 0
+    }
+    const indexData = await this.parse(opts)
+    const ba = indexData.indices(refId)
+    if (!ba) {
+      return []
+    }
+    const overlappingBins = this.reg2bins(min, max)
+    if (overlappingBins.length === 0) {
+      return []
+    }
+    const chunks: Chunk[] = []
+    const { binIndex } = ba
+    for (const [start, end] of overlappingBins) {
+      for (let bin = start; bin <= end; bin++) {
+        const binChunks = binIndex[bin]
+        if (binChunks) {
+          for (let i = 0, l = binChunks.length; i < l; i++) {
+            chunks.push(binChunks[i]!)
+          }
+        }
+      }
+    }
+    return optimizeChunks(chunks, this.getLowestChunk(ba, min))
+  }
 
   parse(opts: BaseOpts = {}): Promise<TParsed> {
     if (!this.setupP) {
@@ -95,7 +135,7 @@ export default abstract class IndexFile<
 
   async hasRefSeq(seqId: number, opts?: BaseOpts) {
     const indexData = await this.parse(opts)
-    return !!indexData.indices(seqId)?.binIndex
+    return !!indexData.indices(seqId)
   }
 
   async estimatedBytesForRegions(regions: Region[], opts?: BaseOpts) {

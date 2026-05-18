@@ -1,6 +1,6 @@
+import Chunk from './chunk.ts'
 import { longFromBytesToUnsigned } from './long.ts'
 
-import type Chunk from './chunk.ts'
 import type { Offset, VirtualOffset } from './virtualOffset.ts'
 
 export interface TagFilter {
@@ -59,12 +59,11 @@ export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
     return dif !== 0 ? dif : c0.minv.dataPosition - c1.minv.dataPosition
   })
 
-  const mergedChunks: Chunk[] = []
-  let lastChunk = filtered[0]!
-  mergedChunks.push(lastChunk)
-
-  let lastMinBlock = lastChunk.minv.blockPosition
-  let lastMaxBlock = lastChunk.maxv.blockPosition
+  // Source chunks are shared with the index's per-refId cache, so we never
+  // mutate them — extending a merged span produces a new Chunk instance.
+  const mergedChunks: Chunk[] = [filtered[0]!]
+  let lastMinBlock = filtered[0]!.minv.blockPosition
+  let lastMaxBlock = filtered[0]!.maxv.blockPosition
 
   for (let i = 1; i < filtered.length; i++) {
     const chunk = filtered[i]!
@@ -76,18 +75,20 @@ export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
       chunkMinBlock - lastMaxBlock < 65000 &&
       chunkMaxBlock - lastMinBlock < 5000000
     ) {
-      const chunkMaxv = chunk.maxv
-      const lastMaxv = lastChunk.maxv
+      const lastChunk = mergedChunks[mergedChunks.length - 1]!
       const cmp =
         chunkMaxBlock - lastMaxBlock ||
-        chunkMaxv.dataPosition - lastMaxv.dataPosition
+        chunk.maxv.dataPosition - lastChunk.maxv.dataPosition
       if (cmp > 0) {
-        lastChunk.maxv = chunkMaxv
+        mergedChunks[mergedChunks.length - 1] = new Chunk(
+          lastChunk.minv,
+          chunk.maxv,
+          lastChunk.bin,
+        )
         lastMaxBlock = chunkMaxBlock
       }
     } else {
       mergedChunks.push(chunk)
-      lastChunk = chunk
       lastMinBlock = chunkMinBlock
       lastMaxBlock = chunkMaxBlock
     }
@@ -100,6 +101,43 @@ export function parsePseudoBin(bytes: Uint8Array, offset: number) {
   return {
     lineCount: longFromBytesToUnsigned(bytes, offset),
   }
+}
+
+// Parse the BAM reference-sequence table (SAMv1.pdf §4.2). Returns undefined
+// if `uncba` doesn't yet contain the full table — caller fetches more bytes
+// and retries.
+export function parseRefSeqs(
+  uncba: Uint8Array,
+  start: number,
+  renameRefSeq: (s: string) => string,
+) {
+  if (start + 4 > uncba.length) {
+    return undefined
+  }
+  const dataView = new DataView(uncba.buffer)
+  const nRef = dataView.getInt32(start, true)
+  const chrToIndex: Record<string, number> = {}
+  const indexToChr: { refName: string; length: number }[] = []
+  const decoder = new TextDecoder('utf8')
+
+  let p = start + 4
+  for (let i = 0; i < nRef; i++) {
+    if (p + 8 > uncba.length) {
+      return undefined
+    }
+    const lName = dataView.getInt32(p, true)
+    if (p + 8 + lName > uncba.length) {
+      return undefined
+    }
+    const refName = renameRefSeq(
+      decoder.decode(uncba.subarray(p + 4, p + 4 + lName - 1)),
+    )
+    const lRef = dataView.getInt32(p + lName + 4, true)
+    chrToIndex[refName] = i
+    indexToChr.push({ refName, length: lRef })
+    p += 8 + lName
+  }
+  return { chrToIndex, indexToChr }
 }
 
 export function findFirstData(
@@ -157,9 +195,7 @@ export function filterReadFlag(
   flagInclude: number,
   flagExclude: number,
 ) {
-  return (
-    (flags & flagInclude) !== flagInclude || (flags & flagExclude) !== 0
-  )
+  return (flags & flagInclude) !== flagInclude || (flags & flagExclude) !== 0
 }
 
 export function filterTagValue(readVal: unknown, filterVal?: string) {

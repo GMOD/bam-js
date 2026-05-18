@@ -8,7 +8,12 @@ import CSI from './csi.ts'
 import NullFilehandle from './nullFilehandle.ts'
 import BAMFeature from './record.ts'
 import { parseHeaderText } from './sam.ts'
-import { appendInRange, applyFilters, filterCacheKey } from './util.ts'
+import {
+  appendInRange,
+  applyFilters,
+  filterCacheKey,
+  parseRefSeqs,
+} from './util.ts'
 
 import type Chunk from './chunk.ts'
 import type { Bytes } from './record.ts'
@@ -120,7 +125,11 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     const csiFh = resolveFilehandle(csiFilehandle, csiPath, csiUrl)
     const baiFh =
       resolveFilehandle(baiFilehandle, baiPath, baiUrl) ??
-      resolveFilehandle(undefined, bamPath && `${bamPath}.bai`, bamUrl && `${bamUrl}.bai`)
+      resolveFilehandle(
+        undefined,
+        bamPath && `${bamPath}.bai`,
+        bamUrl && `${bamUrl}.bai`,
+      )
     if (csiFh) {
       this.index = new CSI({ filehandle: csiFh })
     } else if (baiFh) {
@@ -139,7 +148,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
     // firstDataLine is not defined in cases where there is no data in the file
     // (just bam header and nothing else)
-    let readLen =
+    const readLen =
       indexData.firstDataLine === undefined
         ? undefined
         : indexData.firstDataLine.blockPosition + blockLen
@@ -158,21 +167,17 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     this.header = new TextDecoder('utf8').decode(uncba.subarray(8, 8 + headLen))
 
     // BAM files with many reference sequences may need more data than the
-    // initial read provides, so re-fetch with doubled size until it fits
+    // initial read covers. If the first attempt comes up short, fall back to
+    // reading the whole file (the index's firstDataLine is just an
+    // optimization hint, not a guaranteed cap on the ref-seq table size).
     const refSeqStart = headLen + 8
-    let parsed = this._parseRefSeqs(uncba, refSeqStart)
-    for (let attempt = 0; !parsed && attempt < 5; attempt++) {
-      if (readLen === undefined) {
-        throw new Error(
-          `Insufficient data for reference sequences in ${uncba.length} bytes`,
-        )
-      }
-      readLen *= 2
-      uncba = await unzip(await this.bam.read(readLen, 0))
-      parsed = this._parseRefSeqs(uncba, refSeqStart)
+    let parsed = parseRefSeqs(uncba, refSeqStart, this.renameRefSeq)
+    if (!parsed) {
+      uncba = await unzip(await this.bam.readFile())
+      parsed = parseRefSeqs(uncba, refSeqStart, this.renameRefSeq)
     }
     if (!parsed) {
-      throw new Error('Insufficient data for reference sequences after 5 retries')
+      throw new Error('Insufficient data for reference sequences')
     }
     this.chrToIndex = parsed.chrToIndex
     this.indexToChr = parsed.indexToChr
@@ -192,38 +197,6 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   async getHeaderText(opts: BaseOpts = {}) {
     await this.getHeader(opts)
     return this.header
-  }
-
-  // Returns undefined if `uncba` doesn't yet contain the full ref-seq table —
-  // caller is expected to fetch more bytes and retry.
-  _parseRefSeqs(uncba: Uint8Array, start: number) {
-    if (start + 4 > uncba.length) {
-      return undefined
-    }
-    const dataView = new DataView(uncba.buffer)
-    const nRef = dataView.getInt32(start, true)
-    const chrToIndex: Record<string, number> = {}
-    const indexToChr: { refName: string; length: number }[] = []
-    const decoder = new TextDecoder('utf8')
-
-    let p = start + 4
-    for (let i = 0; i < nRef; i++) {
-      if (p + 8 > uncba.length) {
-        return undefined
-      }
-      const lName = dataView.getInt32(p, true)
-      if (p + 8 + lName > uncba.length) {
-        return undefined
-      }
-      const refName = this.renameRefSeq(
-        decoder.decode(uncba.subarray(p + 4, p + 4 + lName - 1)),
-      )
-      const lRef = dataView.getInt32(p + lName + 4, true)
-      chrToIndex[refName] = i
-      indexToChr.push({ refName, length: lRef })
-      p += 8 + lName
-    }
-    return { chrToIndex, indexToChr }
   }
 
   async getRecordsForRange(
@@ -363,10 +336,11 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       chunk.minv.blockPosition,
       opts,
     )
-    const { buffer: data, cpositions, dpositions } = await unzipChunkSlice(
-      buf,
-      chunk,
-    )
+    const {
+      buffer: data,
+      cpositions,
+      dpositions,
+    } = await unzipChunkSlice(buf, chunk)
     return this.readBamFeatures(data, cpositions, dpositions, chunk)
   }
 

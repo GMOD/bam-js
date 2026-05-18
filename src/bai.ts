@@ -1,6 +1,6 @@
 import Chunk from './chunk.ts'
 import IndexFile, { memoizeByRefId } from './indexFile.ts'
-import { findFirstData, optimizeChunks, parsePseudoBin } from './util.ts'
+import { findFirstData, parsePseudoBin } from './util.ts'
 import { fromBytes } from './virtualOffset.ts'
 
 import type { ParsedIndexBase, RefIndex } from './indexFile.ts'
@@ -17,6 +17,12 @@ interface BaiParsed extends ParsedIndexBase<BaiRefIndex> {
 
 const BAI_MAGIC = 21578050 // BAI\1
 
+// BAI uses a fixed 5-level binning scheme with a 14-bit (16KB) linear index
+// resolution. See SAMv1.pdf §5.1.3 (hts-specs).
+// https://github.com/samtools/hts-specs/blob/master/SAMv1.pdf
+const BAI_LINEAR_SHIFT = 14
+const BAI_LINEAR_INTERVAL = 1 << BAI_LINEAR_SHIFT // 16384
+
 function roundDown(n: number, multiple: number) {
   return n - (n % multiple)
 }
@@ -30,6 +36,8 @@ export interface IndexCovEntry {
   score: number
 }
 
+// Compute bin ranges that overlap [beg, end). Each level's first-bin offset
+// is (8^L - 1) / 7. See SAMv1.pdf §5.1.1 for the binning derivation.
 function reg2bins(beg: number, end: number) {
   end -= 1
   return [
@@ -38,7 +46,7 @@ function reg2bins(beg: number, end: number) {
     [9 + (beg >> 23), 9 + (end >> 23)],
     [73 + (beg >> 20), 73 + (end >> 20)],
     [585 + (beg >> 17), 585 + (end >> 17)],
-    [4681 + (beg >> 14), 4681 + (end >> 14)],
+    [4681 + (beg >> BAI_LINEAR_SHIFT), 4681 + (end >> BAI_LINEAR_SHIFT)],
   ] as const
 }
 
@@ -160,7 +168,7 @@ export default class BAI extends IndexFile<BaiParsed> {
     end?: number,
     opts?: BaseOpts,
   ): Promise<IndexCovEntry[]> {
-    const v = 16384
+    const v = BAI_LINEAR_INTERVAL
     const range = start !== undefined
     const indexData = await this.parse(opts)
     const seqIdx = indexData.indices(seqId)
@@ -196,48 +204,16 @@ export default class BAI extends IndexFile<BaiParsed> {
     }))
   }
 
-  async blocksForRange(
-    refId: number,
-    min: number,
-    max: number,
-    opts: BaseOpts = {},
-  ) {
-    if (min < 0) {
-      min = 0
-    }
+  protected reg2bins(min: number, max: number) {
+    return reg2bins(min, max)
+  }
 
-    const indexData = await this.parse(opts)
-    const ba = indexData.indices(refId)
-
-    if (!ba) {
-      return []
-    }
-
-    // List of bin #s that overlap min, max
-    const overlappingBins = reg2bins(min, max)
-    const chunks: Chunk[] = []
-
-    // Find chunks in overlapping bins.  Leaf bins (< 4681) are not pruned
-    const { binIndex } = ba
-    for (const [start, end] of overlappingBins) {
-      for (let bin = start; bin <= end; bin++) {
-        const binChunks = binIndex[bin]
-        if (binChunks) {
-          for (let i = 0, l = binChunks.length; i < l; i++) {
-            chunks.push(binChunks[i]!)
-          }
-        }
-      }
-    }
-
-    // Use the linear index to find minimum file position of chunks that could
-    // contain alignments in the region. Linear index entries are monotonically
-    // non-decreasing, so the first entry at minLin is the minimum.
-    const { linearIndex } = ba
+  // Use the linear index to find minimum file position of chunks that could
+  // contain alignments in the region. Linear index entries are monotonically
+  // non-decreasing, so the first entry at minLin is the minimum.
+  protected getLowestChunk(refIndex: BaiRefIndex, min: number) {
+    const { linearIndex } = refIndex
     const nintv = linearIndex.length
-    const minLin = Math.min(min >> 14, nintv - 1)
-    const lowest = linearIndex[minLin]
-
-    return optimizeChunks(chunks, lowest)
+    return linearIndex[Math.min(min >> BAI_LINEAR_SHIFT, nintv - 1)]
   }
 }

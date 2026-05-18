@@ -2,18 +2,15 @@ import { unzip } from '@gmod/bgzf-filehandle'
 
 import Chunk from './chunk.ts'
 import IndexFile, { memoizeByRefId } from './indexFile.ts'
-import {
-  findFirstData,
-  optimizeChunks,
-  parseNameBytes,
-  parsePseudoBin,
-} from './util.ts'
+import { findFirstData, parseNameBytes, parsePseudoBin } from './util.ts'
 import { VirtualOffset, fromBytes } from './virtualOffset.ts'
 
 import type { BaseOpts } from './util.ts'
 
 const CSI1_MAGIC = 21582659 // CSI\1
 const CSI2_MAGIC = 38359875 // CSI\2
+
+const ZERO_OFFSET = new VirtualOffset(0, 0)
 
 function lshift(num: number, bits: number) {
   return num * 2 ** bits
@@ -27,6 +24,8 @@ export default class CSI extends IndexFile {
   private depth = 0
   private minShift = 0
 
+  // CSI omits the linear index that BAI's indexCov derives coverage from
+  // (CSIv1.tex §3, hts-specs), so there's no equivalent to return.
   async indexCov() {
     return []
   }
@@ -167,42 +166,9 @@ export default class CSI extends IndexFile {
     }
   }
 
-  async blocksForRange(
-    refId: number,
-    min: number,
-    max: number,
-    opts: BaseOpts = {},
-  ) {
-    if (min < 0) {
-      min = 0
-    }
-
-    const indexData = await this.parse(opts)
-    const ba = indexData.indices(refId)
-
-    if (!ba) {
-      return []
-    }
-    const overlappingBins = this.reg2bins(min, max)
-
-    if (overlappingBins.length === 0) {
-      return []
-    }
-
-    const chunks = []
-    const { binIndex } = ba
-    for (const [start, end] of overlappingBins) {
-      for (let bin = start; bin <= end; bin++) {
-        const binChunks = binIndex[bin]
-        if (binChunks) {
-          for (let i = 0, l = binChunks.length; i < l; i++) {
-            chunks.push(binChunks[i]!)
-          }
-        }
-      }
-    }
-
-    return optimizeChunks(chunks, new VirtualOffset(0, 0))
+  // CSI has no linear index — every refId starts from the beginning of file.
+  protected getLowestChunk() {
+    return ZERO_OFFSET
   }
 
   /**
@@ -210,7 +176,7 @@ export default class CSI extends IndexFile {
    * (zero-based half-open). Follows the reference implementation in hts-specs
    * CSIv1.tex.
    */
-  reg2bins(beg: number, end: number) {
+  protected reg2bins(beg: number, end: number) {
     // Clamp end to the maximum coordinate the index can address. With minShift
     // and depth, the index covers positions in [0, 2^(minShift + depth*3)).
     const maxPos = 2 ** (this.minShift + this.depth * 3)

@@ -35,8 +35,10 @@ async function fetchChunk({ url, headers }: HtsgetChunk, opts?: RequestInit) {
 }
 
 async function fetchAndConcat(arr: HtsgetChunk[], opts?: RequestInit) {
-  const compressed = await Promise.all(arr.map(c => fetchChunk(c, opts)))
-  return concatUint8Array(await Promise.all(compressed.map(unzip)))
+  // Pipeline unzip after each fetch so decompression overlaps later fetches.
+  return concatUint8Array(
+    await Promise.all(arr.map(async c => unzip(await fetchChunk(c, opts)))),
+  )
 }
 
 export default class HtsgetFile<
@@ -68,12 +70,7 @@ export default class HtsgetFile<
     if (chrId === undefined) {
       return []
     }
-    const result = await fetch(url, { ...opts })
-    if (!result.ok) {
-      throw new Error(
-        `HTTP ${result.status} fetching ${url}: ${await result.text()}`,
-      )
-    }
+    const result = await fetchOk(url, opts)
     const data = await result.json()
     const uncba = await fetchAndConcat(data.htsget.urls.slice(1), {
       signal: opts?.signal,
@@ -92,14 +89,11 @@ export default class HtsgetFile<
 
   async getHeader(opts: BaseOpts = {}) {
     const url = `${this.baseUrl}/${this.trackId}?referenceName=na&class=header`
-    const result = await fetch(url, opts)
-    if (!result.ok) {
-      throw new Error(
-        `HTTP ${result.status} fetching ${url}: ${await result.text()}`,
-      )
-    }
+    const result = await fetchOk(url, opts)
     const data = await result.json()
-    const uncba = await fetchAndConcat(data.htsget.urls, { signal: opts.signal })
+    const uncba = await fetchAndConcat(data.htsget.urls, {
+      signal: opts.signal,
+    })
     const dataView = new DataView(uncba.buffer)
 
     if (dataView.getInt32(0, true) !== BAM_MAGIC) {

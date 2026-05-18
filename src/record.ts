@@ -105,7 +105,8 @@ export default class BamRecord {
   // (qual, tags) are offsets from here, so cache once and reuse.
   get seqStart() {
     if (this._cachedSeqStart === undefined) {
-      this._cachedSeqStart = this.b0 + this.read_name_length + this.num_cigar_bytes
+      this._cachedSeqStart =
+        this.b0 + this.read_name_length + this.num_cigar_bytes
     }
     return this._cachedSeqStart
   }
@@ -716,16 +717,24 @@ export default class BamRecord {
     }
   }
 
+  // Most public BamRecord fields are getters on the prototype, so
+  // Object.keys(this) wouldn't include them — JSON.stringify needs an explicit
+  // list. Returns the meaningful BAM-spec fields.
   toJSON() {
-    const data: Record<string, unknown> = {}
-    for (const k of Object.keys(this)) {
-      if (k.startsWith('_')) {
-        continue
-      }
-      // @ts-expect-error
-      data[k] = this[k]
+    return {
+      fileOffset: this.fileOffset,
+      ref_id: this.ref_id,
+      start: this.start,
+      end: this.end,
+      name: this.name,
+      flags: this.flags,
+      mq: this.mq,
+      CIGAR: this.CIGAR,
+      seq: this.seq,
+      next_refid: this.next_refid,
+      next_pos: this.next_pos,
+      template_length: this.template_length,
+      tags: this.tags,
     }
-
-    return data
   }
 }
