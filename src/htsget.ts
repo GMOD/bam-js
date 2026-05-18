@@ -3,7 +3,7 @@ import { unzip } from '@gmod/bgzf-filehandle'
 import BamFile, { BAM_MAGIC } from './bamFile.ts'
 import Chunk from './chunk.ts'
 import { parseHeaderText } from './sam.ts'
-import { concatUint8Array } from './util.ts'
+import { appendInRange, concatUint8Array } from './util.ts'
 import { VirtualOffset } from './virtualOffset.ts'
 
 import type { BamRecordClass, BamRecordLike } from './bamFile.ts'
@@ -15,37 +15,28 @@ interface HtsgetChunk {
   headers?: Record<string, string>
 }
 
-async function concat(arr: HtsgetChunk[], opts?: RequestInit) {
-  const res = await Promise.all(
-    arr.map(async chunk => {
-      const { url, headers } = chunk
-      if (url.startsWith('data:')) {
-        // pass base64 data url to fetch to decode to buffer
-        // https://stackoverflow.com/a/54123275/2129219
-        const res = await fetch(url)
-        if (!res.ok) {
-          throw new Error('failed to decode base64')
-        }
-        const ret = await res.arrayBuffer()
-        return new Uint8Array(ret)
-      } else {
-        // remove referer header, it is not even allowed to be specified
-        const { referer: _referer, ...rest } = headers ?? {}
-        const res = await fetch(url, {
-          ...opts,
-          headers: rest,
-        })
-        if (!res.ok) {
-          throw new Error(
-            `HTTP ${res.status} fetching ${url}: ${await res.text()}`,
-          )
-        }
-        return new Uint8Array(await res.arrayBuffer())
-      }
-    }),
-  )
+async function fetchOk(url: string, opts?: RequestInit) {
+  const res = await fetch(url, opts)
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} fetching ${url}: ${await res.text()}`)
+  }
+  return res
+}
 
-  return concatUint8Array(await Promise.all(res.map(elt => unzip(elt))))
+async function fetchChunk({ url, headers }: HtsgetChunk, opts?: RequestInit) {
+  // pass base64 data URLs straight to fetch; otherwise apply headers (minus
+  // referer, which isn't a permitted client-set header).
+  // https://stackoverflow.com/a/54123275/2129219
+  const { referer: _referer, ...rest } = headers ?? {}
+  const res = url.startsWith('data:')
+    ? await fetchOk(url)
+    : await fetchOk(url, { ...opts, headers: rest })
+  return new Uint8Array(await res.arrayBuffer())
+}
+
+async function fetchAndConcat(arr: HtsgetChunk[], opts?: RequestInit) {
+  const compressed = await Promise.all(arr.map(c => fetchChunk(c, opts)))
+  return concatUint8Array(await Promise.all(compressed.map(unzip)))
 }
 
 export default class HtsgetFile<
@@ -84,7 +75,7 @@ export default class HtsgetFile<
       )
     }
     const data = await result.json()
-    const uncba = await concat(data.htsget.urls.slice(1), {
+    const uncba = await fetchAndConcat(data.htsget.urls.slice(1), {
       signal: opts?.signal,
     })
 
@@ -96,18 +87,7 @@ export default class HtsgetFile<
       new Chunk(zero, zero, 0),
     )
 
-    const records: T[] = []
-    for (let i = 0, l = allRecords.length; i < l; i++) {
-      const feature = allRecords[i]!
-      if (feature.ref_id === chrId) {
-        if (feature.start >= max) {
-          break
-        } else if (feature.end >= min) {
-          records.push(feature)
-        }
-      }
-    }
-    return records
+    return appendInRange(allRecords, chrId, min, max)
   }
 
   async getHeader(opts: BaseOpts = {}) {
@@ -119,7 +99,7 @@ export default class HtsgetFile<
       )
     }
     const data = await result.json()
-    const uncba = await concat(data.htsget.urls, { signal: opts.signal })
+    const uncba = await fetchAndConcat(data.htsget.urls, { signal: opts.signal })
     const dataView = new DataView(uncba.buffer)
 
     if (dataView.getInt32(0, true) !== BAM_MAGIC) {

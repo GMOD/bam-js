@@ -2,8 +2,6 @@ import type { Offset } from './virtualOffset.ts'
 
 // little class representing a chunk in the index
 export default class Chunk {
-  public buffer?: Uint8Array<ArrayBuffer>
-
   constructor(
     public minv: Offset,
     public maxv: Offset,
@@ -11,14 +9,10 @@ export default class Chunk {
     public _fetchedSize?: number,
   ) {}
 
-  toUniqueString() {
+  toString() {
     return `${this.minv.toString()}..${this.maxv.toString()} (bin ${
       this.bin
     }, fetchedSize ${this.fetchedSize()})`
-  }
-
-  toString() {
-    return this.toUniqueString()
   }
 
   compareTo(b: Chunk) {

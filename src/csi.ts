@@ -1,8 +1,7 @@
 import { unzip } from '@gmod/bgzf-filehandle'
-import QuickLRU from '@jbrowse/quick-lru'
 
 import Chunk from './chunk.ts'
-import IndexFile from './indexFile.ts'
+import IndexFile, { memoizeByRefId } from './indexFile.ts'
 import {
   findFirstData,
   optimizeChunks,
@@ -28,13 +27,6 @@ export default class CSI extends IndexFile {
   private depth = 0
   private minShift = 0
 
-  public setupP?: ReturnType<CSI['_parse']>
-
-  async lineCount(refId: number, opts?: BaseOpts) {
-    const indexData = await this.parse(opts)
-    return indexData.indices(refId)?.stats?.lineCount || 0
-  }
-
   async indexCov() {
     return []
   }
@@ -44,9 +36,7 @@ export default class CSI extends IndexFile {
     const formatFlags = dataView.getUint32(offset, true)
     const coordinateType =
       formatFlags & 0x10000 ? 'zero-based-half-open' : '1-based-closed'
-    const format = (
-      { 0: 'generic', 1: 'SAM', 2: 'VCF' } as Record<number, string>
-    )[formatFlags & 0xf]
+    const format = ['generic', 'SAM', 'VCF'][formatFlags & 0xf]
     if (!format) {
       throw new Error(`invalid Tabix preset format flags ${formatFlags}`)
     }
@@ -76,7 +66,7 @@ export default class CSI extends IndexFile {
   }
 
   // fetch and parse the index
-  async _parse(opts: { signal?: AbortSignal }) {
+  async _parse(opts: BaseOpts) {
     const buffer = await this.filehandle.readFile(opts)
     const bytes = await unzip(buffer)
 
@@ -128,10 +118,6 @@ export default class CSI extends IndexFile {
       }
     }
 
-    const indicesCache = new QuickLRU<number, ReturnType<typeof getIndices>>({
-      maxSize: 5,
-    })
-
     function getIndices(refId: number) {
       let curr = offsets[refId]
       if (curr === undefined) {
@@ -140,7 +126,7 @@ export default class CSI extends IndexFile {
       // the binning index
       const binCount = dataView.getInt32(curr, true)
       curr += 4
-      const binIndex: Record<string, Chunk[]> = {}
+      const binIndex: Record<number, Chunk[]> = {}
       let pseudoBinStats
       for (let j = 0; j < binCount; j++) {
         const bin = dataView.getUint32(curr, true)
@@ -149,8 +135,7 @@ export default class CSI extends IndexFile {
           pseudoBinStats = parsePseudoBin(bytes, curr + 28)
           curr += 28 + 16
         } else {
-          firstDataLine = findFirstData(firstDataLine, fromBytes(bytes, curr))
-          curr += 8
+          curr += 8 // skip loffset; firstDataLine was computed in the first pass
           const chunkCount = dataView.getInt32(curr, true)
           curr += 4
           const chunks = new Array<Chunk>(chunkCount)
@@ -174,16 +159,7 @@ export default class CSI extends IndexFile {
     return {
       csiVersion,
       firstDataLine,
-      indices: (refId: number) => {
-        if (!indicesCache.has(refId)) {
-          const result = getIndices(refId)
-          if (result) {
-            indicesCache.set(refId, result)
-          }
-          return result
-        }
-        return indicesCache.get(refId)
-      },
+      indices: memoizeByRefId(getIndices),
       refCount,
       csi: true,
       maxBlockSize: 1 << 16,
@@ -214,7 +190,6 @@ export default class CSI extends IndexFile {
     }
 
     const chunks = []
-    // Find chunks in overlapping bins.  Leaf bins (< 4681) are not pruned
     const { binIndex } = ba
     for (const [start, end] of overlappingBins) {
       for (let bin = start; bin <= end; bin++) {
@@ -232,16 +207,16 @@ export default class CSI extends IndexFile {
 
   /**
    * calculate the list of bins that may overlap with region [beg,end)
-   * (zero-based half-open)
+   * (zero-based half-open). Follows the reference implementation in hts-specs
+   * CSIv1.tex.
    */
   reg2bins(beg: number, end: number) {
-    beg -= 1 // < convert to 1-based closed
-    if (beg < 1) {
-      beg = 1
+    // Clamp end to the maximum coordinate the index can address. With minShift
+    // and depth, the index covers positions in [0, 2^(minShift + depth*3)).
+    const maxPos = 2 ** (this.minShift + this.depth * 3)
+    if (end > maxPos) {
+      end = maxPos
     }
-    if (end > 2 ** 50) {
-      end = 2 ** 34
-    } // 17 GiB ought to be enough for anybody
     end -= 1
     let l = 0
     let t = 0
@@ -258,20 +233,5 @@ export default class CSI extends IndexFile {
       bins.push([b, e] as const)
     }
     return bins
-  }
-
-  async parse(opts: BaseOpts = {}) {
-    if (!this.setupP) {
-      this.setupP = this._parse(opts).catch((e: unknown) => {
-        this.setupP = undefined
-        throw e
-      })
-    }
-    return this.setupP
-  }
-
-  async hasRefSeq(seqId: number, opts: BaseOpts = {}) {
-    const header = await this.parse(opts)
-    return !!header.indices(seqId)?.binIndex
   }
 }

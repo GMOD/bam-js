@@ -8,12 +8,7 @@ import CSI from './csi.ts'
 import NullFilehandle from './nullFilehandle.ts'
 import BAMFeature from './record.ts'
 import { parseHeaderText } from './sam.ts'
-import {
-  filterCacheKey,
-  filterReadFlag,
-  filterTagValue,
-  makeOpts,
-} from './util.ts'
+import { appendInRange, applyFilters, filterCacheKey } from './util.ts'
 
 import type Chunk from './chunk.ts'
 import type { Bytes } from './record.ts'
@@ -42,10 +37,26 @@ export const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
 
+function resolveFilehandle(
+  filehandle?: GenericFilehandle,
+  path?: string,
+  url?: string,
+) {
+  return (
+    filehandle ??
+    (path ? new LocalFile(path) : url ? new RemoteFile(url) : undefined)
+  )
+}
+
 interface ChunkEntry<T> {
   minBlock: number
   maxBlock: number
   features: T[]
+}
+
+function chunkCacheKey(chunk: Chunk, filterBy?: FilterBy) {
+  const { minv, maxv } = chunk
+  return `${minv.blockPosition}:${minv.dataPosition}-${maxv.blockPosition}:${maxv.dataPosition}${filterCacheKey(filterBy)}`
 }
 
 export default class BamFile<T extends BamRecordLike = BAMFeature> {
@@ -96,43 +107,31 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     this.renameRefSeq = renameRefSeqs
     this.RecordClass = (recordClass ?? BAMFeature) as BamRecordClass<T>
 
-    if (bamFilehandle) {
-      this.bam = bamFilehandle
-    } else if (bamPath) {
-      this.bam = new LocalFile(bamPath)
-    } else if (bamUrl) {
-      this.bam = new RemoteFile(bamUrl)
+    const bamFh = resolveFilehandle(bamFilehandle, bamPath, bamUrl)
+    if (bamFh) {
+      this.bam = bamFh
     } else if (htsget) {
       this.htsget = true
       this.bam = new NullFilehandle()
     } else {
       throw new Error('unable to initialize bam')
     }
-    if (csiFilehandle) {
-      this.index = new CSI({ filehandle: csiFilehandle })
-    } else if (csiPath) {
-      this.index = new CSI({ filehandle: new LocalFile(csiPath) })
-    } else if (csiUrl) {
-      this.index = new CSI({ filehandle: new RemoteFile(csiUrl) })
-    } else if (baiFilehandle) {
-      this.index = new BAI({ filehandle: baiFilehandle })
-    } else if (baiPath) {
-      this.index = new BAI({ filehandle: new LocalFile(baiPath) })
-    } else if (baiUrl) {
-      this.index = new BAI({ filehandle: new RemoteFile(baiUrl) })
-    } else if (bamPath) {
-      this.index = new BAI({ filehandle: new LocalFile(`${bamPath}.bai`) })
-    } else if (bamUrl) {
-      this.index = new BAI({ filehandle: new RemoteFile(`${bamUrl}.bai`) })
-    } else if (htsget) {
-      this.htsget = true
-    } else {
+
+    const csiFh = resolveFilehandle(csiFilehandle, csiPath, csiUrl)
+    const baiFh =
+      resolveFilehandle(baiFilehandle, baiPath, baiUrl) ??
+      resolveFilehandle(undefined, bamPath && `${bamPath}.bai`, bamUrl && `${bamUrl}.bai`)
+    if (csiFh) {
+      this.index = new CSI({ filehandle: csiFh })
+    } else if (baiFh) {
+      this.index = new BAI({ filehandle: baiFh })
+    } else if (!htsget) {
       throw new Error('unable to infer index format')
     }
+    // htsget mode operates without a parsed index
   }
 
-  async getHeaderPre(origOpts?: BaseOpts) {
-    const opts = makeOpts(origOpts)
+  async getHeaderPre(opts: BaseOpts = {}) {
     if (!this.index) {
       return undefined
     }
@@ -161,17 +160,8 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     // BAM files with many reference sequences may need more data than the
     // initial read provides, so re-fetch with doubled size until it fits
     const refSeqStart = headLen + 8
-    const maxRetries = 5
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      if (this._hasEnoughRefSeqData(uncba, refSeqStart)) {
-        const { chrToIndex, indexToChr } = this._parseRefSeqs(
-          uncba,
-          refSeqStart,
-        )
-        this.chrToIndex = chrToIndex
-        this.indexToChr = indexToChr
-        return parseHeaderText(this.header)
-      }
+    let parsed = this._parseRefSeqs(uncba, refSeqStart)
+    for (let attempt = 0; !parsed && attempt < 5; attempt++) {
       if (readLen === undefined) {
         throw new Error(
           `Insufficient data for reference sequences in ${uncba.length} bytes`,
@@ -179,10 +169,14 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       }
       readLen *= 2
       uncba = await unzip(await this.bam.read(readLen, 0))
+      parsed = this._parseRefSeqs(uncba, refSeqStart)
     }
-    throw new Error(
-      `Insufficient data for reference sequences after ${maxRetries} retries`,
-    )
+    if (!parsed) {
+      throw new Error('Insufficient data for reference sequences after 5 retries')
+    }
+    this.chrToIndex = parsed.chrToIndex
+    this.indexToChr = parsed.indexToChr
+    return parseHeaderText(this.header)
   }
 
   getHeader(opts?: BaseOpts) {
@@ -200,54 +194,35 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     return this.header
   }
 
-  _hasEnoughRefSeqData(uncba: Uint8Array, start: number) {
+  // Returns undefined if `uncba` doesn't yet contain the full ref-seq table —
+  // caller is expected to fetch more bytes and retry.
+  _parseRefSeqs(uncba: Uint8Array, start: number) {
     if (start + 4 > uncba.length) {
-      return false
+      return undefined
     }
     const dataView = new DataView(uncba.buffer)
     const nRef = dataView.getInt32(start, true)
-    let p = start + 4
-    for (let i = 0; i < nRef; i += 1) {
-      if (p + 8 > uncba.length) {
-        return false
-      }
-      const lName = dataView.getInt32(p, true)
-      p = p + 8 + lName
-    }
-    return true
-  }
-
-  _parseRefSeqs(
-    uncba: Uint8Array,
-    start: number,
-  ): {
-    chrToIndex: Record<string, number>
-    indexToChr: { refName: string; length: number }[]
-  } {
-    const dataView = new DataView(uncba.buffer)
-    const nRef = dataView.getInt32(start, true)
-    let p = start + 4
-
     const chrToIndex: Record<string, number> = {}
     const indexToChr: { refName: string; length: number }[] = []
     const decoder = new TextDecoder('utf8')
 
-    for (let i = 0; i < nRef; i += 1) {
+    let p = start + 4
+    for (let i = 0; i < nRef; i++) {
+      if (p + 8 > uncba.length) {
+        return undefined
+      }
       const lName = dataView.getInt32(p, true)
+      if (p + 8 + lName > uncba.length) {
+        return undefined
+      }
       const refName = this.renameRefSeq(
         decoder.decode(uncba.subarray(p + 4, p + 4 + lName - 1)),
       )
       const lRef = dataView.getInt32(p + lName + 4, true)
-
       chrToIndex[refName] = i
-      indexToChr.push({
-        refName,
-        length: lRef,
-      })
-
-      p = p + 8 + lName
+      indexToChr.push({ refName, length: lRef })
+      p += 8 + lName
     }
-
     return { chrToIndex, indexToChr }
   }
 
@@ -266,26 +241,10 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     return this._fetchChunkFeaturesDirect(chunks, chrId, min, max, opts)
   }
 
-  private chunkCacheKey(chunk: Chunk, filterBy?: FilterBy) {
-    const { minv, maxv } = chunk
-    return `${minv.blockPosition}:${minv.dataPosition}-${maxv.blockPosition}:${maxv.dataPosition}${filterCacheKey(filterBy)}`
-  }
-
-  private blocksOverlap(
-    minBlock1: number,
-    maxBlock1: number,
-    minBlock2: number,
-    maxBlock2: number,
-  ) {
-    return minBlock1 <= maxBlock2 && maxBlock1 >= minBlock2
-  }
-
-  // Evict any cached chunks that overlap with the given block range
+  // Evict any cached chunks whose block range overlaps [minBlock, maxBlock]
   private evictOverlappingChunks(minBlock: number, maxBlock: number) {
     for (const [key, entry] of this.chunkFeatureCache) {
-      if (
-        this.blocksOverlap(minBlock, maxBlock, entry.minBlock, entry.maxBlock)
-      ) {
+      if (minBlock <= entry.maxBlock && maxBlock >= entry.minBlock) {
         this.chunkFeatureCache.delete(key)
       }
     }
@@ -299,12 +258,11 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     opts: BamOpts = {},
   ) {
     const { viewAsPairs, filterBy } = opts
-    const { flagInclude = 0, flagExclude = 0, tagFilter } = filterBy || {}
     const result: T[] = []
 
     for (let ci = 0, cl = chunks.length; ci < cl; ci++) {
       const chunk = chunks[ci]!
-      const cacheKey = this.chunkCacheKey(chunk, filterBy)
+      const cacheKey = chunkCacheKey(chunk, filterBy)
       const minBlock = chunk.minv.blockPosition
       const maxBlock = chunk.maxv.blockPosition
 
@@ -314,34 +272,8 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
         records = cached.features
       } else {
         this.evictOverlappingChunks(minBlock, maxBlock)
-        const { data, cpositions, dpositions } = await this._readChunk({
-          chunk,
-          opts,
-        })
-        const allRecords = await this.readBamFeatures(
-          data,
-          cpositions,
-          dpositions,
-          chunk,
-        )
-        if (filterBy) {
-          records = []
-          for (let i = 0, l = allRecords.length; i < l; i++) {
-            const record = allRecords[i]!
-            if (filterReadFlag(record.flags, flagInclude, flagExclude)) {
-              continue
-            }
-            if (
-              tagFilter &&
-              filterTagValue(record.tags[tagFilter.tag], tagFilter.value)
-            ) {
-              continue
-            }
-            records.push(record)
-          }
-        } else {
-          records = allRecords
-        }
+        const allRecords = await this._readChunkFeatures(chunk, opts)
+        records = filterBy ? applyFilters(allRecords, filterBy) : allRecords
         this.chunkFeatureCache.set(cacheKey, {
           minBlock,
           maxBlock,
@@ -349,21 +281,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
         })
       }
 
-      let done = false
-      for (let i = 0, l = records.length; i < l; i++) {
-        const feature = records[i]!
-        if (feature.ref_id === chrId) {
-          if (feature.start >= max) {
-            done = true
-            break
-          } else if (feature.end >= min) {
-            result.push(feature)
-          }
-        }
-      }
-      if (done) {
-        break
-      }
+      appendInRange(records, chrId, min, max, result)
     }
 
     if (viewAsPairs) {
@@ -416,26 +334,14 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       const chunks = res[i]!
       for (let j = 0, jl = chunks.length; j < jl; j++) {
         const m = chunks[j]!
-        const key = m.toString()
-        if (!map.has(key)) {
-          map.set(key, m)
-        }
+        map.set(m.toString(), m)
       }
     }
 
     const mateFeatPromises = await Promise.all(
       [...map.values()].map(async c => {
-        const { data, cpositions, dpositions, chunk } = await this._readChunk({
-          chunk: c,
-          opts,
-        })
+        const features = await this._readChunkFeatures(c, opts)
         const mateRecs = [] as T[]
-        const features = await this.readBamFeatures(
-          data,
-          cpositions,
-          dpositions,
-          chunk,
-        )
         for (let i = 0, l = features.length; i < l; i++) {
           const feature = features[i]!
           if (
@@ -451,19 +357,17 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     return mateFeatPromises.flat()
   }
 
-  async _readChunk({ chunk, opts }: { chunk: Chunk; opts: BaseOpts }) {
+  async _readChunkFeatures(chunk: Chunk, opts: BaseOpts) {
     const buf = await this.bam.read(
       chunk.fetchedSize(),
       chunk.minv.blockPosition,
       opts,
     )
-
-    const {
-      buffer: data,
-      cpositions,
-      dpositions,
-    } = await unzipChunkSlice(buf, chunk)
-    return { data, cpositions, dpositions, chunk }
+    const { buffer: data, cpositions, dpositions } = await unzipChunkSlice(
+      buf,
+      chunk,
+    )
+    return this.readBamFeatures(data, cpositions, dpositions, chunk)
   }
 
   async readBamFeatures(
@@ -515,21 +419,21 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
   async hasRefSeq(seqName: string) {
     const seqId = this.chrToIndex?.[seqName]
-    return seqId === undefined ? false : this.index?.hasRefSeq(seqId)
+    return !this.index || seqId === undefined
+      ? false
+      : this.index.hasRefSeq(seqId)
   }
 
   async lineCount(seqName: string) {
     const seqId = this.chrToIndex?.[seqName]
-    return seqId === undefined || !this.index ? 0 : this.index.lineCount(seqId)
+    return !this.index || seqId === undefined ? 0 : this.index.lineCount(seqId)
   }
 
   async indexCov(seqName: string, start?: number, end?: number) {
-    if (!this.index) {
-      return []
-    }
-    await this.index.parse()
     const seqId = this.chrToIndex?.[seqName]
-    return seqId === undefined ? [] : this.index.indexCov(seqId, start, end)
+    return !this.index || seqId === undefined
+      ? []
+      : this.index.indexCov(seqId, start, end)
   }
 
   async blocksForRange(
@@ -538,12 +442,8 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     end: number,
     opts?: BaseOpts,
   ) {
-    if (!this.index) {
-      return []
-    }
-    await this.index.parse()
     const seqId = this.chrToIndex?.[seqName]
-    return seqId === undefined
+    return !this.index || seqId === undefined
       ? []
       : this.index.blocksForRange(seqId, start, end, opts)
   }

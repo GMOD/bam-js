@@ -3,13 +3,6 @@ import { longFromBytesToUnsigned } from './long.ts'
 import type Chunk from './chunk.ts'
 import type { Offset, VirtualOffset } from './virtualOffset.ts'
 
-export function canMergeBlocks(chunk1: Chunk, chunk2: Chunk) {
-  return (
-    chunk2.minv.blockPosition - chunk1.maxv.blockPosition < 65000 &&
-    chunk2.maxv.blockPosition - chunk1.minv.blockPosition < 5000000
-  )
-}
-
 export interface TagFilter {
   tag: string
   value?: string
@@ -31,10 +24,6 @@ export interface BamOpts {
 
 export interface BaseOpts {
   signal?: AbortSignal
-}
-
-export function makeOpts(obj: AbortSignal | BaseOpts = {}): BaseOpts {
-  return 'aborted' in obj ? { signal: obj } : obj
 }
 
 export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
@@ -81,7 +70,8 @@ export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
     const chunk = filtered[i]!
     const chunkMinBlock = chunk.minv.blockPosition
     const chunkMaxBlock = chunk.maxv.blockPosition
-    // Inlined canMergeBlocks: check if chunks are close enough to merge
+    // Merge if chunks are close enough: small gap between them, and the
+    // combined span is bounded so we don't grow a single chunk indefinitely.
     if (
       chunkMinBlock - lastMaxBlock < 65000 &&
       chunkMaxBlock - lastMinBlock < 5000000
@@ -162,28 +152,14 @@ export function concatUint8Array(args: Uint8Array[]) {
   return mergedArray
 }
 
-export async function gen2array<T>(gen: AsyncIterable<T[]>): Promise<T[]> {
-  const out: T[] = []
-  for await (const x of gen) {
-    for (const item of x) {
-      out.push(item)
-    }
-  }
-  return out
-}
-
 export function filterReadFlag(
   flags: number,
   flagInclude: number,
   flagExclude: number,
 ) {
-  if ((flags & flagInclude) !== flagInclude) {
-    return true
-  }
-  if (flags & flagExclude) {
-    return true
-  }
-  return false
+  return (
+    (flags & flagInclude) !== flagInclude || (flags & flagExclude) !== 0
+  )
 }
 
 export function filterTagValue(readVal: unknown, filterVal?: string) {
@@ -199,4 +175,57 @@ export function filterCacheKey(filterBy?: FilterBy) {
   const { flagInclude = 0, flagExclude = 0, tagFilter } = filterBy
   const tagPart = tagFilter ? `:${tagFilter.tag}=${tagFilter.value ?? '*'}` : ''
   return `:f${flagInclude}x${flagExclude}${tagPart}`
+}
+
+interface Filterable {
+  flags: number
+  tags: Record<string, unknown>
+}
+
+// Apply flagInclude/flagExclude/tagFilter to a list of records.
+export function applyFilters<T extends Filterable>(
+  records: T[],
+  filterBy: FilterBy,
+): T[] {
+  const { flagInclude = 0, flagExclude = 0, tagFilter } = filterBy
+  const out: T[] = []
+  for (let i = 0, l = records.length; i < l; i++) {
+    const r = records[i]!
+    if (
+      !filterReadFlag(r.flags, flagInclude, flagExclude) &&
+      !(tagFilter && filterTagValue(r.tags[tagFilter.tag], tagFilter.value))
+    ) {
+      out.push(r)
+    }
+  }
+  return out
+}
+
+interface Positioned {
+  ref_id: number
+  start: number
+  end: number
+}
+
+// Append records overlapping [min, max) on `chrId` into `out` (or a fresh
+// array if omitted). Records are assumed sorted by start, so we stop scanning
+// at the first record past `max`. Returns the populated array.
+export function appendInRange<T extends Positioned>(
+  records: T[],
+  chrId: number,
+  min: number,
+  max: number,
+  out: T[] = [],
+): T[] {
+  for (let i = 0, l = records.length; i < l; i++) {
+    const r = records[i]!
+    if (r.ref_id === chrId) {
+      if (r.start >= max) {
+        break
+      } else if (r.end >= min) {
+        out.push(r)
+      }
+    }
+  }
+  return out
 }

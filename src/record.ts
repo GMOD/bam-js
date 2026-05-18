@@ -41,7 +41,7 @@ export default class BamRecord {
   private _cachedLengthOnRef?: number
   private _cachedNumericCigar?: Uint32Array | number[]
   private _cachedNUMERIC_MD?: Uint8Array | null
-  private _cachedTagsStart?: number
+  private _cachedSeqStart?: number
 
   constructor(args: { bytes: Bytes; fileOffset: number; dataView: DataView }) {
     this._byteArray = args.bytes.byteArray
@@ -88,11 +88,7 @@ export default class BamRecord {
       return null
     } else {
       const seqLen = this.seq_length
-      const p =
-        this.b0 +
-        this.read_name_length +
-        this.num_cigar_bytes +
-        ((seqLen + 1) >> 1)
+      const p = this.seqStart + ((seqLen + 1) >> 1)
       return this._byteArray.subarray(p, p + seqLen)
     }
   }
@@ -105,17 +101,18 @@ export default class BamRecord {
     return this._start + 36
   }
 
-  get tagsStart() {
-    if (this._cachedTagsStart === undefined) {
-      const seqLen = this.seq_length
-      this._cachedTagsStart =
-        this.b0 +
-        this.read_name_length +
-        this.num_cigar_bytes +
-        ((seqLen + 1) >> 1) +
-        seqLen
+  // start of the SEQ section (and end of CIGAR). All downstream sections
+  // (qual, tags) are offsets from here, so cache once and reuse.
+  get seqStart() {
+    if (this._cachedSeqStart === undefined) {
+      this._cachedSeqStart = this.b0 + this.read_name_length + this.num_cigar_bytes
     }
-    return this._cachedTagsStart
+    return this._cachedSeqStart
+  }
+
+  get tagsStart() {
+    const seqLen = this.seq_length
+    return this.seqStart + ((seqLen + 1) >> 1) + seqLen
   }
 
   // batch fromCharCode: fastest for typical name lengths (see benchmarks/string-building.bench.ts)
@@ -640,13 +637,13 @@ export default class BamRecord {
   }
 
   get NUMERIC_SEQ() {
-    const p = this.b0 + this.read_name_length + this.num_cigar_bytes
+    const p = this.seqStart
     return this._byteArray.subarray(p, p + this.num_seq_bytes)
   }
 
   get seq() {
     const len = this.seq_length
-    const seqStart = this.b0 + this.read_name_length + this.num_cigar_bytes
+    const seqStart = this.seqStart
     const numeric = this._byteArray
     const buf = new Array(len)
     let i = 0
@@ -709,11 +706,7 @@ export default class BamRecord {
 
   seqAt(idx: number): string | undefined {
     if (idx < this.seq_length) {
-      const byteIndex = idx >> 1
-      const sb =
-        this._byteArray[
-          this.b0 + this.read_name_length + this.num_cigar_bytes + byteIndex
-        ]!
+      const sb = this._byteArray[this.seqStart + (idx >> 1)]!
 
       return idx % 2 === 0
         ? SEQRET_DECODER[(sb & 0xf0) >> 4]!

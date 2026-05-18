@@ -1,12 +1,19 @@
-import QuickLRU from '@jbrowse/quick-lru'
-
 import Chunk from './chunk.ts'
-import IndexFile from './indexFile.ts'
+import IndexFile, { memoizeByRefId } from './indexFile.ts'
 import { findFirstData, optimizeChunks, parsePseudoBin } from './util.ts'
 import { fromBytes } from './virtualOffset.ts'
 
+import type { ParsedIndexBase, RefIndex } from './indexFile.ts'
 import type { BaseOpts } from './util.ts'
 import type { VirtualOffset } from './virtualOffset.ts'
+
+interface BaiRefIndex extends RefIndex {
+  linearIndex: VirtualOffset[]
+}
+
+interface BaiParsed extends ParsedIndexBase<BaiRefIndex> {
+  bai: true
+}
 
 const BAI_MAGIC = 21578050 // BAI\1
 
@@ -35,16 +42,9 @@ function reg2bins(beg: number, end: number) {
   ] as const
 }
 
-export default class BAI extends IndexFile {
-  public setupP?: ReturnType<BAI['_parse']>
-
-  async lineCount(refId: number, opts?: BaseOpts) {
-    const indexData = await this.parse(opts)
-    return indexData.indices(refId)?.stats?.lineCount || 0
-  }
-
-  async _parse(_opts?: BaseOpts) {
-    const bytes = await this.filehandle.readFile()
+export default class BAI extends IndexFile<BaiParsed> {
+  async _parse(opts: BaseOpts): Promise<BaiParsed> {
+    const bytes = await this.filehandle.readFile(opts)
     const dataView = new DataView(bytes.buffer)
 
     // check BAI magic numbers
@@ -85,22 +85,15 @@ export default class BAI extends IndexFile {
         }
       }
 
+      // walk the linear index to find the smallest virtual offset, which
+      // marks where the BAM header ends and data begins
       const linearCount = dataView.getInt32(curr, true)
       curr += 4
-      // as we're going through the linear index, figure out the smallest
-      // virtual offset in the indexes, which tells us where the BAM header
-      // ends
-      const linearIndex = new Array<VirtualOffset>(linearCount)
       for (let j = 0; j < linearCount; j++) {
-        const offset = fromBytes(bytes, curr)
+        firstDataLine = findFirstData(firstDataLine, fromBytes(bytes, curr))
         curr += 8
-        firstDataLine = findFirstData(firstDataLine, offset)
-        linearIndex[j] = offset
       }
     }
-    const indicesCache = new QuickLRU<number, ReturnType<typeof getIndices>>({
-      maxSize: 5,
-    })
 
     function getIndices(refId: number) {
       let curr = offsets[refId]
@@ -131,7 +124,6 @@ export default class BAI extends IndexFile {
             curr += 8
             const v = fromBytes(bytes, curr)
             curr += 8
-            firstDataLine = findFirstData(firstDataLine, u)
             chunks[k] = new Chunk(u, v, bin)
           }
           binIndex[bin] = chunks
@@ -140,15 +132,10 @@ export default class BAI extends IndexFile {
 
       const linearCount = dataView.getInt32(curr, true)
       curr += 4
-      // as we're going through the linear index, figure out the smallest
-      // virtual offset in the indexes, which tells us where the BAM header
-      // ends
       const linearIndex = new Array<VirtualOffset>(linearCount)
       for (let j = 0; j < linearCount; j++) {
-        const offset = fromBytes(bytes, curr)
+        linearIndex[j] = fromBytes(bytes, curr)
         curr += 8
-        firstDataLine = findFirstData(firstDataLine, offset)
-        linearIndex[j] = offset
       }
 
       return {
@@ -162,16 +149,7 @@ export default class BAI extends IndexFile {
       bai: true,
       firstDataLine,
       maxBlockSize: 1 << 16,
-      indices: (refId: number) => {
-        if (!indicesCache.has(refId)) {
-          const result = getIndices(refId)
-          if (result) {
-            indicesCache.set(refId, result)
-          }
-          return result
-        }
-        return indicesCache.get(refId)
-      },
+      indices: memoizeByRefId(getIndices),
       refCount,
     }
   }
@@ -229,10 +207,6 @@ export default class BAI extends IndexFile {
     }
 
     const indexData = await this.parse(opts)
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    if (!indexData) {
-      return []
-    }
     const ba = indexData.indices(refId)
 
     if (!ba) {
@@ -265,20 +239,5 @@ export default class BAI extends IndexFile {
     const lowest = linearIndex[minLin]
 
     return optimizeChunks(chunks, lowest)
-  }
-
-  async parse(opts: BaseOpts = {}) {
-    if (!this.setupP) {
-      this.setupP = this._parse(opts).catch((e: unknown) => {
-        this.setupP = undefined
-        throw e
-      })
-    }
-    return this.setupP
-  }
-
-  async hasRefSeq(seqId: number, opts: BaseOpts = {}) {
-    const header = await this.parse(opts)
-    return !!header.indices(seqId)?.binIndex
   }
 }
