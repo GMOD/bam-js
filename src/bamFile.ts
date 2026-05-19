@@ -119,7 +119,9 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       this.htsget = true
       this.bam = new NullFilehandle()
     } else {
-      throw new Error('unable to initialize bam')
+      throw new Error(
+        'no bam source: pass bamFilehandle, bamPath, bamUrl, or htsget: true',
+      )
     }
 
     const csiFh = resolveFilehandle(csiFilehandle, csiPath, csiUrl)
@@ -127,15 +129,17 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       resolveFilehandle(baiFilehandle, baiPath, baiUrl) ??
       resolveFilehandle(
         undefined,
-        bamPath && `${bamPath}.bai`,
-        bamUrl && `${bamUrl}.bai`,
+        bamPath ? `${bamPath}.bai` : undefined,
+        bamUrl ? `${bamUrl}.bai` : undefined,
       )
     if (csiFh) {
       this.index = new CSI({ filehandle: csiFh })
     } else if (baiFh) {
       this.index = new BAI({ filehandle: baiFh })
     } else if (!htsget) {
-      throw new Error('unable to infer index format')
+      throw new Error(
+        'no index source: pass csi*/bai* options or a bamPath/bamUrl so the .bai sibling can be inferred',
+      )
     }
     // htsget mode operates without a parsed index
   }
@@ -270,13 +274,13 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   async fetchPairs(chrId: number, records: T[], opts: BamOpts) {
     const { pairAcrossChr, maxInsertSize = 200000 } = opts
     const readNameCounts: Record<string, number> = {}
-    const readIds: Record<number, number> = {}
+    const readIds = new Set<number>()
 
     for (let i = 0, l = records.length; i < l; i++) {
       const r = records[i]!
       const name = r.name
-      readNameCounts[name] = (readNameCounts[name] || 0) + 1
-      readIds[r.fileOffset] = 1
+      readNameCounts[name] = (readNameCounts[name] ?? 0) + 1
+      readIds.add(r.fileOffset)
     }
 
     const matePromises: Promise<Chunk[]>[] = []
@@ -311,7 +315,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       }
     }
 
-    const mateFeatPromises = await Promise.all(
+    const mateFeatLists = await Promise.all(
       [...map.values()].map(async c => {
         const features = await this._readChunkFeatures(c, opts)
         const mateRecs = [] as T[]
@@ -319,7 +323,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
           const feature = features[i]!
           if (
             readNameCounts[feature.name] === 1 &&
-            !readIds[feature.fileOffset]
+            !readIds.has(feature.fileOffset)
           ) {
             mateRecs.push(feature)
           }
@@ -327,7 +331,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
         return mateRecs
       }),
     )
-    return mateFeatPromises.flat()
+    return mateFeatLists.flat()
   }
 
   async _readChunkFeatures(chunk: Chunk, opts: BaseOpts) {
@@ -363,8 +367,10 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       const blockEnd = blockStart + 4 + blockSize - 1
 
       if (hasDpositions) {
-        while (blockStart + chunk.minv.dataPosition >= dpositions[pos++]!) {}
-        pos--
+        const target = blockStart + chunk.minv.dataPosition
+        while (pos < dpositions.length && target >= dpositions[pos]!) {
+          pos++
+        }
       }
 
       if (blockEnd < ba.length) {
@@ -434,11 +440,12 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       return 0
     }
     await this.getHeader(opts)
-    if (!this.chrToIndex) {
+    const chrToIndex = this.chrToIndex
+    if (!chrToIndex) {
       throw new Error('Header not yet parsed')
     }
     const mapped = regions.flatMap(r => {
-      const refId = this.chrToIndex![r.refName]
+      const refId = chrToIndex[r.refName]
       if (refId === undefined) {
         return []
       }
