@@ -87,7 +87,7 @@ export default class HtsgetFile<
     return appendInRange(allRecords, chrId, min, max)
   }
 
-  async getHeader(opts: BaseOpts = {}) {
+  async getHeaderPre(opts: BaseOpts = {}) {
     const url = `${this.baseUrl}/${this.trackId}?referenceName=na&class=header`
     const result = await fetchOk(url, opts)
     const data = await result.json()

@@ -58,12 +58,9 @@ const records = await ti.getRecordsForRange('1', 2000000, 2000001)
 
 Let us know if it doesn't work for your use case.
 
-Caveats of the htsget code path:
-
-- `getHeader` is not memoized — each call re-fetches and re-parses. Call it
-  once and reuse the result.
-- `getRecordsForRange` does not honor `viewAsPairs`, `pairAcrossChr`,
-  `maxInsertSize`, or `filterBy`. The range is fetched from the server as-is.
+Caveat: htsget `getRecordsForRange` does not honor `viewAsPairs`,
+`pairAcrossChr`, `maxInsertSize`, or `filterBy`. The range is fetched from the
+server as-is.
 
 ## Documentation
 
