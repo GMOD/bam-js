@@ -719,8 +719,9 @@ export default class BamRecord {
 
   // Most public BamRecord fields are getters on the prototype, so
   // Object.keys(this) wouldn't include them — JSON.stringify needs an explicit
-  // list. Returns the meaningful BAM-spec fields.
-  toJSON() {
+  // list. Returns the meaningful BAM-spec fields. Return type is widened so
+  // subclasses can override with their own serialized shape.
+  toJSON(): Record<string, unknown> {
     return {
       fileOffset: this.fileOffset,
       ref_id: this.ref_id,
