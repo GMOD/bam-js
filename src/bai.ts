@@ -200,7 +200,7 @@ export default class BAI extends IndexFile<BaiParsed> {
     }
     return depths.map(d => ({
       ...d,
-      score: (d.score * (stats?.lineCount || 0)) / totalSize,
+      score: (d.score * (stats?.lineCount ?? 0)) / totalSize,
     }))
   }
 

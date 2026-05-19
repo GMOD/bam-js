@@ -131,7 +131,7 @@ export default abstract class IndexFile<
 
   async lineCount(refId: number, opts?: BaseOpts) {
     const indexData = await this.parse(opts)
-    return indexData.indices(refId)?.stats?.lineCount || 0
+    return indexData.indices(refId)?.stats?.lineCount ?? 0
   }
 
   async hasRefSeq(seqId: number, opts?: BaseOpts) {
