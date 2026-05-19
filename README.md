@@ -1,5 +1,5 @@
 [![NPM version](https://img.shields.io/npm/v/@gmod/bam.svg?style=flat-square)](https://npmjs.org/package/@gmod/bam)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/GMOD/bam-js/push.yml?branch=main)](https://github.com/GMOD/bam-js/actions?query=branch%3Amain+workflow%3APush+)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/GMOD/bam-js/publish.yml?branch=main)](https://github.com/GMOD/bam-js/actions?query=branch%3Amain+workflow%3APush+)
 
 ## Install
 
