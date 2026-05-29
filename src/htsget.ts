@@ -64,6 +64,7 @@ export default class HtsgetFile<
     max: number,
     opts?: BamOpts,
   ) {
+    await this.getHeader(opts)
     const base = `${this.baseUrl}/${this.trackId}`
     const url = `${base}?referenceName=${chr}&start=${min}&end=${max}&format=BAM`
     const chrId = this.chrToIndex?.[chr]

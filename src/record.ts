@@ -29,6 +29,104 @@ export interface Bytes {
   byteArray: Uint8Array
 }
 
+type BArrayValue =
+  | Int8Array
+  | Uint8Array
+  | Int16Array
+  | Uint16Array
+  | Int32Array
+  | Uint32Array
+  | Float32Array
+  | number[]
+
+// Decode a 'B' (array) tag value starting at `p` (the byte after type+subtype+
+// count). When the data is naturally aligned we return a typed-array view over
+// the underlying buffer (zero-copy); otherwise we copy element-by-element since
+// typed-array views require alignment. Shared by getTag and the full-tag parse.
+function decodeBArrayTag(
+  ba: Uint8Array,
+  dataView: DataView,
+  p: number,
+  Btype: number,
+  limit: number,
+): BArrayValue | undefined {
+  const absOffset = ba.byteOffset + p
+  switch (Btype) {
+    case 0x69: {
+      // 'i'
+      if (absOffset % 4 === 0) {
+        return new Int32Array(ba.buffer, absOffset, limit)
+      }
+      const arr = new Array<number>(limit)
+      for (let i = 0; i < limit; i++) {
+        arr[i] = dataView.getInt32(p + i * 4, true)
+      }
+      return arr
+    }
+    case 0x49: {
+      // 'I'
+      if (absOffset % 4 === 0) {
+        return new Uint32Array(ba.buffer, absOffset, limit)
+      }
+      const arr = new Array<number>(limit)
+      for (let i = 0; i < limit; i++) {
+        arr[i] = dataView.getUint32(p + i * 4, true)
+      }
+      return arr
+    }
+    case 0x73: {
+      // 's'
+      if (absOffset % 2 === 0) {
+        return new Int16Array(ba.buffer, absOffset, limit)
+      }
+      const arr = new Array<number>(limit)
+      for (let i = 0; i < limit; i++) {
+        arr[i] = dataView.getInt16(p + i * 2, true)
+      }
+      return arr
+    }
+    case 0x53: {
+      // 'S'
+      if (absOffset % 2 === 0) {
+        return new Uint16Array(ba.buffer, absOffset, limit)
+      }
+      const arr = new Array<number>(limit)
+      for (let i = 0; i < limit; i++) {
+        arr[i] = dataView.getUint16(p + i * 2, true)
+      }
+      return arr
+    }
+    case 0x63: // 'c'
+      return new Int8Array(ba.buffer, absOffset, limit)
+    case 0x43: // 'C'
+      return new Uint8Array(ba.buffer, absOffset, limit)
+    case 0x66: {
+      // 'f'
+      if (absOffset % 4 === 0) {
+        return new Float32Array(ba.buffer, absOffset, limit)
+      }
+      const arr = new Array<number>(limit)
+      for (let i = 0; i < limit; i++) {
+        arr[i] = dataView.getFloat32(p + i * 4, true)
+      }
+      return arr
+    }
+    default:
+      return undefined
+  }
+}
+
+// Byte span of a 'B' tag's element payload, for advancing the cursor past it.
+function bArrayByteLength(Btype: number, limit: number) {
+  if (Btype === 0x69 || Btype === 0x49 || Btype === 0x66) {
+    return limit << 2
+  } else if (Btype === 0x73 || Btype === 0x53) {
+    return limit << 1
+  } else {
+    return limit
+  }
+}
+
 export default class BamRecord {
   public fileOffset: number
   private _byteArray: Uint8Array
@@ -56,7 +154,10 @@ export default class BamRecord {
   }
 
   get flags() {
-    return (this._dataView.getInt32(this._start + 16, true) & 0xffff0000) >> 16
+    // FLAG is the high 16 bits of flag_nc (byte offset 18). Read it directly as
+    // a uint16 — masking flag_nc and arithmetic-shifting would sign-extend any
+    // value >= 0x8000.
+    return this._dataView.getUint16(this._start + 18, true)
   }
 
   get ref_id() {
@@ -83,11 +184,14 @@ export default class BamRecord {
     return this.mq
   }
 
+  // QUAL is present whenever the record has bases — independent of the unmapped
+  // flag (unmapped reads routinely carry SEQ/QUAL). A zero-length SEQ means
+  // there is no quality to return.
   get qual() {
-    if (this.isSegmentUnmapped()) {
+    const seqLen = this.seq_length
+    if (seqLen === 0) {
       return null
     } else {
-      const seqLen = this.seq_length
       const p = this.seqStart + ((seqLen + 1) >> 1)
       return this._byteArray.subarray(p, p + seqLen)
     }
@@ -236,78 +340,20 @@ export default class BamRecord {
         }
         case 0x42: {
           // 'B'
-          const Btype = ba[p++]
+          const Btype = ba[p++]!
           const limit = this._dataView.getInt32(p, true)
           p += 4
-          const absOffset = ba.byteOffset + p
           if (isMatch) {
-            if (Btype === 0x69) {
-              // 'i'
-              if (absOffset % 4 === 0) {
-                return new Int32Array(ba.buffer, absOffset, limit)
-              }
-              const arr: number[] = new Array(limit)
-              for (let i = 0; i < limit; i++) {
-                arr[i] = this._dataView.getInt32(p + i * 4, true)
-              }
-              return arr
-            } else if (Btype === 0x49) {
-              // 'I'
-              if (absOffset % 4 === 0) {
-                return new Uint32Array(ba.buffer, absOffset, limit)
-              }
-              const arr: number[] = new Array(limit)
-              for (let i = 0; i < limit; i++) {
-                arr[i] = this._dataView.getUint32(p + i * 4, true)
-              }
-              return arr
-            } else if (Btype === 0x73) {
-              // 's'
-              if (absOffset % 2 === 0) {
-                return new Int16Array(ba.buffer, absOffset, limit)
-              }
-              const arr: number[] = new Array(limit)
-              for (let i = 0; i < limit; i++) {
-                arr[i] = this._dataView.getInt16(p + i * 2, true)
-              }
-              return arr
-            } else if (Btype === 0x53) {
-              // 'S'
-              if (absOffset % 2 === 0) {
-                return new Uint16Array(ba.buffer, absOffset, limit)
-              }
-              const arr: number[] = new Array(limit)
-              for (let i = 0; i < limit; i++) {
-                arr[i] = this._dataView.getUint16(p + i * 2, true)
-              }
-              return arr
-            } else if (Btype === 0x63) {
-              // 'c'
-              return new Int8Array(ba.buffer, absOffset, limit)
-            } else if (Btype === 0x43) {
-              // 'C'
-              return new Uint8Array(ba.buffer, absOffset, limit)
-            } else if (Btype === 0x66) {
-              // 'f'
-              if (absOffset % 4 === 0) {
-                return new Float32Array(ba.buffer, absOffset, limit)
-              }
-              const arr: number[] = new Array(limit)
-              for (let i = 0; i < limit; i++) {
-                arr[i] = this._dataView.getFloat32(p + i * 4, true)
-              }
-              return arr
-            }
+            return decodeBArrayTag(ba, this._dataView, p, Btype, limit)
           }
-          if (Btype === 0x69 || Btype === 0x49 || Btype === 0x66) {
-            p += limit << 2
-          } else if (Btype === 0x73 || Btype === 0x53) {
-            p += limit << 1
-          } else if (Btype === 0x63 || Btype === 0x43) {
-            p += limit
-          }
+          p += bArrayByteLength(Btype, limit)
           break
         }
+        default:
+          if (type !== undefined) {
+            console.error('Unknown BAM tag type', type)
+          }
+          break
       }
     }
     return undefined
@@ -370,79 +416,11 @@ export default class BamRecord {
         }
         case 0x42: {
           // 'B'
-          const Btype = ba[p++]
+          const Btype = ba[p++]!
           const limit = this._dataView.getInt32(p, true)
           p += 4
-          const absOffset = ba.byteOffset + p
-          if (Btype === 0x69) {
-            // 'i'
-            if (absOffset % 4 === 0) {
-              tags[tag] = new Int32Array(ba.buffer, absOffset, limit)
-            } else {
-              const arr: number[] = new Array(limit)
-              for (let i = 0; i < limit; i++) {
-                arr[i] = this._dataView.getInt32(p + i * 4, true)
-              }
-              tags[tag] = arr
-            }
-            p += limit << 2
-          } else if (Btype === 0x49) {
-            // 'I'
-            if (absOffset % 4 === 0) {
-              tags[tag] = new Uint32Array(ba.buffer, absOffset, limit)
-            } else {
-              const arr: number[] = new Array(limit)
-              for (let i = 0; i < limit; i++) {
-                arr[i] = this._dataView.getUint32(p + i * 4, true)
-              }
-              tags[tag] = arr
-            }
-            p += limit << 2
-          } else if (Btype === 0x73) {
-            // 's'
-            if (absOffset % 2 === 0) {
-              tags[tag] = new Int16Array(ba.buffer, absOffset, limit)
-            } else {
-              const arr: number[] = new Array(limit)
-              for (let i = 0; i < limit; i++) {
-                arr[i] = this._dataView.getInt16(p + i * 2, true)
-              }
-              tags[tag] = arr
-            }
-            p += limit << 1
-          } else if (Btype === 0x53) {
-            // 'S'
-            if (absOffset % 2 === 0) {
-              tags[tag] = new Uint16Array(ba.buffer, absOffset, limit)
-            } else {
-              const arr: number[] = new Array(limit)
-              for (let i = 0; i < limit; i++) {
-                arr[i] = this._dataView.getUint16(p + i * 2, true)
-              }
-              tags[tag] = arr
-            }
-            p += limit << 1
-          } else if (Btype === 0x63) {
-            // 'c'
-            tags[tag] = new Int8Array(ba.buffer, absOffset, limit)
-            p += limit
-          } else if (Btype === 0x43) {
-            // 'C'
-            tags[tag] = new Uint8Array(ba.buffer, absOffset, limit)
-            p += limit
-          } else if (Btype === 0x66) {
-            // 'f'
-            if (absOffset % 4 === 0) {
-              tags[tag] = new Float32Array(ba.buffer, absOffset, limit)
-            } else {
-              const arr: number[] = new Array(limit)
-              for (let i = 0; i < limit; i++) {
-                arr[i] = this._dataView.getFloat32(p + i * 4, true)
-              }
-              tags[tag] = arr
-            }
-            p += limit << 2
-          }
+          tags[tag] = decodeBArrayTag(ba, this._dataView, p, Btype, limit)
+          p += bArrayByteLength(Btype, limit)
           break
         }
         default:
@@ -521,9 +499,14 @@ export default class BamRecord {
   // Uint32Array view only for large aligned CIGARs.
 
   // CG tag pattern: first op is soft-clip consuming entire sequence, second op is N encoding length-on-ref
-  private _isCGTagPattern(p: number) {
-    const cigop = this._dataView.getInt32(p, true)
-    return (cigop & 0xf) === CIGAR_SOFT_CLIP && cigop >> 4 === this.seq_length
+  private _isCGTagPattern(p: number, numCigarOps: number) {
+    // htslib stores the placeholder as exactly two ops: <seqlen>S<reflen>N.
+    if (numCigarOps === 2) {
+      const cigop = this._dataView.getInt32(p, true)
+      return (cigop & 0xf) === CIGAR_SOFT_CLIP && cigop >> 4 === this.seq_length
+    } else {
+      return false
+    }
   }
 
   private _computeLengthOnRef(): number {
@@ -535,7 +518,7 @@ export default class BamRecord {
     const numCigarOps = flag_nc & 0xffff
     const p = this.b0 + this.read_name_length
 
-    if (this._isCGTagPattern(p)) {
+    if (this._isCGTagPattern(p, numCigarOps)) {
       const cigop2 = this._dataView.getInt32(p + 4, true)
       if ((cigop2 & 0xf) !== CIGAR_REF_SKIP) {
         console.warn('CG tag with no N tag')
@@ -576,7 +559,7 @@ export default class BamRecord {
     const numCigarOps = flag_nc & 0xffff
     const p = this.b0 + this.read_name_length
 
-    if (this._isCGTagPattern(p)) {
+    if (this._isCGTagPattern(p, numCigarOps)) {
       return (
         (this.tags.CG as Uint32Array | number[] | undefined) ??
         new Uint32Array(0)

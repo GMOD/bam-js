@@ -245,8 +245,9 @@ interface Positioned {
 }
 
 // Append records overlapping [min, max) on `chrId` into `out` (or a fresh
-// array if omitted). Records are assumed sorted by start, so we stop scanning
-// at the first record past `max`. Returns the populated array.
+// array if omitted). Records are assumed coordinate-sorted (by ref_id, then
+// start), so we stop scanning once we pass `max` within `chrId` or move past
+// `chrId` entirely. Returns the populated array.
 export function appendInRange<T extends Positioned>(
   records: T[],
   chrId: number,
@@ -262,6 +263,8 @@ export function appendInRange<T extends Positioned>(
       } else if (r.end >= min) {
         out.push(r)
       }
+    } else if (r.ref_id > chrId) {
+      break
     }
   }
   return out

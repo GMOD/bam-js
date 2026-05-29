@@ -84,6 +84,17 @@ test('appendInRange filters by chrId', () => {
   expect(out[0]!.ref_id).toEqual(1)
 })
 
+test('appendInRange stops scanning once past chrId', () => {
+  const records = [
+    { ref_id: 0, start: 10, end: 20 },
+    { ref_id: 1, start: 10, end: 20 },
+    { ref_id: 2, start: 10, end: 20 },
+  ]
+  const out = appendInRange(records, 0, 0, 100)
+  expect(out).toHaveLength(1)
+  expect(out[0]!.ref_id).toEqual(0)
+})
+
 test('appendInRange drops records ending before min', () => {
   const out = appendInRange(
     [
