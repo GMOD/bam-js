@@ -7,6 +7,16 @@
 $ npm install --save @gmod/bam
 ```
 
+## Exports
+
+| Export | Description |
+|---|---|
+| `BamFile` | Main class for reading BAM files |
+| `HtsgetFile` | Reads alignments via the htsget protocol |
+| `BamRecord` | BAM record class (extend for custom records) |
+| `BAI` | BAI index parser (low-level) |
+| `CSI` | CSI index parser (long chromosomes, low-level) |
+
 ## Usage
 
 ```typescript
@@ -93,6 +103,8 @@ Note: requires calling `getHeader` first.
   chromosomes. default: false
 - `opts.maxInsertSize` - control the viewAsPairs option behavior to limit
   distance within a chromosome to fetch. default: 200kb
+- `opts.filterBy` - a `FilterBy` object to filter records by flag bits or a tag
+  value (see `FilterBy` below)
 
 ### async getHeader(opts?)
 
@@ -169,6 +181,31 @@ record.isSupplementary()
 // Utility
 record.seqAt(idx) // get single base at position
 record.toJSON() // serialize record
+```
+
+### FilterBy
+
+```typescript
+interface FilterBy {
+  flagInclude?: number // only include reads where all these flag bits are set
+  flagExclude?: number // exclude reads where any of these flag bits are set
+  tagFilter?: {
+    tag: string // aux tag name, e.g. 'RG'
+    value?: string // omit to filter by tag presence only
+  }
+}
+```
+
+Example — fetch only properly-paired primary alignments from read-group `rg1`:
+
+```typescript
+const records = await bam.getRecordsForRange('chr1', 0, 100000, {
+  filterBy: {
+    flagInclude: 0x2, // properly paired
+    flagExclude: 0x900, // not secondary or supplementary
+    tagFilter: { tag: 'RG', value: 'rg1' },
+  },
+})
 ```
 
 ### Custom BamRecord class
