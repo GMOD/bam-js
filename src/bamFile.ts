@@ -203,14 +203,20 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     return this.header
   }
 
+  // Resolve a reference name to its numeric id, ensuring the header (which
+  // populates chrToIndex) has been parsed first.
+  private async getSeqId(seqName: string, opts?: BaseOpts) {
+    await this.getHeader(opts)
+    return this.chrToIndex?.[seqName]
+  }
+
   async getRecordsForRange(
     chr: string,
     min: number,
     max: number,
     opts?: BamOpts,
   ) {
-    await this.getHeader(opts)
-    const chrId = this.chrToIndex?.[chr]
+    const chrId = await this.getSeqId(chr, opts)
     if (chrId === undefined || !this.index) {
       return []
     }
@@ -397,20 +403,20 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     return sink
   }
 
-  async hasRefSeq(seqName: string) {
-    const seqId = this.chrToIndex?.[seqName]
+  async hasRefSeq(seqName: string, opts?: BaseOpts) {
+    const seqId = await this.getSeqId(seqName, opts)
     return !this.index || seqId === undefined
       ? false
       : this.index.hasRefSeq(seqId)
   }
 
-  async lineCount(seqName: string) {
-    const seqId = this.chrToIndex?.[seqName]
+  async lineCount(seqName: string, opts?: BaseOpts) {
+    const seqId = await this.getSeqId(seqName, opts)
     return !this.index || seqId === undefined ? 0 : this.index.lineCount(seqId)
   }
 
   async indexCov(seqName: string, start?: number, end?: number) {
-    const seqId = this.chrToIndex?.[seqName]
+    const seqId = await this.getSeqId(seqName)
     return !this.index || seqId === undefined
       ? []
       : this.index.indexCov(seqId, start, end)
@@ -422,7 +428,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     end: number,
     opts?: BaseOpts,
   ) {
-    const seqId = this.chrToIndex?.[seqName]
+    const seqId = await this.getSeqId(seqName, opts)
     return !this.index || seqId === undefined
       ? []
       : this.index.blocksForRange(seqId, start, end, opts)
@@ -440,16 +446,9 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       return 0
     }
     await this.getHeader(opts)
-    const chrToIndex = this.chrToIndex
-    if (!chrToIndex) {
-      throw new Error('Header not yet parsed')
-    }
     const mapped = regions.flatMap(r => {
-      const refId = chrToIndex[r.refName]
-      if (refId === undefined) {
-        return []
-      }
-      return [{ refId, start: r.start, end: r.end }]
+      const refId = this.chrToIndex?.[r.refName]
+      return refId === undefined ? [] : [{ refId, start: r.start, end: r.end }]
     })
     return this.index.estimatedBytesForRegions(mapped, opts)
   }
