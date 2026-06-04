@@ -7,16 +7,6 @@
 $ npm install --save @gmod/bam
 ```
 
-## Exports
-
-| Export | Description |
-|---|---|
-| `BamFile` | Main class for reading BAM files |
-| `HtsgetFile` | Reads alignments via the htsget protocol |
-| `BamRecord` | BAM record class (extend for custom records) |
-| `BAI` | BAI index parser (low-level) |
-| `CSI` | CSI index parser (long chromosomes, low-level) |
-
 ## Usage
 
 ```typescript
