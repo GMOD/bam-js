@@ -56,6 +56,8 @@ export default defineConfig(
       ],
 
       '@typescript-eslint/ban-ts-comment': 'off',
+
+      'unicorn/prefer-includes-over-repeated-comparisons': 'off',
       'unicorn/no-array-sort': 'off',
       'unicorn/text-encoding-identifier-case': 'off',
       'unicorn/no-new-array': 'off',
