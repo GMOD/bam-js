@@ -1,3 +1,17 @@
+# [7.3.0](https://github.com/GMOD/bam-js/compare/v7.2.4...v7.3.0) (2026-06-18)
+
+
+### Bug Fixes
+
+* qual for unmapped reads, flags sign-extension, CG-tag guard; dedup tag parser ([909b160](https://github.com/GMOD/bam-js/commit/909b160385a23b200372dc0e7c6d4f9e208999ac))
+* remove stale workflow query link from CI badge ([e38d9a7](https://github.com/GMOD/bam-js/commit/e38d9a74bcbb0301833d1846a1e3b2f3f092ba77))
+* update CI badge to reference publish.yml workflow ([f2434df](https://github.com/GMOD/bam-js/commit/f2434dff1d1d4f85d5cf9ae14f420067d1bb1249))
+
+
+### Features
+
+* report download progress from getRecordsForRange via onProgress ([a23d634](https://github.com/GMOD/bam-js/commit/a23d634edfbaf90fc697e6d2dd6a1c7e8f03c30c))
+
 ## [7.2.4](https://github.com/GMOD/bam-js/compare/v7.2.3...v7.2.4) (2026-05-19)
 
 ## [7.2.3](https://github.com/GMOD/bam-js/compare/v7.2.2...v7.2.3) (2026-05-19)
