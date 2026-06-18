@@ -514,3 +514,18 @@ test('custom BamRecord class', async () => {
   expect(records[0].start).toEqual(2)
   expect(records[0].CIGAR).toEqual('100M')
 })
+
+test('reports download progress for getRecordsForRange', async () => {
+  const ti = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await ti.getHeader()
+  const ticks: [number, number][] = []
+  const records = await ti.getRecordsForRange('ctgA', 0, 1000, {
+    onProgress: (downloaded, total) => {
+      ticks.push([downloaded, total])
+    },
+  })
+  expect(records.length).toEqual(131)
+  expect(ticks[0]![0]).toEqual(0)
+  expect(ticks.at(-1)![0]).toEqual(ticks[0]![1])
+  expect(ticks[0]![1]).toBeGreaterThan(0)
+})

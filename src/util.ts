@@ -20,6 +20,14 @@ export interface BamOpts {
   maxInsertSize?: number
   signal?: AbortSignal
   filterBy?: FilterBy
+  /**
+   * Called as the BGZF blocks covering the query are fetched, with cumulative
+   * downloaded bytes and the total to fetch. Reported at block granularity (one
+   * tick per chunk, including instant ticks for cache hits) since chunk byte
+   * sizes are known up front from the index. Lets callers render a determinate
+   * download progress bar.
+   */
+  onProgress?: (bytesDownloaded: number, totalBytes: number) => void
 }
 
 export interface BaseOpts {

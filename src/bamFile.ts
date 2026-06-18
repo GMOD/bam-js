@@ -240,8 +240,15 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     max: number,
     opts: BamOpts = {},
   ) {
-    const { viewAsPairs, filterBy } = opts
+    const { viewAsPairs, filterBy, onProgress } = opts
     const result: T[] = []
+
+    let totalBytes = 0
+    for (let ci = 0, cl = chunks.length; ci < cl; ci++) {
+      totalBytes += chunks[ci]!.fetchedSize()
+    }
+    let downloadedBytes = 0
+    onProgress?.(0, totalBytes)
 
     for (let ci = 0, cl = chunks.length; ci < cl; ci++) {
       const chunk = chunks[ci]!
@@ -264,6 +271,8 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
         })
       }
 
+      downloadedBytes += chunk.fetchedSize()
+      onProgress?.(downloadedBytes, totalBytes)
       appendInRange(records, chrId, min, max, result)
     }
 
