@@ -1,3 +1,10 @@
+## [7.3.1](https://github.com/GMOD/bam-js/compare/v7.3.0...v7.3.1) (2026-06-19)
+
+
+### Bug Fixes
+
+* don't forward onProgress to inner read in _readChunkFeatures ([8df2476](https://github.com/GMOD/bam-js/commit/8df2476dac9c457d74ecf30ab2a387f818b1c26a))
+
 # [7.3.0](https://github.com/GMOD/bam-js/compare/v7.2.4...v7.3.0) (2026-06-18)
 
 
