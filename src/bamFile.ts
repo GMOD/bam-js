@@ -350,11 +350,14 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   }
 
   async _readChunkFeatures(chunk: Chunk, opts: BaseOpts) {
-    const buf = await this.bam.read(
-      chunk.fetchedSize(),
-      chunk.minv.blockPosition,
-      opts,
-    )
+    // Don't forward onProgress to the inner read: getRecordsForRange already
+    // reports progress at chunk granularity (downloadedBytes/totalBytes). If the
+    // filehandle's own streaming onProgress also fired this callback it would
+    // report a different `total` (this chunk's size, not the whole query),
+    // making the determinate bar jump around.
+    const buf = await this.bam.read(chunk.fetchedSize(), chunk.minv.blockPosition, {
+      signal: opts.signal,
+    })
     const {
       buffer: data,
       cpositions,
