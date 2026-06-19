@@ -1,3 +1,10 @@
+## [7.3.2](https://github.com/GMOD/bam-js/compare/v7.3.1...v7.3.2) (2026-06-19)
+
+
+### Features
+
+* report .bai/.csi index download progress via onProgress ([bdf9176](https://github.com/GMOD/bam-js/commit/bdf917681184487111476077481b5e51390234c8))
+
 ## [7.3.1](https://github.com/GMOD/bam-js/compare/v7.3.0...v7.3.1) (2026-06-19)
 
 
