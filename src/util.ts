@@ -27,11 +27,18 @@ export interface BamOpts {
    * sizes are known up front from the index. Lets callers render a determinate
    * download progress bar.
    */
-  onProgress?: (bytesDownloaded: number, totalBytes: number) => void
+  onProgress?: (bytesDownloaded: number, totalBytes?: number) => void
 }
 
 export interface BaseOpts {
   signal?: AbortSignal
+  /**
+   * Called as the index (.bai/.csi) is downloaded, with cumulative downloaded
+   * bytes and the total. The index is a whole-file read, so this streams real
+   * byte progress. Lets callers show a determinate "downloading index" bar.
+   * (total is optional to match generic-filehandle2's streaming callback.)
+   */
+  onProgress?: (bytesDownloaded: number, totalBytes?: number) => void
 }
 
 export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {

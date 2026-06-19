@@ -18,8 +18,8 @@ importers:
         specifier: ^4.3.2
         version: 4.3.2
       generic-filehandle2:
-        specifier: ^2.1.10
-        version: 2.1.10
+        specifier: ^2.2.0
+        version: 2.2.0
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
@@ -1016,6 +1016,9 @@ packages:
 
   generic-filehandle2@2.1.10:
     resolution: {integrity: sha512-Ao611pePOWnFJtjPuBLpmUFtoD5VnvcBfiP5GeiZF7ahdVaFUQJrANFDIgoOMX0eXF9fzph40xCLXQTs5U95cw==}
+
+  generic-filehandle2@2.2.0:
+    resolution: {integrity: sha512-gIE15MYVakEEzWvuNkUnTfjVWzodBi3T6stgRIXpWackW6FhiK5eOBBxif1Kq2wkiiegRGGqaxpv+qUmIzh3Lg==}
 
   get-tsconfig@4.14.0:
     resolution: {integrity: sha512-yTb+8DXzDREzgvYmh6s9vHsSVCHeC0G3PI5bEXNBHtmshPnO+S5O7qgLEOn0I5QvMy6kpZN8K1NKGyilLb93wA==}
@@ -2323,6 +2326,8 @@ snapshots:
     optional: true
 
   generic-filehandle2@2.1.10: {}
+
+  generic-filehandle2@2.2.0: {}
 
   get-tsconfig@4.14.0:
     dependencies:
