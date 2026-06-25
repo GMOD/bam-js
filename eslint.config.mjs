@@ -34,6 +34,7 @@ export default defineConfig(
   eslintPluginUnicorn.configs.recommended,
   {
     rules: {
+      '@typescript-eslint/parameter-properties': 'error',
       'no-empty': 'off',
       'no-console': [
         'warn',
