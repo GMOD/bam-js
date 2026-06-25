@@ -2,7 +2,12 @@ import { unzip } from '@gmod/bgzf-filehandle'
 
 import Chunk from './chunk.ts'
 import IndexFile, { memoizeByRefId } from './indexFile.ts'
-import { findFirstData, parseNameBytes, parsePseudoBin } from './util.ts'
+import {
+  clampChunkEnds,
+  findFirstData,
+  parseNameBytes,
+  parsePseudoBin,
+} from './util.ts'
 import { VirtualOffset, fromBytes } from './virtualOffset.ts'
 
 import type { BaseOpts } from './util.ts'
@@ -150,6 +155,7 @@ export default class CSI extends IndexFile {
         }
       }
 
+      clampChunkEnds(Object.values(binIndex).flat())
       return {
         binIndex,
         stats: pseudoBinStats,

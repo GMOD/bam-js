@@ -1,6 +1,6 @@
 import Chunk from './chunk.ts'
 import IndexFile, { memoizeByRefId } from './indexFile.ts'
-import { findFirstData, parsePseudoBin } from './util.ts'
+import { clampChunkEnds, findFirstData, parsePseudoBin } from './util.ts'
 import { fromBytes } from './virtualOffset.ts'
 
 import type { ParsedIndexBase, RefIndex } from './indexFile.ts'
@@ -146,6 +146,10 @@ export default class BAI extends IndexFile<BaiParsed> {
         curr += 8
       }
 
+      clampChunkEnds(
+        Object.values(binIndex).flat(),
+        linearIndex.map(v => v.blockPosition),
+      )
       return {
         binIndex,
         linearIndex,

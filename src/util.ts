@@ -99,6 +99,7 @@ export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
           lastChunk.minv,
           chunk.maxv,
           lastChunk.bin,
+          chunk.endPosition,
         )
         lastMaxBlock = chunkMaxBlock
       }
@@ -115,6 +116,39 @@ export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
 export function parsePseudoBin(bytes: Uint8Array, offset: number) {
   return {
     lineCount: longFromBytesToUnsigned(bytes, offset),
+  }
+}
+
+// Tighten each chunk's endPosition (default: a full max-size BGZF block past
+// maxv) down to the next known block boundary. Every chunk min/maxv blockPosition
+// and every extraBoundary (e.g. linear-index entries) is a real BGZF block start;
+// since blocks don't overlap, the first boundary strictly greater than a chunk's
+// maxv.blockPosition is an upper bound on where that final block ends — always at
+// least the true block end, so the clamped fetch still contains the whole block.
+// Shrinks both the byte estimate and the actual fetch with no extra I/O.
+export function clampChunkEnds(chunks: Chunk[], extraBoundaries: number[] = []) {
+  const boundaries = [...extraBoundaries]
+  for (const c of chunks) {
+    boundaries.push(c.minv.blockPosition, c.maxv.blockPosition)
+  }
+  boundaries.sort((a, b) => a - b)
+
+  for (const c of chunks) {
+    const max = c.maxv.blockPosition
+    // first boundary strictly greater than max
+    let lo = 0
+    let hi = boundaries.length
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1
+      if (boundaries[mid]! > max) {
+        hi = mid
+      } else {
+        lo = mid + 1
+      }
+    }
+    if (lo < boundaries.length) {
+      c.endPosition = Math.min(c.endPosition, boundaries[lo]!)
+    }
   }
 }
 

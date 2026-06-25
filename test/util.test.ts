@@ -4,6 +4,7 @@ import Chunk from '../src/chunk.ts'
 import {
   appendInRange,
   applyFilters,
+  clampChunkEnds,
   filterCacheKey,
   optimizeChunks,
   parseRefSeqs,
@@ -13,6 +14,35 @@ import { VirtualOffset } from '../src/virtualOffset.ts'
 function chunk(min: number, max: number, bin = 0) {
   return new Chunk(new VirtualOffset(min, 0), new VirtualOffset(max, 0), bin)
 }
+
+test('clampChunkEnds tightens tail to next known block boundary', () => {
+  const block = 1 << 16
+  const c1 = chunk(0, 1000)
+  const c2 = chunk(2000, 5000)
+  expect(c1.fetchedSize()).toEqual(1000 + block)
+
+  clampChunkEnds([c1, c2])
+
+  // c1.maxv=1000, next boundary > 1000 is c2.minv=2000 → end clamped to 2000
+  expect(c1.endPosition).toEqual(2000)
+  expect(c1.fetchedSize()).toEqual(2000)
+  // c2 has no boundary beyond its maxv → keeps full-block padding
+  expect(c2.endPosition).toEqual(5000 + block)
+})
+
+test('clampChunkEnds keeps padding when no nearby boundary', () => {
+  const block = 1 << 16
+  const c1 = chunk(0, 0)
+  const c2 = chunk(block * 5, block * 5)
+  clampChunkEnds([c1, c2])
+  expect(c1.endPosition).toEqual(block)
+})
+
+test('clampChunkEnds uses extra (linear-index) boundaries', () => {
+  const c = chunk(0, 100)
+  clampChunkEnds([c], [500, 300, 50])
+  expect(c.endPosition).toEqual(300)
+})
 
 test('optimizeChunks merges close chunks without mutating inputs', () => {
   const a = chunk(0, 100)
