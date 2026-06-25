@@ -1,3 +1,10 @@
+## [7.3.3](https://github.com/GMOD/bam-js/compare/v7.3.2...v7.3.3) (2026-06-25)
+
+
+### Features
+
+* tighten index byte-size estimate by clamping chunk ends to next block boundary ([49f51b4](https://github.com/GMOD/bam-js/commit/49f51b4bcb7a5cabcf8790a7eb13e22bc7ad3c6a))
+
 ## [7.3.2](https://github.com/GMOD/bam-js/compare/v7.3.1...v7.3.2) (2026-06-19)
 
 
