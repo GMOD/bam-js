@@ -127,6 +127,97 @@ function bArrayByteLength(Btype: number, limit: number) {
   }
 }
 
+// Cursor position just past a tag's value — i.e. the start of the next tag —
+// given the value starts at `p`. For null-terminated Z/H this steps over the
+// terminator. Returns 0 for an unknown type, whose value width is unknowable so
+// the caller must stop. Shared by _findTag and _computeTags so the two loops
+// can't drift in how they walk the tag layout. (0 is an impossible real end:
+// `p` is always past the fixed record prefix.)
+function tagValueEnd(
+  ba: Uint8Array,
+  dataView: DataView,
+  type: number,
+  p: number,
+  blockEnd: number,
+) {
+  switch (type) {
+    case 0x41: // 'A'
+    case 0x63: // 'c'
+    case 0x43: // 'C'
+      return p + 1
+    case 0x73: // 's'
+    case 0x53: // 'S'
+      return p + 2
+    case 0x69: // 'i'
+    case 0x49: // 'I'
+    case 0x66: {
+      // 'f'
+      return p + 4
+    }
+    case 0x5a: // 'Z'
+    case 0x48: {
+      // 'H'
+      let q = p
+      while (q < blockEnd && ba[q] !== 0) {
+        q++
+      }
+      return q + 1 // step past the null terminator
+    }
+    case 0x42: {
+      // 'B'
+      const Btype = ba[p]!
+      const limit = dataView.getInt32(p + 1, true)
+      return p + 5 + bArrayByteLength(Btype, limit)
+    }
+    default:
+      console.error('Unknown BAM tag type', type)
+      return 0
+  }
+}
+
+// Decode the value of a tag of `type` whose bytes start at `p`; `end` is the
+// next-tag cursor from tagValueEnd (used only to bound Z/H strings, whose bytes
+// run up to the null terminator at end-1). When `raw`, Z/H return the undecoded
+// byte subarray. Assumes `type` is a known scalar/string/B type.
+function decodeTagValue(
+  ba: Uint8Array,
+  dataView: DataView,
+  type: number,
+  p: number,
+  end: number,
+  raw: boolean,
+): unknown {
+  switch (type) {
+    case 0x41: // 'A'
+      return String.fromCharCode(ba[p]!)
+    case 0x69: // 'i'
+      return dataView.getInt32(p, true)
+    case 0x49: // 'I'
+      return dataView.getUint32(p, true)
+    case 0x63: // 'c'
+      return dataView.getInt8(p)
+    case 0x43: // 'C'
+      return dataView.getUint8(p)
+    case 0x73: // 's'
+      return dataView.getInt16(p, true)
+    case 0x53: // 'S'
+      return dataView.getUint16(p, true)
+    case 0x66: // 'f'
+      return dataView.getFloat32(p, true)
+    case 0x5a: // 'Z'
+    case 0x48: // 'H'
+      return raw
+        ? ba.subarray(p, end - 1)
+        : textDecoder.decode(ba.subarray(p, end - 1))
+    default: {
+      // 'B'
+      const Btype = ba[p]!
+      const limit = dataView.getInt32(p + 1, true)
+      return decodeBArrayTag(ba, dataView, p + 5, Btype, limit)
+    }
+  }
+}
+
 export default class BamRecord {
   public fileOffset: number
   private _byteArray: Uint8Array
@@ -261,172 +352,47 @@ export default class BamRecord {
   private _findTag(tagName: string, raw: boolean) {
     const tag1 = tagName.charCodeAt(0)
     const tag2 = tagName.charCodeAt(1)
-
-    let p = this.tagsStart
-
     const blockEnd = this._end
     const ba = this._byteArray
+    let p = this.tagsStart
     while (p < blockEnd) {
-      const currentTag1 = ba[p]
-      const currentTag2 = ba[p + 1]
-      const type = ba[p + 2]
-      p += 3
-
-      const isMatch = currentTag1 === tag1 && currentTag2 === tag2
-
-      switch (type) {
-        case 0x41: // 'A'
-          if (isMatch) {
-            return String.fromCharCode(ba[p]!)
-          }
-          p += 1
-          break
-        case 0x69: // 'i'
-          if (isMatch) {
-            return this._dataView.getInt32(p, true)
-          }
-          p += 4
-          break
-        case 0x49: // 'I'
-          if (isMatch) {
-            return this._dataView.getUint32(p, true)
-          }
-          p += 4
-          break
-        case 0x63: // 'c'
-          if (isMatch) {
-            return this._dataView.getInt8(p)
-          }
-          p += 1
-          break
-        case 0x43: // 'C'
-          if (isMatch) {
-            return this._dataView.getUint8(p)
-          }
-          p += 1
-          break
-        case 0x73: // 's'
-          if (isMatch) {
-            return this._dataView.getInt16(p, true)
-          }
-          p += 2
-          break
-        case 0x53: // 'S'
-          if (isMatch) {
-            return this._dataView.getUint16(p, true)
-          }
-          p += 2
-          break
-        case 0x66: // 'f'
-          if (isMatch) {
-            return this._dataView.getFloat32(p, true)
-          }
-          p += 4
-          break
-        case 0x5a: // 'Z'
-        case 0x48: {
-          // 'H'
-          const start = p
-          while (p < blockEnd && ba[p] !== 0) {
-            p++
-          }
-          if (isMatch) {
-            return raw
-              ? ba.subarray(start, p)
-              : textDecoder.decode(ba.subarray(start, p))
-          }
-          p++ // advance past null terminator
-          break
-        }
-        case 0x42: {
-          // 'B'
-          const Btype = ba[p++]!
-          const limit = this._dataView.getInt32(p, true)
-          p += 4
-          if (isMatch) {
-            return decodeBArrayTag(ba, this._dataView, p, Btype, limit)
-          }
-          p += bArrayByteLength(Btype, limit)
-          break
-        }
-        default:
-          if (type !== undefined) {
-            console.error('Unknown BAM tag type', type)
-          }
-          break
+      const isMatch = ba[p] === tag1 && ba[p + 1] === tag2
+      const type = ba[p + 2]!
+      const valueStart = p + 3
+      const end = tagValueEnd(ba, this._dataView, type, valueStart, blockEnd)
+      if (end === 0) {
+        break // unknown type: can't compute how far to advance
       }
+      if (isMatch) {
+        return decodeTagValue(ba, this._dataView, type, valueStart, end, raw)
+      }
+      p = end
     }
     return undefined
   }
 
   private _computeTags() {
-    let p = this.tagsStart
-
     const blockEnd = this._end
     const ba = this._byteArray
     const tags: Record<string, unknown> = {}
+    let p = this.tagsStart
     while (p < blockEnd) {
       const tag = String.fromCharCode(ba[p]!, ba[p + 1]!)
       const type = ba[p + 2]!
-      p += 3
-
-      switch (type) {
-        case 0x41: // 'A'
-          tags[tag] = String.fromCharCode(ba[p]!)
-          p += 1
-          break
-        case 0x69: // 'i'
-          tags[tag] = this._dataView.getInt32(p, true)
-          p += 4
-          break
-        case 0x49: // 'I'
-          tags[tag] = this._dataView.getUint32(p, true)
-          p += 4
-          break
-        case 0x63: // 'c'
-          tags[tag] = this._dataView.getInt8(p)
-          p += 1
-          break
-        case 0x43: // 'C'
-          tags[tag] = this._dataView.getUint8(p)
-          p += 1
-          break
-        case 0x73: // 's'
-          tags[tag] = this._dataView.getInt16(p, true)
-          p += 2
-          break
-        case 0x53: // 'S'
-          tags[tag] = this._dataView.getUint16(p, true)
-          p += 2
-          break
-        case 0x66: // 'f'
-          tags[tag] = this._dataView.getFloat32(p, true)
-          p += 4
-          break
-        case 0x5a: // 'Z'
-        case 0x48: {
-          // 'H'
-          const start = p
-          while (p < blockEnd && ba[p] !== 0) {
-            p++
-          }
-          tags[tag] = textDecoder.decode(ba.subarray(start, p))
-          p++ // advance past null terminator
-          break
-        }
-        case 0x42: {
-          // 'B'
-          const Btype = ba[p++]!
-          const limit = this._dataView.getInt32(p, true)
-          p += 4
-          tags[tag] = decodeBArrayTag(ba, this._dataView, p, Btype, limit)
-          p += bArrayByteLength(Btype, limit)
-          break
-        }
-        default:
-          console.error('Unknown BAM tag type', type)
-          break
+      const valueStart = p + 3
+      const end = tagValueEnd(ba, this._dataView, type, valueStart, blockEnd)
+      if (end === 0) {
+        break // unknown type: can't compute how far to advance
       }
+      tags[tag] = decodeTagValue(
+        ba,
+        this._dataView,
+        type,
+        valueStart,
+        end,
+        false,
+      )
+      p = end
     }
     return tags
   }
