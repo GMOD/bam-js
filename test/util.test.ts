@@ -5,7 +5,6 @@ import {
   appendInRange,
   applyFilters,
   clampChunkEnds,
-  filterCacheKey,
   optimizeChunks,
   parseRefSeqs,
 } from '../src/util.ts'
@@ -159,14 +158,6 @@ test('applyFilters tagFilter * means tag absent', () => {
   expect(
     applyFilters(records, { tagFilter: { tag: 'RG', value: 'a' } }),
   ).toHaveLength(1)
-})
-
-test('filterCacheKey is stable for the same filter', () => {
-  expect(filterCacheKey()).toEqual('')
-  expect(filterCacheKey({ flagInclude: 1, flagExclude: 4 })).toEqual(':f1x4')
-  expect(filterCacheKey({ tagFilter: { tag: 'RG', value: 'x' } })).toEqual(
-    ':f0x0:RG=x',
-  )
 })
 
 test('parseRefSeqs returns undefined when buffer is truncated', () => {

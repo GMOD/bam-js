@@ -1,5 +1,5 @@
 import { LocalFile } from 'generic-filehandle2'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 
 import FakeRecord from './fakerecord.ts'
 import { BAI, BamFile, BamRecord } from '../src/index.ts'
@@ -528,4 +528,27 @@ test('reports download progress for getRecordsForRange', async () => {
   expect(ticks[0]![0]).toEqual(0)
   expect(ticks.at(-1)![0]).toEqual(ticks[0]![1])
   expect(ticks[0]![1]).toBeGreaterThan(0)
+})
+
+test('changing filterBy over the same region reuses the decompressed chunk', async () => {
+  const ti = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await ti.getHeader()
+  const readSpy = vi.spyOn(
+    ti as unknown as { _readChunkFeatures: () => Promise<BamRecord[]> },
+    '_readChunkFeatures',
+  )
+
+  const all = await ti.getRecordsForRange('ctgA', 0, 1000)
+  const reads = readSpy.mock.calls.length
+  expect(reads).toBeGreaterThan(0)
+
+  // second query, same region, different filter: no additional decompression
+  const reverseOnly = await ti.getRecordsForRange('ctgA', 0, 1000, {
+    filterBy: { flagInclude: 0x10 },
+  })
+  expect(readSpy.mock.calls.length).toEqual(reads)
+
+  expect(reverseOnly.length).toBeLessThan(all.length)
+  expect(reverseOnly.every(r => !!(r.flags & 0x10))).toEqual(true)
+  readSpy.mockRestore()
 })

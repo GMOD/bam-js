@@ -254,15 +254,6 @@ export function filterTagValue(readVal: unknown, filterVal?: string) {
     : `${readVal}` !== `${filterVal}`
 }
 
-export function filterCacheKey(filterBy?: FilterBy) {
-  if (!filterBy) {
-    return ''
-  }
-  const { flagInclude = 0, flagExclude = 0, tagFilter } = filterBy
-  const tagPart = tagFilter ? `:${tagFilter.tag}=${tagFilter.value ?? '*'}` : ''
-  return `:f${flagInclude}x${flagExclude}${tagPart}`
-}
-
 interface Filterable {
   flags: number
   tags: Record<string, unknown>

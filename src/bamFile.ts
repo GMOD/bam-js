@@ -8,16 +8,11 @@ import CSI from './csi.ts'
 import NullFilehandle from './nullFilehandle.ts'
 import BAMFeature from './record.ts'
 import { parseHeaderText } from './sam.ts'
-import {
-  appendInRange,
-  applyFilters,
-  filterCacheKey,
-  parseRefSeqs,
-} from './util.ts'
+import { appendInRange, applyFilters, parseRefSeqs } from './util.ts'
 
 import type Chunk from './chunk.ts'
 import type { Bytes } from './record.ts'
-import type { BamOpts, BaseOpts, FilterBy } from './util.ts'
+import type { BamOpts, BaseOpts } from './util.ts'
 import type { GenericFilehandle } from 'generic-filehandle2'
 
 export interface BamRecordLike {
@@ -59,9 +54,13 @@ interface ChunkEntry<T> {
   features: T[]
 }
 
-function chunkCacheKey(chunk: Chunk, filterBy?: FilterBy) {
+// Keyed on the chunk's byte span only, not on filterBy: the cached value is the
+// unfiltered parsed records (decompression + parse is the expensive part).
+// Filters are applied cheaply on retrieval so toggling a filter over the same
+// region is a cache hit rather than a re-decompress.
+function chunkCacheKey(chunk: Chunk) {
   const { minv, maxv } = chunk
-  return `${minv.blockPosition}:${minv.dataPosition}-${maxv.blockPosition}:${maxv.dataPosition}${filterCacheKey(filterBy)}`
+  return `${minv.blockPosition}:${minv.dataPosition}-${maxv.blockPosition}:${maxv.dataPosition}`
 }
 
 export default class BamFile<T extends BamRecordLike = BAMFeature> {
@@ -221,7 +220,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       return []
     }
     const chunks = await this.index.blocksForRange(chrId, min - 1, max, opts)
-    return this._fetchChunkFeaturesDirect(chunks, chrId, min, max, opts)
+    return this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
   // Evict any cached chunks whose block range overlaps [minBlock, maxBlock]
@@ -233,7 +232,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     }
   }
 
-  private async _fetchChunkFeaturesDirect(
+  private async _fetchChunkFeatures(
     chunks: Chunk[],
     chrId: number,
     min: number,
@@ -252,24 +251,20 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
     for (let ci = 0, cl = chunks.length; ci < cl; ci++) {
       const chunk = chunks[ci]!
-      const cacheKey = chunkCacheKey(chunk, filterBy)
+      const cacheKey = chunkCacheKey(chunk)
       const minBlock = chunk.minv.blockPosition
       const maxBlock = chunk.maxv.blockPosition
 
-      let records: T[]
-      const cached = this.chunkFeatureCache.get(cacheKey)
-      if (cached) {
-        records = cached.features
-      } else {
+      let cached = this.chunkFeatureCache.get(cacheKey)
+      if (!cached) {
         this.evictOverlappingChunks(minBlock, maxBlock)
-        const allRecords = await this._readChunkFeatures(chunk, opts)
-        records = filterBy ? applyFilters(allRecords, filterBy) : allRecords
-        this.chunkFeatureCache.set(cacheKey, {
-          minBlock,
-          maxBlock,
-          features: records,
-        })
+        const features = await this._readChunkFeatures(chunk, opts)
+        cached = { minBlock, maxBlock, features }
+        this.chunkFeatureCache.set(cacheKey, cached)
       }
+      const records = filterBy
+        ? applyFilters(cached.features, filterBy)
+        : cached.features
 
       downloadedBytes += chunk.fetchedSize()
       onProgress?.(downloadedBytes, totalBytes)
