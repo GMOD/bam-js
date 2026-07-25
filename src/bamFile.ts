@@ -7,7 +7,7 @@ import CSI from './csi.ts'
 import NullFilehandle from './nullFilehandle.ts'
 import BAMFeature from './record.ts'
 import { parseHeaderText } from './sam.ts'
-import { appendInRange, applyFilters, parseRefSeqs } from './util.ts'
+import { appendInRange, parseRefSeqs } from './util.ts'
 
 import type Chunk from './chunk.ts'
 import type { Bytes } from './record.ts'
@@ -48,17 +48,11 @@ function resolveFilehandle(
 }
 
 interface ChunkEntry<T> {
-  minBlock: number
-  maxBlock: number
   // decompressed size of the chunk these features are views into
   bytes: number
   features: T[]
 }
 
-// Keyed on the chunk's byte span only, not on filterBy: the cached value is the
-// unfiltered parsed records (decompression + parse is the expensive part).
-// Filters are applied cheaply on retrieval so toggling a filter over the same
-// region is a cache hit rather than a re-decompress.
 function chunkCacheKey(chunk: Chunk) {
   const { minv, maxv } = chunk
   return `${minv.blockPosition}:${minv.dataPosition}-${maxv.blockPosition}:${maxv.dataPosition}`
@@ -68,7 +62,9 @@ function chunkCacheKey(chunk: Chunk) {
 // caching one entry pins that whole buffer — 8MB apiece on the nanopore and
 // 2kb-read test files, and optimizeChunks merges spans up to 5MB *compressed*,
 // so tens of MB is possible. A count-based LRU therefore gives no bound on
-// memory at all, which is why this budgets by decompressed bytes instead.
+// memory at all, which is why this budgets by decompressed bytes instead. It is
+// the *only* bound: a query keeps every chunk it parsed, since a chunk dropped
+// here costs a re-download and re-decompress the next time the view moves.
 export const DEFAULT_MAX_CACHE_BYTES = 100 * 1024 * 1024
 
 class ChunkFeatureCache<T> {
@@ -139,8 +135,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   public htsget = false
   public headerP?: ReturnType<BamFile<T>['getHeaderPre']>
 
-  // Cache for parsed features by chunk
-  // When a new chunk overlaps a cached chunk, we evict the cached one
+  // Cache for parsed features by chunk, bounded by decompressed bytes
   public chunkFeatureCache: ChunkFeatureCache<T>
 
   private RecordClass: BamRecordClass<T>
@@ -295,13 +290,18 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     return this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
-  // Evict any cached chunks whose block range overlaps [minBlock, maxBlock]
-  private evictOverlappingChunks(minBlock: number, maxBlock: number) {
-    for (const [key, entry] of this.chunkFeatureCache) {
-      if (minBlock <= entry.maxBlock && maxBlock >= entry.minBlock) {
-        this.chunkFeatureCache.delete(key)
-      }
+  // Parsed records for a chunk, reading and decompressing it only on a miss.
+  // Every path that wants a chunk's features goes through here — mate lookups
+  // included, since a viewAsPairs query revisits the same mate chunks each time
+  // the view moves.
+  private async _cachedChunkFeatures(chunk: Chunk, opts: BaseOpts) {
+    const cacheKey = chunkCacheKey(chunk)
+    let entry = this.chunkFeatureCache.get(cacheKey)
+    if (!entry) {
+      entry = await this._readChunkFeatures(chunk, opts)
+      this.chunkFeatureCache.set(cacheKey, entry)
     }
+    return entry.features
   }
 
   private async _fetchChunkFeatures(
@@ -311,7 +311,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     max: number,
     opts: BamOpts = {},
   ) {
-    const { viewAsPairs, filterBy, onProgress } = opts
+    const { viewAsPairs, onProgress } = opts
     const result: T[] = []
 
     let totalBytes = 0
@@ -323,24 +323,11 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
     for (let ci = 0, cl = chunks.length; ci < cl; ci++) {
       const chunk = chunks[ci]!
-      const cacheKey = chunkCacheKey(chunk)
-      const minBlock = chunk.minv.blockPosition
-      const maxBlock = chunk.maxv.blockPosition
-
-      let cached = this.chunkFeatureCache.get(cacheKey)
-      if (!cached) {
-        this.evictOverlappingChunks(minBlock, maxBlock)
-        const { features, bytes } = await this._readChunkFeatures(chunk, opts)
-        cached = { minBlock, maxBlock, bytes, features }
-        this.chunkFeatureCache.set(cacheKey, cached)
-      }
-      const records = filterBy
-        ? applyFilters(cached.features, filterBy)
-        : cached.features
+      const features = await this._cachedChunkFeatures(chunk, opts)
 
       downloadedBytes += chunk.fetchedSize()
       onProgress?.(downloadedBytes, totalBytes)
-      appendInRange(records, chrId, min, max, result)
+      appendInRange(features, chrId, min, max, result)
     }
 
     if (viewAsPairs) {
@@ -402,7 +389,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
     const mateFeatLists = await Promise.all(
       [...map.values()].map(async c => {
-        const { features } = await this._readChunkFeatures(c, opts)
+        const features = await this._cachedChunkFeatures(c, opts)
         const mateRecs = [] as T[]
         for (let i = 0, l = features.length; i < l; i++) {
           const feature = features[i]!

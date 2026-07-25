@@ -51,6 +51,36 @@ test('repeated queries over the same region hit the cache', async () => {
   expect(bam.chunkFeatureCache.byteSize).toBe(bytesAfterFirst)
 })
 
+// A query spanning several chunks used to evict cached entries whose *block*
+// range overlapped the incoming one. Adjacent chunks share the BGZF block at
+// their boundary (chunk A's maxv and chunk B's minv are the same virtual
+// offset), so every multi-chunk query threw away the chunks it had just parsed
+// and the next query re-decompressed all of them.
+test('a multi-chunk query keeps every chunk it parsed', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/chr22_nanopore_subset.bam' })
+  await bam.getHeader()
+
+  const chunks = await bam.blocksForRange('22', 16_449_999, 16_490_000)
+  expect(chunks.length).toBeGreaterThan(1)
+
+  await bam.getRecordsForRange('22', 16_450_000, 16_490_000)
+  expect(bam.chunkFeatureCache.size).toBe(chunks.length)
+})
+
+// Panning is the dominant access pattern in a genome browser, and consecutive
+// windows resolve to the same chunks until the bin set changes.
+test('panning within the same chunks re-uses parsed records', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/chr22_nanopore_subset.bam' })
+  await bam.getHeader()
+
+  await bam.getRecordsForRange('22', 16_450_000, 16_490_000)
+  const bytesAfterFirst = bam.chunkFeatureCache.byteSize
+  const panned = await bam.getRecordsForRange('22', 16_460_000, 16_500_000)
+
+  expect(panned.length).toBeGreaterThan(0)
+  expect(bam.chunkFeatureCache.byteSize).toBe(bytesAfterFirst)
+})
+
 test('ref names do not resolve to Object.prototype members', async () => {
   const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
   await bam.getHeader()

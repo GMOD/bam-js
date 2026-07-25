@@ -3,7 +3,6 @@ import { expect, test } from 'vitest'
 import Chunk from '../src/chunk.ts'
 import {
   appendInRange,
-  applyFilters,
   clampChunkEnds,
   optimizeChunks,
   parseRefSeqs,
@@ -135,29 +134,6 @@ test('appendInRange drops records ending before min', () => {
     100,
   )
   expect(out).toHaveLength(1)
-})
-
-test('applyFilters honors flagInclude and flagExclude', () => {
-  const records = [
-    { flags: 0x1, tags: {} },
-    { flags: 0x3, tags: {} },
-    { flags: 0x5, tags: {} },
-  ]
-  const out = applyFilters(records, { flagInclude: 0x1, flagExclude: 0x4 })
-  expect(out).toHaveLength(2)
-})
-
-test('applyFilters tagFilter * means tag absent', () => {
-  const records = [
-    { flags: 0, tags: { RG: 'a' } },
-    { flags: 0, tags: {} },
-  ]
-  expect(
-    applyFilters(records, { tagFilter: { tag: 'RG', value: '*' } }),
-  ).toHaveLength(1)
-  expect(
-    applyFilters(records, { tagFilter: { tag: 'RG', value: 'a' } }),
-  ).toHaveLength(1)
 })
 
 test('parseRefSeqs returns undefined when buffer is truncated', () => {

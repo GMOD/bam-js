@@ -59,8 +59,7 @@ const records = await ti.getRecordsForRange('1', 2000000, 2000001)
 Let us know if it doesn't work for your use case.
 
 Caveat: htsget `getRecordsForRange` does not honor `viewAsPairs`,
-`pairAcrossChr`, `maxInsertSize`, or `filterBy`. The range is fetched from the
-server as-is.
+`pairAcrossChr`, or `maxInsertSize`. The range is fetched from the server as-is.
 
 ## Documentation
 
@@ -93,8 +92,16 @@ Note: requires calling `getHeader` first.
   chromosomes. default: false
 - `opts.maxInsertSize` - control the viewAsPairs option behavior to limit
   distance within a chromosome to fetch. default: 200kb
-- `opts.filterBy` - a `FilterBy` object to filter records by flag bits or a tag
-  value (see `FilterBy` below)
+
+Records come back unfiltered. Filter the returned array yourself — the flag
+helpers (`record.isSecondary()` and friends) and `record.getTag(name)` cover it,
+and `getTag` decodes just the one tag rather than every tag on the read:
+
+```typescript
+const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
+  r => r.isProperlyPaired() && !r.isSecondary() && r.getTag('RG') === 'rg1',
+)
+```
 
 ### async getHeader(opts?)
 
@@ -171,31 +178,6 @@ record.isSupplementary()
 // Utility
 record.seqAt(idx) // get single base at position
 record.toJSON() // serialize record
-```
-
-### FilterBy
-
-```typescript
-interface FilterBy {
-  flagInclude?: number // only include reads where all these flag bits are set
-  flagExclude?: number // exclude reads where any of these flag bits are set
-  tagFilter?: {
-    tag: string // aux tag name, e.g. 'RG'
-    value?: string // omit to filter by tag presence only
-  }
-}
-```
-
-Example — fetch only properly-paired primary alignments from read-group `rg1`:
-
-```typescript
-const records = await bam.getRecordsForRange('chr1', 0, 100000, {
-  filterBy: {
-    flagInclude: 0x2, // properly paired
-    flagExclude: 0x900, // not secondary or supplementary
-    tagFilter: { tag: 'RG', value: 'rg1' },
-  },
-})
 ```
 
 ### Custom BamRecord class

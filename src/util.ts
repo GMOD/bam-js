@@ -3,23 +3,11 @@ import { longFromBytesToUnsigned } from './long.ts'
 
 import type { Offset, VirtualOffset } from './virtualOffset.ts'
 
-export interface TagFilter {
-  tag: string
-  value?: string
-}
-
-export interface FilterBy {
-  flagInclude?: number
-  flagExclude?: number
-  tagFilter?: TagFilter
-}
-
 export interface BamOpts {
   viewAsPairs?: boolean
   pairAcrossChr?: boolean
   maxInsertSize?: number
   signal?: AbortSignal
-  filterBy?: FilterBy
   /**
    * Called as the BGZF blocks covering the query are fetched, with cumulative
    * downloaded bytes and the total to fetch. Reported at block granularity (one
@@ -247,54 +235,6 @@ export function concatUint8Array(args: Uint8Array[]) {
     offset += entry.length
   }
   return mergedArray
-}
-
-export function filterReadFlag(
-  flags: number,
-  flagInclude: number,
-  flagExclude: number,
-) {
-  return (flags & flagInclude) !== flagInclude || (flags & flagExclude) !== 0
-}
-
-export function filterTagValue(readVal: unknown, filterVal?: string) {
-  return filterVal === '*'
-    ? readVal === undefined
-    : `${readVal}` !== `${filterVal}`
-}
-
-interface Filterable {
-  flags: number
-  tags: Record<string, unknown>
-  // BamRecord decodes one tag by walking the tag block, without building the
-  // whole tags object. Optional because a custom recordClass need not have it.
-  getTag?(tag: string): unknown
-}
-
-// Read a single tag, preferring the targeted accessor. Reaching for `tags`
-// instead would decode every unrelated tag on the record (NM/AS/ms/de/… — often
-// ~10 per read) just to test one, which measured 2.6x the cost of getTag.
-function readTag(record: Filterable, tag: string) {
-  return record.getTag ? record.getTag(tag) : record.tags[tag]
-}
-
-// Apply flagInclude/flagExclude/tagFilter to a list of records.
-export function applyFilters<T extends Filterable>(
-  records: T[],
-  filterBy: FilterBy,
-): T[] {
-  const { flagInclude = 0, flagExclude = 0, tagFilter } = filterBy
-  const out: T[] = []
-  for (let i = 0, l = records.length; i < l; i++) {
-    const r = records[i]!
-    if (
-      !filterReadFlag(r.flags, flagInclude, flagExclude) &&
-      !(tagFilter && filterTagValue(readTag(r, tagFilter.tag), tagFilter.value))
-    ) {
-      out.push(r)
-    }
-  }
-  return out
 }
 
 interface Positioned {
