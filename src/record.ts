@@ -48,6 +48,45 @@ const ASCII_CIGAR_CODES = [
 
 const textDecoder = new TextDecoder()
 
+// Interned two-char tag names keyed on the packed byte pair. Worth more than
+// the saved String.fromCharCode: the tags object is null-prototype and so in
+// dictionary mode, and handing it a string V8 has already hashed halves the
+// per-tag insert cost.
+const TAG_NAMES = new Map<number, string>()
+function tagName(b0: number, b1: number) {
+  const key = (b0 << 8) | b1
+  let name = TAG_NAMES.get(key)
+  if (name === undefined) {
+    name = String.fromCharCode(b0, b1)
+    TAG_NAMES.set(key, name)
+  }
+  return name
+}
+
+// TextDecoder carries ~0.35us of fixed setup per call, which dominates for the
+// short values Z/H tags usually hold (MD, RG, PG, ...): char codes are 4x
+// faster at 8 bytes, 2x at 16, and the two cross over at 32.
+const SHORT_STRING_THRESHOLD = 32
+
+// Z/H tag values are spec'd as printable ASCII, but a non-conforming writer
+// would make the char-code path mis-decode UTF-8, so bail to TextDecoder on any
+// high byte.
+function decodeTagString(ba: Uint8Array, start: number, end: number) {
+  const len = end - start
+  if (len < SHORT_STRING_THRESHOLD) {
+    const codes = new Array<number>(len)
+    for (let i = 0; i < len; i++) {
+      const byte = ba[start + i]!
+      if (byte > 0x7f) {
+        return textDecoder.decode(ba.subarray(start, end))
+      }
+      codes[i] = byte
+    }
+    return String.fromCharCode(...codes)
+  }
+  return textDecoder.decode(ba.subarray(start, end))
+}
+
 // Bitmask for ops that consume ref: M=0, D=2, N=3, P=6, ==7, X=8
 // Binary: 0b111001101 = 0x1CD
 const CIGAR_CONSUMES_REF_MASK = 0x1cd
@@ -252,9 +291,7 @@ function decodeTagValue(
       return dataView.getFloat32(p, true)
     case 0x5a: // 'Z'
     case 0x48: // 'H'
-      return raw
-        ? ba.subarray(p, end - 1)
-        : textDecoder.decode(ba.subarray(p, end - 1))
+      return raw ? ba.subarray(p, end - 1) : decodeTagString(ba, p, end - 1)
     default: {
       // 'B'
       const Btype = ba[p]!
@@ -358,6 +395,13 @@ export default class BamRecord {
   }
 
   // batch fromCharCode: fastest for typical name lengths (see benchmarks/string-building.bench.ts)
+  //
+  // Deliberately NOT memoized, unlike end/tags/length_on_ref. Consumers read a
+  // read name about once — jbrowse-components' buildBaseFeatureData copies it
+  // straight into its own FeatureData — so a cache would pay a field slot on
+  // every record (+180KB per 22k-record chunk) to save zero decodes, and would
+  // pin every name string for as long as the chunk stays cached (+520KB) where
+  // today it dies with the consumer's copy.
   get name() {
     const len = this.read_name_length - 1
     const start = this.b0
@@ -425,7 +469,7 @@ export default class BamRecord {
     const tags: Record<string, unknown> = Object.create(null)
     let p = this.tagsStart
     while (p < blockEnd) {
-      const tag = String.fromCharCode(ba[p]!, ba[p + 1]!)
+      const tag = tagName(ba[p]!, ba[p + 1]!)
       const type = ba[p + 2]!
       const valueStart = p + 3
       const end = tagValueEnd(ba, this._dataView, type, valueStart, blockEnd)
