@@ -197,60 +197,129 @@ test('read as pairs', async () => {
   expect(f.start).toEqual(f2.start)
 })
 
-test('test pair orientations', async () => {
-  const b1 = new FakeRecord(true, 'F', 'F', 100)
-  const b2 = new FakeRecord(true, 'F', 'R', 100)
-  const b3 = new FakeRecord(true, 'R', 'R', 100)
-  const b4 = new FakeRecord(true, 'R', 'F', 100)
-  const b5 = new FakeRecord(false, 'F', 'F', 100)
-  const b6 = new FakeRecord(false, 'F', 'R', 100)
-  const b7 = new FakeRecord(false, 'R', 'R', 100)
-  const b8 = new FakeRecord(false, 'R', 'F', 100)
-  const b9 = new FakeRecord(false, 'F', 'F', -100)
-  const b10 = new FakeRecord(false, 'F', 'R', -100)
-  const b11 = new FakeRecord(false, 'R', 'R', -100)
-  const b12 = new FakeRecord(false, 'R', 'F', -100)
-  expect(b1.pair_orientation).toEqual('F1F2')
-  expect(b2.pair_orientation).toEqual('F1R2')
-  expect(b3.pair_orientation).toEqual('R1R2')
-  expect(b4.pair_orientation).toEqual('R1F2')
-  expect(b5.pair_orientation).toEqual('F2F1')
-  expect(b6.pair_orientation).toEqual('F2R1')
-  expect(b7.pair_orientation).toEqual('R2R1')
-  expect(b8.pair_orientation).toEqual('R2F1')
-  expect(b9.pair_orientation).toEqual('F1F2')
-  expect(b10.pair_orientation).toEqual('R1F2')
-  expect(b11.pair_orientation).toEqual('R1R2')
-  expect(b12.pair_orientation).toEqual('F1R2')
+// Both mates of one pair must produce the same string, otherwise the two halves
+// of a normal pair render as different orientations. This is the reference
+// implementation the orientation table has to agree with; it is a copy of
+// jbrowse-components plugins/alignments/src/shared/pairOrientation.ts, which is
+// also what the CRAM adapter uses.
+function referenceOrientation({
+  isRead1,
+  isSelfRev,
+  isMateRev,
+  selfRefId,
+  selfPos,
+  mateRefId,
+  matePos,
+}: {
+  isRead1: boolean
+  isSelfRev: boolean
+  isMateRev: boolean
+  selfRefId: number
+  selfPos: number
+  mateRefId: number
+  matePos: number
+}) {
+  const selfStrand = isSelfRev ? 'R' : 'F'
+  const mateStrand = isMateRev ? 'R' : 'F'
+  const selfNum = isRead1 ? '1' : '2'
+  const mateNum = isRead1 ? '2' : '1'
+  const selfIsLeft =
+    selfRefId !== mateRefId
+      ? selfRefId < mateRefId
+      : selfPos !== matePos
+        ? selfPos < matePos
+        : isRead1
+  return selfIsLeft
+    ? selfStrand + selfNum + mateStrand + mateNum
+    : mateStrand + mateNum + selfStrand + selfNum
+}
 
-  // read1 with negative tlen (rightmost segment) should swap read order
-  const b13 = new FakeRecord(true, 'F', 'F', -100)
-  const b14 = new FakeRecord(true, 'F', 'R', -100)
-  const b15 = new FakeRecord(true, 'R', 'R', -100)
-  const b16 = new FakeRecord(true, 'R', 'F', -100)
-  expect(b13.pair_orientation).toEqual('F2F1')
-  expect(b14.pair_orientation).toEqual('R2F1')
-  expect(b15.pair_orientation).toEqual('R2R1')
-  expect(b16.pair_orientation).toEqual('F2R1')
+const STRANDS = ['F', 'R'] as const
+const LOCI = [
+  { refId: 1, nextRefId: 1, pos: 100, matePos: 300 }, // self left, same ref
+  { refId: 1, nextRefId: 1, pos: 300, matePos: 100 }, // self right, same ref
+  { refId: 1, nextRefId: 1, pos: 100, matePos: 100 }, // same locus -> tie-break
+  { refId: 1, nextRefId: 5, pos: 100, matePos: 300 }, // cross-ref, self lower
+  { refId: 5, nextRefId: 1, pos: 100, matePos: 300 }, // cross-ref, self higher
+] as const
+
+test('pair orientation matches the reference implementation', () => {
+  for (const read1 of [true, false]) {
+    for (const self of STRANDS) {
+      for (const mate of STRANDS) {
+        for (const loci of LOCI) {
+          // tlen is deliberately varied, including 0: it must not affect the
+          // answer, since aligners leave it unset when insert size is unknown
+          for (const tlen of [100, -100, 0]) {
+            const rec = new FakeRecord(read1, self, mate, tlen, { ...loci })
+            expect(rec.pair_orientation).toBe(
+              referenceOrientation({
+                isRead1: read1,
+                isSelfRev: self === 'R',
+                isMateRev: mate === 'R',
+                selfRefId: loci.refId,
+                selfPos: loci.pos,
+                mateRefId: loci.nextRefId,
+                matePos: loci.matePos,
+              }),
+            )
+          }
+        }
+      }
+    }
+  }
 })
 
-test('pair orientation returns undefined for unmapped/cross-ref reads', () => {
-  // unmapped read (0x4)
-  const unmapped = new FakeRecord(true, 'F', 'F', 100, { extraFlags: 0x4 })
-  expect(unmapped.pair_orientation).toBeUndefined()
+test('both mates of a pair agree on the orientation', () => {
+  for (const self of STRANDS) {
+    for (const mate of STRANDS) {
+      for (const loci of LOCI) {
+        for (const [tlen1, tlen2] of [
+          [100, -100], // spec-correct
+          [0, 0], // insert size unavailable
+          [100, 100], // both positive
+        ]) {
+          const read1 = new FakeRecord(true, self, mate, tlen1!, { ...loci })
+          const read2 = new FakeRecord(false, mate, self, tlen2!, {
+            refId: loci.nextRefId,
+            nextRefId: loci.refId,
+            pos: loci.matePos,
+            matePos: loci.pos,
+          })
+          expect(read1.pair_orientation).toBe(read2.pair_orientation)
+        }
+      }
+    }
+  }
+})
 
-  // mate unmapped (0x8)
-  const mateUnmapped = new FakeRecord(true, 'F', 'F', 100, {
-    extraFlags: 0x8,
-  })
-  expect(mateUnmapped.pair_orientation).toBeUndefined()
+test('pair orientation of a canonical FR pair', () => {
+  const fr = new FakeRecord(true, 'F', 'R', 100, { pos: 100, matePos: 300 })
+  expect(fr.pair_orientation).toBe('F1R2')
+  const rf = new FakeRecord(true, 'R', 'F', 100, { pos: 100, matePos: 300 })
+  expect(rf.pair_orientation).toBe('R1F2')
+  const ff = new FakeRecord(true, 'F', 'F', 100, { pos: 100, matePos: 300 })
+  expect(ff.pair_orientation).toBe('F1F2')
+  const rr = new FakeRecord(true, 'R', 'R', 100, { pos: 100, matePos: 300 })
+  expect(rr.pair_orientation).toBe('R1R2')
+})
 
-  // different reference sequences
-  const diffRef = new FakeRecord(true, 'F', 'F', 100, {
-    refId: 1,
-    nextRefId: 2,
-  })
-  expect(diffRef.pair_orientation).toBeUndefined()
+test('pair orientation is undefined only for unpaired reads', () => {
+  const unpaired = new FakeRecord(true, 'F', 'R', 100)
+  // strip BAM_FPAIRED, which the fixture sets for every other case
+  Object.defineProperty(unpaired, 'flags', { get: () => 0x40 })
+  expect(unpaired.pair_orientation).toBeUndefined()
+
+  // An unmapped read or mate still has an orientation: the flags say which way
+  // each segment points, and both mates still agree on it.
+  const unmapped = new FakeRecord(true, 'F', 'R', 100, { extraFlags: 0x4 })
+  expect(unmapped.pair_orientation).toBe('F1R2')
+  const mateUnmapped = new FakeRecord(true, 'F', 'R', 100, { extraFlags: 0x8 })
+  expect(mateUnmapped.pair_orientation).toBe('F1R2')
+
+  // Cross-reference pairs are oriented too, ordered by reference id.
+  const crossRef = new FakeRecord(true, 'F', 'R', 0, { refId: 1, nextRefId: 2 })
+  expect(crossRef.pair_orientation).toBe('F1R2')
 })
 
 test('SAM spec pdf', async () => {

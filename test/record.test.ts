@@ -137,3 +137,62 @@ test('flags reads full uint16 without sign extension', () => {
   })
   expect(rec.flags).toEqual(0x8001)
 })
+
+// Build a record whose SEQ is `bases`, so the two `seq` decode strategies (short
+// string-concat vs long TextDecoder, split at SEQ_DECODER_THRESHOLD) can both be
+// exercised against a known answer.
+function makeRecordWithSeq(bases: string) {
+  const len = bases.length
+  const buf = new Uint8Array(64 + ((len + 1) >> 1))
+  const dv = new DataView(buf.buffer)
+  dv.setInt32(12, 2, true) // bin_mq_nl: l_read_name = 2
+  dv.setInt32(16, 0, true) // flag_nc: 0 cigar ops
+  dv.setInt32(20, len, true) // l_seq
+  buf[36] = 'q'.charCodeAt(0)
+  buf[37] = 0
+  const seqStart = 38
+  for (let i = 0; i < len; i++) {
+    const nibble = '=ACMGRSVTWYHKDBN'.indexOf(bases[i]!)
+    buf[seqStart + (i >> 1)] |= i % 2 === 0 ? nibble << 4 : nibble
+  }
+  const end = seqStart + ((len + 1) >> 1) + len
+  dv.setInt32(0, end - 4, true)
+  return new BamRecord({
+    bytes: { byteArray: buf, start: 0, end: end - 1 },
+    fileOffset: 0,
+    dataView: dv,
+  })
+}
+
+test.for([
+  ['empty', ''],
+  ['single base', 'A'],
+  ['even length', 'ACGT'],
+  ['odd length', 'ACGTA'],
+  ['ambiguity codes', '=ACMGRSVTWYHKDBN'],
+  // straddle the short/long decode threshold, including odd lengths on each side
+  ['just under threshold', 'ACGTN'.repeat(59)], // 295
+  ['odd, just over threshold', `${'ACGTN'.repeat(60)}A`], // 301
+  ['long', 'ACGTNMRSVWYHKDB'.repeat(500)], // 7500
+  ['long odd', `${'ACGTNMRSVWYHKDB'.repeat(500)}C`], // 7501
+])('seq decodes %s', ([, bases]) => {
+  const rec = makeRecordWithSeq(bases!)
+  expect(rec.seq).toBe(bases)
+  expect(rec.seq_length).toBe(bases!.length)
+  // seqAt is an independent decode path; it must agree base for base
+  let viaSeqAt = ''
+  for (let i = 0; i < bases!.length; i++) {
+    viaSeqAt += rec.seqAt(i)
+  }
+  expect(viaSeqAt).toBe(bases)
+  expect(rec.seqAt(bases!.length)).toBeUndefined()
+})
+
+test('tags do not resolve to Object.prototype members', () => {
+  const rec = makeRecordWithSeq('ACGT')
+  expect(rec.getTag('constructor')).toBeUndefined()
+  expect(rec.tags.constructor).toBeUndefined()
+  // same answer once the full tag object is built and getTag reads from it
+  expect(rec.getTag('constructor')).toBeUndefined()
+  expect(rec.getTag('toString')).toBeUndefined()
+})

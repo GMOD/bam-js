@@ -1,16 +1,45 @@
 import { CIGAR_REF_SKIP, CIGAR_SOFT_CLIP } from './cigar.ts'
 import Constants from './constants.ts'
 
-const SEQRET_DECODER = '=ACMGRSVTWYHKDBN'.split('')
+const SEQRET = '=ACMGRSVTWYHKDBN'
+const SEQRET_DECODER = SEQRET.split('')
+const SEQRET_CODES = Uint8Array.from(SEQRET, c => c.charCodeAt(0))
 
-// precomputed pair orientation strings indexed by ((flags >> 4) & 0xF) | (isize > 0 ? 16 : 0)
-// bits 0-3 encode flag bits 0x10(reverse),0x20(mate reverse),0x40(read1),0x80(read2)
-// bit 4 encodes whether isize > 0
+// Both bases of a SEQ byte, precomputed for all 256 bytes so decoding advances a
+// byte at a time. Two forms because `seq` has two strategies (see below): packed
+// ASCII codes for a single Uint16Array store, and the 2-char string to append.
+// Byte order within the u16 depends on host endianness.
+const LITTLE_ENDIAN = new Uint16Array(Uint8Array.of(1, 0).buffer)[0] === 1
+const SEQRET_PAIR_CODES = new Uint16Array(256)
+const SEQRET_PAIR_STRINGS = new Array<string>(256)
+for (let hi = 0; hi < 16; hi++) {
+  for (let lo = 0; lo < 16; lo++) {
+    const h = SEQRET_CODES[hi]!
+    const l = SEQRET_CODES[lo]!
+    SEQRET_PAIR_CODES[(hi << 4) | lo] = LITTLE_ENDIAN
+      ? h | (l << 8)
+      : (h << 8) | l
+    SEQRET_PAIR_STRINGS[(hi << 4) | lo] =
+      SEQRET_DECODER[hi]! + SEQRET_DECODER[lo]!
+  }
+}
+
+// Read length at which building a byte buffer and calling TextDecoder once
+// overtakes plain string concatenation. Below it concat wins by 2-4x (rope
+// building is cheap and the decode has fixed overhead); above it the decoder
+// wins by 5-8x. Measured crossover is ~300bp, i.e. just past typical Illumina
+// read lengths.
+const SEQ_DECODER_THRESHOLD = 300
+
+// Precomputed pair orientation strings, indexed by
+//   ((flags >> 4) & 0x7) | (selfIsLeft ? 8 : 0)
+// bits 0-2 are flag bits 0x10 (self reverse), 0x20 (mate reverse), 0x40 (read1);
+// bit 3 is whether this read is the leftmost of the pair. The read2 flag (0x80)
+// is deliberately not consulted — "not read1" is what decides the numbering, so
+// a record with neither flag set reads the same as read2.
 // prettier-ignore
 const PAIR_ORIENTATION_TABLE = [
-  'F F ','F R ','R F ','R R ','F2F1','F2R1','R2F1','R2R1',
   'F1F2','F1R2','R1F2','R1R2','F2F1','F2R1','R2F1','R2R1',
-  'F F ','R F ','F R ','R R ','F1F2','R1F2','F1R2','R1R2',
   'F2F1','R2F1','F2R1','R2R1','F1F2','R1F2','F1R2','R1R2',
 ]
 const ASCII_CIGAR_CODES = [
@@ -22,6 +51,19 @@ const textDecoder = new TextDecoder()
 // Bitmask for ops that consume ref: M=0, D=2, N=3, P=6, ==7, X=8
 // Binary: 0b111001101 = 0x1CD
 const CIGAR_CONSUMES_REF_MASK = 0x1cd
+
+// A CIGAR as packed op words. Either a view over (or copy of) the record's own
+// CIGAR field, or the CG tag's array for long-CIGAR records — hence Int32Array
+// too, since a writer may encode CG as B:i rather than the usual B:I.
+export type NumericCigar = Uint32Array | Int32Array | number[]
+
+function isNumericCigar(value: unknown): value is NumericCigar {
+  return (
+    value instanceof Uint32Array ||
+    value instanceof Int32Array ||
+    Array.isArray(value)
+  )
+}
 
 export interface Bytes {
   start: number
@@ -42,7 +84,11 @@ type BArrayValue =
 // Decode a 'B' (array) tag value starting at `p` (the byte after type+subtype+
 // count). When the data is naturally aligned we return a typed-array view over
 // the underlying buffer (zero-copy); otherwise we copy element-by-element since
-// typed-array views require alignment. Shared by getTag and the full-tag parse.
+// typed-array views require alignment. The copy target is a plain array, not a
+// typed one: benchmarking the unaligned path found number[] fills faster below
+// ~10k elements and reads at least as fast at every size, so the only thing a
+// typed copy would buy is half the retained bytes. Shared by getTag and the
+// full-tag parse.
 function decodeBArrayTag(
   ba: Uint8Array,
   dataView: DataView,
@@ -228,7 +274,7 @@ export default class BamRecord {
   private _cachedEnd?: number
   private _cachedTags?: Record<string, unknown>
   private _cachedLengthOnRef?: number
-  private _cachedNumericCigar?: Uint32Array | number[]
+  private _cachedNumericCigar?: NumericCigar
   private _cachedNUMERIC_MD?: Uint8Array | null
   private _cachedSeqStart?: number
 
@@ -374,7 +420,9 @@ export default class BamRecord {
   private _computeTags() {
     const blockEnd = this._end
     const ba = this._byteArray
-    const tags: Record<string, unknown> = {}
+    // null prototype: tag names come from the file, so a read carrying a
+    // "constructor" or "toString" tag must not resolve to Object.prototype's
+    const tags: Record<string, unknown> = Object.create(null)
     let p = this.tagsStart
     while (p < blockEnd) {
       const tag = String.fromCharCode(ba[p]!, ba[p + 1]!)
@@ -499,6 +547,8 @@ export default class BamRecord {
         absOffset,
         numCigarOps,
       )
+      // the view we need to sum is exactly what NUMERIC_CIGAR would build, so
+      // seed its cache rather than making it construct a second one
       this._cachedNumericCigar = cigarView
       let lref = 0
       for (let c = 0; c < numCigarOps; ++c) {
@@ -516,7 +566,7 @@ export default class BamRecord {
     return lref
   }
 
-  private _computeNumericCigar(): Uint32Array | number[] {
+  private _computeNumericCigar(): NumericCigar {
     const flag_nc = this._dataView.getInt32(this._start + 16, true)
     if (flag_nc & (Constants.BAM_FUNMAP << 16)) {
       return new Uint32Array(0)
@@ -526,10 +576,10 @@ export default class BamRecord {
     const p = this.b0 + this.read_name_length
 
     if (this._isCGTagPattern(p, numCigarOps)) {
-      return (
-        (this.tags.CG as Uint32Array | number[] | undefined) ??
-        new Uint32Array(0)
-      )
+      // getTag, not this.tags: the real CIGAR lives in one tag, so there's no
+      // reason to decode every other tag on the record to reach it
+      const cg = this.getTag('CG')
+      return isNumericCigar(cg) ? cg : new Uint32Array(0)
     }
 
     const absOffset = this._byteArray.byteOffset + p
@@ -591,43 +641,66 @@ export default class BamRecord {
     return this._byteArray.subarray(p, p + this.num_seq_bytes)
   }
 
+  // Decode two bases per iteration off a 256-entry table. Building an array of
+  // 1-char strings and join()ing it — the obvious approach — is 3x slower at
+  // 100bp and 35x slower at 15kb.
   get seq() {
     const len = this.seq_length
-    const seqStart = this.seqStart
-    const numeric = this._byteArray
-    const buf = new Array(len)
-    let i = 0
-    const fullBytes = len >> 1
-
-    for (let j = 0; j < fullBytes; ++j) {
-      const sb = numeric[seqStart + j]!
-      buf[i++] = SEQRET_DECODER[(sb & 0xf0) >> 4]!
-      buf[i++] = SEQRET_DECODER[sb & 0x0f]!
+    const ba = this._byteArray
+    const p = this.seqStart
+    const nPairs = len >> 1
+    let seq: string
+    if (len < SEQ_DECODER_THRESHOLD) {
+      seq = ''
+      for (let j = 0; j < nPairs; j++) {
+        seq += SEQRET_PAIR_STRINGS[ba[p + j]!]!
+      }
+      if (len & 1) {
+        seq += SEQRET_DECODER[(ba[p + nPairs]! & 0xf0) >> 4]!
+      }
+    } else {
+      // round up to an even length so the Uint16Array view spans every pair; a
+      // trailing odd base is written as a single byte and trimmed on decode
+      const out = new Uint8Array((len + 1) & ~1)
+      const pairs = new Uint16Array(out.buffer)
+      for (let j = 0; j < nPairs; j++) {
+        pairs[j] = SEQRET_PAIR_CODES[ba[p + j]!]!
+      }
+      if (len & 1) {
+        out[len - 1] = SEQRET_CODES[(ba[p + nPairs]! & 0xf0) >> 4]!
+      }
+      seq = textDecoder.decode(out.subarray(0, len))
     }
-
-    if (i < len) {
-      const sb = numeric[seqStart + fullBytes]!
-      buf[i] = SEQRET_DECODER[(sb & 0xf0) >> 4]!
-    }
-
-    return buf.join('')
+    return seq
   }
 
-  // adapted from igv.js
-  // uses precomputed lookup table indexed by flag bits + isize sign.
-  // the BAM spec defines tlen as positive for the leftmost segment and
-  // negative for the rightmost, so tlen > 0 reliably indicates which
-  // read comes first without needing position-based correction
+  // Must come out identical from either mate, or the two halves of one normal
+  // pair render as different orientations. The leftmost mate is therefore picked
+  // by a total order on (refId, pos) that both mates evaluate the same way, with
+  // a read1-first tie-break for equal loci.
+  //
+  // Deriving "leftmost" from template_length looks tempting — the spec makes
+  // tlen positive for the leftmost segment and negative for the rightmost — but
+  // aligners leave tlen at 0 whenever the insert size is unavailable, which
+  // includes every cross-reference pair. Both mates then read as "not leftmost"
+  // and disagree with each other.
   // (see also: gmod/cram-js src/cramFile/record.ts getPairOrientation)
   get pair_orientation() {
     const f = this.flags
-    // unmapped (0x4) or mate unmapped (0x8) -> undefined
-    if (f & 0xc || this.ref_id !== this.next_refid) {
+    if (!(f & Constants.BAM_FPAIRED)) {
       return undefined
     }
-    return PAIR_ORIENTATION_TABLE[
-      ((f >> 4) & 0xf) | (this.template_length > 0 ? 16 : 0)
-    ]
+    const refId = this.ref_id
+    const mateRefId = this.next_refid
+    const pos = this.start
+    const matePos = this.next_pos
+    const selfIsLeft =
+      refId !== mateRefId
+        ? refId < mateRefId
+        : pos !== matePos
+          ? pos < matePos
+          : !!(f & Constants.BAM_FREAD1)
+    return PAIR_ORIENTATION_TABLE[((f >> 4) & 0x7) | (selfIsLeft ? 8 : 0)]
   }
 
   get bin_mq_nl() {
@@ -658,7 +731,7 @@ export default class BamRecord {
     if (idx < this.seq_length) {
       const sb = this._byteArray[this.seqStart + (idx >> 1)]!
 
-      return idx % 2 === 0
+      return (idx & 1) === 0
         ? SEQRET_DECODER[(sb & 0xf0) >> 4]!
         : SEQRET_DECODER[sb & 0x0f]!
     } else {

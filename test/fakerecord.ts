@@ -2,18 +2,35 @@ import { Buffer } from 'buffer'
 
 import Record from '../src/record.ts'
 
+// A record with just enough of the pairing fields overridden to exercise
+// pair_orientation. Flags always include BAM_FPAIRED: an unpaired read has no
+// pair orientation at all, so every case here is a paired one.
 export default class FakeRecord extends Record {
   private tlen: number
   private nextrefid: number
   private refid: number
   private _flags: number
+  private pos: number
+  private matePos: number
 
   constructor(
     read1: boolean,
     strand1: string,
     strand2: string,
     tlen: number,
-    { extraFlags = 0, refId = 1, nextRefId = 1 } = {},
+    {
+      extraFlags = 0,
+      refId = 1,
+      nextRefId = 1,
+      pos = 0,
+      matePos = 0,
+    }: {
+      extraFlags?: number
+      refId?: number
+      nextRefId?: number
+      pos?: number
+      matePos?: number
+    } = {},
   ) {
     const byteArray = Buffer.from(new Uint8Array(52))
     super({
@@ -28,7 +45,10 @@ export default class FakeRecord extends Record {
     this.tlen = tlen
     this.nextrefid = nextRefId
     this.refid = refId
+    this.pos = pos
+    this.matePos = matePos
     this._flags =
+      0x1 |
       (read1 ? 0x40 : 0x80) |
       (strand1 === 'R' ? 0x10 : 0) |
       (strand2 === 'R' ? 0x20 : 0) |
@@ -49,5 +69,13 @@ export default class FakeRecord extends Record {
 
   override get ref_id() {
     return this.refid
+  }
+
+  override get start() {
+    return this.pos
+  }
+
+  override get next_pos() {
+    return this.matePos
   }
 }
