@@ -1,3 +1,16 @@
+# [7.4.0](https://github.com/GMOD/bam-js/compare/v7.3.4...v7.4.0) (2026-07-25)
+
+
+### Bug Fixes
+
+* **record:** derive pair_orientation from mate position, not template_length ([59714fc](https://github.com/GMOD/bam-js/commit/59714fc2accf55feaf687e550bfb617c494162e1))
+
+
+### Performance Improvements
+
+* bound the parsed-chunk cache by decompressed bytes ([8e6aa19](https://github.com/GMOD/bam-js/commit/8e6aa1968c7acdd6845cbd2c61d90e1c18ea0768))
+* key chunk cache on byte span only, apply filters on retrieval ([57b0fdd](https://github.com/GMOD/bam-js/commit/57b0fdd5173416919af6d65d11f6ae742c668d94))
+
 ## [7.3.4](https://github.com/GMOD/bam-js/compare/v7.3.3...v7.3.4) (2026-07-01)
 
 ## [7.3.3](https://github.com/GMOD/bam-js/compare/v7.3.2...v7.3.3) (2026-06-25)
