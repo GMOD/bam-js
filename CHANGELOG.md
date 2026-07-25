@@ -1,3 +1,20 @@
+# [7.5.0](https://github.com/GMOD/bam-js/compare/v7.4.0...v7.5.0) (2026-07-25)
+
+
+### Performance Improvements
+
+* intern tag names and decode short Z/H tag values without TextDecoder ([420b491](https://github.com/GMOD/bam-js/commit/420b49126421df9bb9ced8dc4657b3f44ef3bb7a))
+* keep every chunk a query parses cached, and filter in the caller ([bde84b1](https://github.com/GMOD/bam-js/commit/bde84b162d98b8372e2569cec97794208dbfd56f))
+
+
+### BREAKING CHANGES
+
+* BamOpts.filterBy is removed, along with the FilterBy and
+TagFilter types and the applyFilters/filterReadFlag/filterTagValue
+helpers. Apply filters to the records getRecordsForRange returns.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
 # [7.4.0](https://github.com/GMOD/bam-js/compare/v7.3.4...v7.4.0) (2026-07-25)
 
 
