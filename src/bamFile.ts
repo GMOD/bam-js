@@ -1,5 +1,4 @@
 import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
-import QuickLRU from '@jbrowse/quick-lru'
 import crc32 from 'crc/calculators/crc32'
 import { LocalFile, RemoteFile } from 'generic-filehandle2'
 
@@ -51,6 +50,8 @@ function resolveFilehandle(
 interface ChunkEntry<T> {
   minBlock: number
   maxBlock: number
+  // decompressed size of the chunk these features are views into
+  bytes: number
   features: T[]
 }
 
@@ -61,6 +62,71 @@ interface ChunkEntry<T> {
 function chunkCacheKey(chunk: Chunk) {
   const { minv, maxv } = chunk
   return `${minv.blockPosition}:${minv.dataPosition}-${maxv.blockPosition}:${maxv.dataPosition}`
+}
+
+// Every record in an entry is a view into its chunk's decompressed buffer, so
+// caching one entry pins that whole buffer — 8MB apiece on the nanopore and
+// 2kb-read test files, and optimizeChunks merges spans up to 5MB *compressed*,
+// so tens of MB is possible. A count-based LRU therefore gives no bound on
+// memory at all, which is why this budgets by decompressed bytes instead.
+export const DEFAULT_MAX_CACHE_BYTES = 100 * 1024 * 1024
+
+class ChunkFeatureCache<T> {
+  public maxBytes: number
+  private entries = new Map<string, ChunkEntry<T>>()
+  private bytes = 0
+
+  constructor(maxBytes: number) {
+    this.maxBytes = maxBytes
+  }
+
+  get size() {
+    return this.entries.size
+  }
+
+  get byteSize() {
+    return this.bytes
+  }
+
+  get(key: string) {
+    const entry = this.entries.get(key)
+    if (entry) {
+      // re-insert so Map iteration order stays least-recently-used first
+      this.entries.delete(key)
+      this.entries.set(key, entry)
+    }
+    return entry
+  }
+
+  set(key: string, entry: ChunkEntry<T>) {
+    this.delete(key)
+    this.entries.set(key, entry)
+    this.bytes += entry.bytes
+    // Evict from the least-recently-used end. The size > 1 guard means a single
+    // chunk larger than the whole budget is still kept: the caller needs it for
+    // the query in flight, and dropping it would only force a re-decompress.
+    const lru = this.entries.keys()
+    while (this.bytes > this.maxBytes && this.entries.size > 1) {
+      this.delete(lru.next().value!)
+    }
+  }
+
+  delete(key: string) {
+    const entry = this.entries.get(key)
+    if (entry) {
+      this.entries.delete(key)
+      this.bytes -= entry.bytes
+    }
+  }
+
+  clear() {
+    this.entries.clear()
+    this.bytes = 0
+  }
+
+  [Symbol.iterator]() {
+    return this.entries[Symbol.iterator]()
+  }
 }
 
 export default class BamFile<T extends BamRecordLike = BAMFeature> {
@@ -75,9 +141,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
   // Cache for parsed features by chunk
   // When a new chunk overlaps a cached chunk, we evict the cached one
-  public chunkFeatureCache = new QuickLRU<string, ChunkEntry<T>>({
-    maxSize: 100,
-  })
+  public chunkFeatureCache: ChunkFeatureCache<T>
 
   private RecordClass: BamRecordClass<T>
 
@@ -94,6 +158,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     htsget,
     renameRefSeqs = n => n,
     recordClass,
+    maxCacheBytes = DEFAULT_MAX_CACHE_BYTES,
   }: {
     bamFilehandle?: GenericFilehandle
     bamPath?: string
@@ -107,9 +172,12 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     renameRefSeqs?: (a: string) => string
     htsget?: boolean
     recordClass?: BamRecordClass<T>
+    /** budget for the parsed-chunk cache, in decompressed bytes */
+    maxCacheBytes?: number
   }) {
     this.renameRefSeq = renameRefSeqs
     this.RecordClass = (recordClass ?? BAMFeature) as BamRecordClass<T>
+    this.chunkFeatureCache = new ChunkFeatureCache<T>(maxCacheBytes)
 
     const bamFh = resolveFilehandle(bamFilehandle, bamPath, bamUrl)
     if (bamFh) {
@@ -161,7 +229,11 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
         ? await this.bam.readFile()
         : await this.bam.read(readLen, 0)
     let uncba = await unzip(buffer)
-    const dataView = new DataView(uncba.buffer)
+    const dataView = new DataView(
+      uncba.buffer,
+      uncba.byteOffset,
+      uncba.byteLength,
+    )
 
     if (dataView.getInt32(0, true) !== BAM_MAGIC) {
       throw new Error('Not a BAM file')
@@ -258,8 +330,8 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       let cached = this.chunkFeatureCache.get(cacheKey)
       if (!cached) {
         this.evictOverlappingChunks(minBlock, maxBlock)
-        const features = await this._readChunkFeatures(chunk, opts)
-        cached = { minBlock, maxBlock, features }
+        const { features, bytes } = await this._readChunkFeatures(chunk, opts)
+        cached = { minBlock, maxBlock, bytes, features }
         this.chunkFeatureCache.set(cacheKey, cached)
       }
       const records = filterBy
@@ -283,13 +355,16 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
   async fetchPairs(chrId: number, records: T[], opts: BamOpts) {
     const { pairAcrossChr, maxInsertSize = 200000 } = opts
-    const readNameCounts: Record<string, number> = {}
+    // Map, not a plain object: read names come from the file, and on a plain
+    // object a read named "constructor" would read back Object.prototype's and
+    // make the count NaN.
+    const readNameCounts = new Map<string, number>()
     const readIds = new Set<number>()
 
     for (let i = 0, l = records.length; i < l; i++) {
       const r = records[i]!
       const name = r.name
-      readNameCounts[name] = (readNameCounts[name] ?? 0) + 1
+      readNameCounts.set(name, (readNameCounts.get(name) ?? 0) + 1)
       readIds.add(r.fileOffset)
     }
 
@@ -299,7 +374,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       const name = f.name
       if (
         this.index &&
-        readNameCounts[name] === 1 &&
+        readNameCounts.get(name) === 1 &&
         (pairAcrossChr ||
           (f.next_refid === chrId &&
             Math.abs(f.start - f.next_pos) < maxInsertSize))
@@ -327,12 +402,12 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
     const mateFeatLists = await Promise.all(
       [...map.values()].map(async c => {
-        const features = await this._readChunkFeatures(c, opts)
+        const { features } = await this._readChunkFeatures(c, opts)
         const mateRecs = [] as T[]
         for (let i = 0, l = features.length; i < l; i++) {
           const feature = features[i]!
           if (
-            readNameCounts[feature.name] === 1 &&
+            readNameCounts.get(feature.name) === 1 &&
             !readIds.has(feature.fileOffset)
           ) {
             mateRecs.push(feature)
@@ -350,18 +425,25 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     // filehandle's own streaming onProgress also fired this callback it would
     // report a different `total` (this chunk's size, not the whole query),
     // making the determinate bar jump around.
-    const buf = await this.bam.read(chunk.fetchedSize(), chunk.minv.blockPosition, {
-      signal: opts.signal,
-    })
+    const buf = await this.bam.read(
+      chunk.fetchedSize(),
+      chunk.minv.blockPosition,
+      {
+        signal: opts.signal,
+      },
+    )
     const {
       buffer: data,
       cpositions,
       dpositions,
     } = await unzipChunkSlice(buf, chunk)
-    return this.readBamFeatures(data, cpositions, dpositions, chunk)
+    return {
+      features: this.readBamFeatures(data, cpositions, dpositions, chunk),
+      bytes: data.byteLength,
+    }
   }
 
-  async readBamFeatures(
+  readBamFeatures(
     ba: Uint8Array,
     cpositions: number[],
     dpositions: number[],
@@ -371,7 +453,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     const sink = [] as T[]
     let pos = 0
 
-    const dataView = new DataView(ba.buffer)
+    const dataView = new DataView(ba.buffer, ba.byteOffset, ba.byteLength)
     const hasDpositions = dpositions.length > 0
     const hasCpositions = cpositions.length > 0
 

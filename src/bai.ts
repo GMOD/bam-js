@@ -53,7 +53,11 @@ function reg2bins(beg: number, end: number) {
 export default class BAI extends IndexFile<BaiParsed> {
   async _parse(opts: BaseOpts): Promise<BaiParsed> {
     const bytes = await this.filehandle.readFile(opts)
-    const dataView = new DataView(bytes.buffer)
+    const dataView = new DataView(
+      bytes.buffer,
+      bytes.byteOffset,
+      bytes.byteLength,
+    )
 
     // check BAI magic numbers
     if (dataView.getUint32(0, true) !== BAI_MAGIC) {
@@ -186,26 +190,29 @@ export default class BAI extends IndexFile<BaiParsed> {
     }
     const e = end === undefined ? (linearIndex.length - 1) * v : roundUp(end, v)
     const s = start === undefined ? 0 : roundDown(start, v)
-    const depths = range
+    const depths: IndexCovEntry[] = range
       ? new Array((e - s) / v)
       : new Array(linearIndex.length - 1)
     const totalSize = linearIndex[linearIndex.length - 1]!.blockPosition
     if (e > (linearIndex.length - 1) * v) {
       throw new Error('query outside of range of linear index')
     }
+    // Scale the block-delta into a read count as we go, rather than building the
+    // entries and then rebuilding every one of them to apply the scale. Keep the
+    // multiply-then-divide order: hoisting lineCount/totalSize into a factor
+    // reassociates the arithmetic and shifts scores by an ulp.
+    const lineCount = stats?.lineCount ?? 0
     let currentPos = linearIndex[s / v]!.blockPosition
     for (let i = s / v, j = 0; i < e / v; i++, j++) {
+      const nextPos = linearIndex[i + 1]!.blockPosition
       depths[j] = {
-        score: linearIndex[i + 1]!.blockPosition - currentPos,
+        score: ((nextPos - currentPos) * lineCount) / totalSize,
         start: i * v,
         end: i * v + v,
       }
-      currentPos = linearIndex[i + 1]!.blockPosition
+      currentPos = nextPos
     }
-    return depths.map(d => ({
-      ...d,
-      score: (d.score * (stats?.lineCount ?? 0)) / totalSize,
-    }))
+    return depths
   }
 
   protected reg2bins(min: number, max: number) {

@@ -78,7 +78,7 @@ export default class HtsgetFile<
     })
 
     const zero = new VirtualOffset(0, 0)
-    const allRecords = await this.readBamFeatures(
+    const allRecords = this.readBamFeatures(
       uncba,
       [],
       [],
@@ -95,7 +95,11 @@ export default class HtsgetFile<
     const uncba = await fetchAndConcat(data.htsget.urls, {
       signal: opts.signal,
     })
-    const dataView = new DataView(uncba.buffer)
+    const dataView = new DataView(
+      uncba.buffer,
+      uncba.byteOffset,
+      uncba.byteLength,
+    )
 
     if (dataView.getInt32(0, true) !== BAM_MAGIC) {
       throw new Error('Not a BAM file')

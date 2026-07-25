@@ -126,7 +126,10 @@ export function parsePseudoBin(bytes: Uint8Array, offset: number) {
 // maxv.blockPosition is an upper bound on where that final block ends — always at
 // least the true block end, so the clamped fetch still contains the whole block.
 // Shrinks both the byte estimate and the actual fetch with no extra I/O.
-export function clampChunkEnds(chunks: Chunk[], extraBoundaries: number[] = []) {
+export function clampChunkEnds(
+  chunks: Chunk[],
+  extraBoundaries: number[] = [],
+) {
   const boundaries = [...extraBoundaries]
   for (const c of chunks) {
     boundaries.push(c.minv.blockPosition, c.maxv.blockPosition)
@@ -163,9 +166,15 @@ export function parseRefSeqs(
   if (start + 4 > uncba.length) {
     return undefined
   }
-  const dataView = new DataView(uncba.buffer)
+  const dataView = new DataView(
+    uncba.buffer,
+    uncba.byteOffset,
+    uncba.byteLength,
+  )
   const nRef = dataView.getInt32(start, true)
-  const chrToIndex: Record<string, number> = {}
+  // null prototype: ref names come from the file, so a contig named
+  // "constructor" must not resolve to Object.prototype's
+  const chrToIndex: Record<string, number> = Object.create(null)
   const indexToChr: { refName: string; length: number }[] = []
   const decoder = new TextDecoder('utf8')
 
@@ -209,7 +218,7 @@ export function parseNameBytes(
   let currRefId = 0
   let currNameStart = 0
   const refIdToName: string[] = []
-  const refNameToId: Record<string, number> = {}
+  const refNameToId: Record<string, number> = Object.create(null)
   for (let i = 0; i < namesBytes.length; i++) {
     if (!namesBytes[i]) {
       if (currNameStart < i) {
@@ -257,6 +266,16 @@ export function filterTagValue(readVal: unknown, filterVal?: string) {
 interface Filterable {
   flags: number
   tags: Record<string, unknown>
+  // BamRecord decodes one tag by walking the tag block, without building the
+  // whole tags object. Optional because a custom recordClass need not have it.
+  getTag?(tag: string): unknown
+}
+
+// Read a single tag, preferring the targeted accessor. Reaching for `tags`
+// instead would decode every unrelated tag on the record (NM/AS/ms/de/… — often
+// ~10 per read) just to test one, which measured 2.6x the cost of getTag.
+function readTag(record: Filterable, tag: string) {
+  return record.getTag ? record.getTag(tag) : record.tags[tag]
 }
 
 // Apply flagInclude/flagExclude/tagFilter to a list of records.
@@ -270,7 +289,7 @@ export function applyFilters<T extends Filterable>(
     const r = records[i]!
     if (
       !filterReadFlag(r.flags, flagInclude, flagExclude) &&
-      !(tagFilter && filterTagValue(r.tags[tagFilter.tag], tagFilter.value))
+      !(tagFilter && filterTagValue(readTag(r, tagFilter.tag), tagFilter.value))
     ) {
       out.push(r)
     }

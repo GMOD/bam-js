@@ -36,7 +36,11 @@ export default class CSI extends IndexFile {
   }
 
   parseAuxData(bytes: Uint8Array, offset: number) {
-    const dataView = new DataView(bytes.buffer)
+    const dataView = new DataView(
+      bytes.buffer,
+      bytes.byteOffset,
+      bytes.byteLength,
+    )
     const formatFlags = dataView.getUint32(offset, true)
     const coordinateType =
       formatFlags & 0x10000 ? 'zero-based-half-open' : '1-based-closed'
@@ -74,7 +78,11 @@ export default class CSI extends IndexFile {
     const buffer = await this.filehandle.readFile(opts)
     const bytes = await unzip(buffer)
 
-    const dataView = new DataView(bytes.buffer)
+    const dataView = new DataView(
+      bytes.buffer,
+      bytes.byteOffset,
+      bytes.byteLength,
+    )
     let csiVersion
     const magic = dataView.getUint32(0, true)
 
