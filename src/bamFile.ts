@@ -276,6 +276,15 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     return this.chrToIndex?.[seqName]
   }
 
+  /**
+   * Records overlapping `chr:min-max`.
+   *
+   * The returned records are CACHED AND SHARED — two queries resolving to the
+   * same chunk span get the same objects back, so treat them as read-only.
+   * Anything you want to attach for the duration of one query belongs on a
+   * wrapper you own, never on the record; writing a field here silently rebinds
+   * it for every other query still holding that read. See ADR 0006.
+   */
   async getRecordsForRange(
     chr: string,
     min: number,
@@ -294,6 +303,12 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   // Every path that wants a chunk's features goes through here — mate lookups
   // included, since a viewAsPairs query revisits the same mate chunks each time
   // the view moves.
+  //
+  // This hands the SAME record objects to every query that hits the key, which
+  // is what makes callers' per-query writes onto a record leak across queries
+  // (ADR 0006). Caching the inflated buffer and re-scanning per query would give
+  // each caller its own objects, but roughly doubles a warm query on dense data
+  // — measured, and rejected, in that ADR.
   private async _cachedChunkFeatures(chunk: Chunk, opts: BaseOpts) {
     const cacheKey = chunkCacheKey(chunk)
     let entry = this.chunkFeatureCache.get(cacheKey)
