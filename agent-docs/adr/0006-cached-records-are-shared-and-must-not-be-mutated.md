@@ -66,17 +66,23 @@ record.
 
   It costs the record scan on every warm query. Measured on this machine,
   min-of-40 after 15 warmup rounds, re-running `readBamFeatures` over the
-  buffers a warm query already holds:
+  buffers a warm query already holds. The warmup matters: timing this cold
+  reports the scan about 2x too expensive, and the whole difference is JIT.
 
-  | file                          | records | warm now | + scan  | ratio |
-  | ----------------------------- | ------- | -------- | ------- | ----- |
-  | shortreads_300x.bam           | 53,596  | ~3-5 ms  | ~7-11ms | ~2.3x |
-  | chr22_nanopore_subset.bam     | 757     | ~0.1 ms  | ~0.2 ms | ~2x   |
+  | file                      | records | warm now | + scan   | ratio |
+  | ------------------------- | ------- | -------- | -------- | ----- |
+  | shortreads_300x.bam       | 53,596  | ~3-5 ms  | ~7-11 ms | ~2.3x |
+  | chr22_nanopore_subset.bam | 757     | ~0.1 ms  | ~0.2 ms  | ~2x   |
+
+  Only the shortreads row carries weight. At 757 records the nanopore case is
+  tenths of a millisecond either way, so its ratio is noise around a number too
+  small to care about; it is listed to show the cost tracks record count rather
+  than file size.
 
   A warm query on a dense short-read region roughly doubles. ADR 0001 bought
   19.6x there; this would give back a real slice of it, permanently, for every
   consumer — to defend against a mistake that one consumer made and has fixed.
-  The scan is already near its floor (~0.2 µs/record, dominated by object
+  The scan is already near its floor (~0.1 µs/record, dominated by object
   allocation), so there is no obvious way to make it cheap enough to reconsider.
 
 - **Return `readonly T[]`.** Free, but it prevents mutating the *array*, not the
