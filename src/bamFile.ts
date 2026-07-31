@@ -10,7 +10,6 @@ import { parseHeaderText } from './sam.ts'
 import { appendInRange, parseRefSeqs } from './util.ts'
 
 import type Chunk from './chunk.ts'
-import type { Bytes } from './record.ts'
 import type { BamOpts, BaseOpts } from './util.ts'
 import type { GenericFilehandle } from 'generic-filehandle2'
 
@@ -26,11 +25,13 @@ export interface BamRecordLike {
   tags: Record<string, unknown>
 }
 
-export type BamRecordClass<T extends BamRecordLike = BAMFeature> = new (args: {
-  bytes: Bytes
-  fileOffset: number
-  dataView: DataView
-}) => T
+export type BamRecordClass<T extends BamRecordLike = BAMFeature> = new (
+  byteArray: Uint8Array,
+  start: number,
+  end: number,
+  fileOffset: number,
+  dataView: DataView,
+) => T
 
 export const BAM_MAGIC = 21840194
 
@@ -563,20 +564,18 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       }
 
       if (blockEnd < ba.length) {
-        const feature = new this.RecordClass({
-          bytes: {
-            byteArray: ba,
-            start: blockStart,
-            end: blockEnd,
-          },
-          fileOffset: hasCpositions
+        const feature = new this.RecordClass(
+          ba,
+          blockStart,
+          blockEnd,
+          hasCpositions
             ? cpositions[pos]! * (1 << 8) +
               (blockStart - dpositions[pos]!) +
               chunk.minv.dataPosition +
               1
             : crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
           dataView,
-        })
+        )
 
         sink.push(feature)
       }

@@ -38,11 +38,7 @@ function makeRecordWithBTag(
   const end = writeValues(dv, p)
 
   dv.setInt32(0, end - 4, true) // block_size = bytes following this field
-  return new BamRecord({
-    bytes: { byteArray: buf, start: 0, end: end - 1 },
-    fileOffset: 0,
-    dataView: dv,
-  })
+  return new BamRecord(buf, 0, end - 1, 0, dv)
 }
 
 test('B tag int32 array via tags and getTag', () => {
@@ -100,11 +96,7 @@ test('qual is returned for unmapped reads that carry bases', () => {
   buf[38] = 0x12 // packed seq (2 bases)
   buf[39] = quals[0]!
   buf[40] = quals[1]!
-  const rec = new BamRecord({
-    bytes: { byteArray: buf, start: 0, end: 40 },
-    fileOffset: 0,
-    dataView: dv,
-  })
+  const rec = new BamRecord(buf, 0, 40, 0, dv)
   expect(rec.isSegmentUnmapped()).toBe(true)
   expect([...(rec.qual ?? [])]).toEqual(quals)
 })
@@ -116,11 +108,7 @@ test('qual is null when there are no bases', () => {
   dv.setInt32(20, 0, true) // l_seq = 0
   buf[36] = 'q'.charCodeAt(0)
   buf[37] = 0
-  const rec = new BamRecord({
-    bytes: { byteArray: buf, start: 0, end: 38 },
-    fileOffset: 0,
-    dataView: dv,
-  })
+  const rec = new BamRecord(buf, 0, 38, 0, dv)
   expect(rec.qual).toBeNull()
 })
 
@@ -130,11 +118,7 @@ test('flags reads full uint16 without sign extension', () => {
   dv.setInt32(12, 1, true) // l_read_name = 1
   dv.setUint16(18, 0x8001, true) // flag with bit 15 set
   buf[36] = 0
-  const rec = new BamRecord({
-    bytes: { byteArray: buf, start: 0, end: 40 },
-    fileOffset: 0,
-    dataView: dv,
-  })
+  const rec = new BamRecord(buf, 0, 40, 0, dv)
   expect(rec.flags).toEqual(0x8001)
 })
 
@@ -157,11 +141,7 @@ function makeRecordWithSeq(bases: string) {
   }
   const end = seqStart + ((len + 1) >> 1) + len
   dv.setInt32(0, end - 4, true)
-  return new BamRecord({
-    bytes: { byteArray: buf, start: 0, end: end - 1 },
-    fileOffset: 0,
-    dataView: dv,
-  })
+  return new BamRecord(buf, 0, end - 1, 0, dv)
 }
 
 test.for([

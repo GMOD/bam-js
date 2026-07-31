@@ -315,12 +315,24 @@ export default class BamRecord {
   private _cachedNUMERIC_MD?: Uint8Array | null
   private _cachedSeqStart?: number
 
-  constructor(args: { bytes: Bytes; fileOffset: number; dataView: DataView }) {
-    this._byteArray = args.bytes.byteArray
-    this._start = args.bytes.start
-    this._end = args.bytes.end
-    this.fileOffset = args.fileOffset
-    this._dataView = args.dataView
+  // Positional rather than an options object, because every argument is
+  // unpacked into a field immediately and nothing keeps the wrapper. The
+  // options form allocated two throwaway objects for each of the ~200k records
+  // a deep pileup decodes — the `{byteArray, start, end}` literal and the
+  // `{bytes, fileOffset, dataView}` around it — purely to be taken apart again
+  // one line later.
+  constructor(
+    byteArray: Uint8Array,
+    start: number,
+    end: number,
+    fileOffset: number,
+    dataView: DataView,
+  ) {
+    this._byteArray = byteArray
+    this._start = start
+    this._end = end
+    this.fileOffset = fileOffset
+    this._dataView = dataView
   }
 
   get byteArray() {

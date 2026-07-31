@@ -553,10 +553,6 @@ test('parse BAM with many reference sequences', async () => {
 
 test('custom BamRecord class', async () => {
   class CustomBamRecord extends BamRecord {
-    // constructor(args: { bytes: Bytes; fileOffset: number }) {
-    //   super(args)
-    // }
-
     get customProperty() {
       return `custom-${this.name}`
     }
