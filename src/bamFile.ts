@@ -74,6 +74,11 @@ function chunkCacheKey(chunk: Chunk) {
 // here costs a re-download and re-decompress the next time the view moves.
 export const DEFAULT_MAX_CACHE_BYTES = 100 * 1024 * 1024
 
+// How many of a query's chunks to read at once. Six is the HTTP/1.1
+// per-host connection cap browsers enforce, so going much above it buys
+// nothing on the transport that matters and only widens peak memory.
+const MAX_CONCURRENT_CHUNK_READS = 6
+
 class ChunkFeatureCache<T> {
   public maxBytes: number
   private entries = new Map<string, ChunkEntry<T>>()
@@ -396,13 +401,33 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     let downloadedBytes = 0
     onProgress?.(0, totalBytes)
 
-    for (let ci = 0, cl = chunks.length; ci < cl; ci++) {
-      const chunk = chunks[ci]!
-      const features = await this._cachedChunkFeatures(chunk, opts)
+    // Fetch the chunks concurrently. A single query routinely spans a dozen or
+    // more chunks (14.8 on average for a 20kb window on the test 18MB file) and
+    // each is its own range request, so reading them one after another costs a
+    // network round trip apiece — the dominant cost of a remote query, well
+    // ahead of decompression. Bounded because browsers cap concurrent
+    // connections per host anyway, and an unbounded fan-out would inflate every
+    // chunk of a whole-chromosome query at once.
+    const featureLists = new Array<T[]>(chunks.length)
+    let next = 0
+    const readNext = async () => {
+      while (next < chunks.length) {
+        const ci = next++
+        const chunk = chunks[ci]!
+        featureLists[ci] = await this._cachedChunkFeatures(chunk, opts)
+        downloadedBytes += chunk.fetchedSize()
+        onProgress?.(downloadedBytes, totalBytes)
+      }
+    }
+    const workers = Math.min(MAX_CONCURRENT_CHUNK_READS, chunks.length)
+    await Promise.all(Array.from({ length: workers }, () => readNext()))
 
-      downloadedBytes += chunk.fetchedSize()
-      onProgress?.(downloadedBytes, totalBytes)
-      appendInRange(features, chrId, min, max, result)
+    // Append in chunk order, not completion order, so the result is the same
+    // sequence a sequential walk produced. (That is not coordinate order —
+    // bins at different levels cover overlapping spans — but it is what every
+    // caller has always been handed.)
+    for (let ci = 0, cl = chunks.length; ci < cl; ci++) {
+      appendInRange(featureLists[ci]!, chrId, min, max, result)
     }
 
     if (viewAsPairs) {

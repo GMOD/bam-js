@@ -136,6 +136,40 @@ test('concurrent queries share one set of record objects', async () => {
   expect(b[0]).toBe(a[0])
 })
 
+// Chunks are read concurrently, so they finish in whatever order the transport
+// hands them back. The records must still be assembled in chunk order — the
+// order a sequential walk produced — so the output never depends on timing.
+// (Chunk order is not the same as coordinate order: bins at different levels
+// cover overlapping spans, so the concatenation was never globally sorted.)
+test('record order does not depend on which chunk finishes first', async () => {
+  async function fetchWith(delay: (callIndex: number) => number) {
+    const bam = new BamFile({ bamPath: 'test/data/out.bam' })
+    await bam.getHeader()
+    const chunks = await bam.blocksForRange('1', 0, 1_000_000_000)
+    expect(chunks.length).toBeGreaterThan(1)
+
+    let call = 0
+    const inner = bam._readChunkFeatures.bind(bam)
+    bam._readChunkFeatures = async (chunk, opts) => {
+      const ms = delay(call++)
+      const result = await inner(chunk, opts)
+      await new Promise(resolve => {
+        setTimeout(resolve, ms)
+      })
+      return result
+    }
+    const records = await bam.getRecordsForRange('1', 0, 1_000_000_000)
+    return records.map(r => `${r.fileOffset}:${r.start}`)
+  }
+
+  // later chunks finish first, exactly inverting the natural completion order
+  const inOrder = await fetchWith(() => 0)
+  const reversed = await fetchWith(i => (16 - i) * 2)
+
+  expect(inOrder.length).toBeGreaterThan(0)
+  expect(reversed).toEqual(inOrder)
+})
+
 test('ref names do not resolve to Object.prototype members', async () => {
   const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
   await bam.getHeader()
