@@ -1,3 +1,10 @@
+## [7.6.1](https://github.com/GMOD/bam-js/compare/v7.6.0...v7.6.1) (2026-07-31)
+
+
+### Performance Improvements
+
+* find firstDataLine without allocating a VirtualOffset per index entry ([cd59ffc](https://github.com/GMOD/bam-js/commit/cd59ffc0305a9648f152427eaf7650418bf41b01))
+
 # [7.6.0](https://github.com/GMOD/bam-js/compare/v7.5.0...v7.6.0) (2026-07-31)
 
 
