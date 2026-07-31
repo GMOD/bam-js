@@ -1,3 +1,13 @@
+# [7.6.0](https://github.com/GMOD/bam-js/compare/v7.5.0...v7.6.0) (2026-07-31)
+
+
+### Performance Improvements
+
+* fetch a query's chunks concurrently ([1c80139](https://github.com/GMOD/bam-js/commit/1c80139b4042860c295b691c7f60061e22988fce))
+* pass BamRecord constructor args positionally ([dbd5491](https://github.com/GMOD/bam-js/commit/dbd5491e347d9ed4f320ae9aecc9f995092ff36b))
+* share in-flight chunk reads between concurrent queries ([b4a7bf9](https://github.com/GMOD/bam-js/commit/b4a7bf9f122259f7d0e943402032d46cba2ffd86))
+* skip the worker pool for single-chunk queries ([69f5cfd](https://github.com/GMOD/bam-js/commit/69f5cfd12b24768aca55cb2084229500fcef3bcd))
+
 # [7.5.0](https://github.com/GMOD/bam-js/compare/v7.4.0...v7.5.0) (2026-07-25)
 
 
