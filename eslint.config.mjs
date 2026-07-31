@@ -97,6 +97,7 @@ export default defineConfig(
       'unicorn/prefer-blob-reading-methods': 'off',
       'unicorn/prefer-code-point': 'off',
       'unicorn/prefer-continue': 'off',
+      'unicorn/prefer-early-return': 'off',
       'unicorn/prefer-includes-over-repeated-comparisons': 'off',
       'unicorn/prefer-math-trunc': 'off',
       'unicorn/prefer-modern-math-apis': 'off',
