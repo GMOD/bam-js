@@ -1,6 +1,6 @@
 import Chunk from './chunk.ts'
 import IndexFile, { memoizeByRefId } from './indexFile.ts'
-import { clampChunkEnds, findFirstData, parsePseudoBin } from './util.ts'
+import { clampChunkEnds, minVirtualOffset, parsePseudoBin } from './util.ts'
 import { fromBytes } from './virtualOffset.ts'
 
 import type { ParsedIndexBase, RefIndex } from './indexFile.ts'
@@ -101,10 +101,8 @@ export default class BAI extends IndexFile<BaiParsed> {
       // marks where the BAM header ends and data begins
       const linearCount = dataView.getInt32(curr, true)
       curr += 4
-      for (let j = 0; j < linearCount; j++) {
-        firstDataLine = findFirstData(firstDataLine, fromBytes(bytes, curr))
-        curr += 8
-      }
+      firstDataLine = minVirtualOffset(bytes, curr, linearCount, firstDataLine)
+      curr += 8 * linearCount
     }
 
     function getIndices(refId: number) {

@@ -1,7 +1,8 @@
 import Chunk from './chunk.ts'
 import { longFromBytesToUnsigned } from './long.ts'
+import { VirtualOffset } from './virtualOffset.ts'
 
-import type { Offset, VirtualOffset } from './virtualOffset.ts'
+import type { Offset } from './virtualOffset.ts'
 
 export interface BamOpts {
   viewAsPairs?: boolean
@@ -186,15 +187,41 @@ export function parseRefSeqs(
   return { chrToIndex, indexToChr }
 }
 
-export function findFirstData(
-  firstDataLine: VirtualOffset | undefined,
-  virtualOffset: VirtualOffset,
+// SYNC: ~/src/gmod/tabix-js/src/util.ts minVirtualOffset
+/**
+ * The smallest of `current` and the `count` packed virtual offsets starting at
+ * `offset`, allocating at most one VirtualOffset rather than one per entry.
+ *
+ * The index first pass exists only to find this minimum, and it visits every
+ * linear-index entry in the file to do it. Building a VirtualOffset per entry
+ * to compare and discard it is the bulk of that pass.
+ */
+export function minVirtualOffset(
+  bytes: Uint8Array,
+  offset: number,
+  count: number,
+  current: VirtualOffset | undefined,
 ) {
-  return firstDataLine
-    ? firstDataLine.compareTo(virtualOffset) > 0
-      ? virtualOffset
-      : firstDataLine
-    : virtualOffset
+  let minBlock = current ? current.blockPosition : Infinity
+  let minData = current ? current.dataPosition : 0
+  let found = false
+  for (let i = 0; i < count; i++) {
+    const p = offset + i * 8
+    const block =
+      bytes[p + 7]! * 0x10000000000 +
+      bytes[p + 6]! * 0x100000000 +
+      bytes[p + 5]! * 0x1000000 +
+      bytes[p + 4]! * 0x10000 +
+      bytes[p + 3]! * 0x100 +
+      bytes[p + 2]!
+    const data = (bytes[p + 1]! << 8) | bytes[p]!
+    if (block < minBlock || (block === minBlock && data < minData)) {
+      minBlock = block
+      minData = data
+      found = true
+    }
+  }
+  return found ? new VirtualOffset(minBlock, minData) : current
 }
 
 // SYNC: ~/src/gmod/tabix-js/src/util.ts parseNameBytes uses indexOf(0) instead of byte scan
