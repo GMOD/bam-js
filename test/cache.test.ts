@@ -178,3 +178,124 @@ test('ref names do not resolve to Object.prototype members', async () => {
   expect(await bam.getRecordsForRange('constructor', 1, 100)).toEqual([])
   expect(await bam.hasRefSeq('constructor')).toBe(false)
 })
+
+// Only the caller that *starts* a chunk read passes its signal down to
+// bam.read, so if that caller aborts, the shared promise rejects for everyone —
+// including queries that are still perfectly alive. Sharing the read must not
+// mean sharing the owner's cancellation (ADR 0007).
+//
+// Hangs the first read until it is aborted, so the second query is guaranteed
+// to join it rather than find it finished.
+function hangFirstRead(bam: BamFile) {
+  const stats = { reads: 0 }
+  const inner = bam._readChunkFeatures.bind(bam)
+  let started: () => void
+  const firstStarted = new Promise<void>(resolve => {
+    started = resolve
+  })
+  bam._readChunkFeatures = async (chunk, opts) => {
+    stats.reads++
+    if (stats.reads === 1) {
+      started()
+      // never resolves: the only way out is the owner's abort
+      await new Promise((_resolve, reject) => {
+        opts.signal?.addEventListener('abort', () => {
+          reject(new Error('aborted'))
+        })
+      })
+    }
+    return inner(chunk, opts)
+  }
+  return { stats, firstStarted }
+}
+
+// lets queued microtasks and timers run, so a joining query reaches the
+// in-flight map before we abort the owner
+function tick() {
+  return new Promise(resolve => {
+    setTimeout(resolve, 0)
+  })
+}
+
+test('a waiter survives the read owner aborting', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await bam.getHeader()
+  const { stats, firstStarted } = hangFirstRead(bam)
+
+  const chunkCount = (await bam.blocksForRange('ctgA', 0, 5000)).length
+
+  const aborter = new AbortController()
+  const ownerP = bam.getRecordsForRange('ctgA', 1, 5000, {
+    signal: aborter.signal,
+  })
+  await firstStarted
+  const waiterP = bam.getRecordsForRange('ctgA', 1, 5000)
+  await tick()
+  aborter.abort()
+
+  await expect(ownerP).rejects.toThrow(/aborted/)
+  const records = await waiterP
+  expect(records.length).toBeGreaterThan(0)
+  // the waiter joined the hung read and redid exactly it — one extra read, not
+  // a whole second query's worth
+  expect(stats.reads).toBe(chunkCount + 1)
+})
+
+test("a waiter's own abort still propagates", async () => {
+  const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await bam.getHeader()
+  const { firstStarted } = hangFirstRead(bam)
+
+  const aborter = new AbortController()
+  const ownerP = bam.getRecordsForRange('ctgA', 1, 5000, {
+    signal: aborter.signal,
+  })
+  await firstStarted
+  const waiterP = bam.getRecordsForRange('ctgA', 1, 5000, {
+    signal: aborter.signal,
+  })
+  await tick()
+  aborter.abort()
+
+  await expect(ownerP).rejects.toThrow(/aborted/)
+  await expect(waiterP).rejects.toThrow(/aborted/)
+})
+
+// Only an abort earns a retry. A read that failed for any other reason failed
+// for a reason the waiter would have hit too, so it must surface, not silently
+// double the work.
+test('a genuine read failure is not retried by waiters', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await bam.getHeader()
+
+  const stats = { reads: 0 }
+  let started: () => void
+  const firstStarted = new Promise<void>(resolve => {
+    started = resolve
+  })
+  let failFirst: () => void
+  bam._readChunkFeatures = async () => {
+    stats.reads++
+    started()
+    // never resolves: the test drives the failure via failFirst
+    await new Promise((_resolve, reject) => {
+      failFirst = () => {
+        reject(new Error('boom'))
+      }
+    })
+    throw new Error('unreachable')
+  }
+
+  const chunkCount = (await bam.blocksForRange('ctgA', 0, 5000)).length
+
+  const aP = bam.getRecordsForRange('ctgA', 1, 5000)
+  await firstStarted
+  const bP = bam.getRecordsForRange('ctgA', 1, 5000)
+  await tick()
+  failFirst!()
+
+  await expect(aP).rejects.toThrow(/boom/)
+  await expect(bP).rejects.toThrow(/boom/)
+  // one read per chunk and no retry: the second query joined and took the loss
+  expect(stats.reads).toBe(chunkCount)
+})
