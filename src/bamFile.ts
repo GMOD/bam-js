@@ -325,7 +325,9 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     })
     const inFlight: InFlightChunk<T> = { promise, signal: opts.signal }
     this.inFlightChunks.set(cacheKey, inFlight)
-    // only clear our own entry: a retry may already have replaced it
+    // Only clear our own entry: a retry may already have replaced it. `.then(f,
+    // f)` rather than `.finally(f)` so the handler's own promise never carries
+    // an unhandled rejection.
     const clear = () => {
       if (this.inFlightChunks.get(cacheKey) === inFlight) {
         this.inFlightChunks.delete(cacheKey)
@@ -345,7 +347,10 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   // (ADR 0006). Caching the inflated buffer and re-scanning per query would give
   // each caller its own objects, but roughly doubles a warm query on dense data
   // — measured, and rejected, in that ADR.
-  private async _cachedChunkFeatures(chunk: Chunk, opts: BaseOpts) {
+  private async _cachedChunkFeatures(
+    chunk: Chunk,
+    opts: BaseOpts,
+  ): Promise<T[]> {
     const cacheKey = chunkCacheKey(chunk)
     const cached = this.chunkFeatureCache.get(cacheKey)
     if (cached) {
@@ -362,26 +367,19 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       return (await this._startChunkRead(cacheKey, chunk, opts)).features
     }
 
-    return (
-      await pending.promise.catch((e: unknown) => {
-        // The read we joined was started by another caller. If that caller
-        // aborted, the failure is theirs and says nothing about our query, so
-        // redo the read under our own signal. Any other failure (and our own
-        // abort) propagates as it would have without sharing.
-        if (
-          pending.signal !== opts.signal &&
-          pending.signal?.aborted &&
-          opts.signal?.aborted !== true
-        ) {
-          // a sibling waiter may have already kicked off the retry
-          const retry = this.inFlightChunks.get(cacheKey)
-          return retry
-            ? retry.promise
-            : this._startChunkRead(cacheKey, chunk, opts)
-        }
+    try {
+      return (await pending.promise).features
+    } catch (e) {
+      // The read we joined was started by another caller. If that caller
+      // aborted and we did not, the failure is theirs and says nothing about
+      // our query, so start over — which picks up the cache, joins a sibling's
+      // retry, or reads under our own signal. Any other failure (and our own
+      // abort) propagates as it would have without sharing.
+      if (!pending.signal?.aborted || opts.signal?.aborted) {
         throw e
-      })
-    ).features
+      }
+      return this._cachedChunkFeatures(chunk, opts)
+    }
   }
 
   private async _fetchChunkFeatures(
@@ -401,15 +399,14 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     let downloadedBytes = 0
     onProgress?.(0, totalBytes)
 
+    const featureLists = new Array<T[]>(chunks.length)
     if (chunks.length === 1) {
       // Very common — most small files, and any query landing inside one bin.
-      // Worth its own path: the pool below allocates a result slot per chunk, a
-      // closure, a worker array and a Promise.all, all of which is pure
-      // overhead for one chunk and measurable on queries that take ~0.2ms.
-      const chunk = chunks[0]!
-      const features = await this._cachedChunkFeatures(chunk, opts)
-      onProgress?.(chunk.fetchedSize(), totalBytes)
-      appendInRange(features, chrId, min, max, result)
+      // Worth its own path: the pool below allocates a closure, a worker array
+      // and a Promise.all, all of which is pure overhead for one chunk and
+      // measurable on queries that take ~0.2ms.
+      featureLists[0] = await this._cachedChunkFeatures(chunks[0]!, opts)
+      onProgress?.(totalBytes, totalBytes)
     } else {
       // Fetch the chunks concurrently. A query routinely spans a dozen or more
       // chunks (14.8 on average for a 20kb window on the test 18MB file) and
@@ -418,7 +415,6 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       // ahead of decompression. Bounded because browsers cap concurrent
       // connections per host anyway, and an unbounded fan-out would inflate
       // every chunk of a whole-chromosome query at once.
-      const featureLists = new Array<T[]>(chunks.length)
       let next = 0
       const readNext = async () => {
         while (next < chunks.length) {
@@ -431,14 +427,14 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       }
       const workers = Math.min(MAX_CONCURRENT_CHUNK_READS, chunks.length)
       await Promise.all(Array.from({ length: workers }, () => readNext()))
+    }
 
-      // Append in chunk order, not completion order, so the result is the same
-      // sequence a sequential walk produced. (That is not coordinate order —
-      // bins at different levels cover overlapping spans — but it is what every
-      // caller has always been handed.)
-      for (let ci = 0, cl = chunks.length; ci < cl; ci++) {
-        appendInRange(featureLists[ci]!, chrId, min, max, result)
-      }
+    // Append in chunk order, not completion order, so the result is the same
+    // sequence a sequential walk produced. (That is not coordinate order — bins
+    // at different levels cover overlapping spans — but it is what every caller
+    // has always been handed.)
+    for (let ci = 0, cl = chunks.length; ci < cl; ci++) {
+      appendInRange(featureLists[ci]!, chrId, min, max, result)
     }
 
     if (viewAsPairs) {
