@@ -53,6 +53,13 @@ interface ChunkEntry<T> {
   features: T[]
 }
 
+interface InFlightChunk<T> {
+  promise: Promise<ChunkEntry<T>>
+  // the signal the read was started with, so a waiter can tell "the owner
+  // aborted" apart from "the read genuinely failed"
+  signal?: AbortSignal
+}
+
 function chunkCacheKey(chunk: Chunk) {
   const { minv, maxv } = chunk
   return `${minv.blockPosition}:${minv.dataPosition}-${maxv.blockPosition}:${maxv.dataPosition}`
@@ -137,6 +144,11 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
   // Cache for parsed features by chunk, bounded by decompressed bytes
   public chunkFeatureCache: ChunkFeatureCache<T>
+
+  // Chunks currently being read, so concurrent queries share one decompress
+  // instead of racing. Entries live only until the read settles; the resolved
+  // features land in chunkFeatureCache.
+  private inFlightChunks = new Map<string, InFlightChunk<T>>()
 
   private RecordClass: BamRecordClass<T>
 
@@ -299,6 +311,25 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     return this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
+  // Read a chunk, publish it to the cache, and keep the in-flight promise
+  // discoverable while it runs.
+  private _startChunkRead(cacheKey: string, chunk: Chunk, opts: BaseOpts) {
+    const promise = this._readChunkFeatures(chunk, opts).then(entry => {
+      this.chunkFeatureCache.set(cacheKey, entry)
+      return entry
+    })
+    const inFlight: InFlightChunk<T> = { promise, signal: opts.signal }
+    this.inFlightChunks.set(cacheKey, inFlight)
+    // only clear our own entry: a retry may already have replaced it
+    const clear = () => {
+      if (this.inFlightChunks.get(cacheKey) === inFlight) {
+        this.inFlightChunks.delete(cacheKey)
+      }
+    }
+    promise.then(clear, clear)
+    return promise
+  }
+
   // Parsed records for a chunk, reading and decompressing it only on a miss.
   // Every path that wants a chunk's features goes through here — mate lookups
   // included, since a viewAsPairs query revisits the same mate chunks each time
@@ -311,12 +342,41 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   // — measured, and rejected, in that ADR.
   private async _cachedChunkFeatures(chunk: Chunk, opts: BaseOpts) {
     const cacheKey = chunkCacheKey(chunk)
-    let entry = this.chunkFeatureCache.get(cacheKey)
-    if (!entry) {
-      entry = await this._readChunkFeatures(chunk, opts)
-      this.chunkFeatureCache.set(cacheKey, entry)
+    const cached = this.chunkFeatureCache.get(cacheKey)
+    if (cached) {
+      return cached.features
     }
-    return entry.features
+
+    // Join a read already running for this chunk rather than decompressing it a
+    // second time. jbrowse fetches a row of adjacent blocks concurrently and
+    // they collapse onto very few chunk keys, so without this a query pays for
+    // the same inflate several times over — the dominant cost of a cold query
+    // (ADR 0003).
+    const pending = this.inFlightChunks.get(cacheKey)
+    if (!pending) {
+      return (await this._startChunkRead(cacheKey, chunk, opts)).features
+    }
+
+    return (
+      await pending.promise.catch((e: unknown) => {
+        // The read we joined was started by another caller. If that caller
+        // aborted, the failure is theirs and says nothing about our query, so
+        // redo the read under our own signal. Any other failure (and our own
+        // abort) propagates as it would have without sharing.
+        if (
+          pending.signal !== opts.signal &&
+          pending.signal?.aborted &&
+          opts.signal?.aborted !== true
+        ) {
+          // a sibling waiter may have already kicked off the retry
+          const retry = this.inFlightChunks.get(cacheKey)
+          return retry
+            ? retry.promise
+            : this._startChunkRead(cacheKey, chunk, opts)
+        }
+        throw e
+      })
+    ).features
   }
 
   private async _fetchChunkFeatures(

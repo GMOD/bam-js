@@ -81,6 +81,61 @@ test('panning within the same chunks re-uses parsed records', async () => {
   expect(bam.chunkFeatureCache.byteSize).toBe(bytesAfterFirst)
 })
 
+// Counts how many times a chunk is actually read+decompressed, by wrapping the
+// one method every cache miss goes through.
+function countChunkReads(bam: BamFile) {
+  const stats = { reads: 0 }
+  const inner = bam._readChunkFeatures.bind(bam)
+  bam._readChunkFeatures = async (chunk, opts) => {
+    stats.reads++
+    return inner(chunk, opts)
+  }
+  return stats
+}
+
+// A genome browser renders a row of adjacent blocks concurrently, and those
+// queries collapse onto very few chunk keys. Without in-flight de-duplication
+// every one of them missed the cache (nothing is published until a read
+// finishes) and re-decompressed the same chunk — the most expensive part of a
+// cold query.
+test('concurrent queries over the same chunk decompress it once', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/chr22_nanopore_subset.bam' })
+  await bam.getHeader()
+  const stats = countChunkReads(bam)
+
+  const width = 5000
+  const results = await Promise.all(
+    Array.from({ length: 8 }, (_, i) =>
+      bam.getRecordsForRange(
+        '22',
+        16_450_000 + i * width,
+        16_450_000 + (i + 1) * width,
+      ),
+    ),
+  )
+
+  expect(results.some(r => r.length > 0)).toBe(true)
+  // one read per distinct chunk, not one per query
+  expect(stats.reads).toBe(bam.chunkFeatureCache.size)
+})
+
+// The same chunk requested concurrently must hand back the identical parsed
+// records, not two independently-decoded copies (ADR 0006).
+test('concurrent queries share one set of record objects', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await bam.getHeader()
+  const stats = countChunkReads(bam)
+
+  const [a, b] = await Promise.all([
+    bam.getRecordsForRange('ctgA', 1, 5000),
+    bam.getRecordsForRange('ctgA', 1, 5000),
+  ])
+
+  expect(stats.reads).toBe(bam.chunkFeatureCache.size)
+  expect(a.length).toBeGreaterThan(0)
+  expect(b[0]).toBe(a[0])
+})
+
 test('ref names do not resolve to Object.prototype members', async () => {
   const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
   await bam.getHeader()
