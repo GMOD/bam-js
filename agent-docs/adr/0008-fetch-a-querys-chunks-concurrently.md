@@ -40,12 +40,47 @@ growing.
 
 ## Consequences / rationale
 
-- **Remote queries get ~5x faster.** Same 50 ms-RTT benchmark: 789 → 162 ms.
+- **Remote queries get ~4x faster, and it composes with jbrowse's fetch layer.**
+  A bare 50 ms-RTT filehandle gives 789 → 162 ms, but that overstates the win:
+  jbrowse does not read through a bare filehandle. `RemoteFileWithRangeCache`
+  (`packages/core/src/util/io`) sits underneath and already does 256 KB
+  chunk-aligned caching, coalescing of contiguous missing chunks into one range
+  request, and byte-level in-flight de-duplication with its own
+  `MAX_CONCURRENT = 20`.
 
-- **Local queries are unaffected.** Interleaved A/B (both implementations in one
-  process, alternating order, 15 iterations, on mains power — see the warning
-  below): `out.bam` 43.8 → 41.5 ms, `shortreads_300x.bam` 40.7 → 40.2 ms,
-  `chr22_nanopore_subset.bam` 83.4 → 83.5 ms at the min. Parity.
+  Re-measured through a faithful model of that layer, 50 ms per request:
+
+  | file | HTTP requests | bytes | sequential | concurrent |
+  | ------------------------- | ------------- | ------- | ---------- | ---------- |
+  | out.bam (14 chunks) | 13 both | 8.7 MB | 734 ms | **192 ms** |
+  | chr22_nanopore_subset | 3 both | 14.2 MB | 277 ms | **185 ms** |
+  | shortreads_300x | 2 both | 5.0 MB | 194 ms | **143 ms** |
+
+  The request count and byte count are **identical** in both columns, so this
+  buys latency without costing bandwidth or request amplification — the two
+  layers compose rather than fight. That is a consequence of the byte-level
+  dedup below us: when several of our concurrent chunk reads land in the same
+  256 KB block, that layer collapses them into one fetch.
+
+  Note the corollary for ADR 0007: because that layer dedups *bytes* but not
+  *decompression*, it does nothing for duplicate inflates. The two dedups are
+  complementary, not redundant.
+
+- **Local single-query performance is a wash, by construction.**
+  `benchmarks/bam.bench.ts` issues one sequential query against a local file —
+  the one workload neither this change nor ADR 0007 targets (no round trips to
+  hide, no concurrent queries to share). Measured parity is the expected result,
+  not a disappointing one.
+
+  Confirmed: interleaved A/B (both implementations in one process, alternating
+  order, 15 iterations) shows `out.bam` 43.8 → 41.5 ms, `shortreads_300x` 40.7 →
+  40.2 ms, `chr22_nanopore_subset` 83.4 → 83.5 ms at the min.
+
+- **A one-chunk query skips the pool.** The pool allocates a result slot per
+  chunk, a closure, a worker array and a `Promise.all`; for one chunk that is
+  pure overhead, and it showed up on queries taking ~0.2 ms. `tiny.bam`
+  regressed ~7% before the fast path was added. Single-chunk queries are common
+  — every small test file, and any query landing inside one bin.
 
 - **Output is byte-identical.** Base and new record sequences compared by
   `fileOffset:start:end:name` across every `.bam` in `test/data`, every ref, four
@@ -89,6 +124,14 @@ shared wasm linear memory via `memory.grow` — was tested directly (decompress
 the same pre-read buffers sequentially vs concurrently, no bam-js involved) and
 **refuted**: concurrent was 0.79–1.04x, i.e. no worse.
 
-For anything in this repo where the effect is under ~20%, measure both
-implementations interleaved in a single process, alternating which goes first,
-and check the power source.
+**`pnpm bench` has the same weakness.** tinybench runs all of variant A's
+iterations, then all of B's — it does not interleave per iteration, so it is
+subject to exactly this bias. Running the full suite in both slot orders,
+every result flipped sign except `tiny.bam` (1.08x / 1.07x, consistently
+slower — the real single-chunk regression) and `volvox-sorted` (1.01x / 1.06x,
+same direction). The apparent 1.22x regression on `cho.bam` and the apparent
+1.80x win on `another_chm1_id_difference` both reversed and were artifacts.
+
+For anything in this repo where the effect is under ~20%: run the suite in both
+slot orders and discard anything that flips, or measure the variants rotated
+within a single process. And check the power source.
