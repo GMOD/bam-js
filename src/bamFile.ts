@@ -401,33 +401,44 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     let downloadedBytes = 0
     onProgress?.(0, totalBytes)
 
-    // Fetch the chunks concurrently. A single query routinely spans a dozen or
-    // more chunks (14.8 on average for a 20kb window on the test 18MB file) and
-    // each is its own range request, so reading them one after another costs a
-    // network round trip apiece — the dominant cost of a remote query, well
-    // ahead of decompression. Bounded because browsers cap concurrent
-    // connections per host anyway, and an unbounded fan-out would inflate every
-    // chunk of a whole-chromosome query at once.
-    const featureLists = new Array<T[]>(chunks.length)
-    let next = 0
-    const readNext = async () => {
-      while (next < chunks.length) {
-        const ci = next++
-        const chunk = chunks[ci]!
-        featureLists[ci] = await this._cachedChunkFeatures(chunk, opts)
-        downloadedBytes += chunk.fetchedSize()
-        onProgress?.(downloadedBytes, totalBytes)
+    if (chunks.length === 1) {
+      // Very common — most small files, and any query landing inside one bin.
+      // Worth its own path: the pool below allocates a result slot per chunk, a
+      // closure, a worker array and a Promise.all, all of which is pure
+      // overhead for one chunk and measurable on queries that take ~0.2ms.
+      const chunk = chunks[0]!
+      const features = await this._cachedChunkFeatures(chunk, opts)
+      onProgress?.(chunk.fetchedSize(), totalBytes)
+      appendInRange(features, chrId, min, max, result)
+    } else {
+      // Fetch the chunks concurrently. A query routinely spans a dozen or more
+      // chunks (14.8 on average for a 20kb window on the test 18MB file) and
+      // each is its own range request, so reading them one after another costs
+      // a network round trip apiece — the dominant cost of a remote query, well
+      // ahead of decompression. Bounded because browsers cap concurrent
+      // connections per host anyway, and an unbounded fan-out would inflate
+      // every chunk of a whole-chromosome query at once.
+      const featureLists = new Array<T[]>(chunks.length)
+      let next = 0
+      const readNext = async () => {
+        while (next < chunks.length) {
+          const ci = next++
+          const chunk = chunks[ci]!
+          featureLists[ci] = await this._cachedChunkFeatures(chunk, opts)
+          downloadedBytes += chunk.fetchedSize()
+          onProgress?.(downloadedBytes, totalBytes)
+        }
       }
-    }
-    const workers = Math.min(MAX_CONCURRENT_CHUNK_READS, chunks.length)
-    await Promise.all(Array.from({ length: workers }, () => readNext()))
+      const workers = Math.min(MAX_CONCURRENT_CHUNK_READS, chunks.length)
+      await Promise.all(Array.from({ length: workers }, () => readNext()))
 
-    // Append in chunk order, not completion order, so the result is the same
-    // sequence a sequential walk produced. (That is not coordinate order —
-    // bins at different levels cover overlapping spans — but it is what every
-    // caller has always been handed.)
-    for (let ci = 0, cl = chunks.length; ci < cl; ci++) {
-      appendInRange(featureLists[ci]!, chrId, min, max, result)
+      // Append in chunk order, not completion order, so the result is the same
+      // sequence a sequential walk produced. (That is not coordinate order —
+      // bins at different levels cover overlapping spans — but it is what every
+      // caller has always been handed.)
+      for (let ci = 0, cl = chunks.length; ci < cl; ci++) {
+        appendInRange(featureLists[ci]!, chrId, min, max, result)
+      }
     }
 
     if (viewAsPairs) {
