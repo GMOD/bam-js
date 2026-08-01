@@ -551,6 +551,72 @@ test('parse BAM with many reference sequences', async () => {
   expect(records.length).toBeGreaterThan(0)
 })
 
+// Records the header reads, and fails loudly on the whole-file read that
+// getHeaderPre used to fall back to.
+class ReadSpy {
+  public reads: number[] = []
+  private fh: LocalFile
+
+  constructor(fh: LocalFile) {
+    this.fh = fh
+  }
+
+  read(length: number, position: number) {
+    this.reads.push(length)
+    return this.fh.read(length, position)
+  }
+
+  readFile(): Promise<never> {
+    throw new Error('whole-file read')
+  }
+
+  stat() {
+    return this.fh.stat()
+  }
+
+  close() {
+    return this.fh.close()
+  }
+}
+
+// An indexer that does not backfill leaves a reference's linear-index windows
+// at 0 until its first read, and 0:0 taken as the minimum makes firstDataLine
+// nonsense: the header read is then sized off nothing, which for this file's
+// 11003-entry ref-seq table lands in the middle of the table
+// (jbrowse-components#5496)
+test('large header, index with leading zero linear index entries', async () => {
+  const bam = new ReadSpy(
+    new LocalFile('test/data/pha/Pm_st24_CTL1_subset.bam'),
+  )
+  const ti = new BamFile({
+    bamFilehandle: bam,
+    baiPath: 'test/data/pha/Pm_st24_CTL1_subset.leading_zeros.bam.bai',
+  })
+  expect(String((await ti.index!.parse()).firstDataLine)).toEqual('69596:0')
+  await ti.getHeader()
+  expect(Object.keys(ti.chrToIndex!).length).toEqual(11003)
+  // 69596 (where the records start) + one bgzf block, in a single read
+  expect(bam.reads).toEqual([135132])
+})
+
+// With every window zeroed there is no firstDataLine to size from, so the read
+// starts at one block and doubles until the ref-seq table parses
+test('large header, index with no linear index at all', async () => {
+  const bam = new ReadSpy(
+    new LocalFile('test/data/pha/Pm_st24_CTL1_subset.bam'),
+  )
+  const ti = new BamFile({
+    bamFilehandle: bam,
+    baiPath: 'test/data/pha/Pm_st24_CTL1_subset.no_linear_index.bam.bai',
+  })
+  expect((await ti.index!.parse()).firstDataLine).toBeUndefined()
+  await ti.getHeader()
+  expect(Object.keys(ti.chrToIndex!).length).toEqual(11003)
+  expect(bam.reads).toEqual([65536, 131072])
+  const records = await ti.getRecordsForRange('S6', 200000, 200100)
+  expect(records.length).toBeGreaterThan(0)
+})
+
 test('custom BamRecord class', async () => {
   class CustomBamRecord extends BamRecord {
     get customProperty() {

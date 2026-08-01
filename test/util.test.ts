@@ -4,6 +4,7 @@ import Chunk from '../src/chunk.ts'
 import {
   appendInRange,
   clampChunkEnds,
+  minVirtualOffset,
   optimizeChunks,
   parseRefSeqs,
 } from '../src/util.ts'
@@ -169,4 +170,40 @@ test('parseRefSeqs decodes refs and honors renameRefSeq', () => {
     // records start after the ref-seq table, i.e. at the end of this buffer
     end: buf.length,
   })
+})
+
+function packOffsets(offsets: [number, number][]) {
+  const buf = new Uint8Array(8 * offsets.length)
+  const dv = new DataView(buf.buffer)
+  offsets.forEach(([block, data], i) => {
+    dv.setBigUint64(8 * i, (BigInt(block) << 16n) | BigInt(data), true)
+  })
+  return buf
+}
+
+test('minVirtualOffset skips unset 0:0 entries', () => {
+  // htslib leaves linear-index windows ahead of a reference's first read at 0,
+  // and no BAM record can be at 0:0 since the header occupies the file start
+  const buf = packOffsets([
+    [0, 0],
+    [0, 0],
+    [69596, 0],
+    [70000, 12],
+  ])
+  expect(String(minVirtualOffset(buf, 0, 4, undefined))).toEqual('69596:0')
+  expect(
+    String(minVirtualOffset(buf, 0, 4, new VirtualOffset(80000, 0))),
+  ).toEqual('69596:0')
+  // a nonzero data position at block 0 is a real offset, not a placeholder
+  expect(
+    String(minVirtualOffset(packOffsets([[0, 179]]), 0, 1, undefined)),
+  ).toEqual('0:179')
+})
+
+test('minVirtualOffset returns current when every entry is unset', () => {
+  const buf = packOffsets([
+    [0, 0],
+    [0, 0],
+  ])
+  expect(minVirtualOffset(buf, 0, 2, undefined)).toBeUndefined()
 })

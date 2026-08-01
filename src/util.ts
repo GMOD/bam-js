@@ -188,10 +188,19 @@ export function parseRefSeqs(
   return { chrToIndex, indexToChr, end: p }
 }
 
-// SYNC: ~/src/gmod/tabix-js/src/util.ts minVirtualOffset
+// SYNC: ~/src/gmod/tabix-js/src/util.ts minVirtualOffset — but NOT the 0:0
+// skip below, which is only sound for BAM. A tabix'd file with no header lines
+// really does have its first record at 0:0.
 /**
  * The smallest of `current` and the `count` packed virtual offsets starting at
  * `offset`, allocating at most one VirtualOffset rather than one per entry.
+ *
+ * 0:0 is skipped rather than treated as the minimum. No BAM record can live
+ * there — the magic and header occupy the start of the file — so it is the
+ * "unset" placeholder htslib leaves in linear-index windows ahead of a
+ * reference's first read (see test/data/HG00096_illumina_lowcov.bam.bai, whose
+ * first three windows are 0). Counting it collapses firstDataLine to 0:0 and
+ * makes callers size a header read from nothing.
  *
  * The index first pass exists only to find this minimum, and it visits every
  * linear-index entry in the file to do it. Building a VirtualOffset per entry
@@ -216,7 +225,10 @@ export function minVirtualOffset(
       bytes[p + 3]! * 0x100 +
       bytes[p + 2]!
     const data = (bytes[p + 1]! << 8) | bytes[p]!
-    if (block < minBlock || (block === minBlock && data < minData)) {
+    if (
+      (block !== 0 || data !== 0) &&
+      (block < minBlock || (block === minBlock && data < minData))
+    ) {
       minBlock = block
       minData = data
       found = true

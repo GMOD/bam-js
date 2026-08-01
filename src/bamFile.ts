@@ -37,6 +37,12 @@ export const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
 
+// Ceiling on the header read. A million contigs is roughly 10MB of compressed
+// @SQ lines and ref-seq table, so anything past this is a corrupt header
+// claiming a huge n_ref rather than a real one, and growing the read further
+// just downloads the file.
+const maxHeaderReadLen = 32 * 1024 * 1024
+
 function resolveFilehandle(
   filehandle?: GenericFilehandle,
   path?: string,
@@ -230,25 +236,28 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     }
     const indexData = await this.index.parse(opts)
 
-    // firstDataLine is not defined in cases where there is no data in the file
-    // (just bam header and nothing else)
-    const readLen =
+    // The records start at firstDataLine, so reading up to it plus the bgzf
+    // block straddling it covers the header. It is undefined when the index
+    // records no data at all (header-only BAM), and it undershoots when the
+    // index leaves offsets unset, so grow the read until the ref-seq table
+    // parses. Never readFile() here: on a remote BAM that is a whole-file
+    // download to read a header.
+    let readLen =
       indexData.firstDataLine === undefined
-        ? undefined
+        ? blockLen
         : indexData.firstDataLine.blockPosition + blockLen
 
-    const buffer =
-      readLen === undefined
-        ? await this.bam.readFile()
-        : await this.bam.read(readLen, 0)
-    // BAM files with many reference sequences may need more data than the
-    // initial read covers. If the first attempt comes up short, fall back to
-    // reading the whole file (the index's firstDataLine is just an
-    // optimization hint, not a guaranteed cap on the ref-seq table size).
-    const samHeader =
-      this.applyHeader(await unzip(buffer)) ??
-      this.applyHeader(await unzip(await this.bam.readFile()))
-    if (!samHeader) {
+    let samHeader
+    let atEof = false
+    while (samHeader === undefined && !atEof && readLen <= maxHeaderReadLen) {
+      const buffer = await this.bam.read(readLen, 0, { signal: opts.signal })
+      // a short read means readLen ran past the end of the file, so there are
+      // no more bytes to grow into
+      atEof = buffer.length < readLen
+      samHeader = this.applyHeader(await unzip(buffer))
+      readLen *= 2
+    }
+    if (samHeader === undefined) {
       throw new Error('Insufficient data for reference sequences')
     }
     return samHeader
