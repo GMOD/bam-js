@@ -6,3 +6,5 @@ export { default as HtsgetFile } from './htsget.ts'
 
 export type { Bytes } from './record.ts'
 export type { BamRecordClass, BamRecordLike } from './bamFile.ts'
+// for typing the HtsgetFile `fetch` option
+export type { Fetcher } from 'generic-filehandle2'

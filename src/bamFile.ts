@@ -241,35 +241,47 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       readLen === undefined
         ? await this.bam.readFile()
         : await this.bam.read(readLen, 0)
-    let uncba = await unzip(buffer)
+    // BAM files with many reference sequences may need more data than the
+    // initial read covers. If the first attempt comes up short, fall back to
+    // reading the whole file (the index's firstDataLine is just an
+    // optimization hint, not a guaranteed cap on the ref-seq table size).
+    const samHeader =
+      this.applyHeader(await unzip(buffer)) ??
+      this.applyHeader(await unzip(await this.bam.readFile()))
+    if (!samHeader) {
+      throw new Error('Insufficient data for reference sequences')
+    }
+    return samHeader
+  }
+
+  /**
+   * Installs the header text and ref name/id maps from the start of a
+   * decompressed BAM stream, returning the parsed SAM header lines. Returns
+   * undefined if the stream is cut off partway through the ref-seq table, so
+   * the caller can retry with more data.
+   */
+  protected applyHeader(uncba: Uint8Array) {
     const dataView = new DataView(
       uncba.buffer,
       uncba.byteOffset,
       uncba.byteLength,
     )
-
     if (dataView.getInt32(0, true) !== BAM_MAGIC) {
       throw new Error('Not a BAM file')
     }
     const headLen = dataView.getInt32(4, true)
-    this.header = new TextDecoder('utf8').decode(uncba.subarray(8, 8 + headLen))
-
-    // BAM files with many reference sequences may need more data than the
-    // initial read covers. If the first attempt comes up short, fall back to
-    // reading the whole file (the index's firstDataLine is just an
-    // optimization hint, not a guaranteed cap on the ref-seq table size).
-    const refSeqStart = headLen + 8
-    let parsed = parseRefSeqs(uncba, refSeqStart, this.renameRefSeq)
-    if (!parsed) {
-      uncba = await unzip(await this.bam.readFile())
-      parsed = parseRefSeqs(uncba, refSeqStart, this.renameRefSeq)
+    const parsed = parseRefSeqs(uncba, headLen + 8, this.renameRefSeq)
+    let samHeader
+    if (parsed) {
+      const headerText = new TextDecoder('utf8').decode(
+        uncba.subarray(8, 8 + headLen),
+      )
+      this.header = headerText
+      this.chrToIndex = parsed.chrToIndex
+      this.indexToChr = parsed.indexToChr
+      samHeader = parseHeaderText(headerText)
     }
-    if (!parsed) {
-      throw new Error('Insufficient data for reference sequences')
-    }
-    this.chrToIndex = parsed.chrToIndex
-    this.indexToChr = parsed.indexToChr
-    return parseHeaderText(this.header)
+    return samHeader
   }
 
   getHeader(opts?: BaseOpts) {
