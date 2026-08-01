@@ -1,3 +1,23 @@
+## [7.6.2](https://github.com/GMOD/bam-js/compare/v7.6.1...v7.6.2) (2026-08-01)
+
+### Bug Fixes
+
+- Stop reading the whole BAM when the header read comes up short
+
+### Chores
+
+- Replace standard-changelog with git-cliff for changelog generation
+
+### Documentation
+
+- Correct and condense README
+- Backfill CHANGELOG entries left empty since standard-changelog only picks up feat/fix/perf commits
+- Mark breaking changes in the generated changelog
+
+### Features
+
+- Add a fetch option to HtsgetFile, and fix htsget-rs compatibility (#128)
+
 ## [7.6.1](https://github.com/GMOD/bam-js/compare/v7.6.0...v7.6.1) (2026-07-31)
 
 
