@@ -1,0 +1,53 @@
+# git-cliff configuration — https://git-cliff.org/docs/configuration
+#
+# Replaces standard-changelog. The key difference: filter_unconventional is
+# false, and the last commit_parsers entry is a catch-all `.*` group — so a
+# commit that isn't in "type: subject" form still lands in the changelog
+# (under "Other Changes") instead of silently vanishing. That silent drop is
+# what left CHANGELOG.md blank for many versions in a sibling repo.
+
+[changelog]
+body = """
+{% if version -%}
+## [{{ version | trim_start_matches(pat="v") }}](https://github.com/GMOD/bam-js/compare/{% if previous %}{{ previous.version }}{% else %}{{ version }}{% endif %}...{{ version }}) ({{ timestamp | date(format="%Y-%m-%d") }})
+{% else -%}
+## [Unreleased]
+{% endif %}
+{% for group, commits in commits | group_by(attribute="group") %}\
+### {{ group | striptags | trim }}
+
+{% for commit in commits %}\
+- {{ commit.message | upper_first }}
+{% endfor %}
+{% endfor %}\
+"""
+trim = true
+# Keep a header for every tag, even a release with nothing but skipped
+# (e.g. dependency-bump) commits — matches every prior tag having an entry.
+render_always = true
+
+[git]
+conventional_commits = true
+# Do NOT drop commits that aren't conventional-format — route them to the
+# catch-all group below instead. This is the fix for the original bug.
+filter_unconventional = false
+require_conventional = false
+filter_commits = false
+tag_pattern = "v[0-9]*"
+sort_commits = "oldest"
+
+commit_parsers = [
+  { message = "^v?\\d+\\.\\d+\\.\\d+$", skip = true },
+  { message = "^Merge", skip = true },
+  { message = "^chore\\(deps", skip = true },
+  { message = "^feat", group = "Features" },
+  { message = "^fix", group = "Bug Fixes" },
+  { message = "^perf", group = "Performance Improvements" },
+  { message = "^revert", group = "Reverts" },
+  { message = "^refactor", group = "Refactoring" },
+  { message = "^docs", group = "Documentation" },
+  { message = "^test", group = "Tests" },
+  { message = "^style", group = "Styling" },
+  { message = "^(chore|ci|build)", group = "Chores" },
+  { message = ".*", group = "Other Changes" },
+]
