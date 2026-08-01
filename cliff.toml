@@ -17,7 +17,7 @@ body = """
 ### {{ group | striptags | trim }}
 
 {% for commit in commits %}\
-- {{ commit.message | upper_first }}
+- {% if commit.breaking %}**BREAKING** {% endif %}{{ commit.message | upper_first }}
 {% endfor %}
 {% endfor %}\
 """
