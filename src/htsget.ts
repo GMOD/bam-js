@@ -2,42 +2,111 @@ import { unzip } from '@gmod/bgzf-filehandle'
 
 import BamFile, { BAM_MAGIC } from './bamFile.ts'
 import Chunk from './chunk.ts'
-import { parseHeaderText } from './sam.ts'
-import { appendInRange, concatUint8Array } from './util.ts'
+import { appendInRange, concatUint8Array, parseRefSeqs } from './util.ts'
 import { VirtualOffset } from './virtualOffset.ts'
 
 import type { BamRecordClass, BamRecordLike } from './bamFile.ts'
 import type BamRecord from './record.ts'
 import type { BamOpts, BaseOpts } from './util.ts'
+import type { Fetcher } from 'generic-filehandle2'
 
 interface HtsgetChunk {
   url: string
   headers?: Record<string, string>
+  // present on either all of a ticket's urls or none; only a hint, since the
+  // blocks still have to be concatenated in ticket order either way
+  class?: 'header' | 'body'
 }
 
-async function fetchOk(url: string, opts?: RequestInit) {
-  const res = await fetch(url, opts)
+interface HtsgetTicket {
+  htsget: { urls: HtsgetChunk[] }
+}
+
+interface HtsgetErrorBody {
+  htsget?: { error?: string; message?: string }
+}
+
+// Errors carry a JSON body naming the error type, e.g. {"htsget":
+// {"error":"InvalidAuthentication","message":"..."}}. Surface that rather than
+// the raw payload, since 401/403 are the first thing a misconfigured token hits.
+function htsgetErrorMessage(text: string) {
+  let parsed: HtsgetErrorBody | undefined
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    // not JSON, fall through to the raw body
+  }
+  const err = parsed?.htsget
+  return err?.error === undefined
+    ? text
+    : err.message === undefined
+      ? err.error
+      : `${err.error}: ${err.message}`
+}
+
+/**
+ * Offset of the first alignment record in the concatenated ticket blocks.
+ *
+ * The spec has the client concatenate the blocks in ticket order to get a
+ * complete data stream, so whether the header is its own block is up to the
+ * server: htsnexus splits it into a leading `data:` url, while htsget-rs
+ * returns header and records together in a single url. Either way the
+ * concatenation starts with the BAM header, so seek past it rather than
+ * dropping blocks — a url count or class attribute can't tell the two layouts
+ * apart. Returns 0 when the stream has no header, which is what a server
+ * sending body-only blocks produces.
+ */
+function recordsOffset(uncba: Uint8Array) {
+  const dataView = new DataView(
+    uncba.buffer,
+    uncba.byteOffset,
+    uncba.byteLength,
+  )
+  if (uncba.byteLength < 8 || dataView.getInt32(0, true) !== BAM_MAGIC) {
+    return 0
+  }
+  const refs = parseRefSeqs(uncba, 8 + dataView.getInt32(4, true), n => n)
+  if (!refs) {
+    throw new Error('truncated BAM header in htsget response')
+  }
+  return refs.end
+}
+
+async function fetchOk(fetchFn: Fetcher, url: string, opts?: RequestInit) {
+  const res = await fetchFn(url, opts)
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status} fetching ${url}: ${await res.text()}`)
+    throw new Error(
+      `HTTP ${res.status} fetching ${url}: ${htsgetErrorMessage(await res.text())}`,
+    )
   }
   return res
 }
 
-async function fetchChunk({ url, headers }: HtsgetChunk, opts?: RequestInit) {
+async function fetchChunk(
+  fetchFn: Fetcher,
+  { url, headers }: HtsgetChunk,
+  opts?: RequestInit,
+) {
   // pass base64 data URLs straight to fetch; otherwise apply headers (minus
   // referer, which isn't a permitted client-set header).
   // https://stackoverflow.com/a/54123275/2129219
   const { referer: _referer, ...rest } = headers ?? {}
   const res = url.startsWith('data:')
-    ? await fetchOk(url)
-    : await fetchOk(url, { ...opts, headers: rest })
+    ? await fetchOk(fetchFn, url)
+    : await fetchOk(fetchFn, url, { ...opts, headers: rest })
   return new Uint8Array(await res.arrayBuffer())
 }
 
-async function fetchAndConcat(arr: HtsgetChunk[], opts?: RequestInit) {
+async function fetchAndConcat(
+  fetchFn: Fetcher,
+  arr: HtsgetChunk[],
+  opts?: RequestInit,
+) {
   // Pipeline unzip after each fetch so decompression overlaps later fetches.
   return concatUint8Array(
-    await Promise.all(arr.map(async c => unzip(await fetchChunk(c, opts)))),
+    await Promise.all(
+      arr.map(async c => unzip(await fetchChunk(fetchFn, c, opts))),
+    ),
   )
 }
 
@@ -48,14 +117,39 @@ export default class HtsgetFile<
 
   private trackId: string
 
+  private fetchFn: Fetcher
+
   constructor(args: {
     trackId: string
     baseUrl: string
     recordClass?: BamRecordClass<T>
+    /**
+     * fetch implementation used for every request, so an `Authorization: Bearer
+     * <token>` header can be added for servers that require one. It is also
+     * called with the data-block urls from the ticket, which may point at
+     * third-party hosts, so only attach credentials to hosts you trust — the
+     * spec has servers put whatever a data block needs in that url's own
+     * `headers` field, which is applied either way.
+     */
+    fetch?: Fetcher
   }) {
     super({ htsget: true, recordClass: args.recordClass })
     this.baseUrl = args.baseUrl
     this.trackId = args.trackId
+    this.fetchFn = args.fetch ?? ((input, init) => fetch(input, init))
+  }
+
+  /**
+   * Requests a ticket and returns its data blocks decompressed and
+   * concatenated, which per the spec is a complete BAM stream.
+   */
+  private async fetchTicket(query: string, opts?: BaseOpts) {
+    const url = `${this.baseUrl}/${this.trackId}?${query}`
+    const res = await fetchOk(this.fetchFn, url, { signal: opts?.signal })
+    const ticket: HtsgetTicket = await res.json()
+    return fetchAndConcat(this.fetchFn, ticket.htsget.urls, {
+      signal: opts?.signal,
+    })
   }
 
   async getRecordsForRange(
@@ -65,71 +159,32 @@ export default class HtsgetFile<
     opts?: BamOpts,
   ) {
     await this.getHeader(opts)
-    const base = `${this.baseUrl}/${this.trackId}`
-    const url = `${base}?referenceName=${chr}&start=${min}&end=${max}&format=BAM`
     const chrId = this.chrToIndex?.[chr]
     if (chrId === undefined) {
       return []
     }
-    const result = await fetchOk(url, opts)
-    const data = await result.json()
-    const uncba = await fetchAndConcat(data.htsget.urls.slice(1), {
-      signal: opts?.signal,
-    })
-
+    const uncba = await this.fetchTicket(
+      `referenceName=${chr}&start=${min}&end=${max}&format=BAM`,
+      opts,
+    )
     const zero = new VirtualOffset(0, 0)
-    const allRecords = this.readBamFeatures(
-      uncba,
+    const records = this.readBamFeatures(
+      uncba.subarray(recordsOffset(uncba)),
       [],
       [],
       new Chunk(zero, zero, 0),
     )
-
-    return appendInRange(allRecords, chrId, min, max)
+    return appendInRange(records, chrId, min, max)
   }
 
   async getHeaderPre(opts: BaseOpts = {}) {
-    const url = `${this.baseUrl}/${this.trackId}?referenceName=na&class=header`
-    const result = await fetchOk(url, opts)
-    const data = await result.json()
-    const uncba = await fetchAndConcat(data.htsget.urls, {
-      signal: opts.signal,
-    })
-    const dataView = new DataView(
-      uncba.buffer,
-      uncba.byteOffset,
-      uncba.byteLength,
-    )
-
-    if (dataView.getInt32(0, true) !== BAM_MAGIC) {
-      throw new Error('Not a BAM file')
+    // format is the only parameter the spec permits alongside class=header;
+    // servers SHOULD reject anything else with InvalidInput
+    const uncba = await this.fetchTicket('class=header&format=BAM', opts)
+    const samHeader = this.applyHeader(uncba)
+    if (!samHeader) {
+      throw new Error('Insufficient data for reference sequences')
     }
-    const headLen = dataView.getInt32(4, true)
-
-    const decoder = new TextDecoder()
-    const headerText = decoder.decode(uncba.subarray(8, 8 + headLen))
-    const samHeader = parseHeaderText(headerText)
-
-    // use the @SQ lines in the header to figure out the
-    // mapping between ref ref ID numbers and names
-    const idToName: { refName: string; length: number }[] = []
-    const nameToId: Record<string, number> = {}
-    const sqLines = samHeader.filter(l => l.tag === 'SQ')
-    for (const [refId, sqLine] of sqLines.entries()) {
-      let refName = ''
-      let length = 0
-      for (const item of sqLine.data) {
-        if (item.tag === 'SN') {
-          refName = item.value
-        } else if (item.tag === 'LN') {
-          length = +item.value
-        }
-      }
-      nameToId[refName] = refId
-      idToName[refId] = { refName, length }
-    }
-    this.chrToIndex = nameToId
-    this.indexToChr = idToName
     return samHeader
   }
 }

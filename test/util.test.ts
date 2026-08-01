@@ -166,5 +166,7 @@ test('parseRefSeqs decodes refs and honors renameRefSeq', () => {
       { refName: 'CTGA', length: 100 },
       { refName: 'CTGB', length: 200 },
     ],
+    // records start after the ref-seq table, i.e. at the end of this buffer
+    end: buf.length,
   })
 })

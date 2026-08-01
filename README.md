@@ -48,6 +48,26 @@ const records = await bam.getRecordsForRange('1', 2000000, 2000001)
 htsget fetches the server's range as-is, so `viewAsPairs`, `pairAcrossChr` and
 `maxInsertSize` are ignored.
 
+For a server that requires authentication, pass a `fetch` that adds the bearer
+token the spec calls for:
+
+```typescript
+const bam = new HtsgetFile({
+  baseUrl: 'https://htsget.example.com/reads',
+  trackId: 'NA12878',
+  fetch: (url, init) => {
+    const headers = new Headers(init?.headers)
+    headers.set('authorization', `Bearer ${token}`)
+    return fetch(url, { ...init, headers })
+  },
+})
+```
+
+Your `fetch` is called for the ticket request and for the data-block urls the
+ticket points at, so only attach credentials to hosts you trust — data blocks
+may live on a third-party host, and the spec has servers put whatever those
+need in each url's own `headers` field, which is applied either way.
+
 ## Documentation
 
 ### BamFile constructor
@@ -65,6 +85,13 @@ htsget fetches the server's range as-is, so `viewAsPairs`, `pairAcrossChr` and
 
 The `path`/`url` forms are convenience wrappers for generic-filehandle2's
 `LocalFile` and `RemoteFile`.
+
+### HtsgetFile constructor
+
+- `baseUrl` - htsget reads endpoint, e.g. `https://htsget.example.com/reads`
+- `trackId` - id of the resource under `baseUrl`
+- `fetch` - `fetch` replacement for adding auth headers (see above)
+- `recordClass` - custom class extending `BamRecord` (see below)
 
 ### async getRecordsForRange(refName, start, end, opts?)
 

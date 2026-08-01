@@ -184,7 +184,8 @@ export function parseRefSeqs(
     indexToChr.push({ refName, length: lRef })
     p += 8 + lName
   }
-  return { chrToIndex, indexToChr }
+  // end is the offset just past the header, i.e. where alignment records start
+  return { chrToIndex, indexToChr, end: p }
 }
 
 // SYNC: ~/src/gmod/tabix-js/src/util.ts minVirtualOffset
