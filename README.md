@@ -1,10 +1,12 @@
 [![NPM version](https://img.shields.io/npm/v/@gmod/bam.svg?style=flat-square)](https://npmjs.org/package/@gmod/bam)
 ![Build Status](https://img.shields.io/github/actions/workflow/status/GMOD/bam-js/publish.yml?branch=main)
 
+Parser for BAM files and their BAI/CSI indexes.
+
 ## Install
 
 ```bash
-$ npm install --save @gmod/bam
+npm install @gmod/bam
 ```
 
 ## Usage
@@ -12,90 +14,77 @@ $ npm install --save @gmod/bam
 ```typescript
 import { BamFile } from '@gmod/bam'
 
-const t = new BamFile({
-  bamPath: 'test.bam',
-})
+const bam = new BamFile({ bamPath: 'test.bam' })
 
-// note: it's required to first run getHeader before any getRecordsForRange
-const header = await t.getHeader()
-
-// this would get same records as samtools view ctgA:1-50000
-const records = await t.getRecordsForRange('ctgA', 0, 50000)
+// same records as `samtools view test.bam ctgA:1-50000`
+const records = await bam.getRecordsForRange('ctgA', 0, 50000)
 ```
 
-The `bamPath` argument only works on nodejs. In the browser, you should pass
-`bamFilehandle` with a generic-filehandle2 e.g. `RemoteFile`
+Coordinates are 0-based half-open (not the same as `samtools view` inputs).
+`bamPath` reads a local file, so it is node-only; in the browser pass a
+filehandle or URL instead:
 
 ```typescript
-import { RemoteFile } from 'generic-filehandle2'
 import { BamFile } from '@gmod/bam'
 
 const bam = new BamFile({
-  bamFilehandle: new RemoteFile('yourfile.bam'), // or a full http url
-  baiFilehandle: new RemoteFile('yourfile.bam.bai'), // or a full http url
+  bamUrl: 'https://example.com/yourfile.bam',
+  baiUrl: 'https://example.com/yourfile.bam.bai',
 })
 ```
 
-Input are 0-based half-open coordinates (note: not the same as samtools view
-coordinate inputs!)
-
 ## Usage with htsget
-
-Since 1.0.41 we support usage of the htsget protocol
-
-Here is a small code snippet for this
 
 ```typescript
 import { HtsgetFile } from '@gmod/bam'
 
-const ti = new HtsgetFile({
+const bam = new HtsgetFile({
   baseUrl: 'http://htsnexus.rnd.dnanex.us/v1/reads',
   trackId: 'BroadHiSeqX_b37/NA12878',
 })
-await ti.getHeader()
-const records = await ti.getRecordsForRange('1', 2000000, 2000001)
+const records = await bam.getRecordsForRange('1', 2000000, 2000001)
 ```
 
-Let us know if it doesn't work for your use case.
-
-Caveat: htsget `getRecordsForRange` does not honor `viewAsPairs`,
-`pairAcrossChr`, or `maxInsertSize`. The range is fetched from the server as-is.
+htsget fetches the server's range as-is, so `viewAsPairs`, `pairAcrossChr` and
+`maxInsertSize` are ignored.
 
 ## Documentation
 
-### BAM constructor
+### BamFile constructor
 
-The BAM class constructor accepts arguments
+- `bamPath`/`bamUrl`/`bamFilehandle` - local path, remote URL, or a
+  generic-filehandle2 object
+- `baiPath`/`baiUrl`/`baiFilehandle` - BAI index. Defaults to the `.bai` sibling
+  of `bamPath`/`bamUrl`
+- `csiPath`/`csiUrl`/`csiFilehandle` - CSI index, required for chromosomes
+  longer than 2^29
+- `renameRefSeqs` - `(refName: string) => string` applied to header ref names
+- `recordClass` - custom class extending `BamRecord` (see below)
+- `maxCacheBytes` - budget for the parsed-chunk cache, in decompressed bytes.
+  default: 100MB
 
-- `bamPath`/`bamUrl`/`bamFilehandle` - a local file path, remote URL string, or
-  a class object with a read method
-- `csiPath`/`csiUrl`/`csiFilehandle` - a CSI index for the BAM file, required
-  for long chromosomes greater than 2^29 in length
-- `baiPath`/`baiUrl`/`baiFilehandle` - a BAI index for the BAM file
-- `recordClass` - a custom class extending BamRecord to use for records (see
-  Custom BamRecord class section below)
+The `path`/`url` forms are convenience wrappers for generic-filehandle2's
+`LocalFile` and `RemoteFile`.
 
-Note: filehandles implement the Filehandle interface from generic-filehandle2.
-The `path` and `url` arguments are convenience wrappers for `LocalFile` and
-`RemoteFile`.
+### async getRecordsForRange(refName, start, end, opts?)
 
-### async getRecordsForRange(refName, start, end, opts)
+- `refName` - chromosome to fetch from
+- `start`/`end` - 0-based half-open coordinates
+- `opts.signal` - `AbortSignal` to stop processing
+- `opts.viewAsPairs` - re-dispatch requests to find mate pairs. default: false
+- `opts.pairAcrossChr` - let `viewAsPairs` pair across chromosomes. default:
+  false
+- `opts.maxInsertSize` - distance limit for `viewAsPairs` within a chromosome.
+  default: 200kb
+- `opts.onProgress` - `(bytesDownloaded, totalBytes?) => void`, called per BGZF
+  chunk for a determinate progress bar
 
-Note: requires calling `getHeader` first.
+Returned records are cached and shared between overlapping queries, so treat
+them as read-only — attaching your own fields to a record mutates it for every
+other query holding it.
 
-- `refName` - a string for the chrom to fetch from
-- `start` - a 0-based half open start coordinate
-- `end` - a 0-based half open end coordinate
-- `opts.signal` - an AbortSignal to indicate stop processing
-- `opts.viewAsPairs` - re-dispatches requests to find mate pairs. default: false
-- `opts.pairAcrossChr` - control the viewAsPairs option behavior to pair across
-  chromosomes. default: false
-- `opts.maxInsertSize` - control the viewAsPairs option behavior to limit
-  distance within a chromosome to fetch. default: 200kb
-
-Records come back unfiltered. Filter the returned array yourself — the flag
-helpers (`record.isSecondary()` and friends) and `record.getTag(name)` cover it,
-and `getTag` decodes just the one tag rather than every tag on the read:
+Records come back unfiltered. Filter them yourself with the flag helpers and
+`getTag`, which decodes one tag instead of all of them:
 
 ```typescript
 const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
@@ -105,34 +94,35 @@ const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
 
 ### async getHeader(opts?)
 
-Fetches the header from `BamFile` or `HtsgetFile`. Must be called before
-`getRecordsForRange`.
+Returns the parsed SAM header. Called automatically by the query methods and
+cached, so you only need it when you want the header itself.
+`getHeaderText(opts?)` returns the raw header string.
 
-### async indexCov(refName, start, end)
+### async indexCov(refName, start?, end?)
 
-- `refName` - a string for the chrom to fetch from
-- `start` - a 0-based half open start coordinate (optional)
-- `end` - a 0-based half open end coordinate (optional)
+Returns `{start, end, score}` features estimating read density over 16kb
+windows, derived from the BAI linear index. CSI has no linear index, so a
+CSI-indexed file returns `[]`.
 
-Returns features of the form {start, end, score} containing estimated feature
-density across 16kb windows in the genome. BAI-only: derived from the linear
-index, which CSI omits — calling on a CSI-indexed file returns `[]`.
+### async lineCount(refName)
 
-### async lineCount(refName: string)
+Number of records on `refName` from the index's pseudo-bin (bin 37450 in BAI,
+`n_mapped` in the SAM spec), or 0 if `refName` is absent.
 
-- `refName` - a string for the chrom to fetch from
+### async hasRefSeq(refName)
 
-Returns number of features on refName, uses special pseudo-bin from the BAI/CSI
-index (e.g. bin 37450 from bai, returning n_mapped from SAM spec pdf) or 0 if
-refName does not exist in the sample
+Whether `refName` is present in the file.
 
-### async hasRefSeq(refName: string)
+### async estimatedBytesForRegions(regions, opts?)
 
-- `refName` - a string for the chrom to check
+Compressed bytes the given `{refName, start, end}[]` would fetch — useful for
+warning before a large query.
 
-Returns whether we have this refName in the sample
+### clearFeatureCache()
 
-### BamRecord properties
+Drops the parsed-chunk cache.
+
+### BamRecord
 
 ```typescript
 // Core alignment fields
@@ -142,24 +132,26 @@ record.start // 0-based start coordinate
 record.end // 0-based end coordinate
 record.name // QNAME
 record.seq // sequence string
-record.qual // Uint8Array of quality scores (null if unmapped)
+record.qual // Uint8Array of quality scores (null if SEQ is empty)
 record.CIGAR // CIGAR string e.g. "50M2I48M"
 record.flags // SAM flags integer
 record.mq // mapping quality (undefined if 255)
 record.strand // 1 or -1
 record.template_length // TLEN
 
-// Auxiliary data
-record.tags // object with all aux tags e.g. {MD: "100", NM: 0}
-record.getTag('MD') // get a single tag (more efficient than record.tags when you only need one)
-record.getTagRaw('MD') // get tag as Uint8Array for string tags (avoids string conversion)
-record.NUMERIC_MD // MD tag as Uint8Array (for fast mismatch rendering)
-record.NUMERIC_CIGAR // Uint32Array of packed CIGAR operations
-record.NUMERIC_SEQ // Uint8Array of packed sequence (4-bit encoded)
-
 // Mate info
-record.next_refid // mate reference id
-record.next_pos // mate position
+record.next_refid
+record.next_pos
+
+// Auxiliary data
+record.tags // all aux tags e.g. {MD: "100", NM: 0}
+record.getTag('MD') // one tag, without decoding the rest
+record.getTagRaw('MD') // string tag as Uint8Array, skipping string conversion
+
+// Typed-array views, for rendering without allocating strings
+record.NUMERIC_MD // MD tag as Uint8Array
+record.NUMERIC_CIGAR // Uint32Array of packed CIGAR operations
+record.NUMERIC_SEQ // Uint8Array of 4-bit encoded sequence
 
 // Flag methods
 record.isPaired()
@@ -176,13 +168,11 @@ record.isDuplicate()
 record.isSupplementary()
 
 // Utility
-record.seqAt(idx) // get single base at position
-record.toJSON() // serialize record
+record.seqAt(idx) // single base at position
+record.toJSON()
 ```
 
 ### Custom BamRecord class
-
-You can provide your own BamRecord class to add custom properties or methods:
 
 ```typescript
 import { BamFile, BamRecord } from '@gmod/bam'
@@ -191,10 +181,6 @@ class CustomBamRecord extends BamRecord {
   get customProperty() {
     return `custom-${this.name}`
   }
-
-  getDoubleStart() {
-    return this.start * 2
-  }
 }
 
 const bam = new BamFile<CustomBamRecord>({
@@ -202,11 +188,9 @@ const bam = new BamFile<CustomBamRecord>({
   recordClass: CustomBamRecord,
 })
 
-await bam.getHeader()
-const records = await bam.getRecordsForRange('ctgA', 0, 50000)
 // records are typed as CustomBamRecord[]
+const records = await bam.getRecordsForRange('ctgA', 0, 50000)
 console.log(records[0].customProperty)
-console.log(records[0].getDoubleStart())
 ```
 
 ## License
