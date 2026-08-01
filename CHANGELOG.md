@@ -47,6 +47,8 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 
 ## [7.3.4](https://github.com/GMOD/bam-js/compare/v7.3.3...v7.3.4) (2026-07-01)
 
+- Dedupe BAM tag-value parsing between the full-tags path and single-tag lookups, dropping now-unused code
+
 ## [7.3.3](https://github.com/GMOD/bam-js/compare/v7.3.2...v7.3.3) (2026-06-25)
 
 
@@ -84,67 +86,142 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 
 ## [7.2.4](https://github.com/GMOD/bam-js/compare/v7.2.3...v7.2.4) (2026-05-19)
 
+- Broaden `BamRecord.toJSON`'s return type to `Record<string, unknown>` so subclasses can override it with their own serialized shape
+
 ## [7.2.3](https://github.com/GMOD/bam-js/compare/v7.2.2...v7.2.3) (2026-05-19)
+
+- No functional change (CI workflow rename to restore npm OIDC trusted-publish trust)
 
 ## [7.2.2](https://github.com/GMOD/bam-js/compare/v7.2.1...v7.2.2) (2026-05-19)
 
+- No functional change (CI workflow reorganization: merged publish into push workflow)
+
 ## [7.2.1](https://github.com/GMOD/bam-js/compare/v7.2.0...v7.2.1) (2026-05-19)
+
+- Fix unbounded loop in `_readChunkFeatures` missing a bounds check against `dpositions.length`
+- Memoize `HtsgetFile.getHeader` instead of re-fetching and re-parsing the header on every call
 
 # [7.2.0](https://github.com/GMOD/bam-js/compare/v7.1.21...v7.2.0) (2026-05-18)
 
+- Fix CSI `reg2bins` off-by-one/clamp bug that could miss or mis-scope overlapping bins for CSI-indexed queries
+- Fix `BamRecord.toJSON`, which previously serialized almost nothing since `Object.keys()` can't see prototype getters
+- Fix `optimizeChunks` mutating `Chunk` objects shared with the index's per-refId cache
+- Refactor shared `blocksForRange`/parse/lineCount logic into a common `IndexFile` base class
+
 ## [7.1.21](https://github.com/GMOD/bam-js/compare/v7.1.20...v7.1.21) (2026-04-27)
+
+- Share a single `DataView` across `BamRecord` fields and drop redundant field caching; decode string tags via `TextDecoder` instead of per-char concatenation
+- Split CIGAR/length-on-ref computation into separate cached getters for clarity and speed
 
 ## [7.1.20](https://github.com/GMOD/bam-js/compare/v7.1.19...v7.1.20) (2026-03-28)
 
+- No functional change (tooling migration: pnpm, TypeScript 6, ESM syntax, Node 24 publish workflow)
+
 ## [7.1.19](https://github.com/GMOD/bam-js/compare/v7.1.18...v7.1.19) (2026-03-04)
+
+- Fix header parsing for BAM files with large reference-sequence tables: retry with a doubled read length instead of throwing when the initial buffer is too short
 
 ## [7.1.18](https://github.com/GMOD/bam-js/compare/v7.1.17...v7.1.18) (2026-03-04)
 
+- Fix `estimatedBytesForRegions` to return zero, instead of mis-estimating, for unknown reference sequences
+
 ## [7.1.17](https://github.com/GMOD/bam-js/compare/v7.1.16...v7.1.17) (2026-02-14)
+
+- Further optimize `pair_orientation` using a precomputed lookup table indexed by flag bits and insert-size sign
 
 ## [7.1.16](https://github.com/GMOD/bam-js/compare/v7.1.15...v7.1.16) (2026-02-14)
 
+- Optimize `pair_orientation` by inlining flag bit checks instead of calling flag helper methods
+
 ## [7.1.15](https://github.com/GMOD/bam-js/compare/v7.1.14...v7.1.15) (2025-12-17)
+
+- No functional change (dependency patch bump and import reordering only)
 
 ## [7.1.14](https://github.com/GMOD/bam-js/compare/v7.1.13...v7.1.14) (2025-12-17)
 
+- Switch from `quick-lru` to `@jbrowse/quick-lru` for CommonJS compatibility
+
 ## [7.1.13](https://github.com/GMOD/bam-js/compare/v7.1.12...v7.1.13) (2025-12-17)
+
+- Faster CIGAR reference-length calculation using a bitmask lookup instead of a per-op branch
 
 ## [7.1.12](https://github.com/GMOD/bam-js/compare/v7.1.11...v7.1.12) (2025-12-17)
 
+- Add `getTag(name)`/`getTagRaw(name)` methods for looking up a single tag without parsing/caching the full tags object
+
 ## [7.1.11](https://github.com/GMOD/bam-js/compare/v7.1.10...v7.1.11) (2025-12-16)
+
+- Add `filterBy` option (flagInclude/flagExclude/tagFilter) to `getRecordsForRange` to skip caching features that don't match
+- Remove the `streamRecordsForRange` async generator API in favor of building results directly
 
 ## [7.1.10](https://github.com/GMOD/bam-js/compare/v7.1.9...v7.1.10) (2025-12-15)
 
+- Cache `ref_id`/`start`/`end` field reads on `BamRecord` to avoid repeated `DataView` lookups
+- Parse CIGAR into a `Uint32Array` when byte-aligned and large, plain array otherwise, based on benchmarking
+
 ## [7.1.9](https://github.com/GMOD/bam-js/compare/v7.1.8...v7.1.9) (2025-12-13)
+
+- Allow `HtsgetFile` to accept a custom `recordClass`, matching `BamFile`
 
 ## [7.1.8](https://github.com/GMOD/bam-js/compare/v7.1.7...v7.1.8) (2025-12-13)
 
+- Remove the `id` getter from `BamRecordLike`/`BamRecord`; internal pairing logic now uses `fileOffset` directly
+
 ## [7.1.7](https://github.com/GMOD/bam-js/compare/v7.1.6...v7.1.7) (2025-12-13)
+
+- Change `BamRecord.id` from a numeric `fileOffset` to a stringified one, for use as a stable object/map key
 
 ## [7.1.6](https://github.com/GMOD/bam-js/compare/v7.1.5...v7.1.6) (2025-12-13)
 
+- Add support for a custom `BamRecord` class: `BamFile` is now generic and accepts a `recordClass` constructor option
+
 ## [7.1.5](https://github.com/GMOD/bam-js/compare/v7.1.4...v7.1.5) (2025-12-13)
+
+- Replace decorator-based getter caching with explicit per-instance cached fields for `flags`, `tags`, CIGAR, and `NUMERIC_MD`
+- Avoid an unnecessary array copy in `NUMERIC_SEQ`
 
 ## [7.1.4](https://github.com/GMOD/bam-js/compare/v7.1.3...v7.1.4) (2025-12-13)
 
+- Cache the `NUMERIC_MD` getter result per record
+- Compare raw byte codes instead of `String.fromCharCode` strings when scanning for the MD tag
+
 ## [7.1.3](https://github.com/GMOD/bam-js/compare/v7.1.2...v7.1.3) (2025-12-12)
+
+- Add `NUMERIC_MD` getter that reads the raw MD tag bytes directly without parsing the full tags object
 
 ## [7.1.2](https://github.com/GMOD/bam-js/compare/v7.1.1...v7.1.2) (2025-12-12)
 
+- Add `estimatedBytesForRegions` to estimate bytes that would be fetched for a set of regions
+- Optimize `optimizeChunks` and BAI/CSI `blocksForRange` chunk lookups
+
 ## [7.1.1](https://github.com/GMOD/bam-js/compare/v7.1.0...v7.1.1) (2025-12-12)
+
+- Re-add chunk-based feature caching to `BamFile`, with overlapping cached chunks evicted on overlap
+- Add `clearFeatureCache()`
 
 # [7.1.0](https://github.com/GMOD/bam-js/compare/v7.0.6...v7.1.0) (2025-12-11)
 
+- Convert to the WASM-based `@gmod/bgzf-filehandle`
+
 ## [7.0.6](https://github.com/GMOD/bam-js/compare/v7.0.5...v7.0.6) (2025-11-28)
+
+- Remove a buggy chrId/min/max pre-filter in chunk feature parsing that could mis-filter or drop records
 
 ## [7.0.5](https://github.com/GMOD/bam-js/compare/v7.0.4...v7.0.5) (2025-11-27)
 
+- Micro-optimize the CIGAR-consumes-reference check using bitwise shifts and a bitmask
+
 ## [7.0.4](https://github.com/GMOD/bam-js/compare/v7.0.3...v7.0.4) (2025-11-24)
+
+- No functional change (patch bump of `@gmod/bgzf-filehandle`)
 
 ## [7.0.3](https://github.com/GMOD/bam-js/compare/v7.0.2...v7.0.3) (2025-11-24)
 
+- No functional change (patch bump of `@gmod/bgzf-filehandle`)
+
 ## [7.0.2](https://github.com/GMOD/bam-js/compare/v7.0.1...v7.0.2) (2025-11-24)
+
+- Return typed-array views directly over the record buffer for BAM tag arrays and CIGAR instead of copying, falling back to slice only when unaligned
 
 ## [7.0.1](https://github.com/GMOD/bam-js/compare/v7.0.0...v7.0.1) (2025-11-24)
 
@@ -156,49 +233,95 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 
 ## [6.1.1](https://github.com/GMOD/bam-js/compare/v6.1.0...v6.1.1) (2025-10-02)
 
+- Add `seqAt(idx)` to `BamRecord` for decoding a single base by index without building the full sequence string
+
 # [6.1.0](https://github.com/GMOD/bam-js/compare/v6.0.4...v6.1.0) (2025-10-01)
+
+- Add an LRU cache for decompressed BGZF blocks so repeated reads of the same block avoid re-inflating it
 
 ## [6.0.4](https://github.com/GMOD/bam-js/compare/v6.0.3...v6.0.4) (2025-05-26)
 
+- No functional change (dependency bump of `@gmod/bgzf-filehandle`)
+
 ## [6.0.3](https://github.com/GMOD/bam-js/compare/v6.0.2...v6.0.3) (2025-05-13)
+
+- No functional change (build script tweak only)
 
 ## [6.0.2](https://github.com/GMOD/bam-js/compare/v6.0.1...v6.0.2) (2025-04-30)
 
+- No functional change (dependency patch bump)
+
 ## [6.0.1](https://github.com/GMOD/bam-js/compare/v6.0.0...v6.0.1) (2025-04-30)
+
+- No functional change (dependency bump of `@gmod/bgzf-filehandle`)
 
 # [6.0.0](https://github.com/GMOD/bam-js/compare/v5.0.7...v6.0.0) (2025-04-30)
 
+- Switch to a pure ESM build alongside the CJS build
+- Remove the `AbortablePromiseCache`-based per-chunk feature cache, decoding chunks directly instead
+
 ## [5.0.7](https://github.com/GMOD/bam-js/compare/v5.0.6...v5.0.7) (2025-03-11)
+
+- Fix CSI index regression from the v5.0.6 lazy-loading refactor: the header-end-offset scan no longer collected virtual offsets from chunks
 
 ## [5.0.6](https://github.com/GMOD/bam-js/compare/v5.0.5...v5.0.6) (2025-02-28)
 
+- Lazily parse per-chromosome index data in BAI/CSI instead of eagerly parsing the whole index up front, with an LRU cache of parsed entries
+
 ## [5.0.5](https://github.com/GMOD/bam-js/compare/v5.0.4...v5.0.5) (2024-12-18)
+
+- Drop the `longfn` dependency, replacing it with a small inline 64-bit-from-bytes helper
 
 ## [5.0.4](https://github.com/GMOD/bam-js/compare/v5.0.2...v5.0.4) (2024-12-18)
 
+- Replace `long.js` with the smaller `longfn` library for parsing 64-bit pseudo-bin line counts
+
 ## [5.0.3](https://github.com/GMOD/bam-js/compare/v5.0.2...v5.0.3) (2024-12-18)
+
+- No corresponding git tag exists for this version; its changes, if any, are folded into v5.0.4 above
 
 ## [5.0.2](https://github.com/GMOD/bam-js/compare/v5.0.1...v5.0.2) (2024-12-17)
 
+- No functional change (crc32 import fix to avoid pulling in a Buffer polyfill)
+
 ## [5.0.1](https://github.com/GMOD/bam-js/compare/v5.0.0...v5.0.1) (2024-12-12)
+
+- Fix htsget data-URL decoding: replace non-standard `Uint8Array.fromBase64` with a `fetch()`-based base64 decode
 
 # [5.0.0](https://github.com/GMOD/bam-js/compare/v4.0.1...v5.0.0) (2024-12-12)
 
+- Migrate from Node `Buffer`/`generic-filehandle` to `generic-filehandle2`, `Uint8Array`, `DataView`, and `TextDecoder` throughout, for browser compatibility
+- Bump `@gmod/bgzf-filehandle`
+
 ## [4.0.1](https://github.com/GMOD/bam-js/compare/v4.0.0...v4.0.1) (2024-11-12)
+
+- Fix `pair_orientation` tag: now returns `undefined` instead of an empty string when a record is not part of a pair
 
 # [4.0.0](https://github.com/GMOD/bam-js/compare/v3.0.3...v4.0.0) (2024-11-12)
 
+- Build tag/attribute value getters (`qual`, `Z`/`H`/`B` array tags, CG tag) via arrays and `.join()` instead of string concatenation; drop the redundant `qualRaw` getter in favor of `qual`
+
 ## [3.0.3](https://github.com/GMOD/bam-js/compare/v3.0.0...v3.0.3) (2024-11-11)
+
+- Fix BAI chunk objects being pushed as shared references into results instead of fresh `Chunk` instances, causing incorrect coverage rendering; re-applies the v3.0.1 fix that v3.0.2 had dropped
 
 ## [3.0.2](https://github.com/GMOD/bam-js/compare/v3.0.0...v3.0.2) (2024-11-11)
 
 - republish v3.0.1 since it got tagged on a deleted branch
+- Despite the name, this republish matches v3.0.0's code exactly and does not include the v3.0.1 fix below (that fix lands again in v3.0.3)
 
 ## [3.0.1](https://github.com/GMOD/bam-js/compare/v3.0.0...v3.0.1) (2024-11-11)
 
+- Fix BAI `blocksForRange` pushing shared bin-chunk objects into results instead of fresh `Chunk` instances, avoiding downstream mutation bugs
+
 # [3.0.0](https://github.com/GMOD/bam-js/compare/v2.0.4...v3.0.0) (2024-11-07)
 
+- Refactor `BamRecord` from a lazy-caching `get(field)` model to plain computed getters reading directly off the byte buffer
+- Drop the `long` package dependency, using native `BigInt64` reads instead
+
 ## [2.0.4](https://github.com/GMOD/bam-js/compare/v2.0.3...v2.0.4) (2024-08-09)
+
+- Switch from `buffer-crc32` to `crc` for crc32 calculation
 
 ## [2.0.3](https://github.com/GMOD/bam-js/compare/v2.0.2...v2.0.3) (2024-07-23)
 
