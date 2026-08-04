@@ -1,3 +1,14 @@
+## [7.7.0](https://github.com/GMOD/bam-js/compare/v7.6.2...v7.7.0) (2026-08-04)
+
+### Bug Fixes
+
+- Keep colon-less SAM header fields (@CO) intact when parsing
+- Bound the mate-chunk fan-out and dedupe it on the cache key
+
+### Performance Improvements
+
+- Pack the BAI linear index into typed arrays
+
 ## [7.6.2](https://github.com/GMOD/bam-js/compare/v7.6.1...v7.6.2) (2026-08-01)
 
 ### Bug Fixes
