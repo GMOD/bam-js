@@ -4,7 +4,7 @@ import { optimizeChunks } from './util.ts'
 
 import type Chunk from './chunk.ts'
 import type { BaseOpts } from './util.ts'
-import type { Offset, VirtualOffset } from './virtualOffset.ts'
+import type { OffsetCoords, VirtualOffset } from './virtualOffset.ts'
 import type { GenericFilehandle } from 'generic-filehandle2'
 
 export interface Region {
@@ -21,7 +21,6 @@ export interface RefIndex {
 export interface ParsedIndexBase<R extends RefIndex = RefIndex> {
   firstDataLine: VirtualOffset | undefined
   refCount: number
-  maxBlockSize: number
   indices: (refId: number) => R | undefined
 }
 
@@ -84,7 +83,7 @@ export default abstract class IndexFile<
   protected abstract getLowestChunk(
     refIndex: RefIndex,
     min: number,
-  ): Offset | undefined
+  ): OffsetCoords | undefined
 
   async blocksForRange(
     refId: number,

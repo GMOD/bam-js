@@ -1,8 +1,15 @@
-export interface Offset {
+/**
+ * The two coordinates a virtual offset packs, without the `blockPos:dataPos`
+ * string form. What every consumer that only compares positions needs — the
+ * BAI linear index stores these as raw numbers and materializes no object.
+ */
+export interface OffsetCoords {
   blockPosition: number
   dataPosition: number
+}
+
+export interface Offset extends OffsetCoords {
   toString(): string
-  compareTo(arg: Offset): number
 }
 
 export class VirtualOffset {
@@ -15,12 +22,6 @@ export class VirtualOffset {
 
   toString() {
     return `${this.blockPosition}:${this.dataPosition}`
-  }
-
-  compareTo(b: VirtualOffset) {
-    return (
-      this.blockPosition - b.blockPosition || this.dataPosition - b.dataPosition
-    )
   }
 }
 export function fromBytes(bytes: Uint8Array, offset = 0) {

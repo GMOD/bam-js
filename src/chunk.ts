@@ -29,14 +29,6 @@ export default class Chunk {
     }, fetchedSize ${this.fetchedSize()})`
   }
 
-  compareTo(b: Chunk) {
-    return (
-      this.minv.compareTo(b.minv) ||
-      this.maxv.compareTo(b.maxv) ||
-      this.bin - b.bin
-    )
-  }
-
   fetchedSize() {
     return this.endPosition - this.minv.blockPosition
   }

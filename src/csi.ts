@@ -83,16 +83,12 @@ export default class CSI extends IndexFile {
       bytes.byteOffset,
       bytes.byteLength,
     )
-    let csiVersion
+    // CSI\1 and CSI\2 are parsed identically here — v2 only adds fields this
+    // reader doesn't consume — so the version is validated, not retained.
     const magic = dataView.getUint32(0, true)
-
-    if (magic === CSI1_MAGIC) {
-      csiVersion = 1
-    } else if (magic === CSI2_MAGIC) {
-      csiVersion = 2
-    } else {
-      throw new Error(`Not a CSI file ${magic}`)
+    if (magic !== CSI1_MAGIC && magic !== CSI2_MAGIC) {
       // TODO: do we need to support big-endian CSI files?
+      throw new Error(`Not a CSI file ${magic}`)
     }
 
     this.minShift = dataView.getInt32(4, true)
@@ -170,12 +166,10 @@ export default class CSI extends IndexFile {
     }
 
     return {
-      csiVersion,
       firstDataLine,
       indices: memoizeByRefId(getIndices),
       refCount,
       csi: true,
-      maxBlockSize: 1 << 16,
       ...aux,
     }
   }

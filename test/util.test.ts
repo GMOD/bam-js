@@ -43,6 +43,14 @@ test('clampChunkEnds uses extra (linear-index) boundaries', () => {
   expect(c.endPosition).toEqual(300)
 })
 
+// BAI hands its linear index over as a Float64Array rather than materializing a
+// VirtualOffset per 16kb window, so that is the shape this actually sees.
+test('clampChunkEnds accepts a Float64Array of boundaries', () => {
+  const c = chunk(0, 100)
+  clampChunkEnds([c], Float64Array.of(500, 300, 50))
+  expect(c.endPosition).toEqual(300)
+})
+
 test('optimizeChunks merges close chunks without mutating inputs', () => {
   const a = chunk(0, 100)
   const b = chunk(200, 300)

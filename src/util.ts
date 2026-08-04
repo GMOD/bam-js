@@ -1,8 +1,7 @@
 import Chunk from './chunk.ts'
-import { longFromBytesToUnsigned } from './long.ts'
 import { VirtualOffset } from './virtualOffset.ts'
 
-import type { Offset } from './virtualOffset.ts'
+import type { OffsetCoords } from './virtualOffset.ts'
 
 export interface BamOpts {
   viewAsPairs?: boolean
@@ -30,7 +29,7 @@ export interface BaseOpts {
   onProgress?: (bytesDownloaded: number, totalBytes?: number) => void
 }
 
-export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
+export function optimizeChunks(chunks: Chunk[], lowest?: OffsetCoords) {
   const n = chunks.length
   if (n === 0) {
     return chunks
@@ -102,9 +101,22 @@ export function optimizeChunks(chunks: Chunk[], lowest?: Offset) {
   return mergedChunks
 }
 
+// The pseudo-bin's mapped-record count, a little-endian uint64. Read as two
+// 32-bit halves rather than via BigInt: exact up to Number.MAX_SAFE_INTEGER,
+// which is far past any real record count, and allocates nothing.
 export function parsePseudoBin(bytes: Uint8Array, offset: number) {
+  const low =
+    bytes[offset]! |
+    (bytes[offset + 1]! << 8) |
+    (bytes[offset + 2]! << 16) |
+    (bytes[offset + 3]! << 24)
+  const high =
+    bytes[offset + 4]! |
+    (bytes[offset + 5]! << 8) |
+    (bytes[offset + 6]! << 16) |
+    (bytes[offset + 7]! << 24)
   return {
-    lineCount: longFromBytesToUnsigned(bytes, offset),
+    lineCount: (high >>> 0) * 2 ** 32 + (low >>> 0),
   }
 }
 
@@ -117,13 +129,21 @@ export function parsePseudoBin(bytes: Uint8Array, offset: number) {
 // Shrinks both the byte estimate and the actual fetch with no extra I/O.
 export function clampChunkEnds(
   chunks: Chunk[],
-  extraBoundaries: number[] = [],
+  extraBoundaries: ArrayLike<number> = [],
 ) {
-  const boundaries = [...extraBoundaries]
+  // Float64Array rather than number[]: `extraBoundaries` is the linear index,
+  // which runs to tens of thousands of entries on a human-sized reference, and
+  // this is the only place they get copied.
+  const boundaries = new Float64Array(
+    extraBoundaries.length + chunks.length * 2,
+  )
+  boundaries.set(extraBoundaries)
+  let n = extraBoundaries.length
   for (const c of chunks) {
-    boundaries.push(c.minv.blockPosition, c.maxv.blockPosition)
+    boundaries[n++] = c.minv.blockPosition
+    boundaries[n++] = c.maxv.blockPosition
   }
-  boundaries.sort((a, b) => a - b)
+  boundaries.sort()
 
   for (const c of chunks) {
     const max = c.maxv.blockPosition
