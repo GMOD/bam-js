@@ -232,7 +232,14 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
   async getHeaderPre(opts: BaseOpts = {}) {
     if (!this.index) {
-      return undefined
+      // Only reachable via `new BamFile({htsget: true})` used directly rather
+      // than through HtsgetFile, which overrides this. Throwing rather than
+      // returning undefined keeps `| undefined` off getHeader()'s public type,
+      // and makes that misuse loud instead of silently answering every query
+      // with zero records (getSeqId would find no chrToIndex).
+      throw new Error(
+        'no index to read a header from: use HtsgetFile for htsget sources',
+      )
     }
     const indexData = await this.index.parse(opts)
 
@@ -512,13 +519,26 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       const chunks = res[i]!
       for (let j = 0, jl = chunks.length; j < jl; j++) {
         const m = chunks[j]!
-        map.set(m.toString(), m)
+        // Key on the virtual-offset span — the same key _cachedChunkFeatures
+        // uses. Chunk.toString() also folds in `bin` and fetchedSize(), which
+        // keeps two chunks covering an identical span apart here even though
+        // the cache below collapses them, so their records came back twice.
+        map.set(chunkCacheKey(m), m)
       }
     }
+    const mateChunks = [...map.values()]
 
-    const mateFeatLists = await Promise.all(
-      [...map.values()].map(async c => {
-        const features = await this._cachedChunkFeatures(c, opts)
+    // Bounded for the reason ADR 0008 bounds the main query path: a viewAsPairs
+    // query over a busy region resolves to many distinct mate chunks, and an
+    // unbounded fan-out inflates every one of them at once. Same inline pool
+    // shape as _fetchChunkFeatures — ADR 0009 measured extracting a shared
+    // mapConcurrent helper at ~11% on the hot path, so it stays inline.
+    const mateFeatLists = new Array<T[]>(mateChunks.length)
+    let next = 0
+    const readNext = async () => {
+      while (next < mateChunks.length) {
+        const ci = next++
+        const features = await this._cachedChunkFeatures(mateChunks[ci]!, opts)
         const mateRecs = [] as T[]
         for (let i = 0, l = features.length; i < l; i++) {
           const feature = features[i]!
@@ -529,9 +549,11 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
             mateRecs.push(feature)
           }
         }
-        return mateRecs
-      }),
-    )
+        mateFeatLists[ci] = mateRecs
+      }
+    }
+    const workers = Math.min(MAX_CONCURRENT_CHUNK_READS, mateChunks.length)
+    await Promise.all(Array.from({ length: workers }, () => readNext()))
     return mateFeatLists.flat()
   }
 
@@ -559,10 +581,15 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     }
   }
 
+  // cpositions/dpositions are `ArrayLike`, not `number[]`, because the wasm
+  // decompressor produces them as Float64Arrays — @gmod/bgzf-filehandle spreads
+  // them into plain arrays on the way out, and this signature is what lets that
+  // copy be dropped there without a change here. Only indexed reads and
+  // `.length` are used below either way.
   readBamFeatures(
     ba: Uint8Array,
-    cpositions: number[],
-    dpositions: number[],
+    cpositions: ArrayLike<number>,
+    dpositions: ArrayLike<number>,
     chunk: Chunk,
   ) {
     let blockStart = 0

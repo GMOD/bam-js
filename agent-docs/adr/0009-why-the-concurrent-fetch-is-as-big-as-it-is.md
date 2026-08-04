@@ -50,9 +50,17 @@ than in our loop.
 
 Five lines to convert an unbounded memory spike into a queue is a good trade.
 
-Note the inconsistency this leaves: `fetchPairs` still fans out over mate chunks
-with an unbounded `Promise.all`. Same argument applies there; it has not been
-changed only because it is a separate behaviour change.
+This ADR originally noted an inconsistency it left behind: `fetchPairs` still
+fanned out over mate chunks with an unbounded `Promise.all`. That has since been
+closed — a `viewAsPairs` query over a busy region resolves to many distinct mate
+chunks, so the memory argument above applied there verbatim. It now uses the
+same inline pool, capped by the same `MAX_CONCURRENT_CHUNK_READS`.
+
+Its chunk deduplication moved at the same time, from `Chunk.toString()` to
+`chunkCacheKey()` — the key `_cachedChunkFeatures` uses. `toString()` folds in
+`bin` and `fetchedSize()`, so two chunks covering an identical virtual-offset
+span stayed separate entries in the mate map even though the cache below
+collapses them onto one entry, and their records came back twice.
 
 ### "Then at least extract a generic `mapConcurrent` helper"
 

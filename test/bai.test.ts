@@ -617,6 +617,15 @@ test('large header, index with no linear index at all', async () => {
   expect(records.length).toBeGreaterThan(0)
 })
 
+// A bare BamFile with htsget:true has no index and no header source — only the
+// HtsgetFile subclass, which overrides getHeaderPre, can serve one. It used to
+// resolve undefined, which put `| undefined` on getHeader()'s public type and
+// made every subsequent query silently return zero records.
+test('BamFile constructed with htsget:true rejects on getHeader', async () => {
+  const ti = new BamFile({ htsget: true })
+  await expect(ti.getHeader()).rejects.toThrow(/no index/)
+})
+
 test('custom BamRecord class', async () => {
   class CustomBamRecord extends BamRecord {
     get customProperty() {
