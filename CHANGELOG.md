@@ -1,3 +1,17 @@
+## [7.8.0](https://github.com/GMOD/bam-js/compare/v7.7.1...v7.8.0) (2026-08-04)
+
+### Documentation
+
+- Benchmark waves vs pool for ADR 0010
+
+### Performance Improvements
+
+- Stop reading a query's chunks once one lies past its range
+
+### Tests
+
+- Pin the shared empty linear index, and record the early-stop finding
+
 ## [7.7.1](https://github.com/GMOD/bam-js/compare/v7.7.0...v7.7.1) (2026-08-04)
 
 ### Bug Fixes
