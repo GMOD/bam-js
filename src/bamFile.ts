@@ -67,6 +67,37 @@ interface InFlightChunk<T> {
   signal?: AbortSignal
 }
 
+/**
+ * Whether a chunk's first record already lies past `chrId:..-max`, which means
+ * every later chunk does too and none of them need to be read.
+ *
+ * Sound because of two orderings that already hold. `optimizeChunks` returns
+ * chunks sorted by `minv.blockPosition`, and a coordinate-sorted BAM stores
+ * records in (ref_id, start) order — so chunk i's first record is at or before
+ * chunk i+1's, and a chunk whose first record is past the query has only
+ * past-the-query records behind it.
+ *
+ * That coordinate-sorted assumption is not new: `appendInRange` already breaks
+ * out of a chunk on exactly it. This applies the same rule one level up, so a
+ * BAM that violates it was already returning short results before this existed.
+ *
+ * `first.ref_id > chrId` matters as much as the position: `optimizeChunks`
+ * merges spans up to 5MB, which can carry a chunk across a reference boundary.
+ *
+ * An empty chunk says nothing about position, so it never stops the walk.
+ */
+function isPastQuery(
+  features: { ref_id: number; start: number }[] | undefined,
+  chrId: number,
+  max: number,
+) {
+  const first = features?.[0]
+  return (
+    !!first &&
+    (first.ref_id > chrId || (first.ref_id === chrId && first.start >= max))
+  )
+}
+
 function chunkCacheKey(chunk: Chunk) {
   const { minv, maxv } = chunk
   return `${minv.blockPosition}:${minv.dataPosition}-${maxv.blockPosition}:${maxv.dataPosition}`
@@ -428,7 +459,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     let downloadedBytes = 0
     onProgress?.(0, totalBytes)
 
-    const featureLists = new Array<T[]>(chunks.length)
+    const featureLists = new Array<T[] | undefined>(chunks.length)
     if (chunks.length === 1) {
       // Very common — most small files, and any query landing inside one bin.
       // Worth its own path: the pool below allocates a closure, a worker array
@@ -444,18 +475,56 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       // ahead of decompression. Bounded because browsers cap concurrent
       // connections per host anyway, and an unbounded fan-out would inflate
       // every chunk of a whole-chromosome query at once.
-      let next = 0
-      const readNext = async () => {
-        while (next < chunks.length) {
-          const ci = next++
-          const chunk = chunks[ci]!
-          featureLists[ci] = await this._cachedChunkFeatures(chunk, opts)
-          downloadedBytes += chunk.fetchedSize()
-          onProgress?.(downloadedBytes, totalBytes)
+      const readOne = async (ci: number) => {
+        const chunk = chunks[ci]!
+        featureLists[ci] = await this._cachedChunkFeatures(chunk, opts)
+        downloadedBytes += chunk.fetchedSize()
+        onProgress?.(downloadedBytes, totalBytes)
+      }
+
+      // One barrier, after the first batch, then the pool for the rest.
+      //
+      // The barrier is what makes the early stop DETERMINISTIC: the batch is
+      // chunks [0, MAX_CONCURRENT_CHUNK_READS), fixed by index rather than by
+      // which read happens to finish first, so the decision cannot depend on
+      // timing or on what the chunk cache already holds. An earlier attempt
+      // checked the stop inside the pool instead, and a warm cache raced past
+      // it — the same query read 6 chunks cold and 9 warm, so a repeat query
+      // did MORE I/O than the first (ADR 0010).
+      //
+      // Only ONE barrier, rather than one per wave, because the stop — when
+      // there is one — always fired inside the first batch on every fixture
+      // measured (the first 1-3 chunks). A query that gets through the batch
+      // without stopping is one that needs its chunks, so it runs the
+      // unbarriered pool exactly as before. That caps the cost of being wrong
+      // at 0.92x-0.95x, against 0.82x-0.88x for barriering every wave.
+      const batch = Math.min(MAX_CONCURRENT_CHUNK_READS, chunks.length)
+      await Promise.all(
+        Array.from({ length: batch }, (_, ci) => readOne(ci)),
+      )
+      let stopped = false
+      for (let ci = 0; ci < batch; ci++) {
+        if (isPastQuery(featureLists[ci], chrId, max)) {
+          stopped = true
+          break
         }
       }
-      const workers = Math.min(MAX_CONCURRENT_CHUNK_READS, chunks.length)
-      await Promise.all(Array.from({ length: workers }, () => readNext()))
+
+      if (!stopped && chunks.length > batch) {
+        let next = batch
+        const readNext = async () => {
+          while (next < chunks.length) {
+            await readOne(next++)
+          }
+        }
+        const workers = Math.min(
+          MAX_CONCURRENT_CHUNK_READS,
+          chunks.length - batch,
+        )
+        await Promise.all(Array.from({ length: workers }, () => readNext()))
+      }
+      // A determinate bar must still reach its total after an early stop.
+      onProgress?.(totalBytes, totalBytes)
     }
 
     // Append in chunk order, not completion order, so the result is the same
@@ -463,7 +532,11 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     // at different levels cover overlapping spans — but it is what every caller
     // has always been handed.)
     for (let ci = 0, cl = chunks.length; ci < cl; ci++) {
-      appendInRange(featureLists[ci]!, chrId, min, max, result)
+      // undefined for chunks the early stop skipped
+      const features = featureLists[ci]
+      if (features) {
+        appendInRange(features, chrId, min, max, result)
+      }
     }
 
     if (viewAsPairs) {

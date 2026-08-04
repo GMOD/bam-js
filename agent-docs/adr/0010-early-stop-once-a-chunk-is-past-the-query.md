@@ -1,7 +1,7 @@
 # ADR 0010 — Stopping a query once a chunk is past its range
 
-Status: Proposed — benchmarked, recommend accepting with **fixed waves**. See
-"The waves-vs-pool benchmark", which supersedes "Why not yet".
+Status: Accepted, implemented — one barrier after the first batch, then the
+pool. See "The waves-vs-pool benchmark", which supersedes "Why not yet".
 
 ## Context
 
@@ -184,16 +184,41 @@ actually do):
    query with more than 6 chunks and no stop available — which the survey found
    none of.
 
-### Recommendation
+### One barrier, not one per wave
 
-Take **waves**. It measures the same as the pool version where it matters, and
-it is deterministic, which is the property whose absence killed the first
-attempt: with waves the stop index is a function of chunk order alone, so a warm
-cache cannot race past it and a repeat query can never read more than the first.
+Barriering every wave leaves one residual risk: a query with more than 6 chunks
+and no stop available pays 0.82x-0.88x. The survey found none, but a user's file
+is not the corpus. Since the stop, when it exists, fired inside the *first*
+batch on every fixture measured (`needed` was 1-3 everywhere), a query that
+clears the first batch without stopping is one that needs its chunks — so it can
+run the unbarriered pool for the rest. Measured against barriering every wave:
+
+| query | chunks | waves | one barrier | waves worst case | one-barrier worst case |
+| ----- | ------ | ----- | ----------- | ---------------- | ---------------------- |
+| nanopore 100kb | 22 | 1.58x | **1.59x** | 0.87x | **0.93x** |
+| nanopore 20kb  | 22 | 1.59x | **1.64x** | 0.86x | **0.94x** |
+| out.bam 20kb   | 26 | 1.78x | **1.78x** | 0.82x | **0.92x** |
+| out.bam 500kb  | 21 | 1.53x | **1.56x** | 0.88x | **0.95x** |
+| the four ≤4-chunk queries | ≤4 | 0.99x-1.01x | 1.00x-1.02x | — | — |
+
+Identical benefit, half the downside. "Worst case" is the same arm with the stop
+forced off — what a >6-chunk query with no stop available would pay.
+
+### Decision
+
+Accepted as implemented: read the first `MAX_CONCURRENT_CHUNK_READS` chunks as
+one batch, barrier, and stop if any of them is past the query; otherwise run the
+existing pool over the remainder with no further barriers and no further stop
+checks.
+
+The barrier is what makes it deterministic — the batch is fixed by index, not by
+which read finishes first — which is the property whose absence killed the first
+attempt. `test/cache.test.ts` pins it directly: a repeated query must read no
+more chunks the second time.
 
 The earlier "Why not yet" reasoning was correct about the mechanism and wrong
-about the magnitude — it assumed the barrier would be paid on the queries that
-benefit. It is not, because those queries stop in wave one.
+about the magnitude. It assumed the barrier would be paid on the queries that
+benefit; it is not, because those queries stop in the first batch.
 
 ## Notes for whoever picks this up
 

@@ -6,18 +6,27 @@ import { BamFile } from '../src/index.ts'
 // entry pins that whole buffer. The cache therefore budgets decompressed bytes
 // rather than counting entries, which would leave memory unbounded.
 test('chunk cache stays within its byte budget', async () => {
-  const maxCacheBytes = 4 * 1024 * 1024
+  // 32MB, not 4MB: one of this file's chunks inflates to ~11MB, and the cache
+  // deliberately keeps a single over-budget chunk (see the next test). A budget
+  // below one chunk therefore only ever exercises the size === 1 escape hatch,
+  // never the eviction loop this test is about.
+  const maxCacheBytes = 32 * 1024 * 1024
   const bam = new BamFile({ bamPath: 'test/data/out.bam', maxCacheBytes })
   await bam.getHeader()
 
+  // out.bam's reference '1' holds data over 0-1,015,808 only. Stepping by 2Mb,
+  // as this used to, put 11 of its 12 queries outside the covered range, where
+  // blocksForRange returns nothing and the query is a no-op — so the loop
+  // exercised one query and the budget was never really under pressure.
   for (let i = 0; i < 12; i++) {
-    const start = i * 2_000_000 + 1
+    const start = i * 80_000
     await bam.getRecordsForRange('1', start, start + 400_000)
   }
 
   const cache = bam.chunkFeatureCache
   expect(cache.maxBytes).toBe(maxCacheBytes)
-  expect(cache.size).toBeGreaterThan(0)
+  // more than one entry, i.e. the eviction loop rather than the escape hatch
+  expect(cache.size).toBeGreaterThan(1)
   expect(cache.byteSize).toBeLessThanOrEqual(maxCacheBytes)
 
   bam.clearFeatureCache()
@@ -51,6 +60,18 @@ test('repeated queries over the same region hit the cache', async () => {
   expect(bam.chunkFeatureCache.byteSize).toBe(bytesAfterFirst)
 })
 
+// Counts how many times a chunk is actually read+decompressed, by wrapping the
+// one method every cache miss goes through.
+function countChunkReads(bam: BamFile) {
+  const stats = { reads: 0 }
+  const inner = bam._readChunkFeatures.bind(bam)
+  bam._readChunkFeatures = async (chunk, opts) => {
+    stats.reads++
+    return inner(chunk, opts)
+  }
+  return stats
+}
+
 // A query spanning several chunks used to evict cached entries whose *block*
 // range overlapped the incoming one. Adjacent chunks share the BGZF block at
 // their boundary (chunk A's maxv and chunk B's minv are the same virtual
@@ -59,12 +80,73 @@ test('repeated queries over the same region hit the cache', async () => {
 test('a multi-chunk query keeps every chunk it parsed', async () => {
   const bam = new BamFile({ bamPath: 'test/data/chr22_nanopore_subset.bam' })
   await bam.getHeader()
+  const stats = countChunkReads(bam)
 
   const chunks = await bam.blocksForRange('22', 16_449_999, 16_490_000)
   expect(chunks.length).toBeGreaterThan(1)
 
   await bam.getRecordsForRange('22', 16_450_000, 16_490_000)
-  expect(bam.chunkFeatureCache.size).toBe(chunks.length)
+  // Every chunk the query *read* is still cached, which is the eviction
+  // property under test. Not necessarily every chunk blocksForRange returned:
+  // the query stops once a chunk proves it lies past the range.
+  expect(stats.reads).toBeGreaterThan(1)
+  expect(bam.chunkFeatureCache.size).toBe(stats.reads)
+})
+
+// The BAI linear index degenerates on long reads: one read spanning a wide span
+// pins the lower bound near the start of the file, so optimizeChunks filters
+// nothing and a narrow window inherits every chunk of every overlapping bin.
+// Chunks are file-ordered and the BAM is coordinate-sorted, so the first chunk
+// found to start past the query proves every later one does too (ADR 0010).
+test('a query stops reading once a chunk lies past its range', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/chr22_nanopore_subset.bam' })
+  await bam.getHeader()
+  const stats = countChunkReads(bam)
+
+  const chunks = await bam.blocksForRange('22', 16_000_000, 16_010_000)
+  expect(chunks.length).toBeGreaterThan(10)
+
+  const records = await bam.getRecordsForRange('22', 16_000_000, 16_010_000)
+  expect(records.length).toBe(0)
+  // far fewer reads than the index handed us chunks
+  expect(stats.reads).toBeLessThan(chunks.length)
+})
+
+// The property that makes the stop safe to have at all. An earlier attempt
+// checked it inside the work-stealing pool, where a warm cache resolved chunks
+// faster than any worker could publish the stop — so a repeat of the same query
+// read MORE chunks than the first, and the cache grew on every pan. The barrier
+// after the first batch makes the decision a function of chunk order alone.
+test('a repeated query reads no more chunks the second time', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/chr22_nanopore_subset.bam' })
+  await bam.getHeader()
+  const stats = countChunkReads(bam)
+
+  await bam.getRecordsForRange('22', 16_000_000, 16_010_000)
+  const cold = stats.reads
+  expect(cold).toBeGreaterThan(0)
+
+  await bam.getRecordsForRange('22', 16_000_000, 16_010_000)
+  expect(stats.reads).toBe(cold)
+})
+
+// The stop must not lose records. Checks a narrow window against the same reads
+// found by a wide query, which resolves to a different chunk set and stops in a
+// different place — so the two paths agree only if the stop is sound.
+test('an early-stopped query returns the same records as a wide one', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/chr22_nanopore_subset.bam' })
+  await bam.getHeader()
+
+  const min = 16_500_000
+  const max = 16_550_000
+  const narrow = await bam.getRecordsForRange('22', min, max)
+  const wide = await bam.getRecordsForRange('22', 16_000_000, 16_800_000)
+  const expected = wide.filter(r => r.start < max && r.end >= min)
+
+  expect(narrow.length).toBeGreaterThan(0)
+  expect(narrow.map(r => r.fileOffset).sort()).toEqual(
+    expected.map(r => r.fileOffset).sort(),
+  )
 })
 
 // Panning is the dominant access pattern in a genome browser, and consecutive
@@ -80,18 +162,6 @@ test('panning within the same chunks re-uses parsed records', async () => {
   expect(panned.length).toBeGreaterThan(0)
   expect(bam.chunkFeatureCache.byteSize).toBe(bytesAfterFirst)
 })
-
-// Counts how many times a chunk is actually read+decompressed, by wrapping the
-// one method every cache miss goes through.
-function countChunkReads(bam: BamFile) {
-  const stats = { reads: 0 }
-  const inner = bam._readChunkFeatures.bind(bam)
-  bam._readChunkFeatures = async (chunk, opts) => {
-    stats.reads++
-    return inner(chunk, opts)
-  }
-  return stats
-}
 
 // A genome browser renders a row of adjacent blocks concurrently, and those
 // queries collapse onto very few chunk keys. Without in-flight de-duplication
