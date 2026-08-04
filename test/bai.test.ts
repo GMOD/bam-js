@@ -617,6 +617,31 @@ test('large header, index with no linear index at all', async () => {
   expect(records.length).toBeGreaterThan(0)
 })
 
+// An assembly with tens of thousands of unplaced scaffolds reaches getIndices
+// once per reference, and almost every one of those has an empty linear index.
+// cho.bam.bai has 28751 references and 205 linear-index entries between them.
+//
+// 7.7.0 allocated a fresh pair of Float64Arrays for each, which cost 1.7x on
+// parse and retained 14.6MB instead of 4.4MB — 57k empty typed arrays. It
+// shipped green because every other fixture here is the opposite shape (few
+// references, large linear index), so nothing exercised the per-reference fixed
+// cost. Asserting the shared instance pins the property rather than a timing.
+test('references with an empty linear index share one array', async () => {
+  const bai = new BAI({ filehandle: new LocalFile('test/data/cho.bam.bai') })
+  const parsed = await bai.parse()
+
+  const empties = []
+  for (let i = 0; i < parsed.refCount && empties.length < 2; i++) {
+    const ref = parsed.indices(i)
+    if (ref?.linearBlockPositions.length === 0) {
+      empties.push(ref)
+    }
+  }
+  expect(empties.length).toBe(2)
+  expect(empties[0]!.linearBlockPositions).toBe(empties[1]!.linearBlockPositions)
+  expect(empties[0]!.linearDataPositions).toBe(empties[1]!.linearDataPositions)
+})
+
 // A bare BamFile with htsget:true has no index and no header source — only the
 // HtsgetFile subclass, which overrides getHeaderPre, can serve one. It used to
 // resolve undefined, which put `| undefined` on getHeader()'s public type and
