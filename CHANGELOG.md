@@ -1,3 +1,9 @@
+## [7.8.1](https://github.com/GMOD/bam-js/compare/v7.8.0...v7.8.1) (2026-08-04)
+
+### Bug Fixes
+
+- Stop returning records twice when a query's chunks overlap
+
 ## [7.8.0](https://github.com/GMOD/bam-js/compare/v7.7.1...v7.8.0) (2026-08-04)
 
 ### Documentation
