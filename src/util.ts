@@ -98,7 +98,50 @@ export function optimizeChunks(chunks: Chunk[], lowest?: OffsetCoords) {
     }
   }
 
-  return mergedChunks
+  return makeDisjoint(mergedChunks)
+}
+
+/**
+ * Trim any chunk that starts before its predecessor ends, so the spans a query
+ * reads never overlap.
+ *
+ * Merging alone does not guarantee this. Two chunks from different bins can
+ * overlap inside a single BGZF block while the merge above still declines to
+ * join them, because the combined span would exceed its 5MB cap — on
+ * test/data/out.bam that leaves `3804:0-4977599:16404` next to
+ * `4977599:5843-9719917:27612`, whose 10561 shared bytes of block 4977599 get
+ * fetched, decompressed and decoded by both. Every record in the overlap is
+ * then returned TWICE from getRecordsForRange (5 of out.bam's 6551), which a
+ * consumer sees as a duplicated read: rendered twice, counted twice in
+ * coverage, and colliding on any id derived from fileOffset.
+ *
+ * Safe because a BAI chunk's `maxv` is the virtual offset just past its last
+ * record — a record boundary — so no record begins inside the trimmed span and
+ * the union of the chunks is unchanged. Verified by record counts: the
+ * duplicates disappear and the number of DISTINCT records is identical.
+ */
+function makeDisjoint(chunks: Chunk[]) {
+  const out: Chunk[] = [chunks[0]!]
+  for (let i = 1; i < chunks.length; i++) {
+    const chunk = chunks[i]!
+    const prevMax = out[out.length - 1]!.maxv
+    const cmp =
+      chunk.minv.blockPosition - prevMax.blockPosition ||
+      chunk.minv.dataPosition - prevMax.dataPosition
+    if (cmp >= 0) {
+      out.push(chunk)
+      continue
+    }
+    // starts inside the previous chunk: begin where that one ended, and drop it
+    // entirely if that leaves nothing
+    const stillHasData =
+      chunk.maxv.blockPosition - prevMax.blockPosition ||
+      chunk.maxv.dataPosition - prevMax.dataPosition
+    if (stillHasData > 0) {
+      out.push(new Chunk(prevMax, chunk.maxv, chunk.bin, chunk.endPosition))
+    }
+  }
+  return out
 }
 
 // The pseudo-bin's mapped-record count, a little-endian uint64. Read as two

@@ -51,6 +51,39 @@ test('clampChunkEnds accepts a Float64Array of boundaries', () => {
   expect(c.endPosition).toEqual(300)
 })
 
+// Two chunks from different bins can overlap inside one BGZF block while the
+// merge still declines to join them, because the combined span would exceed its
+// 5MB cap. The overlapping bytes were then fetched, decompressed and decoded
+// twice, and every record in them came back twice from getRecordsForRange.
+test('optimizeChunks leaves no overlapping spans', () => {
+  const a = new Chunk(new VirtualOffset(3804, 0), new VirtualOffset(4977599, 16404), 1)
+  // starts inside `a`, and too far away to merge (span > 5MB)
+  const b = new Chunk(
+    new VirtualOffset(4977599, 5843),
+    new VirtualOffset(9719917, 27612),
+    2,
+  )
+  const out = optimizeChunks([a, b])
+
+  expect(out.length).toBe(2)
+  // b now begins exactly where a ended
+  expect(out[1]!.minv.blockPosition).toBe(4977599)
+  expect(out[1]!.minv.dataPosition).toBe(16404)
+  // the union is unchanged at both ends
+  expect(out[0]!.minv.blockPosition).toBe(3804)
+  expect(out[1]!.maxv.blockPosition).toBe(9719917)
+  expect(out[1]!.maxv.dataPosition).toBe(27612)
+})
+
+// a chunk swallowed entirely by its predecessor contributes nothing
+test('optimizeChunks drops a chunk contained in its predecessor', () => {
+  const a = new Chunk(new VirtualOffset(0, 0), new VirtualOffset(6_000_000, 500), 1)
+  const b = new Chunk(new VirtualOffset(10, 0), new VirtualOffset(6_000_000, 100), 2)
+  const out = optimizeChunks([a, b])
+  expect(out.length).toBe(1)
+  expect(out[0]!.maxv.dataPosition).toBe(500)
+})
+
 test('optimizeChunks merges close chunks without mutating inputs', () => {
   const a = chunk(0, 100)
   const b = chunk(200, 300)
