@@ -1,3 +1,9 @@
+## [7.7.1](https://github.com/GMOD/bam-js/compare/v7.7.0...v7.7.1) (2026-08-04)
+
+### Bug Fixes
+
+- Stop the packed linear index regressing many-scaffold assemblies
+
 ## [7.7.0](https://github.com/GMOD/bam-js/compare/v7.6.2...v7.7.0) (2026-08-04)
 
 ### Bug Fixes
