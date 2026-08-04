@@ -8,9 +8,14 @@ export function parseHeaderText(text: string) {
         tag: tag.slice(1),
         data: fields.map(f => {
           const r = f.indexOf(':')
-          const fieldTag = f.slice(0, r)
-          const value = f.slice(r + 1)
-          return { tag: fieldTag, value }
+          // A field with no colon is not a TAG:VALUE pair — @CO lines are free
+          // text, one comment per line (`samtools view -H c2#pad.3.0.cram`).
+          // Without this branch `slice(0, -1)` silently drops the comment's last
+          // character into the tag. Same shape @gmod/cram's parseHeaderText
+          // returns, so both feed a consumer's header parser identically.
+          return r === -1
+            ? { tag: f, value: '' }
+            : { tag: f.slice(0, r), value: f.slice(r + 1) }
         }),
       })
     }
