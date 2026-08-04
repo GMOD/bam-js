@@ -86,3 +86,55 @@ test('SAM spec pdf', async () => {
   expect(features[2].tags.SA).toEqual('ref,29,-,6H5M,17,0;')
   expect(features[4].tags.SA).toEqual('ref,9,+,5S6M,30,1;')
 })
+
+// CSI has no linear index (CSIv1.tex §3), so getLowestChunk returns 0:0 and
+// optimizeChunks never narrows a query by it — every chunk of every overlapping
+// bin survives. The batch-and-stop in _fetchChunkFeatures (ADR 0010) is
+// therefore at least as load-bearing here as it is for BAI, but every other
+// .csi fixture in this repo resolves to a single chunk, so nothing exercised it.
+//
+// This file's index hands a narrow window 22 chunks. Pinning CSI against BAI
+// keeps both the record set and the number of chunks actually read in step.
+test.each([
+  ['22', 16_000_000, 10_000],
+  ['22', 16_000_000, 100_000],
+  ['22', 16_450_000, 40_000],
+  ['22', 16_000_000, 800_000],
+])('csi matches bai on %s:%i+%i, reads included', async (ref, start, w) => {
+  const open = (idx: 'bai' | 'csi') => {
+    const bam = new BamFile(
+      idx === 'bai'
+        ? {
+            bamPath: 'test/data/chr22_nanopore_subset.bam',
+            baiPath: 'test/data/chr22_nanopore_subset.bam.bai',
+          }
+        : {
+            bamPath: 'test/data/chr22_nanopore_subset.bam',
+            csiPath: 'test/data/chr22_nanopore_subset.bam.csi',
+          },
+    )
+    const stats = { reads: 0 }
+    const inner = bam._readChunkFeatures.bind(bam)
+    bam._readChunkFeatures = async (chunk, opts) => {
+      stats.reads++
+      return inner(chunk, opts)
+    }
+    return { bam, stats }
+  }
+
+  const bai = open('bai')
+  const csi = open('csi')
+  await bai.bam.getHeader()
+  await csi.bam.getHeader()
+
+  const baiChunks = await bai.bam.blocksForRange(ref, start, start + w)
+  const csiChunks = await csi.bam.blocksForRange(ref, start, start + w)
+  const baiRecs = await bai.bam.getRecordsForRange(ref, start, start + w)
+  const csiRecs = await csi.bam.getRecordsForRange(ref, start, start + w)
+
+  expect(csiChunks.length).toBe(baiChunks.length)
+  expect(csiRecs.map(r => r.fileOffset)).toEqual(baiRecs.map(r => r.fileOffset))
+  // the early stop fires the same way on both
+  expect(csi.stats.reads).toBe(bai.stats.reads)
+  expect(csi.stats.reads).toBeLessThanOrEqual(csiChunks.length)
+})
