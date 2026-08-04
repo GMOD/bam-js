@@ -20,6 +20,8 @@ interface BaiRefIndex extends RefIndex {
   linearDataPositions: Float64Array
 }
 
+const EMPTY_POSITIONS = new Float64Array(0)
+
 interface BaiParsed extends ParsedIndexBase<BaiRefIndex> {
   bai: true
 }
@@ -151,8 +153,14 @@ export default class BAI extends IndexFile<BaiParsed> {
 
       const linearCount = dataView.getInt32(curr, true)
       curr += 4
-      const linearBlockPositions = new Float64Array(linearCount)
-      const linearDataPositions = new Float64Array(linearCount)
+      // Share one empty array rather than allocating a pair per reference. An
+      // assembly with tens of thousands of unplaced scaffolds (cho.bam.bai:
+      // 28751 references, 205 linear entries between them) reaches here once
+      // per reference, and almost every one of those has an empty linear index.
+      const linearBlockPositions =
+        linearCount === 0 ? EMPTY_POSITIONS : new Float64Array(linearCount)
+      const linearDataPositions =
+        linearCount === 0 ? EMPTY_POSITIONS : new Float64Array(linearCount)
       for (let j = 0; j < linearCount; j++) {
         // a virtual offset is a 48-bit block position in the high bytes and a
         // 16-bit data position in the low two
