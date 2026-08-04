@@ -1,6 +1,7 @@
 # ADR 0010 — Stopping a query once a chunk is past its range
 
-Status: Proposed (measured, implemented once, backed out — see "Why not yet")
+Status: Proposed — benchmarked, recommend accepting with **fixed waves**. See
+"The waves-vs-pool benchmark", which supersedes "Why not yet".
 
 ## Context
 
@@ -103,6 +104,96 @@ Whichever is chosen needs a benchmark of waves-vs-pool on the files where *no*
 early stop is possible, since that is what the change would tax. That
 measurement has not been done, and shipping either half of it on intuition is
 how the 7.7.0 linear-index regression happened.
+
+## The waves-vs-pool benchmark
+
+Three schedulers, run against the real fixtures with identical record counts
+asserted on every arm, min of 9 interleaved reps:
+
+- **pool** — today's work-stealing loop, no early stop
+- **waves** — fixed waves of 6 with a barrier, early stop *off*: isolates the
+  cost of the barrier alone
+- **waves+stop** — the proposal
+- **pool+stop** — early stop without a barrier: the ceiling, if the
+  determinism problem above were solved
+
+### First, the thing that decides it: which queries can stop
+
+Surveying every fixture for queries producing more than one wave found a
+structural fact that changes the trade completely:
+
+**Every query in the corpus with no early stop available has ≤ 4 chunks.**
+`out.bam` whole (4), nanopore 2Mb (3), shortreads 2Mb (2), ultra-long whole (2).
+Every query with more than 6 chunks has a stop available — 22, 22, 26, 21.
+
+That is not a coincidence. `optimizeChunks` merges aggressively (65kb gap, 5MB
+span), so a query that genuinely needs a lot of data gets it in a few big
+chunks. A query with *many* chunks is one whose bins are scattered — which is
+exactly the case where most of them are past the query.
+
+So a barrier at 6-chunk boundaries is free on every no-stop query in the corpus:
+with ≤ 4 chunks there is only one wave, and one wave **is** the pool. Measured
+at 0.99x-1.06x on all four, as predicted.
+
+### Then, the numbers
+
+Two transport models, because the answer depends on which one you believe and
+they bracket it. `bam.read` is delayed by a 50ms round trip plus transfer at
+20MB/s.
+
+**Per-connection bandwidth** (each concurrent read gets its own 20MB/s):
+
+| query | chunks | pool | waves+stop | pool+stop | net |
+| ----- | ------ | ---- | ---------- | --------- | --- |
+| nanopore 100kb | 22 | 363ms | 355ms | 375ms | 1.02x |
+| nanopore 20kb  | 22 | 348ms | 361ms | 341ms | 0.96x |
+| out.bam 20kb   | 26 | 388ms | 252ms | 253ms | 1.54x |
+| out.bam 500kb  | 21 | 383ms | 379ms | 365ms | 1.01x |
+
+**Shared bandwidth** (round trips overlap, transfers queue for one 20MB/s pipe
+— what 6 connections to one host, or one multiplexed HTTP/2 connection,
+actually do):
+
+| query | chunks | pool | waves(no stop) | waves+stop | pool+stop | barrier | net | MB |
+| ----- | ------ | ---- | -------------- | ---------- | --------- | ------- | --- | -- |
+| nanopore 100kb | 22 | 647ms | 745ms | 410ms | 406ms | 0.87x | **1.58x** | 9.3→6.0 |
+| nanopore 20kb  | 22 | 648ms | 757ms | 407ms | 422ms | 0.86x | **1.59x** | 9.3→6.0 |
+| out.bam 20kb   | 26 | 675ms | 821ms | 367ms | 368ms | 0.82x | **1.84x** | 9.5→5.6 |
+| out.bam 500kb  | 21 | 718ms | 818ms | 479ms | 524ms | 0.88x | **1.50x** | 11.1→8.2 |
+| out.bam whole  | 4  | 1024ms | 1032ms | 1019ms | 1029ms | 0.99x | 1.00x | — |
+| nanopore 2Mb   | 3  | 792ms | 795ms | 800ms | 799ms | 1.00x | 0.99x | — |
+| shortreads 2Mb | 2  | 374ms | 352ms | 361ms | 363ms | 1.06x | 1.04x | — |
+| ultra-long whole | 2 | 400ms | 402ms | 397ms | 400ms | 1.00x | 1.01x | — |
+
+### What it says
+
+1. **When bandwidth is shared, the early stop is worth 1.50x-1.84x** on exactly
+   the queries that are slow today, and is neutral (0.99x-1.04x) on every query
+   that cannot stop. It is never a loss.
+2. **When bandwidth is per-connection, it is a wash** (0.96x-1.54x, mostly
+   ~1.0x). Cutting 22 requests to 6 only cuts bytes by ~35%, because the big
+   chunks come first, and a latency-bound query with abundant bandwidth is not
+   gated by bytes. Browsers share bandwidth, so the shared model is the one that
+   describes the consumer that matters — but a bandwidth-rich client sees no
+   gain rather than a loss.
+3. **The barrier is not what limits it.** waves+stop and pool+stop are within
+   noise of each other on every row (1.58 vs 1.59, 1.59 vs 1.53, 1.84 vs 1.84).
+   The reason is now obvious: with the stop on, the query never runs a second
+   wave, so the barrier is never reached.
+4. The barrier's real cost, 1.14x-1.22x (0.82x-0.88x above), applies only to a
+   query with more than 6 chunks and no stop available — which the survey found
+   none of.
+
+### Recommendation
+
+Take **waves**. It measures the same as the pool version where it matters, and
+it is deterministic, which is the property whose absence killed the first
+attempt: with waves the stop index is a function of chunk order alone, so a warm
+cache cannot race past it and a repeat query can never read more than the first.
+
+The earlier "Why not yet" reasoning was correct about the mechanism and wrong
+about the magnitude — it assumed the barrier would be paid on the queries that
+benefit. It is not, because those queries stop in wave one.
 
 ## Notes for whoever picks this up
 
