@@ -75,20 +75,13 @@ export function optimizeChunks(chunks: Chunk[], lowest?: OffsetCoords) {
     // Merge if chunks are close enough: small gap between them, and the
     // combined span is bounded so we don't grow a single chunk indefinitely.
     //
-    // Both constants were swept before being left alone. Dropping merging
-    // entirely — on the theory that a caller with a coalescing range cache
-    // (jbrowse fetches 256KB-aligned blocks and joins contiguous runs) makes it
-    // redundant — is much worse. A bare consumer goes from 6 reads to 95-378 on
-    // the same queries AND downloads MORE, because every small chunk pays its
-    // own tail padding where a merged one amortizes it; through a 256KB range
-    // cache merging still wins or ties on 7 of 10 real queries.
-    //
-    // Raising the 65000 gap is worse too: at 256KB, out.bam's 20kb window goes
-    // from 5.2MB to 9.8MB and from 1 range request to 4. A wider gap bridges
-    // more bytes nobody asked for, and it blunts the early stop in
-    // _fetchChunkFeatures — a bigger merged chunk is less likely to sit wholly
-    // past the query, so the stop fires later or not at all. Records are
-    // identical under every setting; only the I/O moves.
+    // Both constants were swept before being left alone — see ADR 0011.
+    // Dropping merging entirely, on the theory that a caller with a coalescing
+    // range cache makes it redundant, is much worse: a bare consumer goes from
+    // 6 reads to 95-378 on the same queries AND downloads MORE, because every
+    // small chunk pays its own tail padding where a merged one amortizes it.
+    // Raising the gap is worse too, partly because it blunts the early stop in
+    // _fetchChunkFeatures. Records are identical either way; only the I/O moves.
     if (
       chunkMinBlock - lastMaxBlock < 65000 &&
       chunkMaxBlock - lastMinBlock < 5000000
