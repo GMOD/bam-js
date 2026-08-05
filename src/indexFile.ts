@@ -33,8 +33,11 @@ export function memoizeByRefId<T>(
 ) {
   const cache = new QuickLRU<number, T>({ maxSize })
   return (refId: number) => {
-    if (cache.has(refId)) {
-      return cache.get(refId)
+    // one lookup, not has()+get(): only truthy results are ever cached, so a
+    // miss and a cached value are already distinguishable
+    const cached = cache.get(refId)
+    if (cached !== undefined) {
+      return cached
     }
     const result = getIndices(refId)
     if (result) {

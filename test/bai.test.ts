@@ -735,3 +735,54 @@ test('a repeat query over the same region reuses the decompressed chunk', async 
   expect(again.length).toEqual(all.length)
   readSpy.mockRestore()
 })
+
+test('a query end past what BAI can address still returns the reference', async () => {
+  // BAI addresses [0, 2^29). The bin numbers come out of `>>`, so an end past
+  // 2^31 used to sign-wrap to a negative bin and drop every chunk on the
+  // floor — a caller asking for a whole reference without knowing its length
+  // got zero records instead of all of them.
+  const ti = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await ti.getHeader()
+  const sized = await ti.getRecordsForRange('ctgA', 0, 50001)
+  expect(sized.length).toEqual(9596)
+  for (const end of [2 ** 29, 2 ** 31, 2 ** 32, Number.MAX_SAFE_INTEGER]) {
+    const ret = await ti.getRecordsForRange('ctgA', 0, end)
+    expect(ret.length).toEqual(sized.length)
+  }
+})
+
+test('indexCov over an explicit range agrees with the whole-reference call', async () => {
+  const ti = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await ti.getHeader()
+  const whole = await ti.indexCov('ctgA')
+  expect(whole.length).toBeGreaterThan(0)
+
+  // asking for the reference by its length used to throw "query outside of
+  // range of linear index", as did any range landing in the last window
+  const byLength = await ti.indexCov('ctgA', 0, 50001)
+  expect(byLength).toEqual(whole)
+
+  // ...including an end already sitting exactly on a window boundary, which
+  // roundUp pushed a whole extra window past the end of the index
+  const onBoundary = await ti.indexCov('ctgA', 0, whole.at(-1)!.end)
+  expect(onBoundary).toEqual(whole)
+
+  // a sub-range is the corresponding slice, and one entirely past the index
+  // is empty rather than an exception
+  expect(await ti.indexCov('ctgA', 0, 1)).toEqual(whole.slice(0, 1))
+  expect(await ti.indexCov('ctgA', 10 ** 9, 10 ** 9 + 1000)).toEqual([])
+})
+
+test('a normal header is read once, not grown into', async () => {
+  // getHeaderPre sizes its first read from the index's firstDataLine and only
+  // doubles when that undershoots. Guards the loop shape: the ceiling bounds
+  // the doubling, so the first read must still happen unconditionally, and an
+  // ordinary file must not pay a second round trip for it.
+  const ti = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  const readSpy = vi.spyOn(ti.bam, 'read')
+  const header = await ti.getHeader()
+  expect(header.length).toBeGreaterThan(0)
+  expect(ti.chrToIndex?.ctgA).toEqual(0)
+  expect(readSpy.mock.calls.length).toEqual(1)
+  readSpy.mockRestore()
+})

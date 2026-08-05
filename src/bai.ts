@@ -33,12 +33,20 @@ const BAI_MAGIC = 21578050 // BAI\1
 // https://github.com/samtools/hts-specs/blob/master/SAMv1.pdf
 const BAI_LINEAR_SHIFT = 14
 const BAI_LINEAR_INTERVAL = 1 << BAI_LINEAR_SHIFT // 16384
+const BAI_DEPTH = 5
+// Highest coordinate the scheme addresses: the deepest level's bins are
+// BAI_LINEAR_INTERVAL wide and there are 8^BAI_DEPTH of them.
+const BAI_MAX_POS = 2 ** (BAI_LINEAR_SHIFT + BAI_DEPTH * 3) // 2^29
 
 function roundDown(n: number, multiple: number) {
   return n - (n % multiple)
 }
+// Note the `rem === 0` case: without it a coordinate already on a window
+// boundary rounds up a whole extra window, which is enough to push indexCov's
+// range past the end of the linear index.
 function roundUp(n: number, multiple: number) {
-  return n - (n % multiple) + multiple
+  const rem = n % multiple
+  return rem === 0 ? n : n - rem + multiple
 }
 
 export interface IndexCovEntry {
@@ -50,6 +58,19 @@ export interface IndexCovEntry {
 // Compute bin ranges that overlap [beg, end). Each level's first-bin offset
 // is (8^L - 1) / 7. See SAMv1.pdf §5.1.1 for the binning derivation.
 function reg2bins(beg: number, end: number) {
+  // Clamp to what the scheme can address, the way CSI's reg2bins clamps to
+  // its own. The shifts below are the `>>` operator, so a coordinate past
+  // 2^31 wraps to a negative bin number and every level yields an empty
+  // range: `getRecordsForRange(chr, 0, 2**32)` — a caller asking for a whole
+  // reference without knowing its length — came back with NO records at all
+  // rather than all of them. Clamping is also what keeps a merely-large end
+  // from walking ~130k absent bin numbers before finding the same chunks.
+  if (beg > BAI_MAX_POS) {
+    beg = BAI_MAX_POS
+  }
+  if (end > BAI_MAX_POS) {
+    end = BAI_MAX_POS
+  }
   end -= 1
   return [
     [0, 0],
@@ -76,8 +97,7 @@ export default class BAI extends IndexFile<BaiParsed> {
     }
 
     const refCount = dataView.getInt32(4, true)
-    const depth = 5
-    const binLimit = ((1 << ((depth + 1) * 3)) - 1) / 7
+    const binLimit = ((1 << ((BAI_DEPTH + 1) * 3)) - 1) / 7
 
     // read the indexes for each reference sequence
     let curr = 8
@@ -100,11 +120,9 @@ export default class BAI extends IndexFile<BaiParsed> {
           throw new Error('bai index contains too many bins, please use CSI')
         } else {
           const chunkCount = dataView.getInt32(curr, true)
-          curr += 4
-          for (let k = 0; k < chunkCount; k++) {
-            curr += 8
-            curr += 8
-          }
+          // 16 bytes per chunk (two virtual offsets); the first pass only
+          // needs to step over them. Same shape as csi.ts's first pass.
+          curr += 4 + 16 * chunkCount
         }
       }
 
@@ -199,7 +217,6 @@ export default class BAI extends IndexFile<BaiParsed> {
     opts?: BaseOpts,
   ): Promise<IndexCovEntry[]> {
     const v = BAI_LINEAR_INTERVAL
-    const range = start !== undefined
     const indexData = await this.parse(opts)
     const seqIdx = indexData.indices(seqId)
 
@@ -211,15 +228,24 @@ export default class BAI extends IndexFile<BaiParsed> {
     if (nintv === 0) {
       return []
     }
-    const e = end === undefined ? (nintv - 1) * v : roundUp(end, v)
-    const s = start === undefined ? 0 : roundDown(start, v)
-    const depths: IndexCovEntry[] = range
-      ? new Array((e - s) / v)
-      : new Array(nintv - 1)
-    const totalSize = linearBlockPositions[nintv - 1]!
-    if (e > (nintv - 1) * v) {
-      throw new Error('query outside of range of linear index')
+    // The linear index describes [0, indexEnd): each window's score is the gap
+    // to the NEXT entry, so the final entry is a boundary rather than a window
+    // of its own. Both ends are clamped to it instead of throwing, so a range
+    // query returns the part of the reference the index covers — asking for the
+    // whole reference by its length (`indexCov(ref, 0, ctgLength)`, the obvious
+    // call, and one where end lands in the last window) used to throw "query
+    // outside of range of linear index" while `indexCov(ref)` answered fine.
+    const indexEnd = (nintv - 1) * v
+    const s =
+      start === undefined
+        ? 0
+        : Math.min(Math.max(roundDown(start, v), 0), indexEnd)
+    const e = end === undefined ? indexEnd : Math.min(roundUp(end, v), indexEnd)
+    if (e <= s) {
+      return []
     }
+    const depths: IndexCovEntry[] = new Array((e - s) / v)
+    const totalSize = linearBlockPositions[nintv - 1]!
     // Scale the block-delta into a read count as we go, rather than building the
     // entries and then rebuilding every one of them to apply the scale. Keep the
     // multiply-then-divide order: hoisting lineCount/totalSize into a factor

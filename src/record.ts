@@ -213,13 +213,20 @@ function decodeBArrayTag(
 }
 
 // Byte span of a 'B' tag's element payload, for advancing the cursor past it.
+// Returns -1 for a subtype outside the spec's cCsSiIf, whose element width is
+// unknowable. Guessing one byte per element (which is what falling through to
+// `limit` did) doesn't skip the tag, it lands the cursor mid-value and decodes
+// the whole rest of the record's tag list out of garbage — where an unknown
+// top-level type has always stopped the walk instead. Same choice here.
 function bArrayByteLength(Btype: number, limit: number) {
   if (Btype === 0x69 || Btype === 0x49 || Btype === 0x66) {
     return limit << 2
   } else if (Btype === 0x73 || Btype === 0x53) {
     return limit << 1
-  } else {
+  } else if (Btype === 0x63 || Btype === 0x43) {
     return limit
+  } else {
+    return -1
   }
 }
 
@@ -263,7 +270,12 @@ function tagValueEnd(
       // 'B'
       const Btype = ba[p]!
       const limit = dataView.getInt32(p + 1, true)
-      return p + 5 + bArrayByteLength(Btype, limit)
+      const payload = bArrayByteLength(Btype, limit)
+      if (payload < 0) {
+        console.error('Unknown BAM B tag subtype', Btype)
+        return 0
+      }
+      return p + 5 + payload
     }
     default:
       console.error('Unknown BAM tag type', type)

@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 
 import BamRecord from '../src/record.ts'
 
@@ -176,4 +176,61 @@ test('tags do not resolve to Object.prototype members', () => {
   // same answer once the full tag object is built and getTag reads from it
   expect(rec.getTag('constructor')).toBeUndefined()
   expect(rec.getTag('toString')).toBeUndefined()
+})
+
+// Build a record carrying `NM:i:42` followed by a 'B' tag whose subtype is
+// outside the spec's cCsSiIf, with a 4-byte-per-element payload.
+function makeRecordWithUnknownBSubtype() {
+  const buf = new Uint8Array(128)
+  const dv = new DataView(buf.buffer)
+  dv.setInt32(12, 2, true) // bin_mq_nl: l_read_name = 2
+  dv.setInt32(24, -1, true) // next_refID
+  buf[36] = 'q'.charCodeAt(0)
+  buf[37] = 0
+
+  let p = 38
+  buf[p++] = 'N'.charCodeAt(0)
+  buf[p++] = 'M'.charCodeAt(0)
+  buf[p++] = 0x69 // 'i'
+  dv.setInt32(p, 42, true)
+  p += 4
+
+  buf[p++] = 'X'.charCodeAt(0)
+  buf[p++] = 'B'.charCodeAt(0)
+  buf[p++] = 0x42 // 'B'
+  buf[p++] = 0x78 // 'x' — not a subtype the spec defines
+  dv.setInt32(p, 2, true) // 2 elements
+  p += 4
+  // 8 bytes of payload, i.e. 4 bytes per element — six more than the one byte
+  // per element the old width guess assumed. Every byte is a printable ASCII
+  // letter, so a walk that resumes mid-payload keeps going on them rather than
+  // obviously stopping.
+  for (let i = 0; i < 8; i++) {
+    buf[p++] = 'A'.charCodeAt(0) + i
+  }
+
+  dv.setInt32(0, p - 4, true) // block_size
+  return new BamRecord(buf, 0, p - 1, 0, dv)
+}
+
+test('an unknown B tag subtype stops the walk instead of desyncing it', () => {
+  // silenced, not passed through: the console.error is the point of the test
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+  const rec = makeRecordWithUnknownBSubtype()
+
+  // The element width of an unknown subtype is unknowable, so the tag itself
+  // is unreadable either way. What must not happen is the cursor advancing by
+  // a guessed width: that used to publish `XB` with an undefined value and
+  // then resume six bytes into the payload, reading whatever followed as the
+  // next tag. Only the tags that genuinely precede it survive.
+  expect(Object.keys(rec.tags)).toEqual(['NM'])
+  expect(rec.tags.NM).toEqual(42)
+  expect(Object.values(rec.tags).every(v => v !== undefined)).toBe(true)
+  expect(errors).toHaveBeenCalled()
+
+  // the single-tag lookup walks the same layout and must agree
+  const fresh = makeRecordWithUnknownBSubtype()
+  expect(fresh.getTag('NM')).toEqual(42)
+  expect(fresh.getTag('XB')).toBeUndefined()
+  errors.mockRestore()
 })

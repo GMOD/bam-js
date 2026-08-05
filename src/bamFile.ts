@@ -37,10 +37,13 @@ export const BAM_MAGIC = 21840194
 
 const blockLen = 1 << 16
 
-// Ceiling on the header read. A million contigs is roughly 10MB of compressed
-// @SQ lines and ref-seq table, so anything past this is a corrupt header
-// claiming a huge n_ref rather than a real one, and growing the read further
-// just downloads the file.
+// Ceiling on GROWING the header read. A million contigs is roughly 10MB of
+// compressed @SQ lines and ref-seq table, so a read that has doubled past this
+// is chasing a corrupt header claiming a huge n_ref rather than a real one, and
+// growing further just downloads the file. It does not cap the FIRST read: that
+// length comes from the index's firstDataLine, which is a real offset rather
+// than a guess, so a header that genuinely runs past this still gets its one
+// exact read. See getHeaderPre.
 const maxHeaderReadLen = 32 * 1024 * 1024
 
 function resolveFilehandle(
@@ -118,12 +121,24 @@ export const DEFAULT_MAX_CACHE_BYTES = 100 * 1024 * 1024
 const MAX_CONCURRENT_CHUNK_READS = 6
 
 class ChunkFeatureCache<T> {
-  public maxBytes: number
+  private _maxBytes: number
   private entries = new Map<string, ChunkEntry<T>>()
   private bytes = 0
 
   constructor(maxBytes: number) {
-    this.maxBytes = maxBytes
+    this._maxBytes = maxBytes
+  }
+
+  get maxBytes() {
+    return this._maxBytes
+  }
+
+  // Accessor rather than a plain field so lowering the budget frees memory now.
+  // As a field, a caller trimming the cache under memory pressure got nothing
+  // back until the next chunk read happened to call set().
+  set maxBytes(maxBytes: number) {
+    this._maxBytes = maxBytes
+    this.evict()
   }
 
   get size() {
@@ -148,11 +163,15 @@ class ChunkFeatureCache<T> {
     this.delete(key)
     this.entries.set(key, entry)
     this.bytes += entry.bytes
-    // Evict from the least-recently-used end. The size > 1 guard means a single
-    // chunk larger than the whole budget is still kept: the caller needs it for
-    // the query in flight, and dropping it would only force a re-decompress.
+    this.evict()
+  }
+
+  // Evict from the least-recently-used end. The size > 1 guard means a single
+  // chunk larger than the whole budget is still kept: the caller needs it for
+  // the query in flight, and dropping it would only force a re-decompress.
+  private evict() {
     const lru = this.entries.keys()
-    while (this.bytes > this.maxBytes && this.entries.size > 1) {
+    while (this.bytes > this._maxBytes && this.entries.size > 1) {
       this.delete(lru.next().value!)
     }
   }
@@ -285,16 +304,21 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
         ? blockLen
         : indexData.firstDataLine.blockPosition + blockLen
 
+    // do/while, so the index-derived length is always read once and only the
+    // doubling is bounded. Testing readLen before the first read instead meant
+    // a BAM whose header genuinely exceeds maxHeaderReadLen — millions of
+    // contigs — was rejected without a single byte being fetched, and reported
+    // as 'Insufficient data for reference sequences' when the data was there.
     let samHeader
-    let atEof = false
-    while (samHeader === undefined && !atEof && readLen <= maxHeaderReadLen) {
+    let atEof: boolean
+    do {
       const buffer = await this.bam.read(readLen, 0, { signal: opts.signal })
       // a short read means readLen ran past the end of the file, so there are
       // no more bytes to grow into
       atEof = buffer.length < readLen
       samHeader = this.applyHeader(await unzip(buffer))
       readLen *= 2
-    }
+    } while (samHeader === undefined && !atEof && readLen <= maxHeaderReadLen)
     if (samHeader === undefined) {
       throw new Error('Insufficient data for reference sequences')
     }
@@ -613,9 +637,13 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
         const mateRecs = [] as T[]
         for (let i = 0, l = features.length; i < l; i++) {
           const feature = features[i]!
+          // fileOffset first: it is a number already on the record, where
+          // `name` decodes a string per record. A mate chunk usually overlaps
+          // the query region, so this skips the decode for every record the
+          // caller is already holding.
           if (
-            readNameCounts.get(feature.name) === 1 &&
-            !readIds.has(feature.fileOffset)
+            !readIds.has(feature.fileOffset) &&
+            readNameCounts.get(feature.name) === 1
           ) {
             mateRecs.push(feature)
           }

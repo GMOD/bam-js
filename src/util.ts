@@ -29,6 +29,16 @@ export interface BaseOpts {
   onProgress?: (bytesDownloaded: number, totalBytes?: number) => void
 }
 
+/**
+ * Merge and order the chunks a query resolved to.
+ *
+ * Takes ownership of `chunks`: with no `lowest` to pre-filter against it sorts
+ * the array IN PLACE rather than copying. Every caller builds a fresh array to
+ * hand over, which is what makes that safe — passing something you still hold,
+ * or anything reachable from the index's per-refId cache, would reorder it
+ * underneath you. (The Chunk objects themselves are never mutated; a merged
+ * span produces a new instance.)
+ */
 export function optimizeChunks(chunks: Chunk[], lowest?: OffsetCoords) {
   const n = chunks.length
   if (n === 0) {
@@ -185,19 +195,14 @@ export function clampChunkEnds(
   if (chunks.length === 0) {
     return
   }
-  // A plain array, sized once and filled by index. Not a Float64Array: this
-  // runs once per reference, and an assembly with tens of thousands of unplaced
-  // scaffolds (cho.bam.bai has 28751 references) pays the allocation that many
-  // times over, where each individual boundary list is a handful of entries.
-  // The small-allocation cost dominates the faster typed sort by a wide margin
-  // at that shape. Filling by index still avoids the intermediate array that
-  // mapping the linear index to block positions used to build.
-  // Pre-sized and filled by index. Measured against both alternatives on five
-  // real .bai shapes (min of 21, interleaved, sign-stable over 3 runs):
-  // building with push instead is 5-8% slower here, and a Float64Array is
-  // faster to sort but allocates per reference, which costs 1.7x on an
-  // assembly with 28751 scaffolds. Filling by index also avoids the
-  // intermediate array that mapping the linear index used to build.
+  // A plain array, pre-sized and filled by index. Measured against both
+  // alternatives on five real .bai shapes (min of 21, interleaved, sign-stable
+  // over 3 runs): building with push instead is 5-8% slower, and a
+  // Float64Array is faster to sort but allocates per reference, which costs
+  // 1.7x on an assembly with tens of thousands of unplaced scaffolds
+  // (cho.bam.bai has 28751 references, each with a handful of boundaries).
+  // Filling by index also avoids the intermediate array that mapping the
+  // linear index to block positions used to build.
   const boundaries = new Array<number>(
     extraBoundaries.length + chunks.length * 2,
   )

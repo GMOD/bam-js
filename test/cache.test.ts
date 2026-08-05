@@ -369,3 +369,24 @@ test('a genuine read failure is not retried by waiters', async () => {
   // one read per chunk and no retry: the second query joined and took the loss
   expect(stats.reads).toBe(chunkCount)
 })
+
+// maxBytes is reachable on the public chunkFeatureCache, so lowering it is how
+// a caller sheds memory under pressure. It has to take effect immediately: as
+// a plain field it did nothing until the next chunk read happened to run the
+// eviction loop, which on an idle viewer is never.
+test('lowering maxBytes evicts immediately', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/out.bam' })
+  await bam.getHeader()
+  for (let i = 0; i < 12; i++) {
+    const start = i * 80_000
+    await bam.getRecordsForRange('1', start, start + 400_000)
+  }
+
+  const cache = bam.chunkFeatureCache
+  expect(cache.size).toBeGreaterThan(1)
+
+  cache.maxBytes = 1024
+  expect(cache.maxBytes).toBe(1024)
+  // the size > 1 escape hatch keeps the last chunk whatever the budget
+  expect(cache.size).toBe(1)
+})
