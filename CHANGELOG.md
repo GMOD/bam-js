@@ -1,3 +1,41 @@
+## [7.9.0](https://github.com/GMOD/bam-js/compare/v7.8.2...v7.9.0) (2026-08-05)
+
+### Bug Fixes
+
+- Keep the CIGAR an unmapped record stores
+- Stop losing records and throwing on legitimate queries
+
+### Chores
+
+- Type-check the tests too, and fix what that turned up
+
+### Documentation
+
+- Say why the CSI aux parse is dead code here
+- Which cram-js decode optimizations transfer, and what the corpus said
+
+### Features
+
+- GetTagAlt resolves an alias pair in one pass over the tag block
+
+### Performance Improvements
+
+- Decode seq four bases at a time, build CIGAR without the throwaway
+
+### Refactoring
+
+- **BREAKING** Drop the Bytes type, which describes nothing
+
+### Styling
+
+- Format the tree with prettier and enforce it in CI
+
+### Tests
+
+- Compare every field samtools prints, not just read identity
+- Let the alignment comparison read a file linearly
+- Cover the index and htsget edge paths coverage found
+
 ## [7.8.2](https://github.com/GMOD/bam-js/compare/v7.8.1...v7.8.2) (2026-08-05)
 
 ### Bug Fixes
