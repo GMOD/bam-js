@@ -1,3 +1,27 @@
+## [7.8.2](https://github.com/GMOD/bam-js/compare/v7.8.1...v7.8.2) (2026-08-05)
+
+### Bug Fixes
+
+- Drop reads that end exactly where the query starts
+
+### Chores
+
+- Install samtools so the agreement suite actually runs
+
+### Documentation
+
+- Record why chunk merging stays, and why its gap is 65000
+- ADR 0011 on keeping chunk merging behind a range cache
+- Note that the P CIGAR op is not worth more test investment
+
+### Tests
+
+- Pin the CSI path against BAI, reads included
+- Check every indexed BAM against samtools, and fix the P CIGAR op
+- Walk only references that hold records, and share one file scan
+- Keep the samtools comparison off the network
+- Fail in CI when samtools is missing
+
 ## [7.8.1](https://github.com/GMOD/bam-js/compare/v7.8.0...v7.8.1) (2026-08-04)
 
 ### Bug Fixes
