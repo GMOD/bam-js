@@ -96,6 +96,20 @@ export default class CSI extends IndexFile {
     this.maxBinNumber = ((1 << ((this.depth + 1) * 3)) - 1) / 7
     const maxBinNumber = this.maxBinNumber
     const auxLength = dataView.getInt32(12, true)
+    // A tabix-only branch, which is why parseAuxData and the parseNameBytes it
+    // calls show as uncovered. CSI is shared between `samtools index -c` and
+    // `tabix -C`, and the aux block is how a tabix index carries what a reader
+    // of bgzipped TEXT needs: which columns hold ref/start/end, the comment
+    // character, lines to skip, and the reference names — which a BAM takes
+    // from its own header instead. So a BAM .csi sets l_aux to 0 and never
+    // reaches here (checked: 0 of the 19 .csi fixtures carry one).
+    //
+    // Kept rather than deleted for two reasons. CSI is exported from
+    // index.ts, so pointing it at a tabix index is reachable (@gmod/tabix is
+    // the right tool, but this would half-work and then silently not).
+    // More importantly parseNameBytes is marked SYNC: with its tabix-js
+    // counterpart, and dropping one side of a deliberately-paired pair of
+    // implementations is exactly what that marker exists to prevent.
     const aux = auxLength >= 30 ? this.parseAuxData(bytes, 16) : undefined
     const refCount = dataView.getInt32(16 + auxLength, true)
 
