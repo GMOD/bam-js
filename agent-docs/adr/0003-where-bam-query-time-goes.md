@@ -79,6 +79,36 @@ Decoding `read_name_length` bytes, 1M reps:
 The crossover sits at ~32–40 chars, right on top of typical Illumina read-name
 length, so a threshold would buy nothing reliable either way.
 
+**Re-checked on real records, and the conclusion holds for a better reason.**
+The table above is synthetic buffers; the row that matters is what happens on
+actual BAMs. Read names turned out not to straddle the crossover at all — they
+sit at or above it, everywhere:
+
+| corpus                   | p50 name | ≥32 chars | example                                     |
+| ------------------------ | -------- | --------- | ------------------------------------------- |
+| jb2bench 1000x.shortread | 42       | 100%      | `chr22_mask_123852_124264_3:0:0_2:0:0_f1d9` |
+| shortreads_300x          | 38       | 100%      | `HISEQ1:25:H9UD6ADXX:1:2110:18820:21149`    |
+| chr22_nanopore           | 36       | 100%      | `dccea3f6-d163-45bc-92c0-f77bab8ccadf`      |
+| volvox-sorted            | 32       | 79%       | `ctgA_3_555_0:0:0_2:0:0_102d`               |
+| jb2bench 200x.longread   | 7        | 0%        | `S1_2667`                                   |
+
+By the synthetic table that should make `TextDecoder` the winner. It is not —
+measured over the real record sets (min-of-15, alternating arms), `Array` +
+spread still wins:
+
+| corpus          | Array+spread | TextDecoder | hybrid @32 |
+| --------------- | ------------ | ----------- | ---------- |
+| 1000x.shortread | **33.4 ms**  | 36.3 ms     | 39.7 ms    |
+| shortreads_300x | **17.4 ms**  | 21.6 ms     | 22.1 ms    |
+| chr22_nanopore  | **0.30 ms**  | 0.40 ms     | 0.39 ms    |
+| volvox-sorted   | **1.9 ms**   | 2.1 ms      | 2.1 ms     |
+
+Only `200x.longread` (7-char names) prefers the hybrid, and by 0.01 ms. So the
+synthetic crossover does not reproduce on real records — likely the per-call
+`subarray` the decoder needs, which the `apply(subarray)` row was already
+warning about. `name` stays as it is; don't re-open this one on the strength of
+name lengths alone.
+
 ### 4. Memoizing `get name`
 
 `end`, `tags`, `length_on_ref` and friends are all memoized, so `name` looks
