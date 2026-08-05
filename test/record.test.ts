@@ -203,6 +203,77 @@ test('tags do not resolve to Object.prototype members', () => {
   expect(rec.getTag('toString')).toBeUndefined()
 })
 
+// Build a record whose tag block holds each of `tags` as a Z value, in order.
+function makeRecordWithZTags(tags: [string, string][]) {
+  const buf = new Uint8Array(1024)
+  const dv = new DataView(buf.buffer)
+  dv.setInt32(12, 2, true) // bin_mq_nl: l_read_name = 2
+  dv.setInt32(24, -1, true) // next_refID
+  buf[36] = 'q'.charCodeAt(0)
+  buf[37] = 0
+
+  let p = 38
+  for (const [name, value] of tags) {
+    buf[p++] = name.charCodeAt(0)
+    buf[p++] = name.charCodeAt(1)
+    buf[p++] = 0x5a // 'Z'
+    for (let i = 0; i < value.length; i++) {
+      buf[p++] = value.charCodeAt(i)
+    }
+    buf[p++] = 0
+  }
+  dv.setInt32(0, p - 4, true) // block_size
+  return new BamRecord(buf, 0, p - 1, 0, dv)
+}
+
+// getTagAlt resolves an alias pair in one pass; it must be indistinguishable
+// from the `getTag(a) ?? getTag(b)` it replaces, including for the orderings a
+// single walk could plausibly get wrong.
+test.for([
+  ['primary only', [['MM', 'C+m,1;']], 'C+m,1;'],
+  ['alternate only', [['Mm', 'C+m,2;']], 'C+m,2;'],
+  [
+    'neither',
+    [
+      ['MD', '100'],
+      ['RG', 'grp'],
+    ],
+    undefined,
+  ],
+  // primary must win from either side of the alternate, since a one-pass walk
+  // meets whichever comes first
+  [
+    'both, primary first',
+    [
+      ['MM', 'first'],
+      ['Mm', 'second'],
+    ],
+    'first',
+  ],
+  [
+    'both, alternate first',
+    [
+      ['Mm', 'second'],
+      ['MM', 'first'],
+    ],
+    'first',
+  ],
+  ['empty tag block', [], undefined],
+] as [string, [string, string][], string | undefined][])(
+  'getTagAlt matches getTag(a) ?? getTag(b): %s',
+  ([, tags, expected]) => {
+    const rec = makeRecordWithZTags(tags)
+    expect(rec.getTagAlt('MM', 'Mm')).toBe(expected)
+    // the form it replaces, on a record whose tag cache is still cold
+    const fresh = makeRecordWithZTags(tags)
+    expect(fresh.getTag('MM') ?? fresh.getTag('Mm')).toBe(expected)
+    // and the same answer once `tags` has been built and the cache is used
+    const cached = makeRecordWithZTags(tags)
+    expect(Object.keys(cached.tags).length).toBe(tags.length)
+    expect(cached.getTagAlt('MM', 'Mm')).toBe(expected)
+  },
+)
+
 // Build a record carrying `NM:i:42` followed by a 'B' tag whose subtype is
 // outside the spec's cCsSiIf, with a 4-byte-per-element payload.
 function makeRecordWithUnknownBSubtype() {

@@ -508,6 +508,60 @@ export default class BamRecord {
     return this._findTag(tagName, true)
   }
 
+  /**
+   * The value of `tagName`, or of `altName` if the record carries no `tagName` —
+   * resolved in ONE pass over the tag block instead of two.
+   *
+   * For the MM/Mm and ML/Ml alias pairs that modified-base callers emit, where
+   * `getTag(a) ?? getTag(b)` walks every tag on the record TWICE whenever
+   * neither is present, which is every read in a file without base
+   * modifications. jbrowse-components issues exactly that lookup per record on
+   * every render (extractModifications runs unconditionally), and on
+   * jb2bench's 1000x.shortread it was 12.9% of the whole query — more than the
+   * CIGAR, SEQ and MD reads the pileup actually uses, spent proving absence.
+   *
+   * `tagName` wins wherever it appears, so the result matches the two-lookup
+   * form even for a (malformed) record carrying both.
+   */
+  getTagAlt(tagName: string, altName: string) {
+    if (this._cachedTags !== undefined) {
+      return this._cachedTags[tagName] ?? this._cachedTags[altName]
+    }
+    const a0 = tagName.charCodeAt(0)
+    const a1 = tagName.charCodeAt(1)
+    const b0 = altName.charCodeAt(0)
+    const b1 = altName.charCodeAt(1)
+    const blockEnd = this._end
+    const ba = this._byteArray
+    let p = this.tagsStart
+    // where the alternate landed, if it turns up before the primary does
+    let altType = -1
+    let altStart = 0
+    let altEnd = 0
+    while (p < blockEnd) {
+      const c0 = ba[p]
+      const c1 = ba[p + 1]
+      const type = ba[p + 2]!
+      const valueStart = p + 3
+      const end = tagValueEnd(ba, this._dataView, type, valueStart, blockEnd)
+      if (end === 0) {
+        break // unknown type: can't compute how far to advance
+      }
+      if (c0 === a0 && c1 === a1) {
+        return decodeTagValue(ba, this._dataView, type, valueStart, end, false)
+      }
+      if (altType < 0 && c0 === b0 && c1 === b1) {
+        altType = type
+        altStart = valueStart
+        altEnd = end
+      }
+      p = end
+    }
+    return altType < 0
+      ? undefined
+      : decodeTagValue(ba, this._dataView, altType, altStart, altEnd, false)
+  }
+
   private _findTag(tagName: string, raw: boolean) {
     const tag1 = tagName.charCodeAt(0)
     const tag2 = tagName.charCodeAt(1)
