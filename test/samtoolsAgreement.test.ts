@@ -5,11 +5,17 @@
 // one catches a filter that is self-consistently wrong — which is how a
 // one-base error at the left edge of every window survived for years.
 //
-// Regions are chosen to land exactly on record edges rather than at round
-// numbers, since that is where inclusive/exclusive mistakes live. The
-// comparison at each region is over the full result set, keyed on
-// QNAME|FLAG|POS, so it catches a record wrongly included as readily as one
-// wrongly dropped.
+// Two things have to agree, and they need different comparisons:
+//
+//   - the filter returns the right records. Regions are chosen to land exactly
+//     on record edges rather than at round numbers, since that is where
+//     inclusive/exclusive mistakes live, and each is compared over the full
+//     result set keyed on QNAME|FLAG|POS, so it catches a record wrongly
+//     included as readily as one wrongly dropped.
+//   - each record decodes to the right alignment. Identity says nothing about
+//     CIGAR, MAPQ, TLEN, SEQ or QUAL, so those are compared too — once per
+//     reference over all of it, rather than once per window, since a decode
+//     does not depend on which window asked for it.
 //
 // Skipped, not failed, when samtools is absent, so a contributor without it can
 // still run the suite. `covers enough of the corpus to be meaningful` fails if
@@ -20,10 +26,13 @@ import { describe, expect, test } from 'vitest'
 
 import { BamFile } from '../src/index.ts'
 import {
+  alignments,
   boundaryWindows,
+  qualString,
   records as samtoolsRecords,
   references,
   refsWithRecords,
+  samFields,
   samtoolsAvailable,
   samtoolsVersion,
   sortedness,
@@ -38,6 +47,7 @@ const indexedBams = readdirSync(DATA)
 
 const available = samtoolsAvailable()
 let comparisons = 0
+let decodeComparisons = 0
 const skipped: string[] = []
 
 describe.skipIf(!available)(`agreement with ${available ? samtoolsVersion() : 'samtools'}`, () => {
@@ -83,6 +93,32 @@ describe.skipIf(!available)(`agreement with ${available ? samtoolsVersion() : 's
           `${name} ${ref.name}:${min}-${max} (0-based, half-open)`,
         ).toStrictEqual({ region: `${ref.name}:${min}-${max}`, records: theirs })
       }
+
+      // The same records again, this time on what each one decoded to. MAPQ is
+      // spelled back as the 255 that means "unavailable", which the reader
+      // hands out as undefined.
+      const decoded = all
+        .map(r =>
+          samFields([
+            r.name,
+            r.flags,
+            r.start + 1,
+            r.CIGAR,
+            r.mq ?? 255,
+            r.template_length,
+            r.seq,
+            qualString(r.qual),
+          ]),
+        )
+        .sort()
+      decodeComparisons += decoded.length
+      expect(
+        { where: `${name}:${ref.name}`, alignments: decoded },
+        `${name} ${ref.name} QNAME FLAG POS CIGAR MAPQ TLEN SEQ QUAL`,
+      ).toStrictEqual({
+        where: `${name}:${ref.name}`,
+        alignments: alignments(path, ref.name),
+      })
     }
     // The largest fixtures are ~13 MB of long reads, read once per window and
     // once more by samtools, so this is well past the default 5s.
@@ -97,6 +133,7 @@ describe.skipIf(!available)(`agreement with ${available ? samtoolsVersion() : 's
     expect(indexedBams.length).toBeGreaterThanOrEqual(20)
     expect(skipped.length).toBeLessThanOrEqual(2)
     expect(comparisons).toBeGreaterThanOrEqual(100)
+    expect(decodeComparisons).toBeGreaterThanOrEqual(50_000)
   })
 })
 

@@ -125,6 +125,62 @@ export function records(
     })
 }
 
+/**
+ * Every record samtools reports for a whole reference, as sorted
+ * `QNAME FLAG POS CIGAR MAPQ TLEN SEQ QUAL` lines.
+ *
+ * {@link records} keys on identity alone, which is what a window comparison
+ * needs: it asks whether the right reads came back. This asks the other
+ * question — whether each one decoded to the same alignment — so it is worth
+ * paying once per reference rather than once per window.
+ */
+export function alignments(file: string, ref: string, extra: string[] = []) {
+  return run(['view', ...extra, file, ref])
+    .split('\n')
+    .filter(Boolean)
+    .map(line => {
+      // SAM column order is QNAME FLAG RNAME POS MAPQ CIGAR RNEXT PNEXT TLEN
+      // SEQ QUAL; samFields wants the eight it compares, in its own order
+      const f = line.split('\t')
+      return samFields([f[0], f[1], f[3], f[5], f[4], f[8], f[9], f[10]])
+    })
+    .sort()
+}
+
+/**
+ * The eight fields above, in a spelling both sides can be built in.
+ *
+ * CIGAR is normalised first. SAM writes an absent one as `*`, and htslib prints
+ * whatever CIGAR an unmapped record happens to store, where these readers
+ * return none for one — an unmapped read has no alignment to describe. Blank it
+ * on both sides rather than let that one deliberate divergence mask every other
+ * CIGAR difference. It changes exactly one record in either corpus: paired.bam's
+ * SRR062635.1831187 at 20:74230, FLAG 133, which carries 35M65S.
+ */
+export function samFields(f: (string | number | undefined)[]) {
+  const flags = Number(f[1])
+  const cigar = flags & 0x4 ? '*' : f[3] || '*'
+  return [f[0], flags, f[2], cigar, f[4], f[5], f[6] || '*', f[7]].join('\t')
+}
+
+/**
+ * QUAL as samtools spells it.
+ *
+ * "No quality" is 0xff in every byte, and htslib decides on the first one
+ * alone, so this does too. Either reader hands back the stored bytes, which is
+ * the same answer in a different spelling.
+ */
+export function qualString(qual: Uint8Array | null | undefined) {
+  if (!qual?.length || qual[0] === 0xff) {
+    return '*'
+  }
+  let out = ''
+  for (const q of qual) {
+    out += String.fromCharCode(q + 33)
+  }
+  return out
+}
+
 export function count(
   file: string,
   ref: string,
