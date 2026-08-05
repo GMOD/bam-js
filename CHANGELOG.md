@@ -1,3 +1,28 @@
+## [7.9.1](https://github.com/GMOD/bam-js/compare/v7.9.0...v7.9.1) (2026-08-05)
+
+### Bug Fixes
+
+- Cancel a shared chunk read only once every waiter has aborted
+- Do not let an already-aborted caller pin a shared chunk read
+- Guard the already-aborted case in joinChunkRead as well
+- A bystander no longer inherits the .bai parse owner's abort
+
+### Chores
+
+- Drop eslint-plugin-unicorn
+
+### Documentation
+
+- Re-check the `name` decode on real records, not synthetic buffers
+
+### Performance Improvements
+
+- Do not inflate or decode a chunk every caller has abandoned
+
+### Styling
+
+- Prettier, and correct two stale notes
+
 ## [7.9.0](https://github.com/GMOD/bam-js/compare/v7.8.2...v7.9.0) (2026-08-05)
 
 ### Bug Fixes
