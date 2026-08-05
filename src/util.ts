@@ -369,10 +369,23 @@ interface Positioned {
   end: number
 }
 
+// The end htslib's bam_endpos() reports: a record consuming no reference —
+// an unmapped mate placed at its mate's coordinate, or an empty CIGAR — still
+// covers one base rather than none, so it can be found by a query on the base
+// it sits at.
+function endpos(r: Positioned) {
+  return r.end > r.start ? r.end : r.start + 1
+}
+
 // Append records overlapping [min, max) on `chrId` into `out` (or a fresh
 // array if omitted). Records are assumed coordinate-sorted (by ref_id, then
 // start), so we stop scanning once we pass `max` within `chrId` or move past
 // `chrId` entirely. Returns the populated array.
+//
+// `end` is exclusive, so overlap is `end > min`, not `end >= min`: a read
+// finishing exactly where the query begins shares no base with it. samtools
+// agrees — `samtools view f.bam chr:124001-124300` omits a 150M read at
+// 1-based POS 123851, which ends at 124000.
 export function appendInRange<T extends Positioned>(
   records: T[],
   chrId: number,
@@ -385,7 +398,7 @@ export function appendInRange<T extends Positioned>(
     if (r.ref_id === chrId) {
       if (r.start >= max) {
         break
-      } else if (r.end >= min) {
+      } else if (endpos(r) > min) {
         out.push(r)
       }
     } else if (r.ref_id > chrId) {
