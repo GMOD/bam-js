@@ -115,12 +115,6 @@ function isNumericCigar(value: unknown): value is NumericCigar {
   )
 }
 
-export interface Bytes {
-  start: number
-  end: number
-  byteArray: Uint8Array
-}
-
 type BArrayValue =
   | Int8Array
   | Uint8Array
