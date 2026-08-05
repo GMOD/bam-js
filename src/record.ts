@@ -87,9 +87,14 @@ function decodeTagString(ba: Uint8Array, start: number, end: number) {
   return textDecoder.decode(ba.subarray(start, end))
 }
 
-// Bitmask for ops that consume ref: M=0, D=2, N=3, P=6, ==7, X=8
-// Binary: 0b111001101 = 0x1CD
-const CIGAR_CONSUMES_REF_MASK = 0x1cd
+// Bitmask for ops that consume ref: M=0, D=2, N=3, ==7, X=8
+// Binary: 0b110001101 = 0x18D
+//
+// P (=6) is NOT among them. Padding is a silent placeholder against a padded
+// reference and advances neither query nor reference, which is what htslib's
+// bam_cigar_type(P) == 0 says. Including it made every read carrying a P op
+// report an end one base per padded base too far.
+const CIGAR_CONSUMES_REF_MASK = 0x18d
 
 // A CIGAR as packed op words. Either a view over (or copy of) the record's own
 // CIGAR field, or the CG tag's array for long-CIGAR records — hence Int32Array
