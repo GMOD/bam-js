@@ -760,6 +760,21 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
         signal: opts.signal,
       },
     )
+    // The last chance to bail before the expensive part, and the reason it is
+    // worth having: honouring the signal is optional in the filehandle.
+    // `RemoteFile` hands it to `fetch`, but `LocalFile.read(length, position)`
+    // does not even take an options argument, so every read under it runs to
+    // completion and arrives here with the cancellation unnoticed. Without this
+    // a fully abandoned chunk still gets inflated and decoded — measured at 6
+    // chunks for one 20kb query on out.bam — which is the dominant cost of a
+    // cold query (ADR 0003), spent on records nobody will ever look at.
+    //
+    // Safe precisely because this is the SHARED signal, not a caller's: it
+    // fires only once every waiter has given up, so there is never a live
+    // caller left to be denied the result. @gmod/cram checks in the same place
+    // and for the same reason, before the decode loop in `_fetchRecords`.
+    opts.signal?.throwIfAborted()
+
     const {
       buffer: data,
       cpositions,

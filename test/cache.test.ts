@@ -478,6 +478,63 @@ test('a query does not join a read every waiter has abandoned', async () => {
   expect(next.length).toBeGreaterThan(0)
 })
 
+// Stubs the filehandle rather than _readChunkFeatures, because the point is
+// what _readChunkFeatures itself does with a read that came back after its
+// cancellation. `LocalFile.read(length, position)` takes no options argument at
+// all, so it cannot honour a signal and every read under it does exactly this.
+test('an abandoned chunk is not inflated or decoded', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/out.bam' })
+  await bam.getHeader()
+
+  let decodes = 0
+  const innerDecode = bam.readBamFeatures.bind(bam)
+  bam.readBamFeatures = (ba, cpositions, dpositions, chunk) => {
+    decodes++
+    return innerDecode(ba, cpositions, dpositions, chunk)
+  }
+
+  let reading!: () => void
+  const firstRead = new Promise<void>(resolve => {
+    reading = resolve
+  })
+  let release!: () => void
+  const released = new Promise<void>(resolve => {
+    release = resolve
+  })
+  const innerRead = bam.bam.read.bind(bam.bam)
+  let parked = false
+  bam.bam.read = async (length: number, position: number) => {
+    if (!parked) {
+      parked = true
+      reading()
+      await released
+    }
+    return innerRead(length, position)
+  }
+
+  const a = new AbortController()
+  const b = new AbortController()
+  const pa = bam.getRecordsForRange('1', 1, 20000, { signal: a.signal })
+  const pb = bam.getRecordsForRange('1', 1, 20000, { signal: b.signal })
+  void Promise.allSettled([pa, pb])
+  await firstRead
+
+  // both callers give up while the reads are in flight, so the shared signal
+  // fires — but the filehandle never sees it and hands the bytes over anyway
+  a.abort()
+  b.abort()
+  const before = decodes
+
+  release()
+  await expect(pa).rejects.toThrow(/abort/i)
+  await expect(pb).rejects.toThrow(/abort/i)
+  await tick()
+
+  // Nobody is left who wants these records, so nothing should be inflated or
+  // decoded for them. This counted 6 before _readChunkFeatures re-checked.
+  expect(decodes - before).toBe(0)
+})
+
 test("a waiter's own abort still propagates", async () => {
   const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
   await bam.getHeader()
