@@ -42,18 +42,18 @@ test('gets features from volvox-sorted.bam', async () => {
   await ti.getHeader()
   const records = await ti.getRecordsForRange('ctgA', 0, 1000)
   expect(records.length).toEqual(131)
-  expect(records[0].start).toEqual(2)
-  expect(records[0].end).toEqual(102)
-  expect(records[0].CIGAR).toEqual('100M')
-  expect(records[0].name).toEqual('ctgA_3_555_0:0:0_2:0:0_102d')
-  expect(records[0].qual?.join(',')).toEqual(
+  expect(records[0]!.start).toEqual(2)
+  expect(records[0]!.end).toEqual(102)
+  expect(records[0]!.CIGAR).toEqual('100M')
+  expect(records[0]!.name).toEqual('ctgA_3_555_0:0:0_2:0:0_102d')
+  expect(records[0]!.qual?.join(',')).toEqual(
     '17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17',
   )
-  expect(records[0].tags.MD).toEqual('100')
-  expect(records[0].seq).toEqual(
+  expect(records[0]!.tags.MD).toEqual('100')
+  expect(records[0]!.seq).toEqual(
     'TTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG',
   )
-  expect(records[0].seq).toEqual(
+  expect(records[0]!.seq).toEqual(
     'TTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG',
   )
 })
@@ -156,7 +156,7 @@ test('BamFile with B tags', async () => {
 
   const features = await b.getRecordsForRange('chr1', 980654, 981663)
   // ZC:B:i,364,359,1,0    ZD:B:f,0.01,0.02,0.03   ZE:B:c,0,1,2,3  ZK:B:s,45,46,47
-  const ret = features[1].tags.ZD as number[]
+  const ret = features[1]!.tags.ZD as number[]
   // @ts-expect-error
   expect([...features[1].tags.ZC]).toEqual([364, 359, 1, 0])
   // @ts-expect-error
@@ -174,7 +174,7 @@ test('paired ends', async () => {
   await b.getHeader()
 
   const features = await b.getRecordsForRange('20', 62500, 64500)
-  const f = features[0]
+  const f = features[0]!
   expect(f.next_refid).toEqual(19)
   expect(f.next_pos).toEqual(62352)
 })
@@ -192,8 +192,8 @@ test('read as pairs', async () => {
   expect(features.map(f => f.name).sort()).toEqual(
     features2.map(f => f.name).sort(),
   )
-  const f = features[features.length - 1]
-  const f2 = features2[features2.length - 1]
+  const f = features[features.length - 1]!
+  const f2 = features2[features2.length - 1]!
   expect(f.start).toEqual(f2.start)
 })
 
@@ -328,8 +328,8 @@ test('SAM spec pdf', async () => {
 
   const features = await b.getRecordsForRange('ref', 1, 100)
   expect(features.length).toEqual(6)
-  expect(features[2].tags.SA).toEqual('ref,29,-,6H5M,17,0;')
-  expect(features[4].tags.SA).toEqual('ref,9,+,5S6M,30,1;')
+  expect(features[2]!.tags.SA).toEqual('ref,29,-,6H5M,17,0;')
+  expect(features[4]!.tags.SA).toEqual('ref,9,+,5S6M,30,1;')
 })
 test('trigger range out of bounds file', async () => {
   const b = new BamFile({ bamPath: 'test/data/cho.bam' })
@@ -356,7 +356,7 @@ test('unique id for duplicate features', async () => {
   const ti = new BamFile({ bamPath: 'test/data/exact_duplicate.bam' })
   await ti.getHeader()
   const ret = await ti.getRecordsForRange('ctgA', 0, 1000)
-  expect(ret[0].fileOffset !== ret[1].fileOffset).toBeTruthy()
+  expect(ret[0]!.fileOffset !== ret[1]!.fileOffset).toBeTruthy()
 })
 
 test('usage of the chr22 ultralong nanopore', async () => {
@@ -455,7 +455,7 @@ test('long tag list', async () => {
   const ti = new BamFile({ bamPath: 'test/data/long_tag_list.bam' })
   await ti.getHeader()
   const ret1 = await ti.getRecordsForRange('1', 0, 3000000)
-  expect(ret1[0].tags).toMatchSnapshot()
+  expect(ret1[0]!.tags).toMatchSnapshot()
 })
 
 test('fix decoding error for ID tag', async () => {
@@ -463,22 +463,22 @@ test('fix decoding error for ID tag', async () => {
 
   await ti1.getHeader()
   const ret1 = await ti1.getRecordsForRange('1', 0, 3000000)
-  expect(ret1[0].tags.ID).toBe(78190)
-  expect(ret1[1].tags.ID).toBe(4440)
+  expect(ret1[0]!.tags.ID).toBe(78190)
+  expect(ret1[1]!.tags.ID).toBe(4440)
 })
 test('fix decoding error for DI tag', async () => {
   const ti1 = new BamFile({ bamPath: 'test/data/long_tag_list2.bam' })
   await ti1.getHeader()
   const ret1 = await ti1.getRecordsForRange('1', 0, 3000000)
-  expect(ret1[0].tags.DI).toBe(78190)
-  expect(ret1[1].tags.DI).toBe(4440)
+  expect(ret1[0]!.tags.DI).toBe(78190)
+  expect(ret1[1]!.tags.DI).toBe(4440)
 })
 
 test('get CIGAR from a CG long tag', async () => {
   const ti1 = new BamFile({ bamPath: 'test/data/cg.bam' })
   await ti1.getHeader()
   const ret1 = await ti1.getRecordsForRange('chr1', 0, 3000000)
-  expect(ret1[0].CIGAR.slice(0, 4)).toBe('1M1D')
+  expect(ret1[0]!.CIGAR.slice(0, 4)).toBe('1M1D')
 })
 
 test('get header text', async () => {
@@ -491,9 +491,9 @@ test('NUMERIC_MD returns MD tag as Uint8Array', async () => {
   const ti = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
   await ti.getHeader()
   const records = await ti.getRecordsForRange('ctgA', 0, 1000)
-  const md = records[0].NUMERIC_MD
+  const md = records[0]!.NUMERIC_MD
   expect(md).toBeInstanceOf(Uint8Array)
-  expect(new TextDecoder().decode(md)).toEqual(records[0].tags.MD)
+  expect(new TextDecoder().decode(md)).toEqual(records[0]!.tags.MD)
 })
 
 test('estimatedBytesForRegions estimates download size', async () => {
@@ -672,18 +672,20 @@ test('custom BamRecord class', async () => {
   expect(records.length).toEqual(131)
   expect(records[0]).toBeInstanceOf(CustomBamRecord)
   expect(records[0]).toBeInstanceOf(BamRecord)
-  expect(records[0].customProperty).toEqual(
+  expect(records[0]!.customProperty).toEqual(
     'custom-ctgA_3_555_0:0:0_2:0:0_102d',
   )
-  expect(records[0].getDoubleStart()).toEqual(4)
-  expect(records[0].start).toEqual(2)
-  expect(records[0].CIGAR).toEqual('100M')
+  expect(records[0]!.getDoubleStart()).toEqual(4)
+  expect(records[0]!.start).toEqual(2)
+  expect(records[0]!.CIGAR).toEqual('100M')
 })
 
 test('reports download progress for getRecordsForRange', async () => {
   const ti = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
   await ti.getHeader()
-  const ticks: [number, number][] = []
+  // totalBytes is optional on onProgress: a source that cannot report a
+  // content length calls back with only the first argument
+  const ticks: [number, number | undefined][] = []
   const records = await ti.getRecordsForRange('ctgA', 0, 1000, {
     onProgress: (downloaded, total) => {
       ticks.push([downloaded, total])

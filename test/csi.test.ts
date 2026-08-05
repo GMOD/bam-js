@@ -83,8 +83,8 @@ test('SAM spec pdf', async () => {
 
   const features = await b.getRecordsForRange('ref', 1, 100)
   expect(features.length).toEqual(6)
-  expect(features[2].tags.SA).toEqual('ref,29,-,6H5M,17,0;')
-  expect(features[4].tags.SA).toEqual('ref,9,+,5S6M,30,1;')
+  expect(features[2]!.tags.SA).toEqual('ref,29,-,6H5M,17,0;')
+  expect(features[4]!.tags.SA).toEqual('ref,9,+,5S6M,30,1;')
 })
 
 // CSI has no linear index (CSIv1.tex §3), so getLowestChunk returns 0:0 and

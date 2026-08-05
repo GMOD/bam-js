@@ -17,6 +17,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      # `pnpm build` only compiles src/. This is the same check over test/ too,
+      # which is otherwise never type-checked: a test can call a renamed option
+      # or a changed signature and go on passing by testing nothing.
+      - run: pnpm typecheck
       - run: pnpm build
       # test/samtoolsAgreement.test.ts checks every indexed BAM against htslib,
       # and skips itself when samtools is missing rather than failing. Without

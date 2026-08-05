@@ -33,15 +33,17 @@ export default class FakeRecord extends Record {
     } = {},
   ) {
     const byteArray = Buffer.from(new Uint8Array(52))
-    super({
-      bytes: { start: 0, end: 0, byteArray },
-      fileOffset: 0,
-      dataView: new DataView(
+    super(
+      byteArray,
+      0,
+      byteArray.length,
+      0,
+      new DataView(
         byteArray.buffer,
         byteArray.byteOffset,
         byteArray.byteLength,
       ),
-    })
+    )
     this.tlen = tlen
     this.nextrefid = nextRefId
     this.refid = refId

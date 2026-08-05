@@ -157,7 +157,7 @@ export function alignments(file: string, ref: string, extra: string[] = []) {
  * CIGAR difference. It changes exactly one record in either corpus: paired.bam's
  * SRR062635.1831187 at 20:74230, FLAG 133, which carries 35M65S.
  */
-export function samFields(f: (string | number | undefined)[]) {
+export function samFields(f: (string | number | null | undefined)[]) {
   const flags = Number(f[1])
   const cigar = flags & 0x4 ? '*' : f[3] || '*'
   return [f[0], flags, f[2], cigar, f[4], f[5], f[6] || '*', f[7]].join('\t')

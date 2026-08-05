@@ -137,7 +137,8 @@ function makeRecordWithSeq(bases: string) {
   const seqStart = 38
   for (let i = 0; i < len; i++) {
     const nibble = '=ACMGRSVTWYHKDBN'.indexOf(bases[i]!)
-    buf[seqStart + (i >> 1)] |= i % 2 === 0 ? nibble << 4 : nibble
+    const j = seqStart + (i >> 1)
+    buf[j] = buf[j]! | (i % 2 === 0 ? nibble << 4 : nibble)
   }
   const end = seqStart + ((len + 1) >> 1) + len
   dv.setInt32(0, end - 4, true)

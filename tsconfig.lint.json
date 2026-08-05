@@ -1,4 +1,10 @@
 {
   "extends": "./tsconfig",
+  "compilerOptions": {
+    // tsconfig.json compiles src/ into dist/. This one only ever reads, so it
+    // needs a rootDir that spans test/ as well and no output at all.
+    "rootDir": ".",
+    "noEmit": true
+  },
   "include": ["src", "test"]
 }
