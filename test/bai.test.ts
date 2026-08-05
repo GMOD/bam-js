@@ -178,6 +178,25 @@ test('paired ends', async () => {
   expect(f.next_refid).toEqual(19)
   expect(f.next_pos).toEqual(62352)
 })
+
+// A placed unmapped mate: FLAG 0x4 set, but with a real POS and a real CIGAR,
+// which is what its aligner wrote and what samtools prints. The reader used to
+// drop the CIGAR on the unmapped flag alone.
+test('an unmapped record keeps the CIGAR it stores, and no reference span', async () => {
+  const b = new BamFile({ bamPath: 'test/data/paired.bam' })
+  await b.getHeader()
+
+  const features = await b.getRecordsForRange('20', 74000, 74500)
+  const f = features.find(
+    r => r.name === 'SRR062635.1831187' && r.flags === 133,
+  )!
+  expect(f).toBeDefined()
+  expect(f.CIGAR).toEqual('35M65S')
+  // still zero: a span is a claim about alignment, and the query filter reads it
+  expect(f.length_on_ref).toEqual(0)
+  expect(f.end).toEqual(f.start)
+})
+
 test('read as pairs', async () => {
   const b = new BamFile({ bamPath: 'test/data/paired.bam' })
   const p = new BamFile({ bamPath: 'test/data/paired-region.bam' })

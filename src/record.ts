@@ -633,12 +633,18 @@ export default class BamRecord {
     return lref
   }
 
+  // Unmapped records are not special-cased here, unlike in
+  // _computeLengthOnRef. The spec says no assumptions can be made about an
+  // unmapped read's CIGAR, but "no assumptions" is not "no CIGAR": aligners
+  // emit placed unmapped mates that carry a real one, and htslib prints
+  // whatever is stored. Dropping it lost data the file had — paired.bam's
+  // SRR062635.1831187 at 20:74230 is FLAG 133 with 35M65S.
+  //
+  // Reference span stays 0 for them regardless, since that is a claim about
+  // alignment rather than about the stored bytes, and the query filter reads
+  // it.
   private _computeNumericCigar(): NumericCigar {
     const flag_nc = this._dataView.getInt32(this._start + 16, true)
-    if (flag_nc & (Constants.BAM_FUNMAP << 16)) {
-      return new Uint32Array(0)
-    }
-
     const numCigarOps = flag_nc & 0xffff
     const p = this.b0 + this.read_name_length
 
