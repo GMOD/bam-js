@@ -34,6 +34,12 @@ re-attempt them without new evidence.
 
 ### 1. Rewriting the `CIGAR` string builder
 
+> **Partially superseded by ADR 0012.** The two alternatives below are still
+> losers and were re-measured as such. But a third one that was never tried here
+> — splitting the concat into two appends, dropping the intermediate cons string
+> — is worth 1.3–1.7x on long reads and has landed. "Don't rewrite this loop"
+> was too strong a conclusion to draw from these two data points.
+
 `get CIGAR` does `result += length + String.fromCharCode(opCode)` in a loop —
 the top accessor cost on long reads. Two alternatives, 20k ops × 200 reps:
 
