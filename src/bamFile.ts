@@ -65,9 +65,16 @@ interface ChunkEntry<T> {
 
 interface InFlightChunk<T> {
   promise: Promise<ChunkEntry<T>>
-  // the signal the read was started with, so a waiter can tell "the owner
-  // aborted" apart from "the read genuinely failed"
-  signal?: AbortSignal
+  // Signals of the callers still waiting on this read. The read is cancelled
+  // only once every one of them has given up — see joinChunkRead and ADR 0007.
+  signals: Set<AbortSignal>
+  // true once a caller joins without a signal, which pins the read
+  pinned: boolean
+  // aborts when every caller has given up. what the read actually runs under
+  controller: AbortController
+  // aborted to take this read's listeners back off its callers' signals
+  dispose: AbortController
+  settled: boolean
 }
 
 /**
@@ -402,23 +409,70 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
   // Read a chunk, publish it to the cache, and keep the in-flight promise
   // discoverable while it runs.
-  private _startChunkRead(cacheKey: string, chunk: Chunk, opts: BaseOpts) {
-    const promise = this._readChunkFeatures(chunk, opts).then(entry => {
+  //
+  // The read runs under this entry's own controller rather than any one
+  // caller's signal, because the read is shared: it must survive until every
+  // caller waiting on it has given up. joinChunkRead is what registers them.
+  private _startChunkRead(cacheKey: string, chunk: Chunk) {
+    const controller = new AbortController()
+    const promise = this._readChunkFeatures(chunk, {
+      signal: controller.signal,
+    }).then(entry => {
       this.chunkFeatureCache.set(cacheKey, entry)
       return entry
     })
-    const inFlight: InFlightChunk<T> = { promise, signal: opts.signal }
+    const inFlight: InFlightChunk<T> = {
+      promise,
+      signals: new Set(),
+      pinned: false,
+      controller,
+      dispose: new AbortController(),
+      settled: false,
+    }
     this.inFlightChunks.set(cacheKey, inFlight)
-    // Only clear our own entry: a retry may already have replaced it. `.then(f,
-    // f)` rather than `.finally(f)` so the handler's own promise never carries
-    // an unhandled rejection.
+    // `.then(f, f)` rather than `.finally(f)` so the handler's own promise never
+    // carries an unhandled rejection.
     const clear = () => {
+      inFlight.settled = true
+      // nothing reads these once the read has settled, and holding them would
+      // pin each caller's AbortController behind this entry
+      inFlight.dispose.abort()
+      inFlight.signals.clear()
+      // only clear our own entry: a later read for this chunk may have replaced it
       if (this.inFlightChunks.get(cacheKey) === inFlight) {
         this.inFlightChunks.delete(cacheKey)
       }
     }
     promise.then(clear, clear)
-    return promise
+    return inFlight
+  }
+
+  // Register a caller's interest, so the read survives until that caller has
+  // given up too.
+  //
+  // A caller with no signal cannot give up, so it pins the read: there is no
+  // longer any set of aborts that should stop it. That is the honest reading of
+  // a caller that never asked to be cancellable, and it means one signal-free
+  // query makes that chunk's read uncancellable for everyone joined to it.
+  private joinChunkRead(inFlight: InFlightChunk<T>, signal?: AbortSignal) {
+    if (signal === undefined) {
+      inFlight.pinned = true
+    } else if (!inFlight.signals.has(signal)) {
+      // guarded so one signal joining twice — a viewAsPairs query reaching the
+      // same chunk for a read and for its mate — does not add two listeners
+      inFlight.signals.add(signal)
+      signal.addEventListener(
+        'abort',
+        () => {
+          inFlight.signals.delete(signal)
+          if (!inFlight.pinned && inFlight.signals.size === 0) {
+            inFlight.controller.abort(signal.reason)
+          }
+        },
+        // `once` covers the abort firing; `dispose` covers it never firing
+        { once: true, signal: inFlight.dispose.signal },
+      )
+    }
   }
 
   // Parsed records for a chunk, reading and decompressing it only on a miss.
@@ -446,23 +500,35 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     // they collapse onto very few chunk keys, so without this a query pays for
     // the same inflate several times over — the dominant cost of a cold query
     // (ADR 0003).
-    const pending = this.inFlightChunks.get(cacheKey)
-    if (!pending) {
-      return (await this._startChunkRead(cacheKey, chunk, opts)).features
+    let pending = this.inFlightChunks.get(cacheKey)
+    // A read every caller has abandoned is on its way out but may not have
+    // noticed yet. Start a fresh one rather than joining one already doomed.
+    if (pending?.controller.signal.aborted && !pending.settled) {
+      if (this.inFlightChunks.get(cacheKey) === pending) {
+        this.inFlightChunks.delete(cacheKey)
+      }
+      pending = undefined
+    }
+    pending ??= this._startChunkRead(cacheKey, chunk)
+    // Only a read still running has anything to cancel. Joining a settled one
+    // would add this caller to a set nothing will ever take it out of, since
+    // the entry drops its abort listeners when it settles.
+    if (!pending.settled) {
+      this.joinChunkRead(pending, opts.signal)
     }
 
     try {
-      return (await pending.promise).features
+      const entry = await pending.promise
+      // the read finished, but this caller gave up while waiting for it
+      opts.signal?.throwIfAborted()
+      return entry.features
     } catch (e) {
-      // The read we joined was started by another caller. If that caller
-      // aborted and we did not, the failure is theirs and says nothing about
-      // our query, so start over — which picks up the cache, joins a sibling's
-      // retry, or reads under our own signal. Any other failure (and our own
-      // abort) propagates as it would have without sharing.
-      if (!pending.signal?.aborted || opts.signal?.aborted) {
-        throw e
-      }
-      return this._cachedChunkFeatures(chunk, opts)
+      // Prefer this caller's own cancellation to whatever the shared read
+      // reported. If we asked to stop, that is the answer we want — and when
+      // the read itself was cancelled it is because we, and everyone else,
+      // asked it to.
+      opts.signal?.throwIfAborted()
+      throw e
     }
   }
 

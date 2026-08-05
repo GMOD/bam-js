@@ -259,16 +259,24 @@ test('ref names do not resolve to Object.prototype members', async () => {
 function hangFirstRead(bam: BamFile) {
   const stats = { reads: 0 }
   const inner = bam._readChunkFeatures.bind(bam)
-  let started: () => void
+  let started!: () => void
+  let release!: () => void
   const firstStarted = new Promise<void>(resolve => {
     started = resolve
+  })
+  const released = new Promise<void>(resolve => {
+    release = resolve
   })
   bam._readChunkFeatures = async (chunk, opts) => {
     stats.reads++
     if (stats.reads === 1) {
       started()
-      // never resolves: the only way out is the owner's abort
-      await new Promise((_resolve, reject) => {
+      // Parked until the test lets it go, or until the read is cancelled. The
+      // signal here is the *shared* one, which now fires only once every caller
+      // waiting on this read has aborted — so a test that leaves a waiter alive
+      // has to release the read itself rather than expecting an abort to.
+      await new Promise<void>((resolve, reject) => {
+        void released.then(resolve)
         opts.signal?.addEventListener('abort', () => {
           reject(new Error('aborted'))
         })
@@ -276,7 +284,13 @@ function hangFirstRead(bam: BamFile) {
     }
     return inner(chunk, opts)
   }
-  return { stats, firstStarted }
+  return {
+    stats,
+    firstStarted,
+    release: () => {
+      release()
+    },
+  }
 }
 
 // lets queued microtasks and timers run, so a joining query reaches the
@@ -290,25 +304,61 @@ function tick() {
 test('a waiter survives the read owner aborting', async () => {
   const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
   await bam.getHeader()
-  const { stats, firstStarted } = hangFirstRead(bam)
+  const { stats, firstStarted, release } = hangFirstRead(bam)
 
   const chunkCount = (await bam.blocksForRange('ctgA', 0, 5000)).length
 
   const aborter = new AbortController()
+  const waiter = new AbortController()
   const ownerP = bam.getRecordsForRange('ctgA', 1, 5000, {
     signal: aborter.signal,
   })
   await firstStarted
-  const waiterP = bam.getRecordsForRange('ctgA', 1, 5000)
+  // its own live signal, so this tests the reference count rather than the
+  // separate rule that a signal-free caller pins the read
+  const waiterP = bam.getRecordsForRange('ctgA', 1, 5000, {
+    signal: waiter.signal,
+  })
   await tick()
   aborter.abort()
+  // the waiter has not given up, so the read it joined is not cancelled and is
+  // still sitting there waiting to be let go
+  release()
 
-  await expect(ownerP).rejects.toThrow(/aborted/)
+  await expect(ownerP).rejects.toThrow(/abort/i)
   const records = await waiterP
   expect(records.length).toBeGreaterThan(0)
-  // the waiter joined the hung read and redid exactly it — one extra read, not
-  // a whole second query's worth
-  expect(stats.reads).toBe(chunkCount + 1)
+  expect(waiter.signal.aborted).toBe(false)
+  // No re-read at all. The read ran to completion because one caller giving up
+  // is not every caller giving up. This used to assert chunkCount + 1: the
+  // waiter inherited the owner's failure and redid the read it had joined.
+  expect(stats.reads).toBe(chunkCount)
+})
+
+test('a read is cancelled once every waiter has aborted', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await bam.getHeader()
+  const { firstStarted } = hangFirstRead(bam)
+
+  const owner = new AbortController()
+  const waiter = new AbortController()
+  const ownerP = bam.getRecordsForRange('ctgA', 1, 5000, {
+    signal: owner.signal,
+  })
+  await firstStarted
+  const waiterP = bam.getRecordsForRange('ctgA', 1, 5000, {
+    signal: waiter.signal,
+  })
+  await tick()
+
+  // the other half of the contract: nobody is left who wants these bytes, so
+  // the read is cancelled rather than run to completion and thrown away. The
+  // hung read is never released here — the abort is what unblocks it.
+  owner.abort()
+  waiter.abort()
+
+  await expect(ownerP).rejects.toThrow(/abort/i)
+  await expect(waiterP).rejects.toThrow(/abort/i)
 })
 
 test("a waiter's own abort still propagates", async () => {

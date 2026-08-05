@@ -64,22 +64,38 @@ read settles; the resolved features land in `chunkFeatureCache` as before.
   come from a concurrent read too, so there is no longer a timing-dependent case
   where two queries get independently-decoded copies of one chunk.
 
-- **A joined read is not hostage to the joiner's abort.** `opts.signal` is
-  per-caller, and only the caller that _starts_ the read passes its signal down
-  to `bam.read`. If that owner aborts, the shared promise rejects for everyone —
-  including queries that are still live. Waiters therefore compare the failed
-  read's signal against their own, and redo the read under their own `opts` when
-  the failure was somebody else's abort. Every other failure, and the waiter's
-  own abort, propagates unchanged.
+- **A joined read is not hostage to another caller's abort.** A shared read is
+  not cancelled when one of its callers gives up, only when _all_ of them have.
+  `InFlightChunk` holds the set of signals still waiting on it and an
+  `AbortController` of its own; `_readChunkFeatures` runs under that controller,
+  and it fires only once the last waiting signal has aborted. A caller's own
+  abort is reported to that caller alone, by re-checking it after the shared
+  promise settles.
 
-  A sibling waiter may reach that retry first, so the retry path re-checks
-  `inFlightChunks` and joins an existing retry rather than starting a third
-  read.
+  A caller with **no signal cannot give up**, so it pins the read: there is no
+  set of aborts that should stop it. That is the honest reading of a caller that
+  never asked to be cancellable, and it means one signal-free query makes that
+  chunk's read uncancellable for everyone joined to it.
 
-  In practice this path is cold: jbrowse does not pass a `signal` to
-  `getRecordsForRange` at all — it cancels with `checkStopToken` around the
-  await — so its concurrent queries all share `signal: undefined` and the
-  comparison never fires.
+  **This replaced a retry**, and the reasons are worth keeping. Originally the
+  read ran under whichever caller started it, and a waiter that saw it fail
+  because _that_ caller aborted redid the read under its own `opts`. It was
+  correct, but it threw away work in the case that matters: a pan cancels the
+  query in flight while the next query wants most of the same chunks, so exactly
+  the chunks still being read got read twice. The retry also recursed unbounded
+  — jbrowse's own `RemoteFileWithRangeCache.joinChunk`, the same retry one layer
+  further down on 256 KiB chunks, bounds its version at one attempt precisely to
+  avoid a recursion whose depth depends on how the aborts interleave.
+
+  `@gmod/cram` reached the same design independently and at the same time; see
+  its ADR 0003. The two now match, which is the point — a consumer threading one
+  stop token through both adapters gets the same cancellation semantics from
+  each.
+
+  An earlier version of this note said the path was cold, because "jbrowse does
+  not pass a `signal` to `getRecordsForRange` at all". That is no longer true:
+  `BamAdapter.getFeatures` wraps the read in `withStopTokenSignal` and threads a
+  real signal down. The path is hot on every pan.
 
 ## Rejected alternatives
 
