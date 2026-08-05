@@ -134,16 +134,33 @@ export function records(
  * question — whether each one decoded to the same alignment — so it is worth
  * paying once per reference rather than once per window.
  */
-export function alignments(file: string, ref: string, extra: string[] = []) {
-  return run(['view', ...extra, file, ref])
+export function alignments(
+  file: string,
+  ref: string,
+  extra: string[] = [],
+  opts: { scan?: boolean; dropTlen?: boolean } = {},
+) {
+  // `scan` reads the whole file and picks the reference out here rather than
+  // asking samtools for a region. It is what makes an unsorted file
+  // comparable: only htslib's *region iterator* assumes coordinate order, and
+  // a linear read of the same file is still the right answer. See
+  // sortedness().
+  const args = opts.scan
+    ? ['view', ...extra, file]
+    : ['view', ...extra, file, ref]
+  return run(args)
     .split('\n')
     .filter(Boolean)
-    .map(line => {
+    .map(line => line.split('\t'))
+    .filter(f => !opts.scan || f[2] === ref)
+    .map(f =>
       // SAM column order is QNAME FLAG RNAME POS MAPQ CIGAR RNEXT PNEXT TLEN
       // SEQ QUAL; samFields wants the eight it compares, in its own order
-      const f = line.split('\t')
-      return samFields([f[0], f[1], f[3], f[5], f[4], f[8], f[9], f[10]])
-    })
+      samFields(
+        [f[0], f[1], f[3], f[5], f[4], f[8], f[9], f[10]],
+        opts.dropTlen,
+      ),
+    )
     .sort()
 }
 
@@ -156,11 +173,18 @@ export function alignments(file: string, ref: string, extra: string[] = []) {
  * on both sides rather than let that one deliberate divergence mask every other
  * CIGAR difference. It changes exactly one record in either corpus: paired.bam's
  * SRR062635.1831187 at 20:74230, FLAG 133, which carries 35M65S.
+ *
+ * `dropTlen` blanks the template length, for the one fixture where the two
+ * implementations legitimately disagree — see its caller.
  */
-export function samFields(f: (string | number | null | undefined)[]) {
+export function samFields(
+  f: (string | number | null | undefined)[],
+  dropTlen = false,
+) {
   const flags = Number(f[1])
   const cigar = flags & 0x4 ? '*' : f[3] || '*'
-  return [f[0], flags, f[2], cigar, f[4], f[5], f[6] || '*', f[7]].join('\t')
+  const tlen = dropTlen ? '-' : f[5]
+  return [f[0], flags, f[2], cigar, f[4], tlen, f[6] || '*', f[7]].join('\t')
 }
 
 /**
