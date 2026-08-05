@@ -7,7 +7,7 @@ import CSI from './csi.ts'
 import NullFilehandle from './nullFilehandle.ts'
 import BAMFeature from './record.ts'
 import { parseHeaderText } from './sam.ts'
-import { appendInRange, parseRefSeqs } from './util.ts'
+import { appendInRange, parseRefSeqs, throwIfAborted } from './util.ts'
 
 import type Chunk from './chunk.ts'
 import type { BamOpts, BaseOpts } from './util.ts'
@@ -399,7 +399,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     max: number,
     opts?: BamOpts,
   ) {
-    opts?.signal?.throwIfAborted()
+    throwIfAborted(opts?.signal)
     const chrId = await this.getSeqId(chr, opts)
     if (chrId === undefined || !this.index) {
       return []
@@ -512,7 +512,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     // signal. Such a caller must not start a read it has no interest in, and
     // must not be registered as a waiter on someone else's: see joinChunkRead.
     // @gmod/cram checks in exactly this position, in SliceRecordCache.getOrFill.
-    opts.signal?.throwIfAborted()
+    throwIfAborted(opts.signal)
 
     const cacheKey = chunkCacheKey(chunk)
     const cached = this.chunkFeatureCache.get(cacheKey)
@@ -545,14 +545,14 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     try {
       const entry = await pending.promise
       // the read finished, but this caller gave up while waiting for it
-      opts.signal?.throwIfAborted()
+      throwIfAborted(opts.signal)
       return entry.features
     } catch (e) {
       // Prefer this caller's own cancellation to whatever the shared read
       // reported. If we asked to stop, that is the answer we want — and when
       // the read itself was cancelled it is because we, and everyone else,
       // asked it to.
-      opts.signal?.throwIfAborted()
+      throwIfAborted(opts.signal)
       throw e
     }
   }
@@ -773,7 +773,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     // fires only once every waiter has given up, so there is never a live
     // caller left to be denied the result. @gmod/cram checks in the same place
     // and for the same reason, before the decode loop in `_fetchRecords`.
-    opts.signal?.throwIfAborted()
+    throwIfAborted(opts.signal)
 
     const {
       buffer: data,

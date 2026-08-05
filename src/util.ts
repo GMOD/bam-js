@@ -39,6 +39,34 @@ export interface BaseOpts {
  * underneath you. (The Chunk objects themselves are never mutated; a merged
  * span produces a new instance.)
  */
+/**
+ * `signal.throwIfAborted()`, without requiring either that method or `reason`.
+ *
+ * Two reasons not to call the built-in directly. It assumes a *real*
+ * `AbortSignal`, and callers pass duck-typed ones — `test/csi.test.ts` casts a
+ * bare `{ aborted }` through `as AbortSignal`, which is a fair model of what
+ * consumers do; calling a missing method there is a `TypeError` rather than the
+ * cancellation the caller asked for, which is a strictly worse failure.
+ *
+ * And it sets a browser floor. `AbortSignal.prototype.throwIfAborted` and
+ * `AbortSignal.reason` are Safari 15.4 / Chrome 100 / Firefox 97 (March 2022) —
+ * higher than anything else in this dependency tree needs, since
+ * `generic-filehandle2` only ever forwards a signal to `fetch`, and higher than
+ * every sibling gmod library, which use plain `.aborted`. Three lines here
+ * keeps that floor where it was.
+ *
+ * Faithful to the spec otherwise: an aborted signal throws its `reason`
+ * whatever that is, and only synthesizes an `AbortError` when there is none.
+ */
+export function throwIfAborted(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    const { reason } = signal
+    throw reason === undefined
+      ? new DOMException('This operation was aborted', 'AbortError')
+      : reason
+  }
+}
+
 export function optimizeChunks(chunks: Chunk[], lowest?: OffsetCoords) {
   const n = chunks.length
   if (n === 0) {

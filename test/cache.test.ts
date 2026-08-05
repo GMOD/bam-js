@@ -1,6 +1,8 @@
+import { LocalFile } from 'generic-filehandle2'
 import { expect, test } from 'vitest'
 
-import { BamFile } from '../src/index.ts'
+
+import { BAI, BamFile } from '../src/index.ts'
 
 // Parsed records are views into their chunk's decompressed buffer, so a cached
 // entry pins that whole buffer. The cache therefore budgets decompressed bytes
@@ -613,4 +615,137 @@ test('lowering maxBytes evicts immediately', async () => {
   expect(cache.maxBytes).toBe(1024)
   // the size > 1 escape hatch keeps the last chunk whatever the budget
   expect(cache.size).toBe(1)
+})
+
+// A filehandle that honours the signal — LocalFile does not — and can park its
+// readFile, so the shared .bai parse can be caught mid-flight.
+class GatedIndexFile {
+  reads = 0
+  private inner: LocalFile
+  private waiting: (() => void)[] = []
+  private held = true
+
+  constructor(path: string) {
+    this.inner = new LocalFile(path)
+  }
+
+  open() {
+    this.held = false
+    const waiting = this.waiting
+    this.waiting = []
+    for (const resume of waiting) {
+      resume()
+    }
+  }
+
+  async readFile(opts?: { signal?: AbortSignal }) {
+    this.reads++
+    if (this.held) {
+      await new Promise<void>((resolve, reject) => {
+        this.waiting.push(resolve)
+        opts?.signal?.addEventListener('abort', () => {
+          reject(new Error('aborted'))
+        })
+      })
+    }
+    return this.inner.readFile()
+  }
+
+  read(length: number, position: number) {
+    return this.inner.read(length, position)
+  }
+  stat() {
+    return this.inner.stat()
+  }
+  close() {
+    return Promise.resolve()
+  }
+}
+
+// The .bai is parsed once and shared by every query against the file, so the
+// first caller to arrive owns a read all the others depend on. Tested against
+// BAI directly rather than through BamFile, because getHeader memoizes on the
+// first caller's opts too and would shadow this — see the note in IndexFile.
+test('a bystander survives the .bai parse owner aborting', async () => {
+  const fh = new GatedIndexFile('test/data/volvox-sorted.bam.bai')
+  const bai = new BAI({ filehandle: fh })
+
+  const starter = new AbortController()
+  const bystander = new AbortController()
+
+  const starterP = bai.parse({ signal: starter.signal })
+  const bystanderP = bai.parse({ signal: bystander.signal })
+  void Promise.allSettled([starterP, bystanderP])
+  await tick()
+  expect(fh.reads).toBe(1)
+
+  starter.abort()
+  fh.open()
+
+  await expect(starterP).rejects.toThrow(/abort/i)
+  // The bystander never asked to be cancelled. Before this was handled it
+  // inherited the starter's abort, so one pan failed every concurrent query.
+  expect(bystander.signal.aborted).toBe(false)
+  expect((await bystanderP).firstDataLine).toBeDefined()
+  // the retry is bounded at one attempt, so the parse ran exactly twice
+  expect(fh.reads).toBe(2)
+})
+
+// Takes three callers, because the bound only bites when a caller that has
+// already retried joins someone else's retry and *that* is abandoned too. With
+// two, the retrying caller always starts its own parse and never re-enters the
+// join path at all.
+test('the .bai parse retry is bounded at one attempt', async () => {
+  const fh = new GatedIndexFile('test/data/volvox-sorted.bam.bai')
+  const bai = new BAI({ filehandle: fh })
+
+  const a = new AbortController()
+  const b = new AbortController()
+  const c = new AbortController()
+
+  // a owns read 1; b and c join it, b's handler registered ahead of c's
+  const aP = bai.parse({ signal: a.signal })
+  const bP = bai.parse({ signal: b.signal })
+  const cP = bai.parse({ signal: c.signal })
+  void Promise.allSettled([aP, bP, cP])
+  await tick()
+  expect(fh.reads).toBe(1)
+
+  // a gives up: b retries first and becomes the owner of read 2, and c, running
+  // right behind it, joins that retry rather than starting a third
+  a.abort()
+  await tick()
+  expect(fh.reads).toBe(2)
+
+  // now b gives up too. c has already spent its one retry, so it propagates
+  // rather than going round again — a third round would be a recursion whose
+  // depth is set by how the aborts happen to interleave.
+  b.abort()
+  fh.open()
+
+  await expect(aP).rejects.toThrow(/abort/i)
+  await expect(bP).rejects.toThrow(/abort/i)
+  await expect(cP).rejects.toThrow(/abort/i)
+  expect(fh.reads).toBe(2)
+})
+
+test('a signal without throwIfAborted still cancels', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await bam.getHeader()
+
+  // Consumers pass duck-typed signals — test/csi.test.ts casts a bare
+  // `{ aborted }` through `as AbortSignal` — and so does any browser older than
+  // Safari 15.4, where throwIfAborted and reason do not exist. Calling the
+  // missing method would be a TypeError rather than the cancellation asked for.
+  const signal = { aborted: true } as AbortSignal
+
+  const e = await bam
+    .getRecordsForRange('ctgA', 1, 5000, { signal })
+    .then(() => undefined, (err: unknown) => err)
+  // Asserted by type, not by message: calling the missing method throws
+  // "signal?.throwIfAborted is not a function", whose text matches /abort/i
+  // perfectly well, so a message check here passes on the very bug it is meant
+  // to catch.
+  expect(e).toBeInstanceOf(DOMException)
+  expect((e as DOMException).name).toBe('AbortError')
 })
