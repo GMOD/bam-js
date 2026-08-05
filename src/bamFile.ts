@@ -455,16 +455,24 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   // longer any set of aborts that should stop it. That is the honest reading of
   // a caller that never asked to be cancellable, and it means one signal-free
   // query makes that chunk's read uncancellable for everyone joined to it.
-  //
-  // PRECONDITION: `signal` has not aborted yet. `_cachedChunkFeatures` throws
-  // first, which is what guarantees it. Registering an already-aborted signal
-  // would pin the read forever — `addEventListener` never fires on one, so
-  // nothing would ever take it back out of `signals`, the count would never
-  // reach zero, and the read would be uncancellable for everyone joined to it.
-  // Cancellation would degrade silently: no error, no failing test.
   private joinChunkRead(inFlight: InFlightChunk<T>, signal?: AbortSignal) {
     if (signal === undefined) {
       inFlight.pinned = true
+    } else if (signal.aborted) {
+      // A caller that has already given up is not a waiter, and must not be
+      // counted as one: an `abort` listener never fires on a signal that
+      // aborted before it was added, so nothing would ever take this signal
+      // back out of the set. The count would never reach zero and the read
+      // would be uncancellable for everyone joined to it, silently.
+      //
+      // `_cachedChunkFeatures` rejects such a caller before it reaches here,
+      // with no `await` in between, so this is unreachable today. It is here
+      // because this is the bug that shipped, and an invariant that fails this
+      // quietly should not rest on a check twenty lines away. `@gmod/cram`
+      // guards the same spot for the same reason; see its ADR 0003.
+      if (!inFlight.pinned && inFlight.signals.size === 0) {
+        inFlight.controller.abort(signal.reason)
+      }
     } else if (!inFlight.signals.has(signal)) {
       // guarded so one signal joining twice — a viewAsPairs query reaching the
       // same chunk for a read and for its mate — does not add two listeners
