@@ -200,6 +200,12 @@ export default class CSI extends IndexFile {
     for (; l <= this.depth; s -= 3, t += lshift(1, l * 3), l += 1) {
       const b = t + rshift(beg, s)
       const e = t + rshift(end, s)
+      // Unreachable as long as the clamp above stands, which is why it shows
+      // as uncovered: with end bounded to 2^(minShift + depth*3), level l
+      // spans at most 8^l - 1 bins, so the worst case is 8^depth - 1 + depth
+      // against a maxBinNumber of (8^(depth+1) - 1)/7, i.e. about 1.14 * 8^depth.
+      // Kept as a guard on the arithmetic rather than deleted — reg2bins is
+      // shared with tabix-js, whose callers reach it by other routes.
       if (e - b + bins.length > this.maxBinNumber) {
         throw new Error(
           `query ${beg}-${end} is too large for current binning scheme (shift ${this.minShift}, depth ${this.depth}), try a smaller query or a coarser index binning scheme`,

@@ -786,3 +786,16 @@ test('a normal header is read once, not grown into', async () => {
   expect(readSpy.mock.calls.length).toEqual(1)
   readSpy.mockRestore()
 })
+
+test('a query start past what BAI can address returns nothing, quietly', async () => {
+  // The companion to the end-clamp case above. Defensive rather than a fixed
+  // bug: an unclamped start sign-wrapped into negative bin numbers that simply
+  // missed, so the result was already empty. Clamping keeps the bin arithmetic
+  // inside the scheme instead of relying on that.
+  const ti = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await ti.getHeader()
+  for (const start of [2 ** 29, 2 ** 31, 3 * 2 ** 30]) {
+    const ret = await ti.getRecordsForRange('ctgA', start, start + 50000)
+    expect(ret).toEqual([])
+  }
+})

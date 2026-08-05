@@ -138,3 +138,33 @@ test.each([
   expect(csi.stats.reads).toBe(bai.stats.reads)
   expect(csi.stats.reads).toBeLessThanOrEqual(csiChunks.length)
 })
+
+// The CSI counterpart of bai.test.ts's "a query end past what BAI can address"
+// case. CSI shifts with Math.floor division rather than `>>`, so it never had
+// BAI's int32 sign-wrap, and it already clamped to the coordinates its own
+// minShift/depth address — but nothing covered that clamp, and the BAI version
+// showed this is a failure mode that silently returns an empty result.
+test('a query end past what CSI can address still returns the reference', async () => {
+  const bamPath = 'test/data/ecoli_nanopore.bam'
+  const b = new BamFile({ bamPath, csiPath: `${bamPath}.csi` })
+  await b.getHeader()
+  const ref = b.indexToChr![0]!
+  // this index is minShift 14 / depth 3, so it addresses 2^23 — well under the
+  // ends below, and under the reference's own length
+  const sized = await b.getRecordsForRange(ref.refName, 0, ref.length)
+  expect(sized.length).toBeGreaterThan(0)
+  for (const end of [2 ** 29, 2 ** 31, 2 ** 32, Number.MAX_SAFE_INTEGER]) {
+    const ret = await b.getRecordsForRange(ref.refName, 0, end)
+    expect(ret.length).toEqual(sized.length)
+  }
+})
+
+// CSI omits BAI's linear index, which is what indexCov derives density from,
+// so there is nothing to report. The README documents the empty result; this
+// pins it.
+test('indexCov on a CSI-indexed file is empty rather than an error', async () => {
+  const bamPath = 'test/data/ecoli_nanopore.bam'
+  const b = new BamFile({ bamPath, csiPath: `${bamPath}.csi` })
+  await b.getHeader()
+  expect(await b.indexCov(b.indexToChr![0]!.refName)).toEqual([])
+})

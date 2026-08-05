@@ -1,8 +1,11 @@
 import fs from 'fs'
+import zlib from 'zlib'
 
+import { unzip } from '@gmod/bgzf-filehandle'
 import { expect, test } from 'vitest'
 
 import { BamFile, HtsgetFile } from '../src/index.ts'
+import { parseRefSeqs } from '../src/util.ts'
 
 import type { Fetcher } from 'generic-filehandle2'
 
@@ -199,4 +202,93 @@ test('surfaces the htsget error type on a failed ticket request', async () => {
   await expect(bam.getHeader()).rejects.toThrow(
     /HTTP 401 .*InvalidAuthentication: no token supplied/,
   )
+})
+
+// A ticket whose data blocks carry records only. The spec leaves it to the
+// server whether the header is its own block, so recordsOffset seeks past a
+// header when there is one and starts at 0 when there isn't — this is the
+// second case, which no fixture covered.
+test('reads a ticket whose blocks carry no header', async () => {
+  const path = 'test/data/volvox-sorted.bam'
+  const raw = await unzip(new Uint8Array(fs.readFileSync(path)))
+  const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength)
+  const headerEnd = parseRefSeqs(raw, 8 + dv.getInt32(4, true), n => n)!.end
+  // re-compressed records with the header sliced off, i.e. what a server
+  // serving body-only blocks returns
+  const bodyOnly = new Uint8Array(
+    zlib.gzipSync(Buffer.from(raw.subarray(headerEnd))),
+  )
+
+  const viaHtsget = new HtsgetFile({
+    baseUrl,
+    trackId,
+    fetch: async input =>
+      urlOf(input).includes('class=header')
+        ? Response.json({ htsget: { urls: [{ url: 'hdr' }] } })
+        : urlOf(input).includes('referenceName')
+          ? Response.json({ htsget: { urls: [{ url: 'body' }] } })
+          : new Response(
+              urlOf(input) === 'hdr' ? fs.readFileSync(path) : bodyOnly,
+            ),
+  })
+  const direct = new BamFile({ bamPath: path })
+  await direct.getHeader()
+
+  const records = await viaHtsget.getRecordsForRange('ctgA', 1000, 2000)
+  const expected = await direct.getRecordsForRange('ctgA', 1000, 2000)
+  expect(records.length).toBe(expected.length)
+  expect(records.map(r => `${r.name}/${r.start}/${r.end}`)).toEqual(
+    expected.map(r => `${r.name}/${r.start}/${r.end}`),
+  )
+})
+
+test('a ticket cut off inside the BAM header is reported, not parsed', async () => {
+  const path = 'test/data/volvox-sorted.bam'
+  const raw = await unzip(new Uint8Array(fs.readFileSync(path)))
+  // magic and l_text survive, the ref-seq table does not. Parsing on would
+  // read alignment records out of the middle of the header.
+  const truncated = new Uint8Array(
+    zlib.gzipSync(Buffer.from(raw.subarray(0, 20))),
+  )
+
+  const bam = new HtsgetFile({
+    baseUrl,
+    trackId,
+    fetch: async input =>
+      urlOf(input).includes('class=header')
+        ? Response.json({ htsget: { urls: [{ url: 'hdr' }] } })
+        : urlOf(input).includes('referenceName')
+          ? Response.json({ htsget: { urls: [{ url: 'cut' }] } })
+          : new Response(
+              urlOf(input) === 'hdr' ? fs.readFileSync(path) : truncated,
+            ),
+  })
+
+  await expect(bam.getRecordsForRange('ctgA', 1000, 2000)).rejects.toThrow(
+    /truncated BAM header in htsget response/,
+  )
+})
+
+// BamFile has an htsget mode, but it is only half of one: HtsgetFile overrides
+// the header and query paths. Constructed directly it has no index and no
+// filehandle, so it must say so rather than answer every query with zero
+// records — which is what it did before the guard, since getSeqId found no
+// chrToIndex and returned undefined.
+test('BamFile in htsget mode without HtsgetFile fails loudly', async () => {
+  const bam = new BamFile({ htsget: true })
+  await expect(bam.getHeader()).rejects.toThrow(
+    /no index to read a header from/,
+  )
+})
+
+// Matches BamFile.getRecordsForRange, which returns [] for a name the header
+// doesn't carry rather than requesting a region the server would reject.
+test('an unknown reference name yields no records and no request', async () => {
+  const { calls, fetcher } = mockFetch()
+  const bam = new HtsgetFile({ baseUrl, trackId, fetch: fetcher })
+  await bam.getHeader()
+  const ticketsBefore = calls.length
+
+  expect(await bam.getRecordsForRange('nonexistent', 0, 1000)).toEqual([])
+  expect(calls.length).toBe(ticketsBefore)
 })

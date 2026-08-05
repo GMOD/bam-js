@@ -27,6 +27,7 @@
   ],
   "scripts": {
     "test": "vitest",
+    "test:coverage": "vitest run --coverage",
     "clean": "rimraf dist esm",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
