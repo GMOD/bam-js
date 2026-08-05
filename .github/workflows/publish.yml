@@ -18,6 +18,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm build
+      # test/samtoolsAgreement.test.ts checks every indexed BAM against htslib,
+      # and skips itself when samtools is missing rather than failing. Without
+      # this step the whole suite would skip in CI and never say so.
+      - name: Install samtools
+        run: sudo apt-get update && sudo apt-get install -y samtools
       - run: pnpm test
 
   publish:
