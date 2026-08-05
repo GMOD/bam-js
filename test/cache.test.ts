@@ -256,8 +256,17 @@ test('ref names do not resolve to Object.prototype members', async () => {
 //
 // Hangs the first read until it is aborted, so the second query is guaranteed
 // to join it rather than find it finished.
-function hangFirstRead(bam: BamFile) {
-  const stats = { reads: 0 }
+//
+// `honourAbort: false` models a filehandle that ignores the signal — `LocalFile`
+// does exactly that, so the read really does keep running after its cancellation
+// — which is what holds a cancelled read in the in-flight map long enough for
+// another query to see it there.
+function hangFirstRead(bam: BamFile, { honourAbort = true } = {}) {
+  // parkedCancelled is what makes the cancellation tests load-bearing. Asserting
+  // only that the callers' promises reject proves nothing: a query's other
+  // chunks read normally and reject on throwIfAborted whatever the parked read
+  // does, so those assertions hold even with the shared cancellation deleted.
+  const stats = { reads: 0, parkedCancelled: false }
   const inner = bam._readChunkFeatures.bind(bam)
   let started!: () => void
   let release!: () => void
@@ -278,7 +287,10 @@ function hangFirstRead(bam: BamFile) {
       await new Promise<void>((resolve, reject) => {
         void released.then(resolve)
         opts.signal?.addEventListener('abort', () => {
-          reject(new Error('aborted'))
+          stats.parkedCancelled = true
+          if (honourAbort) {
+            reject(new Error('aborted'))
+          }
         })
       })
     }
@@ -329,6 +341,7 @@ test('a waiter survives the read owner aborting', async () => {
   const records = await waiterP
   expect(records.length).toBeGreaterThan(0)
   expect(waiter.signal.aborted).toBe(false)
+  expect(stats.parkedCancelled).toBe(false)
   // No re-read at all. The read ran to completion because one caller giving up
   // is not every caller giving up. This used to assert chunkCount + 1: the
   // waiter inherited the owner's failure and redid the read it had joined.
@@ -338,7 +351,7 @@ test('a waiter survives the read owner aborting', async () => {
 test('a read is cancelled once every waiter has aborted', async () => {
   const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
   await bam.getHeader()
-  const { firstStarted } = hangFirstRead(bam)
+  const { stats, firstStarted } = hangFirstRead(bam)
 
   const owner = new AbortController()
   const waiter = new AbortController()
@@ -356,9 +369,113 @@ test('a read is cancelled once every waiter has aborted', async () => {
   // hung read is never released here — the abort is what unblocks it.
   owner.abort()
   waiter.abort()
+  // Handlers attached here rather than after the tick below. A promise that
+  // rejects and only gets a handler on the next macrotask is reported as an
+  // unhandled rejection, and tick() is a macrotask.
+  void Promise.allSettled([ownerP, waiterP])
+  await tick()
+  expect(stats.parkedCancelled).toBe(true)
 
   await expect(ownerP).rejects.toThrow(/abort/i)
   await expect(waiterP).rejects.toThrow(/abort/i)
+})
+
+test('a caller that arrives already aborted does not pin the read', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await bam.getHeader()
+  const { stats, firstStarted } = hangFirstRead(bam)
+
+  const owner = new AbortController()
+  const spent = new AbortController()
+
+  const ownerP = bam.getRecordsForRange('ctgA', 1, 5000, {
+    signal: owner.signal,
+  })
+  await firstStarted
+  const spentP = bam.getRecordsForRange('ctgA', 1, 5000, {
+    signal: spent.signal,
+  })
+  // Aborted here, NOT before the call: this is the pan, and the point is that
+  // the abort lands *past* the check at the top of getRecordsForRange, while
+  // getSeqId and blocksForRange are still in flight. Nothing between there and
+  // _cachedChunkFeatures looks at the signal — bai.ts and csi.ts never read it
+  // — so the query walks on and joins the shared read with a signal that has
+  // already fired. Such a caller cannot be registered as a waiter:
+  // addEventListener never fires on an already-aborted signal, so it would sit
+  // in the waiting set forever and make this read uncancellable for everyone.
+  //
+  // Aborting before the call instead would prove nothing — getRecordsForRange
+  // would reject up front and never reach the code under test.
+  spent.abort()
+  // Handlers attached as soon as the promises exist: spentP rejects almost at
+  // once, and a rejection whose handler only arrives a macrotask later is
+  // reported as an unhandled rejection.
+  void Promise.allSettled([ownerP, spentP])
+  await tick()
+  owner.abort()
+  await tick()
+
+  // asserted before awaiting the queries: if the read were pinned they would
+  // both hang, and this fails now with a readable message instead of a timeout
+  expect(stats.parkedCancelled).toBe(true)
+
+  await expect(ownerP).rejects.toThrow(/abort/i)
+  await expect(spentP).rejects.toThrow(/abort/i)
+})
+
+test('a signal-free caller pins the read', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await bam.getHeader()
+  const { stats, firstStarted, release } = hangFirstRead(bam)
+
+  const owner = new AbortController()
+  const ownerP = bam.getRecordsForRange('ctgA', 1, 5000, {
+    signal: owner.signal,
+  })
+  await firstStarted
+  // No signal at all, so this caller cannot give up and there is no set of
+  // aborts that should stop the read it joined. ADR 0007 accepts this
+  // deliberately, and the cost is on the same line: one signal-free query makes
+  // that chunk uncancellable for everyone joined to it. Pinned here so it stays
+  // a decision rather than becoming an accident.
+  const pinnerP = bam.getRecordsForRange('ctgA', 1, 5000)
+  void Promise.allSettled([ownerP, pinnerP])
+  await tick()
+  owner.abort()
+  await tick()
+
+  expect(stats.parkedCancelled).toBe(false)
+
+  // released before either query is awaited: the read is pinned, so nothing
+  // else can ever unblock it, and the owner is waiting on it too
+  release()
+  expect((await pinnerP).length).toBeGreaterThan(0)
+  await expect(ownerP).rejects.toThrow(/abort/i)
+})
+
+test('a query does not join a read every waiter has abandoned', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await bam.getHeader()
+  // the read ignores its cancellation, as LocalFile does, so it is still
+  // sitting in the in-flight map when the next query arrives
+  const { stats, firstStarted } = hangFirstRead(bam, { honourAbort: false })
+
+  const owner = new AbortController()
+  const ownerP = bam.getRecordsForRange('ctgA', 1, 5000, {
+    signal: owner.signal,
+  })
+  void ownerP.catch(() => undefined)
+  await firstStarted
+  owner.abort()
+  await tick()
+  expect(stats.parkedCancelled).toBe(true)
+
+  // That cancelled read is still discoverable. A query arriving now must start
+  // its own rather than join one already doomed — joining it means inheriting a
+  // cancellation that has nothing to do with this query, which is the whole
+  // thing ADR 0007 exists to prevent.
+  const next = await bam.getRecordsForRange('ctgA', 1, 5000)
+  expect(next.length).toBeGreaterThan(0)
 })
 
 test("a waiter's own abort still propagates", async () => {

@@ -399,6 +399,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     max: number,
     opts?: BamOpts,
   ) {
+    opts?.signal?.throwIfAborted()
     const chrId = await this.getSeqId(chr, opts)
     if (chrId === undefined || !this.index) {
       return []
@@ -454,6 +455,13 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   // longer any set of aborts that should stop it. That is the honest reading of
   // a caller that never asked to be cancellable, and it means one signal-free
   // query makes that chunk's read uncancellable for everyone joined to it.
+  //
+  // PRECONDITION: `signal` has not aborted yet. `_cachedChunkFeatures` throws
+  // first, which is what guarantees it. Registering an already-aborted signal
+  // would pin the read forever — `addEventListener` never fires on one, so
+  // nothing would ever take it back out of `signals`, the count would never
+  // reach zero, and the read would be uncancellable for everyone joined to it.
+  // Cancellation would degrade silently: no error, no failing test.
   private joinChunkRead(inFlight: InFlightChunk<T>, signal?: AbortSignal) {
     if (signal === undefined) {
       inFlight.pinned = true
@@ -489,6 +497,15 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     chunk: Chunk,
     opts: BaseOpts,
   ): Promise<T[]> {
+    // Before anything else, including the cache hit. A caller reaches here with
+    // a signal that has already fired on the ordinary pan — the abort lands
+    // while blocksForRange is still reading the index, and nothing between
+    // there and here looks at it, since bai.ts and csi.ts never read the
+    // signal. Such a caller must not start a read it has no interest in, and
+    // must not be registered as a waiter on someone else's: see joinChunkRead.
+    // @gmod/cram checks in exactly this position, in SliceRecordCache.getOrFill.
+    opts.signal?.throwIfAborted()
+
     const cacheKey = chunkCacheKey(chunk)
     const cached = this.chunkFeatureCache.get(cacheKey)
     if (cached) {

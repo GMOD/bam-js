@@ -77,6 +77,29 @@ read settles; the resolved features land in `chunkFeatureCache` as before.
   never asked to be cancellable, and it means one signal-free query makes that
   chunk's read uncancellable for everyone joined to it.
 
+  A caller whose signal has **already aborted** is the opposite case, and it
+  must never be registered as a waiter. `addEventListener` never fires on a
+  signal that aborted before the listener was added, so registering one leaves
+  it in `signals` with nothing to ever take it out: the count never reaches
+  zero, and the read becomes uncancellable for everyone joined to it. There is
+  no error and nothing to observe — cancellation just quietly stops working.
+
+  The first version of this design had exactly that bug, and it was not rare.
+  On a pan the abort lands while `blocksForRange` is still reading the index,
+  and nothing between there and `_cachedChunkFeatures` looks at the signal —
+  `bai.ts` and `csi.ts` never read it — so a whole batch of chunk reads arrives
+  already cancelled. Measured at the filehandle on `out.bam` `1:1-20000` with
+  the abort fired during index I/O: all five chunk range requests ran on
+  uncancellable, where the code this ADR replaced cancelled all five.
+
+  The fix is an up-front `throwIfAborted` in `_cachedChunkFeatures`, before the
+  cache lookup — the same position, and the same reasoning, as
+  `SliceRecordCache.getOrFill` in `@gmod/cram`. `getRecordsForRange` checks too,
+  which rejects a dead-on-arrival query without touching the index, but that
+  check is not the one that matters here: the whole point is that the signal
+  fires *after* it. `joinChunkRead` documents the precondition rather than
+  re-checking it, because a second check there would be unreachable code.
+
   **This replaced a retry**, and the reasons are worth keeping. Originally the
   read ran under whichever caller started it, and a waiter that saw it fail
   because _that_ caller aborted redid the read under its own `opts`. It was
