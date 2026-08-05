@@ -28,6 +28,21 @@ function run(args: string[]) {
     encoding: 'utf8',
     maxBuffer: 1 << 28,
     stdio: ['ignore', 'pipe', 'pipe'],
+    env: {
+      ...process.env,
+      // With REF_PATH unset, htslib falls back to fetching CRAM references
+      // from the EBI registry over the network for any file whose UR path is
+      // missing — which is every fixture here, since they carry the absolute
+      // paths of whoever generated them. That turns a hermetic suite into a
+      // slow and network-dependent one: it is what made long_pair.cram, whose
+      // header names 3316 references, take minutes on CI and seconds locally,
+      // where the lookup happens to fail fast.
+      //
+      // Point it at the fixtures instead. Anything genuinely needed is passed
+      // explicitly with -T; anything else should fail immediately rather than
+      // reach for the internet.
+      REF_PATH: process.env.REF_PATH ?? 'test/data/%s',
+    },
   })
 }
 
