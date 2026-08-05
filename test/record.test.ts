@@ -145,28 +145,53 @@ function makeRecordWithSeq(bases: string) {
   return new BamRecord(buf, 0, end - 1, 0, dv)
 }
 
-test.for([
+const SEQ_CASES = [
   ['empty', ''],
   ['single base', 'A'],
   ['even length', 'ACGT'],
   ['odd length', 'ACGTA'],
+  // odd BYTE count exercises the 4-base table's leftover-pair branch, which the
+  // 4-base-per-step loop cannot consume; the two above have an even one
+  ['odd byte count', 'ACGTAC'],
+  ['odd byte count, odd length', 'ACGTACG'],
   ['ambiguity codes', '=ACMGRSVTWYHKDBN'],
   // straddle the short/long decode threshold, including odd lengths on each side
   ['just under threshold', 'ACGTN'.repeat(59)], // 295
   ['odd, just over threshold', `${'ACGTN'.repeat(60)}A`], // 301
   ['long', 'ACGTNMRSVWYHKDB'.repeat(500)], // 7500
   ['long odd', `${'ACGTNMRSVWYHKDB'.repeat(500)}C`], // 7501
-])('seq decodes %s', ([, bases]) => {
-  const rec = makeRecordWithSeq(bases!)
+] as const
+
+function checkSeq(bases: string) {
+  const rec = makeRecordWithSeq(bases)
   expect(rec.seq).toBe(bases)
-  expect(rec.seq_length).toBe(bases!.length)
+  expect(rec.seq_length).toBe(bases.length)
   // seqAt is an independent decode path; it must agree base for base
   let viaSeqAt = ''
-  for (let i = 0; i < bases!.length; i++) {
+  for (let i = 0; i < bases.length; i++) {
     viaSeqAt += rec.seqAt(i)
   }
   expect(viaSeqAt).toBe(bases)
-  expect(rec.seqAt(bases!.length)).toBeUndefined()
+  expect(rec.seqAt(bases.length)).toBeUndefined()
+}
+
+test.for(SEQ_CASES)('seq decodes %s', ([, bases]) => {
+  checkSeq(bases)
+})
+
+// The sub-threshold decode has two implementations: a 2-base table, and a
+// 4-base one that only switches on after SEQ_QUAD_WARMUP short decodes have
+// happened process-wide. Everything above runs before that point, so without
+// this the 4-base table — the one real queries end up using — is never
+// executed by the suite at all.
+test('seq decodes identically once the 4-base table warms up', () => {
+  const warm = makeRecordWithSeq('ACGTACGTACGTACGT')
+  for (let i = 0; i < 1100; i++) {
+    expect(warm.seq).toBe('ACGTACGTACGTACGT')
+  }
+  for (const [, bases] of SEQ_CASES) {
+    checkSeq(bases)
+  }
 })
 
 test('tags do not resolve to Object.prototype members', () => {

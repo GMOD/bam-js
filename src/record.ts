@@ -31,6 +31,41 @@ for (let hi = 0; hi < 16; hi++) {
 // read lengths.
 const SEQ_DECODER_THRESHOLD = 300
 
+// Four bases per entry, indexed by a PAIR of SEQ bytes, so the sub-threshold
+// path halves its concat count: 1.5-1.6x on a short-read query end to end
+// (shortreads_300x 46.5 -> 30.5 ms over 53.6k reads, volvox 4.8 -> 2.9 ms).
+//
+// Built lazily, and only once the short path has been taken enough times to pay
+// for it. Filling 65536 entries costs ~6 ms and retains ~2 MB, so building on
+// first use is a LOSS on a file that decodes only a handful of short reads:
+// long-read fixtures with a short-read tail measured 1.4x slower that way
+// (ecoli_nanopore has 27 sub-300bp reads out of 480, chm1 has 5 of 204). The
+// counter is module-global on purpose — the table is shared, so what has to
+// amortize is the total number of short decodes in the process, not per file.
+const SEQRET_QUAD_WARMUP = 1024
+let seqretShortCalls = 0
+let SEQRET_QUAD_STRINGS: string[] | undefined
+
+// The 4-base table, or undefined while still warming up (caller falls back to
+// the 2-base table).
+function seqretQuads() {
+  if (SEQRET_QUAD_STRINGS === undefined) {
+    if (++seqretShortCalls < SEQRET_QUAD_WARMUP) {
+      return undefined
+    }
+    const quads = new Array<string>(65536)
+    for (let a = 0; a < 256; a++) {
+      const sa = SEQRET_PAIR_STRINGS[a]!
+      const base = a << 8
+      for (let b = 0; b < 256; b++) {
+        quads[base | b] = sa + SEQRET_PAIR_STRINGS[b]!
+      }
+    }
+    SEQRET_QUAD_STRINGS = quads
+  }
+  return SEQRET_QUAD_STRINGS
+}
+
 // Precomputed pair orientation strings, indexed by
 //   ((flags >> 4) & 0x7) | (selfIsLeft ? 8 : 0)
 // bits 0-2 are flag bits 0x10 (self reverse), 0x20 (mate reverse), 0x40 (read1);
@@ -254,6 +289,11 @@ function tagValueEnd(
     case 0x5a: // 'Z'
     case 0x48: {
       // 'H'
+      // Stays a plain byte loop. Swapping in Uint8Array.indexOf past a short
+      // inline probe is 2.7x faster on long-read MD (mean 9083 bytes on
+      // jb2bench's 200x.longread) but ~1.13x slower on short-read Z values,
+      // which are 4-13 bytes and are what the dominant case is made of. Measured
+      // both ways against the realistic corpus — see ADR 0012.
       let q = p
       while (q < blockEnd && ba[q] !== 0) {
         q++
@@ -687,14 +727,26 @@ export default class BamRecord {
     return this._cachedNumericCigar
   }
 
+  // Two appends per op, NOT `result += length + String.fromCharCode(op)`. The
+  // one-append form builds an intermediate cons string per op just to append it
+  // and drop it; appending each piece straight onto the rope is 1.23-1.35x
+  // faster on long reads, which is where this accessor dominates
+  // (chr22_nanopore_subset 51.2 -> 38.6 ms for 757 reads averaging 2171 ops,
+  // ultra-long-ont 13.2 -> 9.9 ms). Short reads carry 1-3 ops and land inside
+  // this box's noise band either way.
+  //
+  // ADR 0003 rejected two other rewrites of this loop — a precomputed 16-entry
+  // op-char table, and digits into a Uint8Array with one TextDecoder.decode —
+  // and both are still losers. Re-measured here: the op-char table is 1.13x
+  // SLOWER than String.fromCharCode even on top of this change, because V8
+  // already hands back an interned single-character string.
   get CIGAR() {
     const numeric = this.NUMERIC_CIGAR
     let result = ''
     for (let i = 0, l = numeric.length; i < l; i++) {
       const packed = numeric[i]!
-      const length = packed >> 4
-      const opCode = ASCII_CIGAR_CODES[packed & 0xf]!
-      result += length + String.fromCharCode(opCode)
+      result += packed >> 4
+      result += String.fromCharCode(ASCII_CIGAR_CODES[packed & 0xf]!)
     }
     return result
   }
@@ -720,9 +772,10 @@ export default class BamRecord {
     return this._byteArray.subarray(p, p + this.num_seq_bytes)
   }
 
-  // Decode two bases per iteration off a 256-entry table. Building an array of
-  // 1-char strings and join()ing it — the obvious approach — is 3x slower at
-  // 100bp and 35x slower at 15kb.
+  // Decode four bases per iteration off the 65536-entry table (two off the
+  // 256-entry one until that table has warmed up). Building an array of 1-char
+  // strings and join()ing it — the obvious approach — is 3x slower at 100bp and
+  // 35x slower at 15kb.
   get seq() {
     const len = this.seq_length
     const ba = this._byteArray
@@ -730,9 +783,22 @@ export default class BamRecord {
     const nPairs = len >> 1
     let seq: string
     if (len < SEQ_DECODER_THRESHOLD) {
+      const quads = seqretQuads()
       seq = ''
-      for (let j = 0; j < nPairs; j++) {
-        seq += SEQRET_PAIR_STRINGS[ba[p + j]!]!
+      if (quads === undefined) {
+        for (let j = 0; j < nPairs; j++) {
+          seq += SEQRET_PAIR_STRINGS[ba[p + j]!]!
+        }
+      } else {
+        const nQuads = nPairs >> 1
+        for (let j = 0; j < nQuads; j++) {
+          const q = p + 2 * j
+          seq += quads[(ba[q]! << 8) | ba[q + 1]!]!
+        }
+        // odd byte count: two more bases off the 2-base table
+        if (nPairs & 1) {
+          seq += SEQRET_PAIR_STRINGS[ba[p + nPairs - 1]!]!
+        }
       }
       if (len & 1) {
         seq += SEQRET_DECODER[(ba[p + nPairs]! & 0xf0) >> 4]!
