@@ -94,6 +94,12 @@ function decodeTagString(ba: Uint8Array, start: number, end: number) {
 // reference and advances neither query nor reference, which is what htslib's
 // bam_cigar_type(P) == 0 says. Including it made every read carrying a P op
 // report an end one base per padded base too far.
+//
+// That said: nobody cares about P. Padded alignments come out of a handful of
+// assembly tools and are effectively absent from real BAMs — this was fixed
+// because it disagreed with htslib, not because it was hurting anyone. It is
+// covered incidentally by samspec.bam in the samtools agreement suite, and
+// that is enough; don't spend a dedicated fixture or test on it.
 const CIGAR_CONSUMES_REF_MASK = 0x18d
 
 // A CIGAR as packed op words. Either a view over (or copy of) the record's own
