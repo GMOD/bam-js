@@ -1,8 +1,13 @@
 import { LocalFile } from 'generic-filehandle2'
 import { expect, test } from 'vitest'
 
-
 import { BAI, BamFile } from '../src/index.ts'
+
+import type {
+  BufferEncoding,
+  FilehandleOptions,
+  GenericFilehandle,
+} from 'generic-filehandle2'
 
 // Parsed records are views into their chunk's decompressed buffer, so a cached
 // entry pins that whole buffer. The cache therefore budgets decompressed bytes
@@ -619,7 +624,7 @@ test('lowering maxBytes evicts immediately', async () => {
 
 // A filehandle that honours the signal — LocalFile does not — and can park its
 // readFile, so the shared .bai parse can be caught mid-flight.
-class GatedIndexFile {
+class GatedIndexFile implements GenericFilehandle {
   reads = 0
   private inner: LocalFile
   private waiting: (() => void)[] = []
@@ -638,12 +643,27 @@ class GatedIndexFile {
     }
   }
 
-  async readFile(opts?: { signal?: AbortSignal }) {
+  // The overload pair rather than one signature, because GenericFilehandle's
+  // readFile is overloaded on `encoding` and a single-signature override does
+  // not satisfy it. `pnpm typecheck` covers test/ where `pnpm build` does not,
+  // so this is caught here rather than in CI.
+  readFile(
+    options?: Omit<FilehandleOptions, 'encoding'>,
+  ): Promise<Uint8Array<ArrayBuffer>>
+  readFile(
+    options:
+      | BufferEncoding
+      | (Omit<FilehandleOptions, 'encoding'> & { encoding: BufferEncoding }),
+  ): Promise<string>
+  async readFile(
+    options?: BufferEncoding | FilehandleOptions,
+  ): Promise<Uint8Array<ArrayBuffer> | string> {
     this.reads++
+    const signal = typeof options === 'string' ? undefined : options?.signal
     if (this.held) {
       await new Promise<void>((resolve, reject) => {
         this.waiting.push(resolve)
-        opts?.signal?.addEventListener('abort', () => {
+        signal?.addEventListener('abort', () => {
           reject(new Error('aborted'))
         })
       })
@@ -739,9 +759,10 @@ test('a signal without throwIfAborted still cancels', async () => {
   // missing method would be a TypeError rather than the cancellation asked for.
   const signal = { aborted: true } as AbortSignal
 
-  const e = await bam
-    .getRecordsForRange('ctgA', 1, 5000, { signal })
-    .then(() => undefined, (err: unknown) => err)
+  const e = await bam.getRecordsForRange('ctgA', 1, 5000, { signal }).then(
+    () => undefined,
+    (err: unknown) => err,
+  )
   // Asserted by type, not by message: calling the missing method throws
   // "signal?.throwIfAborted is not a function", whose text matches /abort/i
   // perfectly well, so a message check here passes on the very bug it is meant

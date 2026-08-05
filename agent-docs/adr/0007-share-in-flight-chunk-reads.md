@@ -84,9 +84,9 @@ read settles; the resolved features land in `chunkFeatureCache` as before.
   zero, and the read becomes uncancellable for everyone joined to it. There is
   no error and nothing to observe — cancellation just quietly stops working.
 
-  The first version of this design had exactly that bug, and it was not rare.
-  On a pan the abort lands while `blocksForRange` is still reading the index,
-  and nothing between there and `_cachedChunkFeatures` looks at the signal —
+  The first version of this design had exactly that bug, and it was not rare. On
+  a pan the abort lands while `blocksForRange` is still reading the index, and
+  nothing between there and `_cachedChunkFeatures` looks at the signal —
   `bai.ts` and `csi.ts` never read it — so a whole batch of chunk reads arrives
   already cancelled. Measured at the filehandle on `out.bam` `1:1-20000` with
   the abort fired during index I/O: all five chunk range requests ran on
@@ -97,8 +97,21 @@ read settles; the resolved features land in `chunkFeatureCache` as before.
   `SliceRecordCache.getOrFill` in `@gmod/cram`. `getRecordsForRange` checks too,
   which rejects a dead-on-arrival query without touching the index, but that
   check is not the one that matters here: the whole point is that the signal
-  fires *after* it. `joinChunkRead` documents the precondition rather than
-  re-checking it, because a second check there would be unreachable code.
+  fires _after_ it.
+
+  `joinChunkRead` then guards the case a second time, which is deliberate even
+  though nothing can reach it — `_cachedChunkFeatures` rejects first, with no
+  `await` in between. An invariant that fails this quietly should not rest on a
+  check twenty lines away, and this is the bug that shipped. `@gmod/cram` guards
+  the same spot for the same reason, and `@gmod/abortable-promise-cache`, which
+  both libraries reimplement rather than depend on, handles it in
+  `AggregateAbortController.addSignal` by passing an already-aborted input
+  straight to `handleAborted` instead of counting it as a waiter.
+
+  The cost of that redundancy is honest: neither check is caught alone by
+  mutation testing, since the other still produces correct behaviour. Only
+  removing both reproduces the bug, which the tests do catch. They pin the
+  behaviour rather than either line, which is the right thing for them to pin.
 
   **This replaced a retry**, and the reasons are worth keeping. Originally the
   read ran under whichever caller started it, and a waiter that saw it fail
