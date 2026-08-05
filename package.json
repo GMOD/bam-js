@@ -29,6 +29,7 @@
     "test": "vitest",
     "clean": "rimraf dist esm",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "lint": "eslint --report-unused-disable-directives --max-warnings 0",
     "typecheck": "tsc --noEmit -p tsconfig.lint.json",
     "prebuild": "pnpm clean",

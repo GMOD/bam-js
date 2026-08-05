@@ -14,15 +14,15 @@ query** — `blocksForRange` returns one chunk per overlapping bin across all fi
 BAI levels, and `optimizeChunks` only merges those closer than 65kb.
 
 For a local file that loop costs nothing much: the reads are page-cache hits and
-the run time is decompression. For a *remote* file — the case jbrowse actually
+the run time is decompression. For a _remote_ file — the case jbrowse actually
 ships — each iteration is a separate HTTP range request, so the query pays one
 full network round trip per chunk, serially. With a 50 ms RTT injected into the
 filehandle, a single 20kb query returning 70 records:
 
-| | wall clock |
-| ------------------------- | ---------- |
-| sequential (14 reads) | 789 ms |
-| latency floor (1 RTT) | ~50 ms |
+|                       | wall clock |
+| --------------------- | ---------- |
+| sequential (14 reads) | 789 ms     |
+| latency floor (1 RTT) | ~50 ms     |
 
 Round-trip latency, not bandwidth and not decompression, was the dominant cost
 of a remote query.
@@ -34,8 +34,8 @@ instead of one at a time. Results are collected into a per-chunk slot and
 `appendInRange` is applied afterwards **in chunk order**, so the output does not
 depend on completion order.
 
-Six because that is the HTTP/1.1 per-host connection cap browsers enforce:
-above it the extra requests queue in the browser anyway, while peak memory keeps
+Six because that is the HTTP/1.1 per-host connection cap browsers enforce: above
+it the extra requests queue in the browser anyway, while peak memory keeps
 growing.
 
 ## Consequences / rationale
@@ -50,11 +50,11 @@ growing.
 
   Re-measured through a faithful model of that layer, 50 ms per request:
 
-  | file | HTTP requests | bytes | sequential | concurrent |
-  | ------------------------- | ------------- | ------- | ---------- | ---------- |
-  | out.bam (14 chunks) | 13 both | 8.7 MB | 734 ms | **192 ms** |
-  | chr22_nanopore_subset | 3 both | 14.2 MB | 277 ms | **185 ms** |
-  | shortreads_300x | 2 both | 5.0 MB | 194 ms | **143 ms** |
+  | file                  | HTTP requests | bytes   | sequential | concurrent |
+  | --------------------- | ------------- | ------- | ---------- | ---------- |
+  | out.bam (14 chunks)   | 13 both       | 8.7 MB  | 734 ms     | **192 ms** |
+  | chr22_nanopore_subset | 3 both        | 14.2 MB | 277 ms     | **185 ms** |
+  | shortreads_300x       | 2 both        | 5.0 MB  | 194 ms     | **143 ms** |
 
   The request count and byte count are **identical** in both columns, so this
   buys latency without costing bandwidth or request amplification — the two
@@ -62,8 +62,8 @@ growing.
   dedup below us: when several of our concurrent chunk reads land in the same
   256 KB block, that layer collapses them into one fetch.
 
-  Note the corollary for ADR 0007: because that layer dedups *bytes* but not
-  *decompression*, it does nothing for duplicate inflates. The two dedups are
+  Note the corollary for ADR 0007: because that layer dedups _bytes_ but not
+  _decompression_, it does nothing for duplicate inflates. The two dedups are
   complementary, not redundant.
 
 - **Local single-query performance is a wash, by construction.**
@@ -83,17 +83,18 @@ growing.
   — every small test file, and any query landing inside one bin.
 
 - **Output is byte-identical.** Base and new record sequences compared by
-  `fileOffset:start:end:name` across every `.bam` in `test/data`, every ref, four
-  coordinate windows and both `viewAsPairs` settings: **237,584 queries, 0
+  `fileOffset:start:end:name` across every `.bam` in `test/data`, every ref,
+  four coordinate windows and both `viewAsPairs` settings: **237,584 queries, 0
   mismatches**.
 
-- **Ordering is a real invariant and is tested.** Chunk order is *not* coordinate
-  order — bins at different levels cover overlapping spans, so the concatenation
-  was never globally sorted, and a test asserting sortedness fails on `main`
-  too. What must hold is that the result is the same sequence a sequential walk
-  produced. `record order does not depend on which chunk finishes first` forces
-  the inverse completion order with per-chunk delays and diffs the output;
-  appending as chunks complete instead of in chunk order makes it fail.
+- **Ordering is a real invariant and is tested.** Chunk order is _not_
+  coordinate order — bins at different levels cover overlapping spans, so the
+  concatenation was never globally sorted, and a test asserting sortedness fails
+  on `main` too. What must hold is that the result is the same sequence a
+  sequential walk produced.
+  `record order does not depend on which chunk finishes first` forces the
+  inverse completion order with per-chunk delays and diffs the output; appending
+  as chunks complete instead of in chunk order makes it fail.
 
 - **Peak memory is barely affected in the common case.** Up to 6 chunks are
   inflated at once rather than 1, but any chunk contributing even one in-range
@@ -113,8 +114,8 @@ growing.
 
 The first A/B of this change showed a consistent **2x slowdown** on
 `shortreads_300x` and `chr22_nanopore`, reproduced across separate processes at
-15 iterations. It was entirely an artifact of the laptop running on battery:
-CPU frequency scaling made the second process measured look slower regardless of
+15 iterations. It was entirely an artifact of the laptop running on battery: CPU
+frequency scaling made the second process measured look slower regardless of
 which implementation it ran. Reversing the order reversed the "regression", and
 interleaving the two implementations within one process showed parity — as did
 re-running everything on mains power.
@@ -126,11 +127,11 @@ the same pre-read buffers sequentially vs concurrently, no bam-js involved) and
 
 **`pnpm bench` has the same weakness.** tinybench runs all of variant A's
 iterations, then all of B's — it does not interleave per iteration, so it is
-subject to exactly this bias. Running the full suite in both slot orders,
-every result flipped sign except `tiny.bam` (1.08x / 1.07x, consistently
-slower — the real single-chunk regression) and `volvox-sorted` (1.01x / 1.06x,
-same direction). The apparent 1.22x regression on `cho.bam` and the apparent
-1.80x win on `another_chm1_id_difference` both reversed and were artifacts.
+subject to exactly this bias. Running the full suite in both slot orders, every
+result flipped sign except `tiny.bam` (1.08x / 1.07x, consistently slower — the
+real single-chunk regression) and `volvox-sorted` (1.01x / 1.06x, same
+direction). The apparent 1.22x regression on `cho.bam` and the apparent 1.80x
+win on `another_chm1_id_difference` both reversed and were artifacts.
 
 For anything in this repo where the effect is under ~20%: run the suite in both
 slot orders and discard anything that flips, or measure the variants rotated

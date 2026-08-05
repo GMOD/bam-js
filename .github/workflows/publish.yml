@@ -17,6 +17,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      # eslint doesn't enforce formatting, so without this the tree drifts out
+      # of prettier's shape silently and the next person to touch a file gets
+      # unrelated reformatting mixed into their diff.
+      - run: pnpm format:check
       # `pnpm build` only compiles src/. This is the same check over test/ too,
       # which is otherwise never type-checked: a test can call a renamed option
       # or a changed signature and go on passing by testing nothing.

@@ -4,9 +4,8 @@ Status: Accepted
 
 ## Context
 
-`chunkFeatureCache` is only populated once a chunk's read *finishes*. Until
-then the key is absent, so `_cachedChunkFeatures` treated every caller as a
-miss:
+`chunkFeatureCache` is only populated once a chunk's read _finishes_. Until then
+the key is absent, so `_cachedChunkFeatures` treated every caller as a miss:
 
 ```ts
 let entry = this.chunkFeatureCache.get(cacheKey)
@@ -16,7 +15,7 @@ if (!entry) {
 }
 ```
 
-Two queries that overlap *in time* therefore both downloaded and both inflated
+Two queries that overlap _in time_ therefore both downloaded and both inflated
 the same chunk, and the second `set` simply overwrote the first. The cache
 protects against re-reading a chunk later; nothing protected against reading it
 twice at once.
@@ -31,15 +30,15 @@ keys, because `blocksForRange` maps a whole bin to one chunk and
 Measured on `shortreads_300x.bam`, 8 adjacent 3kb windows tiling the file's data
 span — the shape of one jbrowse block row:
 
-| | decompressions | inflated | wall clock |
-| ---------------- | -------------- | -------- | ---------- |
-| issued serially | 3 | 29.4 MB | 113 ms |
-| issued concurrently | **9** | **85.5 MB** | **240 ms** |
+|                     | decompressions | inflated    | wall clock |
+| ------------------- | -------------- | ----------- | ---------- |
+| issued serially     | 3              | 29.4 MB     | 113 ms     |
+| issued concurrently | **9**          | **85.5 MB** | **240 ms** |
 
-All 8 queries resolve to **3 distinct chunk keys**, so 6 of those 9 inflates were
-pure waste. Concurrency made the query *slower than doing it serially* — the
-opposite of what a caller fanning out expects. Decompression is 70–90% of a cold
-query (ADR 0003), so this was the largest remaining avoidable cost in the
+All 8 queries resolve to **3 distinct chunk keys**, so 6 of those 9 inflates
+were pure waste. Concurrency made the query _slower than doing it serially_ —
+the opposite of what a caller fanning out expects. Decompression is 70–90% of a
+cold query (ADR 0003), so this was the largest remaining avoidable cost in the
 library.
 
 ## Decision
@@ -53,7 +52,7 @@ read settles; the resolved features land in `chunkFeatureCache` as before.
 
 - **Concurrent overlapping queries cost what the serial ones do.** Same
   benchmark: 9 → 3 decompressions, 85.5 → 29.4 MB inflated, 240 → 86 ms.
-  Concurrent is now *faster* than serial (86 vs 105 ms), as it should be.
+  Concurrent is now _faster_ than serial (86 vs 105 ms), as it should be.
 
 - **Single-query performance is unchanged.** The added work on a miss is one
   `Map` set and one delete. Interleaved A/B, alternating implementations within
@@ -66,7 +65,7 @@ read settles; the resolved features land in `chunkFeatureCache` as before.
   where two queries get independently-decoded copies of one chunk.
 
 - **A joined read is not hostage to the joiner's abort.** `opts.signal` is
-  per-caller, and only the caller that *starts* the read passes its signal down
+  per-caller, and only the caller that _starts_ the read passes its signal down
   to `bam.read`. If that owner aborts, the shared promise rejects for everyone —
   including queries that are still live. Waiters therefore compare the failed
   read's signal against their own, and redo the read under their own `opts` when
@@ -74,7 +73,8 @@ read settles; the resolved features land in `chunkFeatureCache` as before.
   own abort, propagates unchanged.
 
   A sibling waiter may reach that retry first, so the retry path re-checks
-  `inFlightChunks` and joins an existing retry rather than starting a third read.
+  `inFlightChunks` and joins an existing retry rather than starting a third
+  read.
 
   In practice this path is cold: jbrowse does not pass a `signal` to
   `getRecordsForRange` at all — it cancels with `checkStopToken` around the

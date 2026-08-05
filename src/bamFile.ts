@@ -499,9 +499,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       // unbarriered pool exactly as before. That caps the cost of being wrong
       // at 0.92x-0.95x, against 0.82x-0.88x for barriering every wave.
       const batch = Math.min(MAX_CONCURRENT_CHUNK_READS, chunks.length)
-      await Promise.all(
-        Array.from({ length: batch }, (_, ci) => readOne(ci)),
-      )
+      await Promise.all(Array.from({ length: batch }, (_, ci) => readOne(ci)))
       let stopped = false
       for (let ci = 0; ci < batch; ci++) {
         if (isPastQuery(featureLists[ci], chrId, max)) {
@@ -691,9 +689,9 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
           blockEnd,
           hasCpositions
             ? cpositions[pos]! * (1 << 8) +
-              (blockStart - dpositions[pos]!) +
-              chunk.minv.dataPosition +
-              1
+                (blockStart - dpositions[pos]!) +
+                chunk.minv.dataPosition +
+                1
             : crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
           dataView,
         )

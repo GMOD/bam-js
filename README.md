@@ -65,8 +65,8 @@ const bam = new HtsgetFile({
 
 Your `fetch` is called for the ticket request and for the data-block urls the
 ticket points at, so only attach credentials to hosts you trust — data blocks
-may live on a third-party host, and the spec has servers put whatever those
-need in each url's own `headers` field, which is applied either way.
+may live on a third-party host, and the spec has servers put whatever those need
+in each url's own `headers` field, which is applied either way.
 
 ## Documentation
 

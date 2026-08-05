@@ -5,17 +5,18 @@ Status: Accepted
 ## Context
 
 `chunkFeatureCache` caches **decoded record objects**, not the buffer they were
-decoded from. `_cachedChunkFeatures` returns `entry.features` — the same array of
-the same `BamRecord` instances — to every query that resolves to that chunk key.
+decoded from. `_cachedChunkFeatures` returns `entry.features` — the same array
+of the same `BamRecord` instances — to every query that resolves to that chunk
+key.
 
-So two `getRecordsForRange` calls can hand the caller *the same object*. Not a
+So two `getRecordsForRange` calls can hand the caller _the same object_. Not a
 rare edge: it happens whenever the queries produce the same merged chunk span,
 which includes re-querying one range and two nearby ranges covered by one chunk.
 
-That is easy to miss, because two *different* ranges usually produce different
-chunk keys (`optimizeChunks` merges per query — see ADR 0001's "Known residual"),
-so the cache misses and each query decodes its own copy. The sharing only shows
-up once the keys coincide.
+That is easy to miss, because two _different_ ranges usually produce different
+chunk keys (`optimizeChunks` merges per query — see ADR 0001's "Known
+residual"), so the cache misses and each query decodes its own copy. The sharing
+only shows up once the keys coincide.
 
 It also got much more likely in 7.5.0. Before
 `bde84b1 perf: keep every chunk a query parses cached` (ADR 0001) the
@@ -24,8 +25,8 @@ cross-query sharing was close to accidental. Removing it made retention the norm
 — which is the whole point of that change, and the reason this contract now
 needs stating.
 
-**This bit jbrowse-components twice.** Its BAM adapter resolved the reference for
-reads lacking an `MD` tag by writing onto the record:
+**This bit jbrowse-components twice.** Its BAM adapter resolved the reference
+for reads lacking an `MD` tag by writing onto the record:
 
 ```js
 record.ref = regionSeq
@@ -53,7 +54,7 @@ record.
 - **The library's own lazy memos are unaffected.** `_cachedEnd`, `_cachedTags`,
   `_cachedNumericCigar` and friends are pure functions of the record's bytes, so
   sharing them across queries is the point, not a hazard. "Read-only" is a
-  contract about the *caller's* fields, not about internal immutability — which
+  contract about the _caller's_ fields, not about internal immutability — which
   is also why freezing records is not available as an enforcement mechanism.
 
 ## Rejected alternatives
@@ -85,7 +86,7 @@ record.
   The scan is already near its floor (~0.1 µs/record, dominated by object
   allocation), so there is no obvious way to make it cheap enough to reconsider.
 
-- **Return `readonly T[]`.** Free, but it prevents mutating the *array*, not the
+- **Return `readonly T[]`.** Free, but it prevents mutating the _array_, not the
   records' fields, which is the actual failure. It would signal intent at the
   cost of type churn for every consumer and stop none of the bugs above.
 

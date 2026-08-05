@@ -24,7 +24,7 @@ test('a read is dropped once the query starts at its exclusive end', async () =>
   )!
   expect(read).toBeDefined()
 
-  const has = (records: typeof read[]) =>
+  const has = (records: (typeof read)[]) =>
     records.some(
       r =>
         r.name === read.name &&

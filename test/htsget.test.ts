@@ -67,7 +67,9 @@ function mockFetch({
       : url.startsWith(ticketUrl)
         ? ticket(url.includes('class=header') ? fixtureUrls().all : rangeUrls)
         : url === blockUrl
-          ? new Response(fs.readFileSync('test/htsget/data.bam'), { status: 206 })
+          ? new Response(fs.readFileSync('test/htsget/data.bam'), {
+              status: 206,
+            })
           : new Response('unexpected url', { status: 404 })
   }
   return {
@@ -92,7 +94,9 @@ test('reads a header and a region through the ticket', async () => {
 
   // format is the only parameter allowed alongside class=header
   expect(calls[0]?.url).toBe(`${ticketUrl}?class=header&format=BAM`)
-  expect(find(c => c.url.startsWith(`${ticketUrl}?referenceName=1`))).toBeTruthy()
+  expect(
+    find(c => c.url.startsWith(`${ticketUrl}?referenceName=1`)),
+  ).toBeTruthy()
 })
 
 test('the supplied fetch is used for ticket and data-block requests', async () => {
@@ -152,7 +156,9 @@ test('reads a ticket whose single block includes the header', async () => {
           htsget: {
             format: 'BAM',
             urls: [
-              block(urlOf(input).includes('class=header') ? 'header' : undefined),
+              block(
+                urlOf(input).includes('class=header') ? 'header' : undefined,
+              ),
             ],
           },
         })
@@ -181,7 +187,10 @@ test('surfaces the htsget error type on a failed ticket request', async () => {
     error: {
       status: 401,
       body: JSON.stringify({
-        htsget: { error: 'InvalidAuthentication', message: 'no token supplied' },
+        htsget: {
+          error: 'InvalidAuthentication',
+          message: 'no token supplied',
+        },
       }),
     },
   })

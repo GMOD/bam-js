@@ -56,7 +56,11 @@ test('clampChunkEnds accepts a Float64Array of boundaries', () => {
 // 5MB cap. The overlapping bytes were then fetched, decompressed and decoded
 // twice, and every record in them came back twice from getRecordsForRange.
 test('optimizeChunks leaves no overlapping spans', () => {
-  const a = new Chunk(new VirtualOffset(3804, 0), new VirtualOffset(4977599, 16404), 1)
+  const a = new Chunk(
+    new VirtualOffset(3804, 0),
+    new VirtualOffset(4977599, 16404),
+    1,
+  )
   // starts inside `a`, and too far away to merge (span > 5MB)
   const b = new Chunk(
     new VirtualOffset(4977599, 5843),
@@ -77,8 +81,16 @@ test('optimizeChunks leaves no overlapping spans', () => {
 
 // a chunk swallowed entirely by its predecessor contributes nothing
 test('optimizeChunks drops a chunk contained in its predecessor', () => {
-  const a = new Chunk(new VirtualOffset(0, 0), new VirtualOffset(6_000_000, 500), 1)
-  const b = new Chunk(new VirtualOffset(10, 0), new VirtualOffset(6_000_000, 100), 2)
+  const a = new Chunk(
+    new VirtualOffset(0, 0),
+    new VirtualOffset(6_000_000, 500),
+    1,
+  )
+  const b = new Chunk(
+    new VirtualOffset(10, 0),
+    new VirtualOffset(6_000_000, 100),
+    2,
+  )
   const out = optimizeChunks([a, b])
   expect(out.length).toBe(1)
   expect(out[0]!.maxv.dataPosition).toBe(500)

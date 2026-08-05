@@ -657,7 +657,9 @@ test('references with an empty linear index share one array', async () => {
     }
   }
   expect(empties.length).toBe(2)
-  expect(empties[0]!.linearBlockPositions).toBe(empties[1]!.linearBlockPositions)
+  expect(empties[0]!.linearBlockPositions).toBe(
+    empties[1]!.linearBlockPositions,
+  )
   expect(empties[0]!.linearDataPositions).toBe(empties[1]!.linearDataPositions)
 })
 

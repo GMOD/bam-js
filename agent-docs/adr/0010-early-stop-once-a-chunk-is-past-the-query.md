@@ -25,14 +25,14 @@ chr22_nanopore_subset.bam.bai   ref=21   1020 linear entries, 0 unset
 overlapping bin, at every level of the binning scheme:
 
 | window | chunks | fetched | records returned |
-| ------- | ------ | ------- | ---------------- |
-| 10kb    | 22     | 9.3MB   | 0                |
-| 100kb   | 22     | 9.3MB   | 0                |
-| 400kb   | 9      | 11.9MB  | 35               |
-| 1000kb  | 3      | 13.6MB  | 757              |
+| ------ | ------ | ------- | ---------------- |
+| 10kb   | 22     | 9.3MB   | 0                |
+| 100kb  | 22     | 9.3MB   | 0                |
+| 400kb  | 9      | 11.9MB  | 35               |
+| 1000kb | 3      | 13.6MB  | 757              |
 
 A 10kb window costs 22 range requests and 66% of the file to answer with
-nothing. Note the inversion: the 1Mb window — 100x larger — costs *three*
+nothing. Note the inversion: the 1Mb window — 100x larger — costs _three_
 requests, because more chunks bridge more gaps and `optimizeChunks` merges them.
 
 This is not a bam-js bug. htslib's BAI iterator has the same lower bound. What
@@ -57,19 +57,19 @@ Measured: how many chunks a query would need if it stopped at the first chunk
 whose first record starts at/after `max`. No case showed a non-monotonic chunk
 order.
 
-| file / window                     | chunks | fetched | needed | saving |
-| --------------------------------- | ------ | ------- | ------ | ------ |
-| chr22_nanopore 10kb               | 22     | 9.3MB   | 1      | ~95%   |
-| chr22_nanopore 100kb              | 22     | 9.3MB   | 1      | ~95%   |
-| chr22_nanopore 400kb              | 9      | 11.9MB  | 3      | 20%    |
-| ultra-long-ont 400kb              | 12     | 5.7MB   | 1      | ~90%   |
-| ultra-long-ont 1000kb             | 12     | 5.7MB   | 2      | 50%    |
-| volvox 10kb                       | 3      | 0.3MB   | 2      | 43%    |
-| shortreads_300x, out.bam, volvox 100kb | 1-2 | -      | all    | 0%     |
+| file / window                          | chunks | fetched | needed | saving |
+| -------------------------------------- | ------ | ------- | ------ | ------ |
+| chr22_nanopore 10kb                    | 22     | 9.3MB   | 1      | ~95%   |
+| chr22_nanopore 100kb                   | 22     | 9.3MB   | 1      | ~95%   |
+| chr22_nanopore 400kb                   | 9      | 11.9MB  | 3      | 20%    |
+| ultra-long-ont 400kb                   | 12     | 5.7MB   | 1      | ~90%   |
+| ultra-long-ont 1000kb                  | 12     | 5.7MB   | 2      | 50%    |
+| volvox 10kb                            | 3      | 0.3MB   | 2      | 43%    |
+| shortreads_300x, out.bam, volvox 100kb | 1-2    | -       | all    | 0%     |
 
 The win is concentrated exactly where the linear index degenerates: long reads,
-narrow windows. Short-read files and wide windows get nothing, because they
-need every chunk they were given.
+narrow windows. Short-read files and wide windows get nothing, because they need
+every chunk they were given.
 
 ## Why not yet
 
@@ -83,7 +83,7 @@ regions, were unchanged.
 `test/cache.test.ts` caught it: running the identical query twice parsed 6
 chunks and then 9. On a warm cache `_cachedChunkFeatures` resolves without I/O,
 so workers claim indices far faster than any of them can set `stopAfter`. The
-second query therefore does *more* I/O than the first, and the cache grows on
+second query therefore does _more_ I/O than the first, and the cache grows on
 repeat queries — which breaks the panning property ADR 0001 exists to protect.
 
 The obvious fix — process chunks in fixed waves of `MAX_CONCURRENT_CHUNK_READS`
@@ -100,7 +100,7 @@ So the decision is a real trade, not an oversight:
   long-read narrow windows, at the cost of a barrier on every query.
 - **do nothing** — long-read narrow windows keep paying for the whole bin.
 
-Whichever is chosen needs a benchmark of waves-vs-pool on the files where *no*
+Whichever is chosen needs a benchmark of waves-vs-pool on the files where _no_
 early stop is possible, since that is what the change would tax. That
 measurement has not been done, and shipping either half of it on intuition is
 how the 7.7.0 linear-index regression happened.
@@ -111,11 +111,11 @@ Three schedulers, run against the real fixtures with identical record counts
 asserted on every arm, min of 9 interleaved reps:
 
 - **pool** — today's work-stealing loop, no early stop
-- **waves** — fixed waves of 6 with a barrier, early stop *off*: isolates the
+- **waves** — fixed waves of 6 with a barrier, early stop _off_: isolates the
   cost of the barrier alone
 - **waves+stop** — the proposal
-- **pool+stop** — early stop without a barrier: the ceiling, if the
-  determinism problem above were solved
+- **pool+stop** — early stop without a barrier: the ceiling, if the determinism
+  problem above were solved
 
 ### First, the thing that decides it: which queries can stop
 
@@ -128,7 +128,7 @@ Every query with more than 6 chunks has a stop available — 22, 22, 26, 21.
 
 That is not a coincidence. `optimizeChunks` merges aggressively (65kb gap, 5MB
 span), so a query that genuinely needs a lot of data gets it in a few big
-chunks. A query with *many* chunks is one whose bins are scattered — which is
+chunks. A query with _many_ chunks is one whose bins are scattered — which is
 exactly the case where most of them are past the query.
 
 So a barrier at 6-chunk boundaries is free on every no-stop query in the corpus:
@@ -143,27 +143,27 @@ they bracket it. `bam.read` is delayed by a 50ms round trip plus transfer at
 
 **Per-connection bandwidth** (each concurrent read gets its own 20MB/s):
 
-| query | chunks | pool | waves+stop | pool+stop | net |
-| ----- | ------ | ---- | ---------- | --------- | --- |
-| nanopore 100kb | 22 | 363ms | 355ms | 375ms | 1.02x |
-| nanopore 20kb  | 22 | 348ms | 361ms | 341ms | 0.96x |
-| out.bam 20kb   | 26 | 388ms | 252ms | 253ms | 1.54x |
-| out.bam 500kb  | 21 | 383ms | 379ms | 365ms | 1.01x |
+| query          | chunks | pool  | waves+stop | pool+stop | net   |
+| -------------- | ------ | ----- | ---------- | --------- | ----- |
+| nanopore 100kb | 22     | 363ms | 355ms      | 375ms     | 1.02x |
+| nanopore 20kb  | 22     | 348ms | 361ms      | 341ms     | 0.96x |
+| out.bam 20kb   | 26     | 388ms | 252ms      | 253ms     | 1.54x |
+| out.bam 500kb  | 21     | 383ms | 379ms      | 365ms     | 1.01x |
 
-**Shared bandwidth** (round trips overlap, transfers queue for one 20MB/s pipe
-— what 6 connections to one host, or one multiplexed HTTP/2 connection,
-actually do):
+**Shared bandwidth** (round trips overlap, transfers queue for one 20MB/s pipe —
+what 6 connections to one host, or one multiplexed HTTP/2 connection, actually
+do):
 
-| query | chunks | pool | waves(no stop) | waves+stop | pool+stop | barrier | net | MB |
-| ----- | ------ | ---- | -------------- | ---------- | --------- | ------- | --- | -- |
-| nanopore 100kb | 22 | 647ms | 745ms | 410ms | 406ms | 0.87x | **1.58x** | 9.3→6.0 |
-| nanopore 20kb  | 22 | 648ms | 757ms | 407ms | 422ms | 0.86x | **1.59x** | 9.3→6.0 |
-| out.bam 20kb   | 26 | 675ms | 821ms | 367ms | 368ms | 0.82x | **1.84x** | 9.5→5.6 |
-| out.bam 500kb  | 21 | 718ms | 818ms | 479ms | 524ms | 0.88x | **1.50x** | 11.1→8.2 |
-| out.bam whole  | 4  | 1024ms | 1032ms | 1019ms | 1029ms | 0.99x | 1.00x | — |
-| nanopore 2Mb   | 3  | 792ms | 795ms | 800ms | 799ms | 1.00x | 0.99x | — |
-| shortreads 2Mb | 2  | 374ms | 352ms | 361ms | 363ms | 1.06x | 1.04x | — |
-| ultra-long whole | 2 | 400ms | 402ms | 397ms | 400ms | 1.00x | 1.01x | — |
+| query            | chunks | pool   | waves(no stop) | waves+stop | pool+stop | barrier | net       | MB       |
+| ---------------- | ------ | ------ | -------------- | ---------- | --------- | ------- | --------- | -------- |
+| nanopore 100kb   | 22     | 647ms  | 745ms          | 410ms      | 406ms     | 0.87x   | **1.58x** | 9.3→6.0  |
+| nanopore 20kb    | 22     | 648ms  | 757ms          | 407ms      | 422ms     | 0.86x   | **1.59x** | 9.3→6.0  |
+| out.bam 20kb     | 26     | 675ms  | 821ms          | 367ms      | 368ms     | 0.82x   | **1.84x** | 9.5→5.6  |
+| out.bam 500kb    | 21     | 718ms  | 818ms          | 479ms      | 524ms     | 0.88x   | **1.50x** | 11.1→8.2 |
+| out.bam whole    | 4      | 1024ms | 1032ms         | 1019ms     | 1029ms    | 0.99x   | 1.00x     | —        |
+| nanopore 2Mb     | 3      | 792ms  | 795ms          | 800ms      | 799ms     | 1.00x   | 0.99x     | —        |
+| shortreads 2Mb   | 2      | 374ms  | 352ms          | 361ms      | 363ms     | 1.06x   | 1.04x     | —        |
+| ultra-long whole | 2      | 400ms  | 402ms          | 397ms      | 400ms     | 1.00x   | 1.01x     | —        |
 
 ### What it says
 
@@ -188,18 +188,18 @@ actually do):
 
 Barriering every wave leaves one residual risk: a query with more than 6 chunks
 and no stop available pays 0.82x-0.88x. The survey found none, but a user's file
-is not the corpus. Since the stop, when it exists, fired inside the *first*
+is not the corpus. Since the stop, when it exists, fired inside the _first_
 batch on every fixture measured (`needed` was 1-3 everywhere), a query that
 clears the first batch without stopping is one that needs its chunks — so it can
 run the unbarriered pool for the rest. Measured against barriering every wave:
 
-| query | chunks | waves | one barrier | waves worst case | one-barrier worst case |
-| ----- | ------ | ----- | ----------- | ---------------- | ---------------------- |
-| nanopore 100kb | 22 | 1.58x | **1.59x** | 0.87x | **0.93x** |
-| nanopore 20kb  | 22 | 1.59x | **1.64x** | 0.86x | **0.94x** |
-| out.bam 20kb   | 26 | 1.78x | **1.78x** | 0.82x | **0.92x** |
-| out.bam 500kb  | 21 | 1.53x | **1.56x** | 0.88x | **0.95x** |
-| the four ≤4-chunk queries | ≤4 | 0.99x-1.01x | 1.00x-1.02x | — | — |
+| query                     | chunks | waves       | one barrier | waves worst case | one-barrier worst case |
+| ------------------------- | ------ | ----------- | ----------- | ---------------- | ---------------------- |
+| nanopore 100kb            | 22     | 1.58x       | **1.59x**   | 0.87x            | **0.93x**              |
+| nanopore 20kb             | 22     | 1.59x       | **1.64x**   | 0.86x            | **0.94x**              |
+| out.bam 20kb              | 26     | 1.78x       | **1.78x**   | 0.82x            | **0.92x**              |
+| out.bam 500kb             | 21     | 1.53x       | **1.56x**   | 0.88x            | **0.95x**              |
+| the four ≤4-chunk queries | ≤4     | 0.99x-1.01x | 1.00x-1.02x | —                | —                      |
 
 Identical benefit, half the downside. "Worst case" is the same arm with the stop
 forced off — what a >6-chunk query with no stop available would pay.
@@ -224,7 +224,8 @@ benefit; it is not, because those queries stop in the first batch.
 
 - The predicate must check `ref_id` as well as `start`: `optimizeChunks` merges
   spans up to 5MB, which can carry a chunk across a reference boundary in the
-  file. `first.ref_id > chrId || (first.ref_id === chrId && first.start >= max)`.
+  file.
+  `first.ref_id > chrId || (first.ref_id === chrId && first.start >= max)`.
 - An empty chunk says nothing about position and must never stop the walk.
 - `onProgress` reports against a total computed from all chunks, so an early
   stop needs a final `onProgress(totalBytes, totalBytes)` or a determinate bar

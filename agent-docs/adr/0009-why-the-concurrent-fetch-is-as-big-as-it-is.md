@@ -23,11 +23,11 @@ Two facts about the primary consumer drive everything else:
 - **jbrowse issues one `getRecordsForRange` per rendered block, concurrently,
   with no serialization.** Those per-block ranges collapse onto very few chunk
   keys. Without in-flight sharing, 8 adjacent windows cost 9 decompressions
-  instead of 3 and concurrency made the query *slower than doing it serially*
+  instead of 3 and concurrency made the query _slower than doing it serially_
   (240 ms vs 113 ms — ADR 0007).
-- **One query spans ~15 chunks, each its own HTTP range request.** Read
-  serially that is ~15 round trips: 734 ms vs 192 ms at a 50 ms RTT, with an
-  identical request and byte count either way (ADR 0008).
+- **One query spans ~15 chunks, each its own HTTP range request.** Read serially
+  that is ~15 round trips: 734 ms vs 192 ms at a 50 ms RTT, with an identical
+  request and byte count either way (ADR 0008).
 
 Neither is a micro-optimization and neither is hypothetical — they are the
 normal access pattern of the library's main consumer, on the transport it
@@ -43,10 +43,10 @@ exists only to cap concurrency at 6.
 
 What the cap buys: `blocksForRange` over a whole chromosome returns hundreds of
 chunks, and every chunk inflated is a decompressed buffer pinned for as long as
-any record views into it. Unbounded, that inflates all of them at once. What
-the cap costs: nothing on the transport that matters — browsers cap at 6
-connections per host anyway, so requests 7..N would queue in the browser rather
-than in our loop.
+any record views into it. Unbounded, that inflates all of them at once. What the
+cap costs: nothing on the transport that matters — browsers cap at 6 connections
+per host anyway, so requests 7..N would queue in the browser rather than in our
+loop.
 
 Five lines to convert an unbounded memory spike into a queue is a good trade.
 
@@ -68,11 +68,11 @@ Tried, measured, rejected. Replacing the inline pool with a
 `mapConcurrent(items, limit, fn)` helper costs an extra async frame per chunk,
 and that is visible on warm queries:
 
-| | tiny.bam (1 chunk) | out.bam (14 chunks) |
+|                         | tiny.bam (1 chunk) | out.bam (14 chunks) |
 | ----------------------- | ------------------ | ------------------- |
-| helper vs inline, run 1 | 1.095x | 1.127x |
-| helper vs inline, run 2 | 1.125x | 1.152x |
-| helper vs inline, run 3 | 1.102x | 1.108x |
+| helper vs inline, run 1 | 1.095x             | 1.127x              |
+| helper vs inline, run 2 | 1.125x             | 1.152x              |
+| helper vs inline, run 3 | 1.102x             | 1.108x              |
 
 Interleaved A/B, both implementations alternating within one process with the
 order rotated per round, min of 9 rounds. The regression keeps its sign across
@@ -97,7 +97,7 @@ does not pass a `signal` to `getRecordsForRange` at all — it cancels with
 `checkStopToken` around the await — so in the main consumer this path never
 fires.
 
-It stays because sharing *introduces* a failure mode that did not exist before
+It stays because sharing _introduces_ a failure mode that did not exist before
 it. Only the caller that starts a read passes its signal down to `bam.read`; if
 that caller aborts, the shared promise rejects for every waiter, including
 queries that are perfectly alive. A query failing because an unrelated query was
@@ -107,23 +107,24 @@ it is cheap.
 
 It was also, until now, the one part of the feature with **no test at all** —
 the subtlest branch in the fetch path, held up by reasoning alone. Three tests
-now cover it (`a waiter survives the read owner aborting`, `a waiter's own abort
-still propagates`, `a genuine read failure is not retried by waiters`), each
-driving the case with a read that hangs until the test releases it, so the
-interleaving is deterministic rather than raced.
+now cover it (`a waiter survives the read owner aborting`,
+`a waiter's own abort still propagates`,
+`a genuine read failure is not retried by waiters`), each driving the case with
+a read that hangs until the test releases it, so the interleaving is
+deterministic rather than raced.
 
 They were checked by mutation, because a concurrency test that cannot fail is
 worse than none: removing the retry kills only the first, and retrying
 unconditionally kills only the third. Each branch of the guard has exactly one
 test holding it down.
 
-It did shrink under review, and the two things that came out are worth
-recording because they read as necessary and were not:
+It did shrink under review, and the two things that came out are worth recording
+because they read as necessary and were not:
 
 - `pending.signal !== opts.signal` was **redundant**. If the two are the same
-  object and it is aborted, then `opts.signal.aborted` is true, so the
-  "did *we* abort?" clause already rejects the retry. The identity check could
-  never change the outcome.
+  object and it is aborted, then `opts.signal.aborted` is true, so the "did _we_
+  abort?" clause already rejects the retry. The identity check could never
+  change the outcome.
 - The explicit "a sibling waiter may already have started the retry, so join
   that instead" branch was **re-implementing the function it was inside**.
   Recursing into `_cachedChunkFeatures` covers it, and covers more: it also
