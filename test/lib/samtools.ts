@@ -45,7 +45,10 @@ export interface Ref {
  * are deliberately malformed — large_coords.bam carries a header htslib rejects
  * — and those cannot be used to judge this reader against it.
  */
-export function references(file: string, extra: string[] = []): Ref[] | undefined {
+export function references(
+  file: string,
+  extra: string[] = [],
+): Ref[] | undefined {
   let out: string
   try {
     out = run(['view', '-H', ...extra, file])
@@ -66,6 +69,30 @@ export function references(file: string, extra: string[] = []): Ref[] | undefine
   return refs
 }
 
+/**
+ * Which references actually hold records, read from the index.
+ *
+ * Headers can be far larger than the data: long_pair.cram declares 3316
+ * references and puts records on one of them. Walking the header instead would
+ * spend the whole run querying empty references.
+ */
+export function refsWithRecords(file: string) {
+  const present = new Set<string>()
+  let out: string
+  try {
+    out = run(['idxstats', file])
+  } catch {
+    return undefined
+  }
+  for (const line of out.split('\n')) {
+    const [name, , mapped, unmapped] = line.split('\t')
+    if (name && name !== '*' && Number(mapped) + Number(unmapped) > 0) {
+      present.add(name)
+    }
+  }
+  return present
+}
+
 /** `QNAME|FLAG|POS` for every record samtools reports in [min, max). */
 export function records(
   file: string,
@@ -74,8 +101,7 @@ export function records(
   max: number,
   extra: string[] = [],
 ) {
-  const out = run(['view', ...extra, file, `${ref}:${min + 1}-${max}`])
-  return out
+  return run(['view', ...extra, file, `${ref}:${min + 1}-${max}`])
     .split('\n')
     .filter(Boolean)
     .map(line => {
@@ -97,8 +123,8 @@ export function count(
 }
 
 /**
- * Scan the whole file, ignoring the index, and report how many records sit on
- * `ref` and whether they appear in non-decreasing POS order.
+ * One pass over the whole file, ignoring the index, reporting per reference
+ * whether its records appear in non-decreasing POS order.
  *
  * htslib's region iterator assumes coordinate order: it stops at the first
  * record past the query rather than scanning on. On a file that is not sorted
@@ -107,35 +133,33 @@ export function count(
  * grouped by template, or interleave two references, and exist to exercise
  * other things.
  *
- * `sorted: undefined` means samtools would not decode the file without a
- * reference this repo does not ship, so the question could not be asked.
+ * Returns undefined when samtools will not decode the file — for CRAM that
+ * means no reference, in which case the question cannot be asked.
  */
-export function scanRef(file: string, ref: string, extra: string[] = []) {
+export function sortedness(file: string, extra: string[] = []) {
   let out: string
   try {
     out = run(['view', ...extra, file])
   } catch {
-    return { count: 0, sorted: undefined }
+    return undefined
   }
-  let count = 0
-  let sorted = true
-  let previous = -1
+  const sorted = new Map<string, boolean>()
+  const previous = new Map<string, number>()
   for (const line of out.split('\n')) {
     if (!line) {
       continue
     }
     const fields = line.split('\t')
-    if (fields[2] !== ref) {
-      continue
-    }
+    const ref = fields[2]!
     const pos = Number(fields[3])
-    count++
-    if (pos < previous) {
-      sorted = false
+    if (pos < (previous.get(ref) ?? -1)) {
+      sorted.set(ref, false)
+    } else if (!sorted.has(ref)) {
+      sorted.set(ref, true)
     }
-    previous = pos
+    previous.set(ref, pos)
   }
-  return { count, sorted }
+  return sorted
 }
 
 /**

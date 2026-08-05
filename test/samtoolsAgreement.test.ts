@@ -23,9 +23,10 @@ import {
   boundaryWindows,
   records as samtoolsRecords,
   references,
+  refsWithRecords,
   samtoolsAvailable,
   samtoolsVersion,
-  scanRef,
+  sortedness,
 } from './lib/samtools.ts'
 
 const DATA = 'test/data'
@@ -49,13 +50,16 @@ describe.skipIf(!available)(`agreement with ${available ? samtoolsVersion() : 's
     await bam.getHeader()
 
     const refs = references(path)
-    if (!refs) {
+    const present = refsWithRecords(path)
+    // one pass for the whole file rather than one per reference
+    const sorted = sortedness(path)
+    if (!refs || !present) {
       // samtools cannot read this fixture, so it cannot arbitrate it either
       skipped.push(name)
       return
     }
 
-    for (const ref of refs) {
+    for (const ref of refs.filter(r => present.has(r.name))) {
       const all = await bam.getRecordsForRange(ref.name, 0, ref.length)
       if (all.length === 0) {
         continue
@@ -63,8 +67,8 @@ describe.skipIf(!available)(`agreement with ${available ? samtoolsVersion() : 's
 
       // htslib's region iterator assumes coordinate order, so on a file that is
       // not sorted it returns a prefix of the right answer rather than the
-      // answer. Judged from the file's own record order. See scanRef.
-      if (scanRef(path, ref.name).sorted === false) {
+      // answer. Judged from the file's own record order. See sortedness().
+      if (sorted?.get(ref.name) === false) {
         skipped.push(`${name}:${ref.name} (not coordinate sorted)`)
         continue
       }
