@@ -167,12 +167,8 @@ export function alignments(
 /**
  * The eight fields above, in a spelling both sides can be built in.
  *
- * CIGAR is normalised first. SAM writes an absent one as `*`, and htslib prints
- * whatever CIGAR an unmapped record happens to store, where these readers
- * return none for one — an unmapped read has no alignment to describe. Blank it
- * on both sides rather than let that one deliberate divergence mask every other
- * CIGAR difference. It changes exactly one record in either corpus: paired.bam's
- * SRR062635.1831187 at 20:74230, FLAG 133, which carries 35M65S.
+ * Only the empty ones need normalising: SAM writes an absent CIGAR or SEQ as
+ * `*`, where the readers hand back an empty string.
  *
  * `dropTlen` blanks the template length, for the one fixture where the two
  * implementations legitimately disagree — see its caller.
@@ -181,10 +177,16 @@ export function samFields(
   f: (string | number | null | undefined)[],
   dropTlen = false,
 ) {
-  const flags = Number(f[1])
-  const cigar = flags & 0x4 ? '*' : f[3] || '*'
-  const tlen = dropTlen ? '-' : f[5]
-  return [f[0], flags, f[2], cigar, f[4], tlen, f[6] || '*', f[7]].join('\t')
+  return [
+    f[0],
+    Number(f[1]),
+    f[2],
+    f[3] || '*',
+    f[4],
+    dropTlen ? '-' : f[5],
+    f[6] || '*',
+    f[7],
+  ].join('\t')
 }
 
 /**
