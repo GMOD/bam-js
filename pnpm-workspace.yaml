@@ -1,4 +1,10 @@
 minimumReleaseAge: 4320
+# Our own packages are exempt from the quarantine: a bump here is normally made
+# minutes after the dependency's own release, from source in the next directory
+# over, and the quarantine would otherwise hold that chain up for three days.
+# Same exemption jbrowse-components carries for the same reason.
+minimumReleaseAgeExclude:
+  - '@gmod/*'
 allowBuilds:
   esbuild: true
   unrs-resolver: true
