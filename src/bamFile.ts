@@ -101,13 +101,25 @@ function chunkCacheKey(chunk: Chunk) {
 }
 
 // Every record in an entry is a view into its chunk's decompressed buffer, so
-// caching one entry pins that whole buffer — 8MB apiece on the nanopore and
-// 2kb-read test files, and optimizeChunks merges spans up to 5MB *compressed*,
-// so tens of MB is possible. A count-based LRU therefore gives no bound on
-// memory at all, which is why this budgets by decompressed bytes instead. It is
-// the *only* bound: a query keeps every chunk it parsed, since a chunk dropped
-// here costs a re-download and re-decompress the next time the view moves.
-export const DEFAULT_MAX_CACHE_BYTES = 100 * 1024 * 1024
+// caching one entry pins that whole buffer. A count-based LRU therefore gives no
+// bound on memory at all, which is why this budgets by decompressed bytes.
+//
+// Sized to hold SEVERAL of the largest query a consumer will issue, not one. A
+// budget below a single query's working set does not merely cache less — it
+// evicts each chunk before the next pan can reuse it, so the hit rate is zero
+// and the re-decompress is paid every time (ADR 0014).
+//
+// What sets that scale is the caller's own byte gate, not how deep data can get.
+// jbrowse compares `estimatedBytesForRegions` — COMPRESSED bytes, from the index
+// — against its `fetchSizeLimit` and refuses to query above it. Default 5MB
+// compressed; its own SV demo raises that to 30MB for PacBio HiFi. At the 2.1-7.3x
+// BGZF ratios measured across the jb2bench corpus, that is 10-37MB decompressed
+// per query at the stock gate and 63-219MB at the raised one, so six pan windows
+// want ~219MB and ~378MB respectively. 512MB clears both.
+//
+// It costs a consumer on ordinary data nothing, being a ceiling rather than an
+// allocation: 20x short-read data holds 7MB here whatever this is set to.
+export const DEFAULT_MAX_CACHE_BYTES = 512 * 1024 * 1024
 
 // How many of a query's chunks to read at once. Six is the HTTP/1.1
 // per-host connection cap browsers enforce, so going much above it buys
@@ -165,7 +177,25 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     renameRefSeqs?: (a: string) => string
     htsget?: boolean
     recordClass?: BamRecordClass<T>
-    /** budget for the parsed-chunk cache, in decompressed bytes */
+    /**
+     * Budget for the parsed-chunk cache, in decompressed bytes. Defaults to
+     * {@link DEFAULT_MAX_CACHE_BYTES}.
+     *
+     * A **retention** bound, not a bound on peak memory, and the difference is
+     * not small on deep data. Three things sit outside it: a read still in
+     * flight is never evicted, and up to `MAX_CONCURRENT_CHUNK_READS` of those
+     * run at once; the last settled entry is kept whatever the budget; and a
+     * query holds every chunk it parsed until it returns, whether or not the
+     * cache still does. On 1000x long-read data a single chunk decompresses to
+     * 180MB and six in flight is 476MB, neither of which this number can bound.
+     *
+     * Set it too low and the cache does not degrade gracefully — it inverts. A
+     * budget under one query's working set evicts each chunk before the next pan
+     * reuses it, so the hit rate is zero, the full re-decompress is paid on every
+     * pan, and the memory is retained anyway. Size it to hold several queries or
+     * pass `Infinity` and bound memory some other way; do not pick a number
+     * between the two (ADR 0014).
+     */
     maxCacheBytes?: number
   }) {
     this.renameRefSeq = renameRefSeqs

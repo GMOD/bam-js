@@ -41,7 +41,7 @@ original memory bound.
 ## Decision
 
 Remove `evictOverlappingChunks`. The decompressed-byte LRU (`maxCacheBytes`,
-default 100 MB) is the only bound.
+default 100 MB at the time; raised to 512 MB in ADR 0014) is the only bound.
 
 ## Consequences / rationale
 

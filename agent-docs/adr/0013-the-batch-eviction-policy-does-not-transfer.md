@@ -1,76 +1,53 @@
 # ADR 0013 — The chunk cache stays on `evictionPolicy: 'lru'`
 
-Status: Accepted (rejects the port; records the crossover so the question does
-not get reopened from cram's numbers)
+Status: Accepted (rejects the port). Sizing the budget is ADR 0014.
 
 ## Context
 
 `@gmod/shared-read-cache` takes `evictionPolicy: 'lru' | 'batch'`. `'lru'`
-evicts as each read settles, so the budget is a hard ceiling. `'batch'` defers
-eviction until no reads are in flight and then spares everything that batch
-touched. @gmod/cram is on `'batch'` and measured 117ms against 12ms on a
-repeated 55,000-record range.
+evicts as each read settles. `'batch'` defers eviction until no reads are in
+flight and then spares everything that batch touched. @gmod/cram is on `'batch'`
+and measured 117ms against 12ms on a repeated 55,000-record range.
 
-`_fetchChunkFeatures` has the shape the package's own docs describe as the case
-for `'batch'`: it starts up to `MAX_CONCURRENT_CHUNK_READS` (6) reads at once
-and holds every chunk's records in `featureLists` until the query returns.
-Evicting one of them mid-query frees nothing — the caller is still holding it —
-but does guarantee the next identical query re-reads it.
+`_fetchChunkFeatures` has the shape the package documents as the case for
+`'batch'`: it starts up to `MAX_CONCURRENT_CHUNK_READS` (6) reads at once and
+holds every chunk's records in `featureLists` until the query returns. Evicting
+one mid-query frees nothing — the caller is still holding it — but does
+guarantee the next identical query re-reads it.
 
-So the shape matches. The shape is not what decides it.
+The shape matches. It is not what decides it.
 
-## What actually decides it
+## What decides it
 
-`SharedReadCache.get()` moves the entry to the MRU end. Under `'lru'` a query's
-own chunks are therefore the **last** things it will evict: it evicts older
-queries first, which is exactly what `'batch'` would have done. The two policies
-are indistinguishable unless **one query's working set exceeds
-`maxCacheBytes`**, which is the only condition under which a query evicts its
-own earlier chunks and so guarantees the repeat re-reads them.
+`get()` re-inserts the entry at the MRU end (`SharedReadCache.js:88`), and
+`maybeEvict` only runs when a read settles. A cold query's own entries are
+therefore inserted at the MRU end and evicted last: it evicts older queries
+first, which is what `'batch'` would have done. The policies diverge only when
+**one query's working set exceeds `maxCacheBytes`**.
 
 cram is 2.75x over that line: `maxSize: 20000` records against a 55,000-record
-range. bam is an order of magnitude under it. Decompressed working set after one
-cold query, against the 100 MB default:
+range. bam crosses it too — see ADR 0014 — so the question is live, and had to
+be measured rather than argued.
 
-| fixture                     | chunks | records | working set | of budget |
-| --------------------------- | -----: | ------: | ----------: | --------: |
-| `shortreads_300x.bam`       |      2 |  53,596 |     17.7 MB |     0.18x |
-| `chr22_nanopore_subset.bam` |      3 |     757 |     23.2 MB |     0.23x |
+## Measured where the crossover is actually crossed
 
-Both rows are the widest query those files support — a whole-chromosome query
-returns the same set, because they are single-region subsets.
+`1000x.longread`, 100kb window (533.5 MB working set), at the then-default 100
+MB budget — 5.3x over the line, the most favourable case `'batch'` could ask
+for:
 
-## Measured anyway
+| policy  | warm pass | refills | held   |
+| ------- | --------- | ------- | ------ |
+| `lru`   | 5720ms    | 42      | 181 MB |
+| `batch` | 6407ms    | 42      | 311 MB |
 
-Repeated identical query, and a 5-window pan sweep, 5 reps each after a warm
-pass. `refills` counts `_readChunkFeatures` calls after the warm pass, i.e. work
-the cache should not have needed to redo:
+`'batch'` does not rescue it. Identical refill count, marginally slower, and it
+retains 311 MB against a 100 MB budget where `lru` retains 181 MB.
 
-| fixture   | mode   |     budget |            lru |     batch |
-| --------- | ------ | ---------: | -------------: | --------: |
-| shortread | repeat | **100 MB** |      26.8ms, 0 | 20.6ms, 0 |
-| shortread | repeat |      32 MB |      15.0ms, 0 | 19.3ms, 0 |
-| shortread | repeat |      16 MB | 136.0ms, **5** | 15.6ms, 0 |
-| shortread | repeat |       8 MB | 123.1ms, **5** | 14.3ms, 0 |
-| shortread | pan    | **100 MB** |      29.9ms, 0 | 26.9ms, 0 |
-| shortread | pan    |      16 MB | 229.3ms,**10** | 28.5ms, 0 |
-| nanopore  | repeat | **100 MB** |       0.6ms, 0 |  0.3ms, 0 |
-| nanopore  | repeat |      32 MB |       0.4ms, 0 |  0.3ms, 0 |
-| nanopore  | repeat |      16 MB | 283.3ms, **9** |  0.4ms, 0 |
-| nanopore  | repeat |       8 MB | 322.3ms,**10** |  0.4ms, 0 |
-| nanopore  | pan    | **100 MB** |       0.6ms, 0 |  0.6ms, 0 |
-| nanopore  | pan    |      16 MB | 571.2ms,**16** |  0.7ms, 0 |
-| nanopore  | pan    |       8 MB | 687.8ms,**20** |  0.6ms, 0 |
-
-At the default the two policies are **identical** — zero refills either way, and
-the time column is this box's noise floor. Below the working set cram's cliff
-reproduces, and harder than cram's own 117→12.
-
-Read the 8/16 MB rows as stress, not as configuration: `optimizeChunks` merges
-spans up to 5 MB compressed, so an entry here is 7.7–8.9 MB (consistent with ADR
-0001's "8MB apiece"). A 16 MB budget holds two entries and an 8 MB budget holds
-_one_ — `evict()`'s keep-the-last-settled-entry rule is the only thing between
-it and holding none. That is not a cache that is slightly too small.
+The reason is that `'batch'` cannot retain a working set larger than the budget
+either. It spares what the batch touched, ends the batch still over the limit,
+clears the flags, and the next batch re-touches the same entries — so it neither
+keeps them across queries nor gets back under the ceiling. It buys the eviction
+delay and pays for it in memory, with no hit-rate return.
 
 ## Decision
 
@@ -78,48 +55,39 @@ Stay on `'lru'`. Do not port `'batch'`.
 
 ## Consequences / rationale
 
-- **The lever, if this ever bites, is `maxCacheBytes` — not the policy.** bam's
-  budget is denominated in decompressed bytes and its working set is directly
-  measurable in the same unit, so a consumer that needs a wider query to stay
-  warm can size the budget above it and keep the ceiling. cram's budget is
-  denominated in records, which cannot be converted to memory at all, so it had
-  no equivalent lever and changing policy was the only move available. That
-  asymmetry — not the fan-out shape — is why the port does not follow.
+- **The lever is `maxCacheBytes`, not the policy.** bam's budget is denominated
+  in decompressed bytes and its working set is measurable in the same unit, so a
+  budget can be sized above it (ADR 0014). cram's budget is denominated in
+  records, which cannot be converted to memory at all, so it had no equivalent
+  lever and changing policy was the only move available. That asymmetry, not the
+  fan-out shape, is why the port does not follow.
 
-- **`'batch'` is not unbounded; it is second-chance.** It spares entries touched
+- **`'batch'` is second-chance, not unbounded.** It spares entries touched
   during the batch, then clears the flags, so the next batch evicts them if they
-  were not re-touched. It runs one batch behind, not forever.
+  were not re-touched. It runs one batch behind. The overshoot above is the
+  documented trade — "a batch that touches more than the whole budget leaves the
+  cache over it until the next batch lands" — not a new finding.
 
-- **But `pending === 0` is a condition on the whole cache, not on one request.**
-  bam's caller runs many queries concurrently against one `BamFile` — several
-  blocks, several tracks — so under sustained overlapping load `evict()` need
-  never run. Measured on `shortreads_300x`, 8 windows, 8 MB budget:
+## Correction — how the first draft of this ADR got it wrong
 
-  | queries    |                       lru |                          batch |
-  | ---------- | ------------------------: | -----------------------------: |
-  | sequential | peak 10.3 MB, settled 0.1 | peak 17.8 MB, settled **17.8** |
-  | concurrent |  peak 0.1 MB, settled 0.1 | peak 17.8 MB, settled **17.8** |
+The version committed in `d251719` concluded that bam sat at 0.18–0.23x of the
+crossover and that the policies were therefore indistinguishable. Two errors,
+and both are easy to repeat:
 
-  `'batch'` settles 2.2x over its limit and stays there. On a subset fixture the
-  overshoot is capped by the file; on a real one it is however much the session
-  touched. This is the sharper reason to decline, and it is not in the package
-  docs — those only say "do not use it where the budget is a memory guarantee".
+1. **It measured `test/data`.** ADR 0012 opens by warning that those are
+   correctness fixtures and that sizing against them is how its own conclusions
+   came out wrong the first time. This is a sizing question. The realistic
+   corpus (`~/src/jb2bench/data`) puts bam at 0.72–5.3x, i.e. over the line.
 
-## Methodology / limits
-
-- `LocalFile`, so a refill costs decompress only. Over HTTP it also costs a
-  round trip, which steepens the cliff but does not move the crossover — the
-  crossover is set by working set vs budget, which is transport-independent.
-- Both fixtures are single-region subsets, so their whole-chromosome query is
-  their narrow query. A whole-chromosome query on a full-size BAM could clear
-  100 MB — but that is not a query jbrowse issues at read-rendering zoom, and
-  ADR 0010's early stop cuts it further.
-- The A/B swapped `bam.chunkFeatureCache` for a cache constructed with the same
-  `sizeOf`/`cacheKey`/`fill` and the other policy. Nothing in `src/` changed.
+2. **It read `totalSize` with the budget in place**, which reports what survived
+   eviction rather than what the query needed. On the fixtures the two coincide,
+   because nothing there is ever evicted — which is exactly why the error was
+   invisible. Measure a working set with `maxCacheBytes: Infinity`. With the
+   budget applied, the same query reports 180.7 MB where it actually needs 533.5
+   MB.
 
 ## Don't re-attempt without
 
-A profile showing a **single query's** decompressed working set above
-`maxCacheBytes` on data a consumer actually queries. Absent that, the policies
-are the same code path and the measurement will show noise. If you do find one,
-raise the budget first and confirm the policy still matters afterwards.
+A case where `'batch'` retains a working set `'lru'` drops **and** the hit rate
+moves. The table above is the natural candidate — a query 5.3x over budget — and
+there the two are within noise on time and `'batch'` is 1.7x worse on memory.
