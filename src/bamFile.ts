@@ -210,6 +210,13 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   public index?: BAI | CSI
   public htsget = false
   public headerP?: ReturnType<BamFile<T>['getHeaderPre']>
+  /**
+   * The signal `headerP` was started under, while it is still in flight. The
+   * header is parsed once and every query awaits it, so without this the first
+   * query to arrive would own a read all the others depend on — see
+   * {@link getHeader}.
+   */
+  private headerSignal?: AbortSignal
 
   // Cache for parsed features by chunk, bounded by decompressed bytes
   public chunkFeatureCache: ChunkFeatureCache<T>
@@ -362,14 +369,67 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     return samHeader
   }
 
-  getHeader(opts?: BaseOpts) {
-    if (!this.headerP) {
-      this.headerP = this.getHeaderPre(opts).catch((e: unknown) => {
-        this.headerP = undefined
-        throw e
-      })
+  /**
+   * Parse the header, or join the parse already running.
+   *
+   * The header is parsed once for the life of this object and every query goes
+   * through it — `getSeqId` awaits it before anything else — so it is a read
+   * shared between queries, and the third place in this file where a
+   * cancellation could leak from the query that asked for it to a query that
+   * did not. `getHeaderPre` threads `opts` into both the index parse and the
+   * BAM read, so without this the first query to arrive owns a read every other
+   * query depends on: when it pans away, every concurrent query fails with its
+   * abort even though its own signal is untouched.
+   *
+   * Same bounded retry as `IndexFile.parse`, for the same reason — the header
+   * is parsed once, so there is no repeated waste to recover — and bounded at
+   * one attempt so the pathological case is a duplicate parse rather than a
+   * recursion whose depth depends on how the aborts interleave.
+   */
+  async getHeader(
+    opts?: BaseOpts,
+    retried = false,
+  ): Promise<Awaited<ReturnType<BamFile<T>['getHeaderPre']>>> {
+    throwIfAborted(opts?.signal)
+    const pending = this.headerP
+    if (!pending) {
+      return this.startHeaderParse(opts)
     }
-    return this.headerP
+
+    // read before awaiting: the owner is forgotten as soon as the parse settles
+    const ownerSignal = this.headerSignal
+    try {
+      return await pending
+    } catch (e) {
+      if (retried || !ownerSignal?.aborted || opts?.signal?.aborted) {
+        throw e
+      }
+      return this.getHeader(opts, true)
+    }
+  }
+
+  private startHeaderParse(opts?: BaseOpts) {
+    const pending = this.getHeaderPre(opts)
+    this.headerP = pending
+    this.headerSignal = opts?.signal
+    // Drop a rejection rather than keeping it, so one transient failure does not
+    // poison the header for the lifetime of the file. Identity-checked so a
+    // retry started after this settles is not cleared by the attempt it
+    // replaced.
+    pending.then(
+      () => {
+        if (this.headerP === pending) {
+          this.headerSignal = undefined
+        }
+      },
+      () => {
+        if (this.headerP === pending) {
+          this.headerP = undefined
+          this.headerSignal = undefined
+        }
+      },
+    )
+    return pending
   }
 
   async getHeaderText(opts: BaseOpts = {}) {

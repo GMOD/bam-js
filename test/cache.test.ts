@@ -623,8 +623,10 @@ test('lowering maxBytes evicts immediately', async () => {
 })
 
 // A filehandle that honours the signal — LocalFile does not — and can park its
-// readFile, so the shared .bai parse can be caught mid-flight.
-class GatedIndexFile implements GenericFilehandle {
+// reads, so a shared parse can be caught mid-flight. Gates `read` as well as
+// `readFile`, since the header parse goes through the former and the index
+// parse through the latter.
+class GatedFile implements GenericFilehandle {
   reads = 0
   private inner: LocalFile
   private waiting: (() => void)[] = []
@@ -659,7 +661,17 @@ class GatedIndexFile implements GenericFilehandle {
     options?: BufferEncoding | FilehandleOptions,
   ): Promise<Uint8Array<ArrayBuffer> | string> {
     this.reads++
-    const signal = typeof options === 'string' ? undefined : options?.signal
+    await this.gate(typeof options === 'string' ? undefined : options?.signal)
+    return this.inner.readFile()
+  }
+
+  async read(length: number, position: number, opts?: FilehandleOptions) {
+    this.reads++
+    await this.gate(opts?.signal)
+    return this.inner.read(length, position)
+  }
+
+  private async gate(signal?: AbortSignal) {
     if (this.held) {
       await new Promise<void>((resolve, reject) => {
         this.waiting.push(resolve)
@@ -668,11 +680,6 @@ class GatedIndexFile implements GenericFilehandle {
         })
       })
     }
-    return this.inner.readFile()
-  }
-
-  read(length: number, position: number) {
-    return this.inner.read(length, position)
   }
   stat() {
     return this.inner.stat()
@@ -687,7 +694,7 @@ class GatedIndexFile implements GenericFilehandle {
 // BAI directly rather than through BamFile, because getHeader memoizes on the
 // first caller's opts too and would shadow this — see the note in IndexFile.
 test('a bystander survives the .bai parse owner aborting', async () => {
-  const fh = new GatedIndexFile('test/data/volvox-sorted.bam.bai')
+  const fh = new GatedFile('test/data/volvox-sorted.bam.bai')
   const bai = new BAI({ filehandle: fh })
 
   const starter = new AbortController()
@@ -716,7 +723,7 @@ test('a bystander survives the .bai parse owner aborting', async () => {
 // two, the retrying caller always starts its own parse and never re-enters the
 // join path at all.
 test('the .bai parse retry is bounded at one attempt', async () => {
-  const fh = new GatedIndexFile('test/data/volvox-sorted.bam.bai')
+  const fh = new GatedFile('test/data/volvox-sorted.bam.bai')
   const bai = new BAI({ filehandle: fh })
 
   const a = new AbortController()
@@ -769,4 +776,72 @@ test('a signal without throwIfAborted still cancels', async () => {
   // to catch.
   expect(e).toBeInstanceOf(DOMException)
   expect((e as DOMException).name).toBe('AbortError')
+})
+
+// The header is parsed once for the life of the object and every query awaits
+// it — getSeqId goes through it before anything else — so it is the third
+// shared read in this file, after the chunk reads and the index parse.
+test('a bystander survives the getHeader owner aborting', async () => {
+  const fh = new GatedFile('test/data/volvox-sorted.bam')
+  const bam = new BamFile({
+    bamFilehandle: fh,
+    baiFilehandle: new LocalFile('test/data/volvox-sorted.bam.bai'),
+  })
+
+  const starter = new AbortController()
+  const bystander = new AbortController()
+
+  const starterP = bam.getHeader({ signal: starter.signal })
+  const bystanderP = bam.getHeader({ signal: bystander.signal })
+  void Promise.allSettled([starterP, bystanderP])
+  await tick()
+
+  starter.abort()
+  fh.open()
+
+  await expect(starterP).rejects.toThrow(/abort/i)
+  // The bystander never asked to be cancelled. Before this was handled it
+  // inherited the starter's abort, and since every query awaits the header,
+  // one pan failed every concurrent query outright.
+  expect(bystander.signal.aborted).toBe(false)
+  await expect(bystanderP).resolves.toBeDefined()
+})
+
+// Three callers, because the bound only bites when a caller that has already
+// retried joins someone else's retry and that is abandoned too. See the
+// equivalent test for the .bai parse.
+test('the getHeader retry is bounded at one attempt', async () => {
+  const fh = new GatedFile('test/data/volvox-sorted.bam')
+  const bam = new BamFile({
+    bamFilehandle: fh,
+    baiFilehandle: new LocalFile('test/data/volvox-sorted.bam.bai'),
+  })
+
+  const a = new AbortController()
+  const b = new AbortController()
+  const c = new AbortController()
+
+  // a owns the first parse; b and c join it, b's handler ahead of c's
+  const aP = bam.getHeader({ signal: a.signal })
+  const bP = bam.getHeader({ signal: b.signal })
+  const cP = bam.getHeader({ signal: c.signal })
+  void Promise.allSettled([aP, bP, cP])
+  await tick()
+  const readsAfterFirst = fh.reads
+
+  // a gives up: b retries and becomes the owner, and c joins that retry
+  a.abort()
+  await tick()
+  expect(fh.reads).toBeGreaterThan(readsAfterFirst)
+  const readsAfterRetry = fh.reads
+
+  // b gives up too. c has spent its one retry, so it propagates rather than
+  // starting a third parse.
+  b.abort()
+  fh.open()
+
+  await expect(aP).rejects.toThrow(/abort/i)
+  await expect(bP).rejects.toThrow(/abort/i)
+  await expect(cP).rejects.toThrow(/abort/i)
+  expect(fh.reads).toBe(readsAfterRetry)
 })
