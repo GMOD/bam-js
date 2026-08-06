@@ -1,7 +1,12 @@
 import { LocalFile } from 'generic-filehandle2'
 import { expect, test, vi } from 'vitest'
 
-import { BAI, BamFile } from '../src/index.ts'
+import {
+  BAI,
+  BamFile,
+  DEFAULT_MAX_CACHE_BYTES,
+  HtsgetFile,
+} from '../src/index.ts'
 
 import type {
   BufferEncoding,
@@ -937,4 +942,19 @@ test('cacheIdleTimeoutMs: 0 keeps chunks until the budget evicts them', async ()
   } finally {
     vi.useRealTimers()
   }
+})
+
+// HtsgetFile extends BamFile but has its own constructor, so it only gets the
+// cache options if it forwards them. It did not — an htsget consumer had no way
+// to reach either one.
+test('HtsgetFile forwards the cache options to BamFile', () => {
+  const plain = new HtsgetFile({ baseUrl: 'http://example.com', trackId: 't' })
+  expect(plain.chunkFeatureCache.maxSize).toBe(DEFAULT_MAX_CACHE_BYTES)
+
+  const tuned = new HtsgetFile({
+    baseUrl: 'http://example.com',
+    trackId: 't',
+    maxCacheBytes: 1234,
+  })
+  expect(tuned.chunkFeatureCache.maxSize).toBe(1234)
 })

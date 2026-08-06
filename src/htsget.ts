@@ -132,8 +132,17 @@ export default class HtsgetFile<
      * `headers` field, which is applied either way.
      */
     fetch?: Fetcher
+    /** see {@link BamFile}; htsget caches parsed chunks the same way */
+    maxCacheBytes?: number
+    /** see {@link BamFile}; htsget caches parsed chunks the same way */
+    cacheIdleTimeoutMs?: number
   }) {
-    super({ htsget: true, recordClass: args.recordClass })
+    super({
+      htsget: true,
+      recordClass: args.recordClass,
+      maxCacheBytes: args.maxCacheBytes,
+      cacheIdleTimeoutMs: args.cacheIdleTimeoutMs,
+    })
     this.baseUrl = args.baseUrl
     this.trackId = args.trackId
     this.fetchFn = args.fetch ?? ((input, init) => fetch(input, init))
