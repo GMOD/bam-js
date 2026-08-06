@@ -1,3 +1,30 @@
+## [8.0.0](https://github.com/GMOD/bam-js/compare/v7.9.1...v8.0.0) (2026-08-06)
+
+### Bug Fixes
+
+- A bystander no longer inherits the getHeader owner's abort
+
+### Chores
+
+- Let npm publish stop auto-correcting repository.url
+- Exempt our own packages from the release quarantine
+- Bump pnpm/action-setup to v6.0.10
+- Run the test suite as `pnpm test --run`
+
+### Documentation
+
+- ADR 0013 — the chunk cache stays on the lru eviction policy
+
+### Refactoring
+
+- Align the shared-read abort plumbing with @gmod/tabix
+- **BREAKING** Use @gmod/shared-read-cache for the chunk cache
+
+### Tests
+
+- Wait on the parked header read instead of a tick
+- Size the suite timeout to the work the tests do
+
 ## [7.9.1](https://github.com/GMOD/bam-js/compare/v7.9.0...v7.9.1) (2026-08-05)
 
 ### Bug Fixes
