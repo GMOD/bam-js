@@ -31,14 +31,14 @@ test('chunk cache stays within its byte budget', async () => {
   }
 
   const cache = bam.chunkFeatureCache
-  expect(cache.maxBytes).toBe(maxCacheBytes)
+  expect(cache.maxSize).toBe(maxCacheBytes)
   // more than one entry, i.e. the eviction loop rather than the escape hatch
   expect(cache.size).toBeGreaterThan(1)
-  expect(cache.byteSize).toBeLessThanOrEqual(maxCacheBytes)
+  expect(cache.totalSize).toBeLessThanOrEqual(maxCacheBytes)
 
   bam.clearFeatureCache()
   expect(cache.size).toBe(0)
-  expect(cache.byteSize).toBe(0)
+  expect(cache.totalSize).toBe(0)
 })
 
 // A chunk bigger than the whole budget is still cached: the caller needs it for
@@ -50,7 +50,7 @@ test('a single over-budget chunk is still cached', async () => {
 
   expect(records.length).toBeGreaterThan(0)
   expect(bam.chunkFeatureCache.size).toBe(1)
-  expect(bam.chunkFeatureCache.byteSize).toBeGreaterThan(1)
+  expect(bam.chunkFeatureCache.totalSize).toBeGreaterThan(1)
 })
 
 test('repeated queries over the same region hit the cache', async () => {
@@ -58,13 +58,13 @@ test('repeated queries over the same region hit the cache', async () => {
   await bam.getHeader()
 
   const first = await bam.getRecordsForRange('ctgA', 1, 5000)
-  const bytesAfterFirst = bam.chunkFeatureCache.byteSize
+  const bytesAfterFirst = bam.chunkFeatureCache.totalSize
   const second = await bam.getRecordsForRange('ctgA', 1, 5000)
 
   expect(second.length).toBe(first.length)
   // same records, not re-parsed copies
   expect(second[0]).toBe(first[0])
-  expect(bam.chunkFeatureCache.byteSize).toBe(bytesAfterFirst)
+  expect(bam.chunkFeatureCache.totalSize).toBe(bytesAfterFirst)
 })
 
 // Counts how many times a chunk is actually read+decompressed, by wrapping the
@@ -163,11 +163,11 @@ test('panning within the same chunks re-uses parsed records', async () => {
   await bam.getHeader()
 
   await bam.getRecordsForRange('22', 16_450_000, 16_490_000)
-  const bytesAfterFirst = bam.chunkFeatureCache.byteSize
+  const bytesAfterFirst = bam.chunkFeatureCache.totalSize
   const panned = await bam.getRecordsForRange('22', 16_460_000, 16_500_000)
 
   expect(panned.length).toBeGreaterThan(0)
-  expect(bam.chunkFeatureCache.byteSize).toBe(bytesAfterFirst)
+  expect(bam.chunkFeatureCache.totalSize).toBe(bytesAfterFirst)
 })
 
 // A genome browser renders a row of adjacent blocks concurrently, and those
@@ -605,7 +605,7 @@ test('a genuine read failure is not retried by waiters', async () => {
 // a caller sheds memory under pressure. It has to take effect immediately: as
 // a plain field it did nothing until the next chunk read happened to run the
 // eviction loop, which on an idle viewer is never.
-test('lowering maxBytes evicts immediately', async () => {
+test('lowering maxSize evicts immediately', async () => {
   const bam = new BamFile({ bamPath: 'test/data/out.bam' })
   await bam.getHeader()
   for (let i = 0; i < 12; i++) {
@@ -616,8 +616,8 @@ test('lowering maxBytes evicts immediately', async () => {
   const cache = bam.chunkFeatureCache
   expect(cache.size).toBeGreaterThan(1)
 
-  cache.maxBytes = 1024
-  expect(cache.maxBytes).toBe(1024)
+  cache.maxSize = 1024
+  expect(cache.maxSize).toBe(1024)
   // the size > 1 escape hatch keeps the last chunk whatever the budget
   expect(cache.size).toBe(1)
 })

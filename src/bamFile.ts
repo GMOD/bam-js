@@ -1,4 +1,5 @@
 import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
+import { SharedReadCache } from '@gmod/shared-read-cache'
 import crc32 from 'crc/calculators/crc32'
 import { LocalFile, RemoteFile } from 'generic-filehandle2'
 
@@ -63,20 +64,6 @@ interface ChunkEntry<T> {
   features: T[]
 }
 
-interface InFlightChunk<T> {
-  promise: Promise<ChunkEntry<T>>
-  // Signals of the callers still waiting on this read. The read is cancelled
-  // only once every one of them has given up — see joinChunkRead and ADR 0007.
-  signals: Set<AbortSignal>
-  // true once a caller joins without a signal, which pins the read
-  pinned: boolean
-  // aborts when every caller has given up. what the read actually runs under
-  controller: AbortController
-  // aborted to take this read's listeners back off its callers' signals
-  dispose: AbortController
-  settled: boolean
-}
-
 /**
  * Whether a chunk's first record already lies past `chrId:..-max`, which means
  * every later chunk does too and none of them need to be read.
@@ -127,80 +114,6 @@ export const DEFAULT_MAX_CACHE_BYTES = 100 * 1024 * 1024
 // nothing on the transport that matters and only widens peak memory.
 const MAX_CONCURRENT_CHUNK_READS = 6
 
-class ChunkFeatureCache<T> {
-  private _maxBytes: number
-  private entries = new Map<string, ChunkEntry<T>>()
-  private bytes = 0
-
-  constructor(maxBytes: number) {
-    this._maxBytes = maxBytes
-  }
-
-  get maxBytes() {
-    return this._maxBytes
-  }
-
-  // Accessor rather than a plain field so lowering the budget frees memory now.
-  // As a field, a caller trimming the cache under memory pressure got nothing
-  // back until the next chunk read happened to call set().
-  set maxBytes(maxBytes: number) {
-    this._maxBytes = maxBytes
-    this.evict()
-  }
-
-  get size() {
-    return this.entries.size
-  }
-
-  get byteSize() {
-    return this.bytes
-  }
-
-  get(key: string) {
-    const entry = this.entries.get(key)
-    if (entry) {
-      // re-insert so Map iteration order stays least-recently-used first
-      this.entries.delete(key)
-      this.entries.set(key, entry)
-    }
-    return entry
-  }
-
-  set(key: string, entry: ChunkEntry<T>) {
-    this.delete(key)
-    this.entries.set(key, entry)
-    this.bytes += entry.bytes
-    this.evict()
-  }
-
-  // Evict from the least-recently-used end. The size > 1 guard means a single
-  // chunk larger than the whole budget is still kept: the caller needs it for
-  // the query in flight, and dropping it would only force a re-decompress.
-  private evict() {
-    const lru = this.entries.keys()
-    while (this.bytes > this._maxBytes && this.entries.size > 1) {
-      this.delete(lru.next().value!)
-    }
-  }
-
-  delete(key: string) {
-    const entry = this.entries.get(key)
-    if (entry) {
-      this.entries.delete(key)
-      this.bytes -= entry.bytes
-    }
-  }
-
-  clear() {
-    this.entries.clear()
-    this.bytes = 0
-  }
-
-  [Symbol.iterator]() {
-    return this.entries[Symbol.iterator]()
-  }
-}
-
 export default class BamFile<T extends BamRecordLike = BAMFeature> {
   public renameRefSeq: (a: string) => string
   public bam: GenericFilehandle
@@ -218,13 +131,10 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
    */
   private headerSignal?: AbortSignal
 
-  // Cache for parsed features by chunk, bounded by decompressed bytes
-  public chunkFeatureCache: ChunkFeatureCache<T>
-
-  // Chunks currently being read, so concurrent queries share one decompress
-  // instead of racing. Entries live only until the read settles; the resolved
-  // features land in chunkFeatureCache.
-  private inFlightChunks = new Map<string, InFlightChunk<T>>()
+  // Parsed features by chunk, bounded by decompressed bytes. Also the
+  // in-flight map: concurrent queries for the same chunk share one read rather
+  // than racing to decompress it twice.
+  public chunkFeatureCache: SharedReadCache<Chunk, ChunkEntry<T>>
 
   private RecordClass: BamRecordClass<T>
 
@@ -260,7 +170,15 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   }) {
     this.renameRefSeq = renameRefSeqs
     this.RecordClass = (recordClass ?? BAMFeature) as BamRecordClass<T>
-    this.chunkFeatureCache = new ChunkFeatureCache<T>(maxCacheBytes)
+    this.chunkFeatureCache = new SharedReadCache<Chunk, ChunkEntry<T>>({
+      maxSize: maxCacheBytes,
+      // decompressed bytes, not entry count: parsed records are views into
+      // their chunk's decompressed buffer, so a cached entry pins that whole
+      // buffer and entry count says nothing about memory
+      sizeOf: entry => entry.bytes,
+      cacheKey: chunkCacheKey,
+      fill: (chunk, signal) => this._readChunkFeatures(chunk, { signal }),
+    })
 
     const bamFh = resolveFilehandle(bamFilehandle, bamPath, bamUrl)
     if (bamFh) {
@@ -471,89 +389,6 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     return this._fetchChunkFeatures(chunks, chrId, min, max, opts)
   }
 
-  // Read a chunk, publish it to the cache, and keep the in-flight promise
-  // discoverable while it runs.
-  //
-  // The read runs under this entry's own controller rather than any one
-  // caller's signal, because the read is shared: it must survive until every
-  // caller waiting on it has given up. joinChunkRead is what registers them.
-  private _startChunkRead(cacheKey: string, chunk: Chunk) {
-    const controller = new AbortController()
-    const promise = this._readChunkFeatures(chunk, {
-      signal: controller.signal,
-    }).then(entry => {
-      this.chunkFeatureCache.set(cacheKey, entry)
-      return entry
-    })
-    const inFlight: InFlightChunk<T> = {
-      promise,
-      signals: new Set(),
-      pinned: false,
-      controller,
-      dispose: new AbortController(),
-      settled: false,
-    }
-    this.inFlightChunks.set(cacheKey, inFlight)
-    // `.then(f, f)` rather than `.finally(f)` so the handler's own promise never
-    // carries an unhandled rejection.
-    const clear = () => {
-      inFlight.settled = true
-      // nothing reads these once the read has settled, and holding them would
-      // pin each caller's AbortController behind this entry
-      inFlight.dispose.abort()
-      inFlight.signals.clear()
-      // only clear our own entry: a later read for this chunk may have replaced it
-      if (this.inFlightChunks.get(cacheKey) === inFlight) {
-        this.inFlightChunks.delete(cacheKey)
-      }
-    }
-    promise.then(clear, clear)
-    return inFlight
-  }
-
-  // Register a caller's interest, so the read survives until that caller has
-  // given up too.
-  //
-  // A caller with no signal cannot give up, so it pins the read: there is no
-  // longer any set of aborts that should stop it. That is the honest reading of
-  // a caller that never asked to be cancellable, and it means one signal-free
-  // query makes that chunk's read uncancellable for everyone joined to it.
-  private joinChunkRead(inFlight: InFlightChunk<T>, signal?: AbortSignal) {
-    if (signal === undefined) {
-      inFlight.pinned = true
-    } else if (signal.aborted) {
-      // A caller that has already given up is not a waiter, and must not be
-      // counted as one: an `abort` listener never fires on a signal that
-      // aborted before it was added, so nothing would ever take this signal
-      // back out of the set. The count would never reach zero and the read
-      // would be uncancellable for everyone joined to it, silently.
-      //
-      // `_cachedChunkFeatures` rejects such a caller before it reaches here,
-      // with no `await` in between, so this is unreachable today. It is here
-      // because this is the bug that shipped, and an invariant that fails this
-      // quietly should not rest on a check twenty lines away. `@gmod/cram`
-      // guards the same spot for the same reason; see its ADR 0003.
-      if (!inFlight.pinned && inFlight.signals.size === 0) {
-        inFlight.controller.abort(signal.reason)
-      }
-    } else if (!inFlight.signals.has(signal)) {
-      // guarded so one signal joining twice — a viewAsPairs query reaching the
-      // same chunk for a read and for its mate — does not add two listeners
-      inFlight.signals.add(signal)
-      signal.addEventListener(
-        'abort',
-        () => {
-          inFlight.signals.delete(signal)
-          if (!inFlight.pinned && inFlight.signals.size === 0) {
-            inFlight.controller.abort(signal.reason)
-          }
-        },
-        // `once` covers the abort firing; `dispose` covers it never firing
-        { once: true, signal: inFlight.dispose.signal },
-      )
-    }
-  }
-
   // Parsed records for a chunk, reading and decompressing it only on a miss.
   // Every path that wants a chunk's features goes through here — mate lookups
   // included, since a viewAsPairs query revisits the same mate chunks each time
@@ -568,56 +403,11 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     chunk: Chunk,
     opts: BaseOpts,
   ): Promise<T[]> {
-    // Before anything else, including the cache hit. A caller reaches here with
-    // a signal that has already fired on the ordinary pan — the abort lands
-    // while blocksForRange is still reading the index, and nothing between
-    // there and here looks at it, since bai.ts and csi.ts never read the
-    // signal. Such a caller must not start a read it has no interest in, and
-    // must not be registered as a waiter on someone else's: see joinChunkRead.
-    // @gmod/cram checks in exactly this position, in SliceRecordCache.getOrFill.
-    throwIfAborted(opts.signal)
-
-    const cacheKey = chunkCacheKey(chunk)
-    const cached = this.chunkFeatureCache.get(cacheKey)
-    if (cached) {
-      return cached.features
-    }
-
-    // Join a read already running for this chunk rather than decompressing it a
-    // second time. jbrowse fetches a row of adjacent blocks concurrently and
-    // they collapse onto very few chunk keys, so without this a query pays for
-    // the same inflate several times over — the dominant cost of a cold query
-    // (ADR 0003).
-    let pending = this.inFlightChunks.get(cacheKey)
-    // A read every caller has abandoned is on its way out but may not have
-    // noticed yet. Start a fresh one rather than joining one already doomed.
-    if (pending?.controller.signal.aborted && !pending.settled) {
-      if (this.inFlightChunks.get(cacheKey) === pending) {
-        this.inFlightChunks.delete(cacheKey)
-      }
-      pending = undefined
-    }
-    pending ??= this._startChunkRead(cacheKey, chunk)
-    // Only a read still running has anything to cancel. Joining a settled one
-    // would add this caller to a set nothing will ever take it out of, since
-    // the entry drops its abort listeners when it settles.
-    if (!pending.settled) {
-      this.joinChunkRead(pending, opts.signal)
-    }
-
-    try {
-      const entry = await pending.promise
-      // the read finished, but this caller gave up while waiting for it
-      throwIfAborted(opts.signal)
-      return entry.features
-    } catch (e) {
-      // Prefer this caller's own cancellation to whatever the shared read
-      // reported. If we asked to stop, that is the answer we want — and when
-      // the read itself was cancelled it is because we, and everyone else,
-      // asked it to.
-      throwIfAborted(opts.signal)
-      throw e
-    }
+    // The cache does the rest: one read per chunk shared by every caller that
+    // asks for it while it is in flight, cancelled only once every one of them
+    // has given up (ADR 0007), and bounded by decompressed bytes.
+    const entry = await this.chunkFeatureCache.get(chunk, opts.signal)
+    return entry.features
   }
 
   private async _fetchChunkFeatures(
