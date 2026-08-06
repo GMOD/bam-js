@@ -626,6 +626,9 @@ test('lowering maxBytes evicts immediately', async () => {
 // reads, so a shared parse can be caught mid-flight. Gates `read` as well as
 // `readFile`, since the header parse goes through the former and the index
 // parse through the latter.
+//
+// SYNC: ~/src/gmod/tabix-js/test/indexParseAbort.test.ts GatedFile — same
+// harness.
 class GatedFile implements GenericFilehandle {
   reads = 0
   private inner: LocalFile
@@ -669,6 +672,22 @@ class GatedFile implements GenericFilehandle {
     this.reads++
     await this.gate(opts?.signal)
     return this.inner.read(length, position)
+  }
+
+  /**
+   * Resolves once at least `n` reads have been issued.
+   *
+   * The reason the header tests wait on this rather than on a `setTimeout(0)`:
+   * a read is only parked once the code under test reaches it, and getting
+   * there runs real `LocalFile` I/O for the index parse first. One macrotask is
+   * not a bound on that, so waiting a tick and hoping raced — with the index
+   * warm the whole header parse finished before the abort landed, and the
+   * assertion that the owner rejects failed.
+   */
+  async waitForReads(n: number) {
+    while (this.reads < n) {
+      await new Promise(resolve => setTimeout(resolve, 0))
+    }
   }
 
   private async gate(signal?: AbortSignal) {
@@ -794,7 +813,8 @@ test('a bystander survives the getHeader owner aborting', async () => {
   const starterP = bam.getHeader({ signal: starter.signal })
   const bystanderP = bam.getHeader({ signal: bystander.signal })
   void Promise.allSettled([starterP, bystanderP])
-  await tick()
+  // the header read itself, parked — not a tick and a hope
+  await fh.waitForReads(1)
 
   starter.abort()
   fh.open()
@@ -826,13 +846,12 @@ test('the getHeader retry is bounded at one attempt', async () => {
   const bP = bam.getHeader({ signal: b.signal })
   const cP = bam.getHeader({ signal: c.signal })
   void Promise.allSettled([aP, bP, cP])
-  await tick()
+  await fh.waitForReads(1)
   const readsAfterFirst = fh.reads
 
   // a gives up: b retries and becomes the owner, and c joins that retry
   a.abort()
-  await tick()
-  expect(fh.reads).toBeGreaterThan(readsAfterFirst)
+  await fh.waitForReads(readsAfterFirst + 1)
   const readsAfterRetry = fh.reads
 
   // b gives up too. c has spent its one retry, so it propagates rather than
