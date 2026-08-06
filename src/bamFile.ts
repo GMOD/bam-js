@@ -385,6 +385,9 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
    * is parsed once, so there is no repeated waste to recover — and bounded at
    * one attempt so the pathological case is a duplicate parse rather than a
    * recursion whose depth depends on how the aborts interleave.
+   *
+   * SYNC: ~/src/gmod/tabix-js/src/tabixIndexedFile.ts getParsedHeader — same
+   * shape for the same reason.
    */
   async getHeader(
     opts?: BaseOpts,
@@ -413,9 +416,9 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     this.headerP = pending
     this.headerSignal = opts?.signal
     // Drop a rejection rather than keeping it, so one transient failure does not
-    // poison the header for the lifetime of the file. Identity-checked so a
-    // retry started after this settles is not cleared by the attempt it
-    // replaced.
+    // poison the header for the lifetime of the file. Both branches are
+    // identity-checked so a retry started after this settles is not cleared by
+    // the attempt it already replaced.
     pending.then(
       () => {
         if (this.headerP === pending) {

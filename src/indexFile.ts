@@ -53,14 +53,14 @@ export default abstract class IndexFile<
   public filehandle: GenericFilehandle
   public renameRefSeq: (s: string) => string
 
-  private setupP?: Promise<TParsed>
+  private parseP?: Promise<TParsed>
   /**
-   * The signal `setupP` was started under, while it is still in flight. The
+   * The signal `parseP` was started under, while it is still in flight. The
    * index is parsed once and shared by every query against the file, so without
    * this the first query to arrive would own a read all the others depend on —
    * see {@link parse}.
    */
-  private setupSignal?: AbortSignal
+  private parseSignal?: AbortSignal
 
   constructor({
     filehandle,
@@ -128,6 +128,8 @@ export default abstract class IndexFile<
     return optimizeChunks(chunks, this.getLowestChunk(ba, min))
   }
 
+  // SYNC: ~/src/gmod/tabix-js/src/indexFile.ts parse — same owner-signal
+  // tracking and one-attempt retry, and the same reasoning below.
   /**
    * Parse the index, or join the parse already running.
    *
@@ -153,13 +155,13 @@ export default abstract class IndexFile<
    */
   async parse(opts: BaseOpts = {}, retried = false): Promise<TParsed> {
     throwIfAborted(opts.signal)
-    const pending = this.setupP
+    const pending = this.parseP
     if (!pending) {
       return this.startParse(opts)
     }
 
     // read before awaiting: the owner is forgotten as soon as the parse settles
-    const ownerSignal = this.setupSignal
+    const ownerSignal = this.parseSignal
     try {
       return await pending
     } catch (e) {
@@ -172,22 +174,22 @@ export default abstract class IndexFile<
 
   private startParse(opts: BaseOpts) {
     const pending = this._parse(opts)
-    this.setupP = pending
-    this.setupSignal = opts.signal
+    this.parseP = pending
+    this.parseSignal = opts.signal
     // Drop a rejection rather than keeping it, so one transient failure does not
     // poison the index for the lifetime of the file. Both branches are
     // identity-checked so a retry started after this settles is not cleared by
     // the attempt it already replaced.
     pending.then(
       () => {
-        if (this.setupP === pending) {
-          this.setupSignal = undefined
+        if (this.parseP === pending) {
+          this.parseSignal = undefined
         }
       },
       () => {
-        if (this.setupP === pending) {
-          this.setupP = undefined
-          this.setupSignal = undefined
+        if (this.parseP === pending) {
+          this.parseP = undefined
+          this.parseSignal = undefined
         }
       },
     )
