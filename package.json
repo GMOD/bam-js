@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/GMOD/bam-js.git"
+    "url": "git+https://github.com/GMOD/bam-js.git"
   },
   "type": "module",
   "sideEffects": false,
