@@ -1,3 +1,9 @@
+## [8.1.0](https://github.com/GMOD/bam-js/compare/v8.0.0...v8.1.0) (2026-08-06)
+
+### Performance Improvements
+
+- Size the chunk cache to hold several queries, not one
+
 ## [8.0.0](https://github.com/GMOD/bam-js/compare/v7.9.1...v8.0.0) (2026-08-06)
 
 ### Bug Fixes
