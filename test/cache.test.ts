@@ -738,45 +738,45 @@ test('a bystander survives the .bai parse owner aborting', async () => {
   // inherited the starter's abort, so one pan failed every concurrent query.
   expect(bystander.signal.aborted).toBe(false)
   expect((await bystanderP).firstDataLine).toBeDefined()
-  // the retry is bounded at one attempt, so the parse ran exactly twice
-  expect(fh.reads).toBe(2)
+  // ONE read: the parse the bystander joined is not cancelled by the starter's
+  // abort, so there is nothing to start over. This used to be 2, because the
+  // parse ran under the starter's own signal and a bystander could only recover
+  // by re-reading the whole index.
+  expect(fh.reads).toBe(1)
 })
 
-// Takes three callers, because the bound only bites when a caller that has
-// already retried joins someone else's retry and *that* is abandoned too. With
-// two, the retrying caller always starts its own parse and never re-enters the
-// join path at all.
-test('the .bai parse retry is bounded at one attempt', async () => {
+// The other half of the rule: a parse nobody is waiting on any more IS
+// cancelled, rather than left running to fill a cache no caller will read.
+test('the .bai parse is cancelled once every caller has given up', async () => {
   const fh = new GatedFile('test/data/volvox-sorted.bam.bai')
   const bai = new BAI({ filehandle: fh })
 
   const a = new AbortController()
   const b = new AbortController()
-  const c = new AbortController()
 
-  // a owns read 1; b and c join it, b's handler registered ahead of c's
   const aP = bai.parse({ signal: a.signal })
   const bP = bai.parse({ signal: b.signal })
-  const cP = bai.parse({ signal: c.signal })
-  void Promise.allSettled([aP, bP, cP])
+  void Promise.allSettled([aP, bP])
   await tick()
   expect(fh.reads).toBe(1)
 
-  // a gives up: b retries first and becomes the owner of read 2, and c, running
-  // right behind it, joins that retry rather than starting a third
+  // a alone is not everyone: the read is neither cancelled nor restarted, and
+  // `aP` is still pending — a caller learns of its own abort when the read it
+  // was waiting on settles, not the moment it aborts
   a.abort()
   await tick()
-  expect(fh.reads).toBe(2)
+  expect(fh.reads).toBe(1)
 
-  // now b gives up too. c has already spent its one retry, so it propagates
-  // rather than going round again — a third round would be a recursion whose
-  // depth is set by how the aborts happen to interleave.
+  // ...and now it is. The read is never released — the abort is what unblocks
+  // it, so this test hanging is the failure mode.
   b.abort()
-  fh.open()
-
   await expect(aP).rejects.toThrow(/abort/i)
   await expect(bP).rejects.toThrow(/abort/i)
-  await expect(cP).rejects.toThrow(/abort/i)
+  expect(fh.reads).toBe(1)
+
+  // the rejection was dropped rather than cached, so a later caller starts over
+  fh.open()
+  expect((await bai.parse()).firstDataLine).toBeDefined()
   expect(fh.reads).toBe(2)
 })
 
@@ -800,6 +800,21 @@ test('a signal without throwIfAborted still cancels', async () => {
   // to catch.
   expect(e).toBeInstanceOf(DOMException)
   expect((e as DOMException).name).toBe('AbortError')
+})
+
+// The case the test above does not cover, and the one that was broken: a
+// duck-typed signal that has NOT aborted gets past every throwIfAborted and
+// reaches the point where the cache subscribes to it, which on a bare
+// `{ aborted }` was a TypeError. Every query passing one failed outright with
+// "signal.addEventListener is not a function" rather than returning records —
+// on the first chunk read, so no amount of the data coming back saved it.
+test('a duck-typed signal that has not aborted still returns records', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  const signal = { aborted: false } as AbortSignal
+
+  await expect(bam.getHeader({ signal })).resolves.toBeDefined()
+  const records = await bam.getRecordsForRange('ctgA', 1, 5000, { signal })
+  expect(records.length).toBeGreaterThan(0)
 })
 
 // The header is parsed once for the life of the object and every query awaits
@@ -830,12 +845,13 @@ test('a bystander survives the getHeader owner aborting', async () => {
   // one pan failed every concurrent query outright.
   expect(bystander.signal.aborted).toBe(false)
   await expect(bystanderP).resolves.toBeDefined()
+  // one read, not a re-parse: see the equivalent .bai assertion
+  expect(fh.reads).toBe(1)
 })
 
-// Three callers, because the bound only bites when a caller that has already
-// retried joins someone else's retry and that is abandoned too. See the
-// equivalent test for the .bai parse.
-test('the getHeader retry is bounded at one attempt', async () => {
+// The other half of the rule, as for the .bai parse: a header parse nobody is
+// waiting on is cancelled rather than run to completion.
+test('the header parse is cancelled once every caller has given up', async () => {
   const fh = new GatedFile('test/data/volvox-sorted.bam')
   const bam = new BamFile({
     bamFilehandle: fh,
@@ -844,30 +860,20 @@ test('the getHeader retry is bounded at one attempt', async () => {
 
   const a = new AbortController()
   const b = new AbortController()
-  const c = new AbortController()
 
-  // a owns the first parse; b and c join it, b's handler ahead of c's
   const aP = bam.getHeader({ signal: a.signal })
   const bP = bam.getHeader({ signal: b.signal })
-  const cP = bam.getHeader({ signal: c.signal })
-  void Promise.allSettled([aP, bP, cP])
+  void Promise.allSettled([aP, bP])
   await fh.waitForReads(1)
-  const readsAfterFirst = fh.reads
 
-  // a gives up: b retries and becomes the owner, and c joins that retry
   a.abort()
-  await fh.waitForReads(readsAfterFirst + 1)
-  const readsAfterRetry = fh.reads
+  await tick()
+  expect(fh.reads).toBe(1)
 
-  // b gives up too. c has spent its one retry, so it propagates rather than
-  // starting a third parse.
   b.abort()
-  fh.open()
-
   await expect(aP).rejects.toThrow(/abort/i)
   await expect(bP).rejects.toThrow(/abort/i)
-  await expect(cP).rejects.toThrow(/abort/i)
-  expect(fh.reads).toBe(readsAfterRetry)
+  expect(fh.reads).toBe(1)
 })
 
 // The budget is enforced when a read settles, so an idle cache stays wherever

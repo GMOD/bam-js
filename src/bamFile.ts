@@ -151,14 +151,15 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   public indexToChr?: { refName: string; length: number }[]
   public index?: BAI | CSI
   public htsget = false
-  public headerP?: ReturnType<BamFile<T>['getHeaderPre']>
+
   /**
-   * The signal `headerP` was started under, while it is still in flight. The
-   * header is parsed once and every query awaits it, so without this the first
-   * query to arrive would own a read all the others depend on — see
-   * {@link getHeader}.
+   * The parsed header, as a shared read — see {@link getHeader}. One entry,
+   * never evicted, which is what a memo is.
    */
-  private headerSignal?: AbortSignal
+  private headerCache = new SharedReadCache<
+    string,
+    ReturnType<typeof parseHeaderText>
+  >({})
 
   // Parsed features by chunk, bounded by decompressed bytes. Also the
   // in-flight map: concurrent queries for the same chunk share one read rather
@@ -200,12 +201,20 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
      * {@link DEFAULT_MAX_CACHE_BYTES}.
      *
      * A **retention** bound, not a bound on peak memory, and the difference is
-     * not small on deep data. Three things sit outside it: a read still in
+     * not small on deep data. Four things sit outside it. A read still in
      * flight is never evicted, and up to `MAX_CONCURRENT_CHUNK_READS` of those
      * run at once; the last settled entry is kept whatever the budget; and a
      * query holds every chunk it parsed until it returns, whether or not the
      * cache still does. On 1000x long-read data a single chunk decompresses to
      * 180MB and six in flight is 476MB, neither of which this number can bound.
+     *
+     * The fourth is that an entry is weighed ONCE, when its read settles, and
+     * records grow after that: `end`, `CIGAR` and `tags` each memoize onto the
+     * record the first time they are read, which is what a renderer does to
+     * every visible read. Measured on `chr22_nanopore_subset.bam`, a chunk
+     * weighed at 20.4MB retained a further 7.8MB — +38% — once its 383 records
+     * had been consumed. So a budget of N bytes can hold appreciably more than
+     * N; the number is a bound on decompressed bytes, not on the heap.
      *
      * Set it too low and the cache does not degrade gracefully — it inverts. A
      * budget under one query's working set evicts each chunk before the next pan
@@ -356,62 +365,28 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
    * shared between queries, and the third place in this file where a
    * cancellation could leak from the query that asked for it to a query that
    * did not. `getHeaderPre` threads `opts` into both the index parse and the
-   * BAM read, so without this the first query to arrive owns a read every other
-   * query depends on: when it pans away, every concurrent query fails with its
-   * abort even though its own signal is untouched.
+   * BAM read, so a bare memoized promise makes the first query to arrive the
+   * owner of a read every other query depends on: when it pans away, every
+   * concurrent query fails with its abort even though its own signal is
+   * untouched.
    *
-   * Same bounded retry as `IndexFile.parse`, for the same reason — the header
-   * is parsed once, so there is no repeated waste to recover — and bounded at
-   * one attempt so the pathological case is a duplicate parse rather than a
-   * recursion whose depth depends on how the aborts interleave.
+   * The cache is what avoids that, on the same terms as the chunk reads: the
+   * parse runs under a signal of its own and is cancelled only once every
+   * caller waiting on it has given up, so an owner's abort is reported to the
+   * owner alone and the bystanders get the header from the read already in
+   * flight. There is no retry here because there is nothing to retry — the
+   * parse a bystander joined is not cancelled by someone else's abort.
    *
-   * SYNC: ~/src/gmod/tabix-js/src/tabixIndexedFile.ts getParsedHeader — same
-   * shape for the same reason.
+   * The fill is per call rather than on the cache so that the caller who
+   * starts the parse has its `onProgress` reach the index download inside it.
+   *
+   * SYNC: ~/src/gmod/tabix-js/src/tabixIndexedFile.ts getParsedHeader,
+   * ~/src/gmod/bbi-js/src/bbi.ts getHeader — same shape for the same reason.
    */
-  async getHeader(
-    opts?: BaseOpts,
-    retried = false,
-  ): Promise<Awaited<ReturnType<BamFile<T>['getHeaderPre']>>> {
-    throwIfAborted(opts?.signal)
-    const pending = this.headerP
-    if (!pending) {
-      return this.startHeaderParse(opts)
-    }
-
-    // read before awaiting: the owner is forgotten as soon as the parse settles
-    const ownerSignal = this.headerSignal
-    try {
-      return await pending
-    } catch (e) {
-      if (retried || !ownerSignal?.aborted || opts?.signal?.aborted) {
-        throw e
-      }
-      return this.getHeader(opts, true)
-    }
-  }
-
-  private startHeaderParse(opts?: BaseOpts) {
-    const pending = this.getHeaderPre(opts)
-    this.headerP = pending
-    this.headerSignal = opts?.signal
-    // Drop a rejection rather than keeping it, so one transient failure does not
-    // poison the header for the lifetime of the file. Both branches are
-    // identity-checked so a retry started after this settles is not cleared by
-    // the attempt it already replaced.
-    pending.then(
-      () => {
-        if (this.headerP === pending) {
-          this.headerSignal = undefined
-        }
-      },
-      () => {
-        if (this.headerP === pending) {
-          this.headerP = undefined
-          this.headerSignal = undefined
-        }
-      },
+  getHeader(opts?: BaseOpts) {
+    return this.headerCache.get('header', opts?.signal, signal =>
+      this.getHeaderPre({ ...opts, signal }),
     )
-    return pending
   }
 
   async getHeaderText(opts: BaseOpts = {}) {
