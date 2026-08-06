@@ -1,3 +1,9 @@
+## [8.2.0](https://github.com/GMOD/bam-js/compare/v8.1.0...v8.2.0) (2026-08-06)
+
+### Performance Improvements
+
+- Reclaim the chunk cache when nothing is using it
+
 ## [8.1.0](https://github.com/GMOD/bam-js/compare/v8.0.0...v8.1.0) (2026-08-06)
 
 ### Performance Improvements
