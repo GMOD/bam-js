@@ -1,5 +1,5 @@
 import { LocalFile } from 'generic-filehandle2'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 
 import { BAI, BamFile } from '../src/index.ts'
 
@@ -863,4 +863,78 @@ test('the getHeader retry is bounded at one attempt', async () => {
   await expect(bP).rejects.toThrow(/abort/i)
   await expect(cP).rejects.toThrow(/abort/i)
   expect(fh.reads).toBe(readsAfterRetry)
+})
+
+// The budget is enforced when a read settles, so an idle cache stays wherever
+// it got to. jbrowse memoizes one BamFile per adapter for the life of the
+// track and passes no budget, so without an idle timeout a tab parked on a deep
+// region holds its whole last view until the track is closed, times every track
+// open (ADR 0015).
+test('a chunk nothing has looked at for the idle timeout is dropped', async () => {
+  vi.useFakeTimers()
+  try {
+    const bam = new BamFile({
+      bamPath: 'test/data/chr22_nanopore_subset.bam',
+      cacheIdleTimeoutMs: 60_000,
+    })
+    await bam.getHeader()
+    await bam.getRecordsForRange('22', 16_450_000, 16_490_000)
+    expect(bam.chunkFeatureCache.size).toBeGreaterThan(0)
+
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(bam.chunkFeatureCache.size).toBeGreaterThan(0)
+
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(bam.chunkFeatureCache.size).toBe(0)
+    expect(bam.chunkFeatureCache.totalSize).toBe(0)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+// The clock runs from the last read of a chunk, not from when it was parsed —
+// panning back and forth over one region must never expire it mid-use.
+test('re-reading a chunk keeps it alive past the idle timeout', async () => {
+  vi.useFakeTimers()
+  try {
+    const bam = new BamFile({
+      bamPath: 'test/data/chr22_nanopore_subset.bam',
+      cacheIdleTimeoutMs: 60_000,
+    })
+    await bam.getHeader()
+    const stats = countChunkReads(bam)
+    await bam.getRecordsForRange('22', 16_450_000, 16_490_000)
+    const cold = stats.reads
+
+    for (let i = 0; i < 4; i++) {
+      await vi.advanceTimersByTimeAsync(40_000)
+      await bam.getRecordsForRange('22', 16_450_000, 16_490_000)
+    }
+    // 160s of elapsed time against a 60s timeout, and not one re-read
+    expect(stats.reads).toBe(cold)
+    expect(bam.chunkFeatureCache.size).toBeGreaterThan(0)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+// Opting out has to actually opt out: a consumer bounding memory some other way
+// must not find chunks vanishing on a timer it did not ask for.
+test('cacheIdleTimeoutMs: 0 keeps chunks until the budget evicts them', async () => {
+  vi.useFakeTimers()
+  try {
+    const bam = new BamFile({
+      bamPath: 'test/data/chr22_nanopore_subset.bam',
+      cacheIdleTimeoutMs: 0,
+    })
+    await bam.getHeader()
+    await bam.getRecordsForRange('22', 16_450_000, 16_490_000)
+    const held = bam.chunkFeatureCache.size
+    expect(held).toBeGreaterThan(0)
+
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000)
+    expect(bam.chunkFeatureCache.size).toBe(held)
+  } finally {
+    vi.useRealTimers()
+  }
 })

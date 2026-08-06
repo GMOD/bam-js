@@ -115,11 +115,28 @@ function chunkCacheKey(chunk: Chunk) {
 // compressed; its own SV demo raises that to 30MB for PacBio HiFi. At the 2.1-7.3x
 // BGZF ratios measured across the jb2bench corpus, that is 10-37MB decompressed
 // per query at the stock gate and 63-219MB at the raised one, so six pan windows
-// want ~219MB and ~378MB respectively. 512MB clears both.
+// want ~219MB and ~378MB respectively.
 //
-// It costs a consumer on ordinary data nothing, being a ceiling rather than an
-// allocation: 20x short-read data holds 7MB here whatever this is set to.
-export const DEFAULT_MAX_CACHE_BYTES = 512 * 1024 * 1024
+// 1GB clears both with room for the deepest data measured — a six-window pan on
+// 1000x long-read peaks at 569MB — and is affordable only because of
+// DEFAULT_CACHE_IDLE_TIMEOUT_MS below. It is a ceiling under active panning, not
+// a resting level, and it costs a consumer on ordinary data nothing either way:
+// 20x short-read holds 7MB here whatever this is set to.
+export const DEFAULT_MAX_CACHE_BYTES = 1024 * 1024 * 1024
+
+// Drop a chunk nothing has looked at for three minutes.
+//
+// This is what makes the ceiling above affordable rather than alarming. jbrowse
+// memoizes one BamFile per adapter for the life of the track and passes no
+// budget, so without this a tab parked on a deep region holds its whole last
+// view until the track is closed, times every track open. The budget alone
+// cannot lower that: it is enforced when a read settles, so an idle cache stays
+// wherever it got to.
+//
+// Three minutes rather than seconds because the point is to catch a user who has
+// gone away, not one who is reading the screen in front of them. A pan back to a
+// region a minute later should still hit (ADR 0015).
+export const DEFAULT_CACHE_IDLE_TIMEOUT_MS = 3 * 60 * 1000
 
 // How many of a query's chunks to read at once. Six is the HTTP/1.1
 // per-host connection cap browsers enforce, so going much above it buys
@@ -164,6 +181,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     renameRefSeqs = n => n,
     recordClass,
     maxCacheBytes = DEFAULT_MAX_CACHE_BYTES,
+    cacheIdleTimeoutMs = DEFAULT_CACHE_IDLE_TIMEOUT_MS,
   }: {
     bamFilehandle?: GenericFilehandle
     bamPath?: string
@@ -197,11 +215,24 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
      * between the two (ADR 0014).
      */
     maxCacheBytes?: number
+    /**
+     * Drop a cached chunk once nothing has asked for it for this many
+     * milliseconds. Defaults to {@link DEFAULT_CACHE_IDLE_TIMEOUT_MS}; pass
+     * `0` to keep chunks until `maxCacheBytes` evicts them.
+     *
+     * This is the only thing that lowers the cache while a consumer sits still,
+     * and the reason `maxCacheBytes` can afford to be generous — it makes the
+     * budget a peak under panning rather than a resting level. The clock runs
+     * from the last read of a chunk, not from when it was parsed, so panning
+     * back and forth over the same region never expires it (ADR 0015).
+     */
+    cacheIdleTimeoutMs?: number
   }) {
     this.renameRefSeq = renameRefSeqs
     this.RecordClass = (recordClass ?? BAMFeature) as BamRecordClass<T>
     this.chunkFeatureCache = new SharedReadCache<Chunk, ChunkEntry<T>>({
       maxSize: maxCacheBytes,
+      idleTimeoutMs: cacheIdleTimeoutMs,
       // decompressed bytes, not entry count: parsed records are views into
       // their chunk's decompressed buffer, so a cached entry pins that whole
       // buffer and entry count says nothing about memory

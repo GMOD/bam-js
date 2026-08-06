@@ -81,11 +81,16 @@ in each url's own `headers` field, which is applied either way.
 - `renameRefSeqs` - `(refName: string) => string` applied to header ref names
 - `recordClass` - custom class extending `BamRecord` (see below)
 - `maxCacheBytes` - budget for the parsed-chunk cache, in decompressed bytes.
-  default: 512MB. A retention bound rather than a bound on peak memory — reads
-  in flight and the last settled entry are never evicted. Size it to hold
-  several queries: below one query's working set the hit rate drops to zero
-  while the memory is retained anyway, so a number between the two is the worst
-  choice
+  default: 1GB. A retention bound rather than a bound on peak memory — reads in
+  flight and the last settled entry are never evicted. Size it to hold several
+  queries: below one query's working set the hit rate drops to zero while the
+  memory is retained anyway, so a number between the two is the worst choice
+- `cacheIdleTimeoutMs` - drop a cached chunk once nothing has read it for this
+  long. default: 3 minutes; `0` disables it. This is what makes the budget above
+  a peak under panning rather than a level a parked page holds indefinitely, and
+  it is the only thing that lowers the cache while nothing is happening. The
+  clock runs from the last read of a chunk, so panning back and forth over one
+  region never expires it
 
 The `path`/`url` forms are convenience wrappers for generic-filehandle2's
 `LocalFile` and `RemoteFile`.
