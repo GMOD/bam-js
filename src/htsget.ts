@@ -132,9 +132,18 @@ export default class HtsgetFile<
      * `headers` field, which is applied either way.
      */
     fetch?: Fetcher
-    /** see {@link BamFile}; htsget caches parsed chunks the same way */
+    /**
+     * Passed on to {@link BamFile}, where it bounds `chunkFeatureCache` —
+     * which htsget mode never fills. `getRecordsForRange` below reads whole
+     * ticket blocks rather than index chunks, so nothing here reaches that
+     * cache and neither of these options changes anything today. Accepted
+     * rather than rejected because the inherited cache is the thing that
+     * should eventually hold ticket responses (there is no read sharing or
+     * reuse in htsget mode at all right now), and that is when they start to
+     * bite.
+     */
     maxCacheBytes?: number
-    /** see {@link BamFile}; htsget caches parsed chunks the same way */
+    /** see {@link maxCacheBytes}: inherited, and inert in htsget mode */
     cacheIdleTimeoutMs?: number
   }) {
     super({

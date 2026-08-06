@@ -29,6 +29,11 @@ export interface BaseOpts {
   onProgress?: (bytesDownloaded: number, totalBytes?: number) => void
 }
 
+// Re-exported so the internal import path stays './util.ts'. The
+// implementation moved to @gmod/shared-read-cache, which needs it anyway --
+// every consumer of that package was carrying an identical copy.
+export { throwIfAborted } from '@gmod/shared-read-cache'
+
 /**
  * Merge and order the chunks a query resolved to.
  *
@@ -39,11 +44,6 @@ export interface BaseOpts {
  * underneath you. (The Chunk objects themselves are never mutated; a merged
  * span produces a new instance.)
  */
-// Re-exported so the internal import path stays './util.ts'. The
-// implementation moved to @gmod/shared-read-cache, which needs it anyway --
-// every consumer of that package was carrying an identical copy.
-export { throwIfAborted } from '@gmod/shared-read-cache'
-
 export function optimizeChunks(chunks: Chunk[], lowest?: OffsetCoords) {
   const n = chunks.length
   if (n === 0) {
