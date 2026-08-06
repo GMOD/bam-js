@@ -193,6 +193,12 @@ export default class CSI extends IndexFile {
     return ZERO_OFFSET
   }
 
+  // ...and so there is nothing to bound the far end of a query with either, so
+  // estimatedBytesForRegions keeps summing every chunk on a CSI-indexed file.
+  protected getHighestChunk() {
+    return undefined
+  }
+
   /**
    * calculate the list of bins that may overlap with region [beg,end)
    * (zero-based half-open). Follows the reference implementation in hts-specs

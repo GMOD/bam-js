@@ -8,7 +8,12 @@ import CSI from './csi.ts'
 import NullFilehandle from './nullFilehandle.ts'
 import BAMFeature from './record.ts'
 import { parseHeaderText } from './sam.ts'
-import { appendInRange, parseRefSeqs, throwIfAborted } from './util.ts'
+import {
+  MAX_CONCURRENT_CHUNK_READS,
+  appendInRange,
+  parseRefSeqs,
+  throwIfAborted,
+} from './util.ts'
 
 import type Chunk from './chunk.ts'
 import type { BamOpts, BaseOpts } from './util.ts'
@@ -137,11 +142,6 @@ export const DEFAULT_MAX_CACHE_BYTES = 1024 * 1024 * 1024
 // gone away, not one who is reading the screen in front of them. A pan back to a
 // region a minute later should still hit (ADR 0015).
 export const DEFAULT_CACHE_IDLE_TIMEOUT_MS = 3 * 60 * 1000
-
-// How many of a query's chunks to read at once. Six is the HTTP/1.1
-// per-host connection cap browsers enforce, so going much above it buys
-// nothing on the transport that matters and only widens peak memory.
-const MAX_CONCURRENT_CHUNK_READS = 6
 
 export default class BamFile<T extends BamRecordLike = BAMFeature> {
   public renameRefSeq: (a: string) => string

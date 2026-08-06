@@ -80,20 +80,64 @@ in each url's own `headers` field, which is applied either way.
   longer than 2^29
 - `renameRefSeqs` - `(refName: string) => string` applied to header ref names
 - `recordClass` - custom class extending `BamRecord` (see below)
-- `maxCacheBytes` - budget for the parsed-chunk cache, in decompressed bytes.
-  default: 1GB. A retention bound rather than a bound on peak memory — reads in
-  flight and the last settled entry are never evicted. Size it to hold several
-  queries: below one query's working set the hit rate drops to zero while the
-  memory is retained anyway, so a number between the two is the worst choice
+- `maxCacheBytes` - ceiling for the parsed-chunk cache, in decompressed bytes.
+  default: 1GB, `Infinity` for none. See [Caching](#caching)
 - `cacheIdleTimeoutMs` - drop a cached chunk once nothing has read it for this
-  long. default: 3 minutes; `0` disables it. This is what makes the budget above
-  a peak under panning rather than a level a parked page holds indefinitely, and
-  it is the only thing that lowers the cache while nothing is happening. The
-  clock runs from the last read of a chunk, so panning back and forth over one
-  region never expires it
+  long. default: 3 minutes; `0` disables it. See [Caching](#caching)
 
 The `path`/`url` forms are convenience wrappers for generic-filehandle2's
 `LocalFile` and `RemoteFile`.
+
+### Caching
+
+Parsed chunks — the unit the BAM index hands out — are cached, so overlapping
+and adjacent queries reuse decompressed records instead of re-fetching them. Two
+options bound that cache, and they answer different questions.
+
+**`maxCacheBytes` is a ceiling under load, not a limit on what you can ask
+for.** Nothing is ever refused for being too large: a chunk bigger than the
+whole budget is still cached, reads in flight are never evicted, and eviction
+only drops a value that has already been returned once. The worst a budget can
+cost you is a re-read. It can make a query slower; it can never make one fail or
+come back short.
+
+**It binds less often than its size suggests.** On the deepest data we measure —
+1000x coverage long reads, 240 windows over six laps — the cache settles at
+573MB across 60 entries and eviction never runs at the 1GB default. Treat it as
+a backstop against a session that pans forever, not as an operating constraint.
+
+**Don't pick a number between one query and several.** Below one query's working
+set the cache inverts: each chunk is evicted before the next pan can reuse it,
+so the hit rate is zero, the full re-decompress is paid every time, and the
+unevictable entries retain the memory anyway. At a 200MB budget on that same
+file the cache holds exactly one entry, because one chunk there decompresses to
+181MB. Either size it above the working set or pass `Infinity` and bound memory
+some other way.
+
+**`cacheIdleTimeoutMs` is the only thing that gives memory back.**
+`maxCacheBytes` is enforced when a read settles, so an idle cache sits at
+whatever it reached and never lowers — and for a page that holds a `BamFile` for
+the life of a track, that resting level is the number that actually matters. The
+idle sweep is what makes a generous ceiling affordable, by turning it into a
+peak under panning rather than a level a parked tab holds indefinitely. The
+clock runs from the last _read_ of a chunk rather than from when it was parsed,
+so panning back and forth over one region never expires it. Measured on a pan
+that held 331MB: 0MB once idle.
+
+**Neither bounds peak memory**, and on deep data the gap is not small:
+
+- Up to six chunk reads run at once and an in-flight read is never evicted. At
+  181MB a chunk, that is ~476MB in flight before retention holds anything.
+- A query holds every chunk it parsed until it returns, whether or not the cache
+  still does.
+- An entry is weighed once, when its read settles, and records grow after that.
+  `end`, `CIGAR` and `tags` each memoize onto the record the first time they are
+  read, which is what a renderer does to every visible read — measured at +38%
+  over the weighed size.
+
+So these are bounds on retained decompressed bytes, not on the heap. Size
+against what you want to keep, and bound total memory at a level that can see
+the whole process.
 
 ### HtsgetFile constructor
 
@@ -156,7 +200,8 @@ warning before a large query.
 
 ### clearFeatureCache()
 
-Drops the parsed-chunk cache.
+Drops the parsed-chunk cache immediately, rather than waiting for
+`maxCacheBytes` or `cacheIdleTimeoutMs` to reclaim it. See [Caching](#caching).
 
 ### BamRecord
 

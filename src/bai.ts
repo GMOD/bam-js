@@ -281,4 +281,20 @@ export default class BAI extends IndexFile<BaiParsed> {
           dataPosition: linearDataPositions[i]!,
         }
   }
+
+  // The linear-index entry one window PAST the query: the smallest file offset
+  // of any record overlapping the window after it. Records the query wants are
+  // overwhelmingly below it, which is what makes it a usable forecast — but not
+  // a bound, because a long read reaching into that next window pins the entry
+  // at ITS offset, and records starting later (still before the query end) sit
+  // above it. chunksLikelyRead says why an estimate may use it and a fetch may
+  // not.
+  //
+  // undefined past the end of the linear index, i.e. for a query running to the
+  // end of the reference, where there is no next window to bound anything with.
+  protected getHighestChunk(refIndex: BaiRefIndex, max: number) {
+    const { linearBlockPositions } = refIndex
+    const i = (max >> BAI_LINEAR_SHIFT) + 1
+    return i < linearBlockPositions.length ? linearBlockPositions[i] : undefined
+  }
 }

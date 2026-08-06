@@ -1,7 +1,7 @@
 import { SharedReadCache } from '@gmod/shared-read-cache'
 import QuickLRU from '@jbrowse/quick-lru'
 
-import { optimizeChunks } from './util.ts'
+import { chunksLikelyRead, optimizeChunks } from './util.ts'
 
 import type Chunk from './chunk.ts'
 import type { BaseOpts } from './util.ts'
@@ -93,6 +93,16 @@ export default abstract class IndexFile<
     min: number,
   ): OffsetCoords | undefined
 
+  // Block position past which a chunk is EXPECTED to hold nothing overlapping
+  // [..., max] — the counterpart of getLowestChunk, and unlike it an estimate
+  // rather than a bound (see chunksLikelyRead). Only `estimatedBytesForRegions`
+  // may use it. CSI has no linear index and returns undefined, which reads as
+  // "no opinion" and leaves that estimate summing every chunk.
+  protected abstract getHighestChunk(
+    refIndex: RefIndex,
+    max: number,
+  ): number | undefined
+
   async blocksForRange(
     refId: number,
     min: number,
@@ -166,9 +176,42 @@ export default abstract class IndexFile<
     return !!indexData.indices(seqId)
   }
 
+  /**
+   * Compressed bytes a `getRecordsForRange` over these regions is expected to
+   * download, from the index alone.
+   *
+   * Per region this is `chunksLikelyRead`, not every chunk `blocksForRange`
+   * returns: the difference is the whole point on a long-read file, where a
+   * narrow window inherits every chunk of every overlapping bin and reads a
+   * handful of them. Measured on a 40x ONT BAM (COLO829BL, chr3), summing all
+   * chunks against the bytes the same query really pulls:
+   *
+   * | window | all chunks | actually read | this estimate |
+   * | ------ | ---------- | ------------- | ------------- |
+   * | 380bp  | 43.5MB     | 7.8MB         | 7.8MB         |
+   * | 3.4kb  | 43.5MB     | 7.8MB         | 7.8MB         |
+   * | 100kb  | 46.6MB     | 10.4MB        | 10.4MB        |
+   * | 2Mb    | 155.9MB    | 155.9MB       | 123.8MB       |
+   *
+   * A caller gating on this — jbrowse's "too much data" banner is the one that
+   * exists — was being told 5.6x the truth on exactly the windows a reader
+   * spends their time in, and cannot answer it by zooming: every window narrower
+   * than a linear-index interval resolves to the same chunks and so to the same
+   * number.
+   *
+   * Still summed over merged chunks rather than per region, so two regions
+   * sharing a chunk are charged for it once.
+   */
   async estimatedBytesForRegions(regions: Region[], opts?: BaseOpts) {
+    const indexData = await this.parse(opts)
     const blockResults = await Promise.all(
-      regions.map(r => this.blocksForRange(r.refId, r.start, r.end, opts)),
+      regions.map(async r => {
+        const chunks = await this.blocksForRange(r.refId, r.start, r.end, opts)
+        const refIndex = indexData.indices(r.refId)
+        return refIndex
+          ? chunksLikelyRead(chunks, this.getHighestChunk(refIndex, r.end))
+          : chunks
+      }),
     )
 
     // Deduplicate and merge overlapping blocks across all regions

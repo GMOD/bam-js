@@ -2,7 +2,9 @@ import { expect, test } from 'vitest'
 
 import Chunk from '../src/chunk.ts'
 import {
+  MAX_CONCURRENT_CHUNK_READS,
   appendInRange,
+  chunksLikelyRead,
   clampChunkEnds,
   minVirtualOffset,
   optimizeChunks,
@@ -259,4 +261,60 @@ test('minVirtualOffset returns current when every entry is unset', () => {
     [0, 0],
   ])
   expect(minVirtualOffset(buf, 0, 2, undefined)).toBeUndefined()
+})
+
+// chunksLikelyRead: the forecast getRecordsForRange's own schedule implies.
+// Every case below is a shape blocksForRange really produces on a long-read
+// file — many chunks, most of them past the query, sorted by minv.
+test('chunksLikelyRead keeps the prefix under the bound', () => {
+  const chunks = [
+    chunk(0, 100),
+    chunk(200, 300),
+    chunk(400, 500),
+    chunk(600, 700),
+    chunk(800, 900),
+    chunk(1000, 1100),
+    chunk(1200, 1300),
+    chunk(1400, 1500),
+  ]
+  // bound past chunk 6 keeps 7 of the 8
+  expect(chunksLikelyRead(chunks, 1300)).toHaveLength(7)
+})
+
+test('chunksLikelyRead never forecasts less than the first batch', () => {
+  const chunks = Array.from({ length: 20 }, (_, i) =>
+    chunk(i * 100, i * 100 + 50),
+  )
+  // a bound inside the second chunk still costs the whole batch, because the
+  // batch is read before the early stop can be checked
+  expect(chunksLikelyRead(chunks, 150)).toHaveLength(MAX_CONCURRENT_CHUNK_READS)
+})
+
+test('chunksLikelyRead defers to every chunk when the bound orders nothing', () => {
+  const chunks = Array.from({ length: 20 }, (_, i) =>
+    chunk(1000 + i * 100, 1000 + i * 100 + 50),
+  )
+  // at or before the first chunk: one long feature reaching past the query has
+  // pinned the index entry at the query's own data, so it says nothing about
+  // what comes after it, and the batch floor there would be a guess rather than
+  // a forecast — measured 5x low on a real SV callset that way
+  expect(chunksLikelyRead(chunks, 1000)).toBe(chunks)
+  expect(chunksLikelyRead(chunks, 4)).toBe(chunks)
+  // one chunk under it is enough to order the rest, and then the floor applies
+  expect(chunksLikelyRead(chunks, 1001)).toHaveLength(
+    MAX_CONCURRENT_CHUNK_READS,
+  )
+})
+
+test('chunksLikelyRead is a no-op without a bound, or under one batch', () => {
+  const many = Array.from({ length: 20 }, (_, i) =>
+    chunk(i * 100, i * 100 + 50),
+  )
+  // CSI has no linear index and so no bound to offer
+  expect(chunksLikelyRead(many, undefined)).toBe(many)
+  // a query resolving to a handful of chunks reads all of them anyway
+  const few = many.slice(0, MAX_CONCURRENT_CHUNK_READS)
+  expect(chunksLikelyRead(few, 1)).toBe(few)
+  // a bound past every chunk keeps the array itself, not a copy
+  expect(chunksLikelyRead(many, Number.MAX_SAFE_INTEGER)).toBe(many)
 })

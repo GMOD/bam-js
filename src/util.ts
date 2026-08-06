@@ -34,6 +34,74 @@ export interface BaseOpts {
 // every consumer of that package was carrying an identical copy.
 export { throwIfAborted } from '@gmod/shared-read-cache'
 
+// How many of a query's chunks to read at once. Six is the HTTP/1.1 per-host
+// connection cap browsers enforce, so going much above it buys nothing on the
+// transport that matters and only widens peak memory.
+//
+// It is also the SMALLEST number of chunks any query reads, because
+// `_fetchChunkFeatures` checks its early stop once, after this first batch
+// (ADR 0010) — which is what `chunksLikelyRead` below is built on.
+export const MAX_CONCURRENT_CHUNK_READS = 6
+
+/**
+ * The prefix of `chunks` a query is expected to actually read, for callers that
+ * want to forecast a query's cost without running it.
+ *
+ * `blocksForRange` returns every chunk of every bin overlapping the query, at
+ * every level of the binning scheme, minus the ones the linear index puts
+ * entirely before it. On a long-read file that is wildly more than the query
+ * reads: a coarse bin's chunks run to the end of the bin's span, so a 380bp
+ * window on a deep ONT BAM resolves to 90 chunks / 43.5MB, of which
+ * `getRecordsForRange` reads 6 / 7.8MB before the early stop fires.
+ *
+ * Two bounds, and the answer is the larger:
+ *
+ * - `upperBoundBlockPosition` — the file offset past which a chunk holds no
+ *   record the query wants, from the linear index one window beyond the query
+ *   end. Chunks come back sorted by `minv`, so the ones under it are a prefix.
+ * - `MAX_CONCURRENT_CHUNK_READS` — the first batch is read unconditionally, so
+ *   no query ever costs less than that however tight the upper bound is.
+ *
+ * **This is a forecast, not a bound the reader obeys**, and it is deliberately
+ * only used to describe a query rather than to answer one. The upper bound is
+ * an approximation: a record starting before the query end can sit at a higher
+ * offset than the linear-index entry past it (a long read reaching into the
+ * next window pins that entry low), so pruning a fetch this way would drop
+ * records. A forecast that is occasionally 20% under warns slightly early;
+ * a fetch that is occasionally short returns wrong data.
+ *
+ * An EMPTY prefix is that pin at its worst — the bound has landed at or before
+ * the query's own first chunk, so it orders nothing — and the answer there is
+ * every chunk rather than the batch floor. Without it this returns the floor on
+ * a file whose features are long against the linear-index interval, which is
+ * where the same forecast really does go wrong: ported to tabix-js and measured
+ * on the 1000 Genomes SV callset, whose 1.4Mb deletions pin the entry at the
+ * data start, it forecast 0.04MB against the 0.22MB the query read. On this
+ * corpus the fallback costs one fixture's win (chr22_nanopore, whose 10kb
+ * window keeps summing all 22 chunks) and no accuracy anywhere else.
+ */
+export function chunksLikelyRead(
+  chunks: Chunk[],
+  upperBoundBlockPosition?: number,
+) {
+  if (
+    upperBoundBlockPosition === undefined ||
+    chunks.length <= MAX_CONCURRENT_CHUNK_READS
+  ) {
+    return chunks
+  }
+  let n = 0
+  while (
+    n < chunks.length &&
+    chunks[n]!.minv.blockPosition < upperBoundBlockPosition
+  ) {
+    n++
+  }
+  return n === 0 || n >= chunks.length
+    ? chunks
+    : chunks.slice(0, Math.max(n, MAX_CONCURRENT_CHUNK_READS))
+}
+
 /**
  * Merge and order the chunks a query resolved to.
  *

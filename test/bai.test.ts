@@ -546,6 +546,54 @@ test('estimatedBytesForRegions estimates download size', async () => {
   expect(bytesOverlapping).toBeLessThanOrEqual(bytesSeparate + bytesSeparate2)
 })
 
+// The estimate is a forecast of what getRecordsForRange will DOWNLOAD, so the
+// thing to pin is the two against each other on a file where they used to
+// disagree: 26 chunks offered for a 10kb window, of which the query reads the
+// ones its linear index can order and stops.
+test('estimatedBytesForRegions forecasts what a query really reads', async () => {
+  const bamFilehandle = new LocalFile('test/data/out.bam')
+  const baiFilehandle = new LocalFile('test/data/out.bam.bai')
+  let fetched = 0
+  const read = bamFilehandle.read.bind(bamFilehandle)
+  bamFilehandle.read = async (length: number, position: number) => {
+    fetched += length
+    return read(length, position)
+  }
+  const ti = new BamFile({ bamFilehandle, baiFilehandle })
+  await ti.getHeader()
+
+  const region = { refName: '1', start: 0, end: 10_000 }
+  const estimate = await ti.estimatedBytesForRegions([region])
+
+  const chunks = await ti.index!.blocksForRange(0, region.start, region.end)
+  const everyChunk = chunks.reduce((a, c) => a + c.fetchedSize(), 0)
+
+  fetched = 0
+  await ti.getRecordsForRange(region.refName, region.start, region.end)
+
+  // exactly the bytes the query pulled, and a 45% saving on what summing every
+  // chunk claimed
+  expect(fetched).toEqual(estimate)
+  expect(everyChunk).toBeGreaterThan(estimate * 1.5)
+})
+
+// The other half of the same rule: chr22_nanopore's linear index puts its entry
+// past a 10kb query at that query's own first chunk — one ultra-long read is
+// enough — so the bound orders nothing and the estimate falls back to every
+// chunk rather than to the batch floor. Deliberately NOT the tighter answer:
+// see chunksLikelyRead for the file that makes the floor wrong by 5x there.
+test('estimatedBytesForRegions falls back when the linear index orders nothing', async () => {
+  const ti = new BamFile({
+    bamPath: 'test/data/chr22_nanopore_subset.bam',
+  })
+  await ti.getHeader()
+  const region = { refName: '22', start: 16_000_000, end: 16_010_000 }
+  const estimate = await ti.estimatedBytesForRegions([region])
+  const chunks = await ti.index!.blocksForRange(21, region.start, region.end)
+  expect(chunks.length).toBeGreaterThan(6)
+  expect(estimate).toEqual(chunks.reduce((a, c) => a + c.fetchedSize(), 0))
+})
+
 // use on any large long read data file
 // test('speed test', async () => {
 //   const ti = new BamFile({ bamPath: 'test/data/400x.longread.bam' })
