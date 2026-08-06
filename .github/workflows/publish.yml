@@ -31,7 +31,7 @@ jobs:
       # this step the whole suite would skip in CI and never say so.
       - name: Install samtools
         run: sudo apt-get update && sudo apt-get install -y samtools
-      - run: pnpm test
+      - run: pnpm test --run
 
   publish:
     name: Publish to npm
