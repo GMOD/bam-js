@@ -1,3 +1,19 @@
+## [8.3.1](https://github.com/GMOD/bam-js/compare/v8.3.0...v8.3.1) (2026-08-09)
+
+### Bug Fixes
+
+- Estimate the bytes a query reads, not the chunks it could need
+- Bump @gmod/shared-read-cache to 1.4.4
+
+### Documentation
+
+- ADR 0016 — the cache does not grow, and LRU stays
+- Two comments that stopped being true
+
+### Refactoring
+
+- The header and index parses are shared reads, not memos
+
 ## [8.3.0](https://github.com/GMOD/bam-js/compare/v8.2.0...v8.3.0) (2026-08-06)
 
 ### Bug Fixes
