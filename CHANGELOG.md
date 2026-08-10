@@ -1,3 +1,5 @@
+## [8.4.2](https://github.com/GMOD/bam-js/compare/v8.4.1...v8.4.2) (2026-08-10)
+
 ## [8.4.1](https://github.com/GMOD/bam-js/compare/v8.4.0...v8.4.1) (2026-08-10)
 
 ### Chores
