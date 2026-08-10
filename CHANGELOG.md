@@ -1,3 +1,17 @@
+## [8.4.0](https://github.com/GMOD/bam-js/compare/v8.3.1...v8.4.0) (2026-08-10)
+
+### Chores
+
+- Require @gmod/shared-read-cache 1.5.0 for cacheBudget
+
+### Documentation
+
+- Two claims about the idle sweep that were not true
+
+### Features
+
+- CacheBudget, so several files can share one ceiling
+
 ## [8.3.1](https://github.com/GMOD/bam-js/compare/v8.3.0...v8.3.1) (2026-08-09)
 
 ### Bug Fixes
