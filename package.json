@@ -42,7 +42,7 @@
     "build": "pnpm build:esm && pnpm build:es5",
     "benchonly": "vitest bench",
     "bench": "./scripts/build-both-branches.sh \"$BRANCH1\" \"$BRANCH2\" && vitest bench",
-    "version": "git-cliff --tag v$npm_package_version --unreleased --prepend CHANGELOG.md && prettier --write CHANGELOG.md && git add CHANGELOG.md"
+    "version": "git-cliff --tag v$npm_package_version --unreleased --prepend CHANGELOG.md && git add CHANGELOG.md"
   },
   "keywords": [
     "bionode",
