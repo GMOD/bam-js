@@ -54,10 +54,22 @@ under active panning rather than a level a parked tab holds indefinitely.
   only thing between jbrowse and unbounded growth, since it passes no budget.
 
 - **The sweep costs nothing when idle**, which is the property that makes it
-  safe in a library. The timer starts with the first entry and the sweep that
-  empties the cache stops it, so a `BamFile` nobody is using holds no timer —
-  and there is no `dispose()` for a consumer to forget. It is `unref`ed where
-  that exists, so it can never be why a Node script fails to exit.
+  safe in a library. The timer runs only while there is something it could
+  reclaim: armed by the first read to **settle**, stopped by the first sweep
+  that finds no settled entry left. So a `BamFile` nobody is using holds no
+  timer — and there is no `dispose()` for a consumer to forget. It is `unref`ed
+  where that exists, so it can never be why a Node script fails to exit.
+
+  _Corrected after the fact._ As first written, this bullet said the timer
+  started with the first **entry** and stopped when the cache **emptied**, and
+  that is not the same claim. An in-flight read is never swept, so a read that
+  never settles — a stalled fetch on a dead connection, which is exactly when a
+  reader gives up and closes the track — held `entries.size` above zero and left
+  the timer ticking forever. A live interval is a GC root: it roots the cache,
+  and the cache roots the `BamFile` through its `fill` closure, so that one hung
+  read pinned the whole graph and every chunk in it indefinitely. Arming on a
+  settle and stopping on "nothing settled left" is what makes the claim above
+  true rather than merely intended.
 
 - **Peak memory is still not bounded by this**, and the `maxCacheBytes` docs
   still say so. In-flight reads are unevictable and six run at once; on

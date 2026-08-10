@@ -120,8 +120,9 @@ whatever it reached and never lowers — and for a page that holds a `BamFile` f
 the life of a track, that resting level is the number that actually matters. The
 idle sweep is what makes a generous ceiling affordable, by turning it into a
 peak under panning rather than a level a parked tab holds indefinitely. The
-clock runs from the last _read_ of a chunk rather than from when it was parsed,
-so panning back and forth over one region never expires it. Measured on a pan
+clock runs from the last _read_ of a chunk, or from its parse landing if nothing
+has read it since, so panning back and forth over one region never expires it
+and a slow chunk still gets the full timeout to be reused in. Measured on a pan
 that held 331MB: 0MB once idle.
 
 **Neither bounds peak memory**, and on deep data the gap is not small:

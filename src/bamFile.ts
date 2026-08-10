@@ -232,8 +232,10 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
      * This is the only thing that lowers the cache while a consumer sits still,
      * and the reason `maxCacheBytes` can afford to be generous — it makes the
      * budget a peak under panning rather than a resting level. The clock runs
-     * from the last read of a chunk, not from when it was parsed, so panning
-     * back and forth over the same region never expires it (ADR 0015).
+     * from the last read of a chunk, or from its parse landing if nothing has
+     * read it since, so panning back and forth over the same region never
+     * expires it and a slow chunk still gets the full timeout to be reused in
+     * (ADR 0015).
      */
     cacheIdleTimeoutMs?: number
   }) {
