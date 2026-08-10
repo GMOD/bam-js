@@ -17,6 +17,7 @@ import {
 
 import type Chunk from './chunk.ts'
 import type { BamOpts, BaseOpts } from './util.ts'
+import type { SharedBudget } from '@gmod/shared-read-cache'
 import type { GenericFilehandle } from 'generic-filehandle2'
 
 export interface BamRecordLike {
@@ -183,6 +184,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     recordClass,
     maxCacheBytes = DEFAULT_MAX_CACHE_BYTES,
     cacheIdleTimeoutMs = DEFAULT_CACHE_IDLE_TIMEOUT_MS,
+    cacheBudget,
   }: {
     bamFilehandle?: GenericFilehandle
     bamPath?: string
@@ -238,12 +240,31 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
      * (ADR 0015).
      */
     cacheIdleTimeoutMs?: number
+    /**
+     * A budget shared with other `BamFile`s — and with any other
+     * `@gmod/shared-read-cache` consumer — so that the ceiling applies to
+     * their sum rather than to each of them.
+     *
+     * {@link maxCacheBytes} is per file, which is not a bound on a consumer
+     * that opens one file per track. Three moderately deep alignments tracks
+     * browsing eight windows measured 1109MB retained with no cache anywhere
+     * near its own 1GB ceiling, so the ceiling was not doing anything at all;
+     * the sum is what a tab runs out of memory on.
+     *
+     * Pass one budget per worker and hand it to every file. Dividing
+     * `maxCacheBytes` by the track count instead reintroduces the cliff it
+     * exists to avoid — at 128MB a track re-reads every chunk on every pan —
+     * whereas a shared budget lets tracks nobody is looking at yield their
+     * space to the one being panned.
+     */
+    cacheBudget?: SharedBudget
   }) {
     this.renameRefSeq = renameRefSeqs
     this.RecordClass = (recordClass ?? BAMFeature) as BamRecordClass<T>
     this.chunkFeatureCache = new SharedReadCache<Chunk, ChunkEntry<T>>({
       maxSize: maxCacheBytes,
       idleTimeoutMs: cacheIdleTimeoutMs,
+      budget: cacheBudget,
       // decompressed bytes, not entry count: parsed records are views into
       // their chunk's decompressed buffer, so a cached entry pins that whole
       // buffer and entry count says nothing about memory

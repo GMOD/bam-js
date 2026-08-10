@@ -1,3 +1,4 @@
+import { SharedBudget } from '@gmod/shared-read-cache'
 import { LocalFile } from 'generic-filehandle2'
 import { expect, test, vi } from 'vitest'
 
@@ -963,4 +964,51 @@ test('HtsgetFile forwards the cache options to BamFile', () => {
     maxCacheBytes: 1234,
   })
   expect(tuned.chunkFeatureCache.maxSize).toBe(1234)
+})
+
+// A per-file budget is not a bound on a consumer that opens one file per track,
+// which is what jbrowse does. Six tracks browsing six windows measured 1442MB
+// retained with every cache still under its own 1GB ceiling — so the ceiling
+// was not what held the line, and nothing else was either. See ADR 0018.
+test('two files can share one budget', async () => {
+  const budget = new SharedBudget(24 * 1024 * 1024)
+  const opts = { cacheIdleTimeoutMs: 0, cacheBudget: budget }
+  const a = new BamFile({ bamPath: 'test/data/out.bam', ...opts })
+  const b = new BamFile({ bamPath: 'test/data/out.bam', ...opts })
+  await a.getHeader()
+  await b.getHeader()
+
+  for (let i = 0; i < 12; i++) {
+    const start = i * 80_000
+    await a.getRecordsForRange('1', start, start + 400_000)
+    await b.getRecordsForRange('1', start, start + 400_000)
+  }
+
+  // neither file is bounded on its own — their SUM is what the budget holds
+  expect(a.chunkFeatureCache.maxSize).toBe(DEFAULT_MAX_CACHE_BYTES)
+  expect(b.chunkFeatureCache.maxSize).toBe(DEFAULT_MAX_CACHE_BYTES)
+  const held = a.chunkFeatureCache.totalSize + b.chunkFeatureCache.totalSize
+  expect(held).toBe(budget.total)
+  expect(held).toBeLessThanOrEqual(budget.limit)
+  // and it is really caching, not just holding the one entry per file that a
+  // member keeps whatever the budget
+  expect(a.chunkFeatureCache.size + b.chunkFeatureCache.size).toBeGreaterThan(2)
+})
+
+// The budget must never be the reason a closed track stays reachable, since
+// jbrowse reclaims one by dropping the last strong reference to its adapter.
+test('a member releases its weight back to the budget', async () => {
+  const budget = new SharedBudget(24 * 1024 * 1024)
+  const bam = new BamFile({
+    bamPath: 'test/data/out.bam',
+    cacheIdleTimeoutMs: 0,
+    cacheBudget: budget,
+  })
+  await bam.getHeader()
+  await bam.getRecordsForRange('1', 0, 400_000)
+  expect(budget.size).toBe(1)
+  expect(budget.total).toBeGreaterThan(0)
+
+  bam.clearFeatureCache()
+  expect(budget.total).toBe(0)
 })
