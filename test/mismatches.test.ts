@@ -64,6 +64,8 @@ interface WalkOpts {
   start?: number
   windowStart?: number
   windowEnd?: number
+  /** what reported positions are relative to; 0 (reference coords) by default */
+  origin?: number
 }
 
 function walk(opts: WalkOpts) {
@@ -81,6 +83,7 @@ function walk(opts: WalkOpts) {
     start,
     opts.windowStart ?? Number.NEGATIVE_INFINITY,
     opts.windowEnd ?? Number.POSITIVE_INFINITY,
+    opts.origin ?? 0,
     (code, refPos, length, bases, qual, refBaseCode, clipLength) => {
       out.push({ code, refPos, length, bases, qual, refBaseCode, clipLength })
     },
@@ -468,6 +471,48 @@ describe('the packed reference comparison against a naive per-base oracle', () =
         actual: naiveMismatches(ops, seq, ref, refOffset, start),
       })
     }
+  })
+})
+
+describe('origin, for a consumer with read-relative coordinates', () => {
+  const read = {
+    cigar: '5M2I5M3D5M',
+    seq: 'AAGAACCAAAAAAAAAA',
+    ref: 'a'.repeat(20),
+    start: 100,
+  }
+
+  test('positions are reference ones by default', () => {
+    expect(mismatchesOf(read)).toEqual([
+      'X@102/1ref/"G"/refA',
+      'I@105/"CC"/2read',
+      'D@110/3ref',
+    ])
+  })
+
+  test('origin shifts every reported position', () => {
+    expect(mismatchesOf({ ...read, origin: 100 })).toEqual([
+      'X@2/1ref/"G"/refA',
+      'I@5/"CC"/2read',
+      'D@10/3ref',
+    ])
+  })
+
+  test('the window stays absolute, so a viewport still clips', () => {
+    // read-relative output, genomic window: the pairing jbrowse-components
+    // walks with, and the reason the two are not the same coordinate
+    expect(
+      mismatchesOf({ ...read, origin: 100, windowStart: 104, windowEnd: 113 }),
+    ).toEqual(['I@5/"CC"/2read', 'D@10/3ref'])
+  })
+
+  test('an origin that is not the read start is just as valid', () => {
+    // a region-relative consumer, e.g. one indexing into a per-region array
+    expect(mismatchesOf({ ...read, origin: 50 })).toEqual([
+      'X@52/1ref/"G"/refA',
+      'I@55/"CC"/2read',
+      'D@60/3ref',
+    ])
   })
 })
 

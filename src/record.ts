@@ -988,8 +988,9 @@ export default class BamRecord {
    *
    * @param callback called as
    *   `(code, refPos, length, bases, qual, refBaseCode, clipLength)`
-   * @param opts optional reference window to restrict to, and an optional
-   *   per-call reference region; see {@link MismatchOptions}
+   * @param opts optional reference window to restrict to, an `origin` the
+   *   reported positions are relative to, and an optional per-call reference
+   *   region; see {@link MismatchOptions}
    */
   forEachMismatch(callback: MismatchCallback, opts?: MismatchOptions) {
     forEachMismatchNumeric(
@@ -1002,6 +1003,7 @@ export default class BamRecord {
       this.start,
       opts?.start ?? Number.NEGATIVE_INFINITY,
       opts?.end ?? Number.POSITIVE_INFINITY,
+      opts?.origin ?? 0,
       callback,
     )
   }

@@ -83,6 +83,7 @@ function withoutMD(record: BamRecord, ref: PackedReference) {
     record.start,
     Number.NEGATIVE_INFINITY,
     Number.POSITIVE_INFINITY,
+    0,
     (code, refPos, length, bases, qual, refBaseCode, clipLength) => {
       out.push({ code, refPos, length, bases, qual, refBaseCode, clipLength })
     },
@@ -188,6 +189,37 @@ test('fetchReferenceSequence resolves a whole query, matching what MD says', asy
       expected[i]!.getMismatches().map(show),
     )
   }
+})
+
+test('origin gives read-relative positions, window still genomic', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await bam.getHeader()
+  const records = await bam.getRecordsForRange('ctgA', 0, 5000)
+  let checked = 0
+  for (const record of records.slice(0, 200)) {
+    const absolute = record.getMismatches()
+    const relative = record.getMismatches({ origin: record.start })
+    expect(relative.map(m => m.refPos)).toEqual(
+      absolute.map(m => m.refPos - record.start),
+    )
+    // everything but the position is untouched by it
+    expect(relative.map(m => `${m.code}/${m.bases}/${m.qual}`)).toEqual(
+      absolute.map(m => `${m.code}/${m.bases}/${m.qual}`),
+    )
+    checked += absolute.length
+  }
+  expect(checked).toBeGreaterThan(100)
+
+  // the window is genomic even when the output is not
+  const record = records.find(r => r.getMismatches().length > 1)!
+  const [first] = record.getMismatches()
+  expect(
+    record.getMismatches({
+      origin: record.start,
+      start: first!.refPos,
+      end: first!.refPos + 1,
+    }),
+  ).toEqual([{ ...first!, refPos: first!.refPos - record.start }])
 })
 
 test('a query whose reads all carry MD asks for no reference at all', async () => {

@@ -135,7 +135,21 @@ reports, and are **not** the packed-CIGAR op numbers — `MISMATCH_DELETION` is 
 | option         | description                                                              |
 | -------------- | ------------------------------------------------------------------------ |
 | `start`, `end` | only report differences touching this reference range, 0-based half-open |
+| `origin`       | what reported positions are relative to; 0 (reference) by default        |
 | `ref`          | a `PackedReference` to resolve substitutions against, for this call only |
+
+`origin: record.start` gives read-relative positions. The window stays absolute
+either way — it describes a region of the reference, not a position in the
+output — so a read-relative consumer can still clip to a genomic viewport:
+
+```js
+record.forEachMismatch(cb, { start, end, origin: record.start })
+```
+
+It exists so a consumer with its own coordinate convention can hand its own
+callback straight in; converting afterwards needs a second callback in between,
+which `@gmod/cram` measured at ~17% of its walk. That library's
+`forEachMismatch` takes the same option with the same meaning.
 
 ### Where the reference bases come from
 
@@ -175,10 +189,11 @@ another's region. A per-call `opts.ref` retains nothing and takes any extent.
 
 ### Without a `BamRecord`
 
-`forEachMismatchNumeric(cigar, seq, seqLength, md, qual, ref, refStart, windowStart, windowEnd, callback)`
+`forEachMismatchNumeric(cigar, seq, seqLength, md, qual, ref, refStart, windowStart, windowEnd, origin, callback)`
 is the walk itself, for callers holding BAM's packed arrays without a record
-around them — a SAM parser, or a worker that was posted the typed arrays. Pass
-`refStart: 0` for read-relative positions.
+around them — a SAM parser, or a worker that was posted the typed arrays.
+`origin` is the same knob as the option: pass the read's own start for
+read-relative positions, 0 for reference ones.
 
 ## Custom record class
 

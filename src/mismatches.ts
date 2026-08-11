@@ -94,13 +94,26 @@ export interface MismatchOptions {
    * half-open like every other range this library takes. A deletion or skip is
    * reported when any of the bases it covers falls in the range; everything
    * else when its own position does.
-   *
-   * (`@gmod/cram`'s equivalent option is **closed** at `end` — a known wart
-   * over there, tracked in its TODO.md. Half-open is the one to write new code
-   * against.)
    */
   start?: number
   end?: number
+  /**
+   * Report positions relative to this reference coordinate, rather than as
+   * absolute reference positions. `record.start` gives read-relative
+   * positions; the default of 0 gives reference ones.
+   *
+   * This exists so a consumer with its own coordinate convention can hand its
+   * own callback straight to this walk. Converting afterwards means a second
+   * callback between this one and the consumer's, and `@gmod/cram` measured
+   * that indirect call at ~17% of its walk (its ADR 0008).
+   *
+   * The window is *not* relative to it: `start`/`end` stay absolute, because
+   * they describe a region of the reference rather than a position in the
+   * output.
+   *
+   * SYNC: `@gmod/cram`'s `MismatchOptions.origin`, same meaning.
+   */
+  origin?: number
   /**
    * Reference bases to resolve substitutions against, for reads with no MD tag.
    * Overrides whatever {@link BamRecord.setReference} bound, and unlike that
@@ -180,13 +193,16 @@ function compareRefBase(
  * @param qual per-base quality scores, or null/undefined when the read has none
  * @param ref reference bases to compare against when there is no MD tag. Bases
  *   the region does not cover are left uncompared
- * @param refStart the record's own 0-based start, which every reported position
- *   is relative to
- * @param windowStart 0-based half-open reference window to report within. Pass
+ * @param refStart the record's own 0-based reference start
+ * @param windowStart 0-based half-open reference window to report within, in
+ *   ABSOLUTE reference coordinates whatever `origin` is. Pass
  *   `-Infinity`/`Infinity` for the whole read; a viewport that clips the walk
  *   is what keeps a chromosome-spanning contig alignment from being walked in
  *   full for every screenful
  * @param windowEnd
+ * @param origin what reported positions are relative to: 0 for reference
+ *   positions, `refStart` for read-relative ones. See
+ *   {@link MismatchOptions.origin}
  * @param callback `(code, refPos, length, bases, qual, refBaseCode, clipLength)`
  */
 export function forEachMismatchNumeric(
@@ -199,6 +215,7 @@ export function forEachMismatchNumeric(
   refStart: number,
   windowStart: number,
   windowEnd: number,
+  origin: number,
   callback: MismatchCallback,
 ) {
   // The walk runs in read-relative offsets — `roffset` reference bases and
@@ -212,6 +229,11 @@ export function forEachMismatchNumeric(
   const winLo =
     windowStart <= -0x80000000 ? -0x80000000 : windowStart - refStart
   const winHi = windowEnd >= 0x7fffffff ? 0x7fffffff : windowEnd - refStart
+
+  // What an offset is emitted as. Folding `origin` in here rather than at the
+  // callbacks keeps the cost of having the option at zero: every emit already
+  // added `refStart`, and now adds this instead.
+  const outBase = refStart - origin
 
   // Fast path for reads with no sequence (e.g. secondary alignments with SEQ='*')
   if (seqLength === 0) {
@@ -234,13 +256,13 @@ export function forEachMismatchNumeric(
         roffset += len
       } else if (op === CIGAR_INS) {
         if (roffset >= winLo && roffset < winHi) {
-          callback(MISMATCH_INSERTION, refStart + roffset, 0, '', -1, 0, len)
+          callback(MISMATCH_INSERTION, outBase + roffset, 0, '', -1, 0, len)
         }
       } else if (op === CIGAR_DEL) {
         if (roffset < winHi && roffset + len > winLo) {
           callback(
             MISMATCH_DELETION,
-            refStart + roffset,
+            outBase + roffset,
             len,
             NO_BASES,
             -1,
@@ -253,7 +275,7 @@ export function forEachMismatchNumeric(
         if (roffset < winHi && roffset + len > winLo) {
           callback(
             MISMATCH_REF_SKIP,
-            refStart + roffset,
+            outBase + roffset,
             len,
             NO_BASES,
             -1,
@@ -266,7 +288,7 @@ export function forEachMismatchNumeric(
         if (roffset >= winLo && roffset < winHi) {
           callback(
             MISMATCH_SOFT_CLIP,
-            refStart + roffset,
+            outBase + roffset,
             0,
             NO_BASES,
             -1,
@@ -278,7 +300,7 @@ export function forEachMismatchNumeric(
         if (roffset >= winLo && roffset < winHi) {
           callback(
             MISMATCH_HARD_CLIP,
-            refStart + roffset,
+            outBase + roffset,
             0,
             NO_BASES,
             -1,
@@ -372,7 +394,7 @@ export function forEachMismatchNumeric(
 
                 callback(
                   MISMATCH_SUBST,
-                  refStart + pos,
+                  outBase + pos,
                   1,
                   SEQRET_DECODER[nibble]!,
                   hasQual ? qual[seqIdx]! : -1,
@@ -417,7 +439,7 @@ export function forEachMismatchNumeric(
             ref,
             soffset + j,
             refOffset + roffset + j,
-            refStart + roffset + j,
+            outBase + roffset + j,
           )
           j++
         }
@@ -438,7 +460,7 @@ export function forEachMismatchNumeric(
             if (seqHi !== refHi) {
               reportRefMismatch(
                 callback,
-                refStart + roffset + j,
+                outBase + roffset + j,
                 seqHi,
                 hasQual ? qual[soffset + j]! : -1,
                 refHi,
@@ -449,7 +471,7 @@ export function forEachMismatchNumeric(
             if (seqLo !== refLo) {
               reportRefMismatch(
                 callback,
-                refStart + roffset + j + 1,
+                outBase + roffset + j + 1,
                 seqLo,
                 hasQual ? qual[soffset + j + 1]! : -1,
                 refLo,
@@ -465,7 +487,7 @@ export function forEachMismatchNumeric(
             ref,
             soffset + j,
             refOffset + roffset + j,
-            refStart + roffset + j,
+            outBase + roffset + j,
           )
         }
       }
@@ -502,7 +524,7 @@ export function forEachMismatchNumeric(
         }
         callback(
           MISMATCH_INSERTION,
-          refStart + roffset,
+          outBase + roffset,
           0,
           insertedBases,
           -1,
@@ -513,7 +535,7 @@ export function forEachMismatchNumeric(
       soffset += len
     } else if (op === CIGAR_DEL) {
       if (roffset < winHi && roffset + len > winLo) {
-        callback(MISMATCH_DELETION, refStart + roffset, len, NO_BASES, -1, 0, 0)
+        callback(MISMATCH_DELETION, outBase + roffset, len, NO_BASES, -1, 0, 0)
       }
 
       // MD spells a deletion as ^ then the deleted reference bases, which are
@@ -540,7 +562,7 @@ export function forEachMismatchNumeric(
       roffset += len
     } else if (op === CIGAR_REF_SKIP) {
       if (roffset < winHi && roffset + len > winLo) {
-        callback(MISMATCH_REF_SKIP, refStart + roffset, len, NO_BASES, -1, 0, 0)
+        callback(MISMATCH_REF_SKIP, outBase + roffset, len, NO_BASES, -1, 0, 0)
       }
       roffset += len
     } else if (op === CIGAR_DIFF) {
@@ -581,7 +603,7 @@ export function forEachMismatchNumeric(
         if (pos >= winLo && pos < winHi) {
           callback(
             MISMATCH_SUBST,
-            refStart + pos,
+            outBase + pos,
             1,
             SEQRET_DECODER[nibble]!,
             hasQual ? qual[seqIdx]! : -1,
@@ -594,28 +616,12 @@ export function forEachMismatchNumeric(
       roffset += len
     } else if (op === CIGAR_SOFT_CLIP) {
       if (roffset >= winLo && roffset < winHi) {
-        callback(
-          MISMATCH_SOFT_CLIP,
-          refStart + roffset,
-          0,
-          NO_BASES,
-          -1,
-          0,
-          len,
-        )
+        callback(MISMATCH_SOFT_CLIP, outBase + roffset, 0, NO_BASES, -1, 0, len)
       }
       soffset += len
     } else if (op === CIGAR_HARD_CLIP) {
       if (roffset >= winLo && roffset < winHi) {
-        callback(
-          MISMATCH_HARD_CLIP,
-          refStart + roffset,
-          0,
-          NO_BASES,
-          -1,
-          0,
-          len,
-        )
+        callback(MISMATCH_HARD_CLIP, outBase + roffset, 0, NO_BASES, -1, 0, len)
       }
     }
     // P (padding) consumes neither read nor reference and is not a difference
