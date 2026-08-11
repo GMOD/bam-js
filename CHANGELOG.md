@@ -1,3 +1,13 @@
+## [8.7.0](https://github.com/GMOD/bam-js/compare/v8.6.0...v8.7.0) (2026-08-11)
+
+### Chores
+
+- Gitignore the local Claude settings and agent worktrees ([76e2337](https://github.com/GMOD/bam-js/commit/76e2337874afa044a86a95a81d9e2b659f033e53))
+
+### Features
+
+- An origin for mismatch positions, matching @gmod/cram ([618386b](https://github.com/GMOD/bam-js/commit/618386bb29e5e105687a7f29e3da6a70ccc8d776))
+
 ## [8.6.0](https://github.com/GMOD/bam-js/compare/v8.5.1...v8.6.0) (2026-08-11)
 
 ### Chores
