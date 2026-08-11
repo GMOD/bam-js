@@ -1,3 +1,55 @@
+## [8.5.0](https://github.com/GMOD/bam-js/compare/v8.4.2...v8.5.0) (2026-08-11)
+
+### Other Changes
+
+- Optionally inflate chunks on a bgzf worker pool (#132)
+
+* docs(adr): park the chunk-cache key instability, with the numbers
+
+The chunk cache is keyed on the MERGED chunk's virtual-offset span, and that
+span depends on the query, so a pan re-parses bytes it already has. Measured,
+mechanism pinned down, fix designed and costed — and not built, because the
+cost lands on files that get none of the benefit and the change reaches three
+repos.
+
+Worth writing down rather than leaving as a hunch, because the mechanism is
+not the one it looks like from the outside. It is not BAI supersets: the raw
+bin chunks ABUT, so optimizeChunks swallows the whole chain, and the merged
+endpoints then slide for two reasons — reg2bins picking up a bridging bin as
+the window moves, and getLowestChunk pruning the front as min rises. The raw
+chunks themselves are query-independent, which is the only reason a fix is
+conceivable at all.
+
+Waste is 56-72% on shallow short-read fixtures (200x.shortread, volvox,
+ecoli_nanopore) and 0% on deep long-read data at ordinary zoom. It tracks
+containment exactly: waste appears iff one parsed span strictly contains
+another, in every row measured.
+
+Also records why the obvious cheap variant — serving a subset chunk from a
+cached superset — is wrong. It reintroduces the duplicate-record hazard
+makeDisjoint exists to prevent, because a cached superset is not one of the
+current query's chunks and can overlap the others freely. Duplicated reads
+render twice rather than erroring, so that one is worth stating out loud.
+
+* feat: optionally inflate chunks on a bgzf worker pool
+
+BGZF decompression is 70-90% of a cold query (ADR 0003), and BGZF blocks are
+independently inflatable, so a worker pool is the one remaining lever of that
+size. @gmod/bgzf-filehandle 6.4.0 ships one; this is the seam that lets a
+caller hand it over.
+
+`bgzfWorkerPool` takes the promise `getSharedWorkerPool()` returns as well as a
+resolved pool, because the callers that want this construct synchronously —
+jbrowse builds its BamFile inside a sync `configure()` — and the pool is only
+available asynchronously. It is awaited at the point of use, by which time it
+has long since settled. `undefined` keeps the in-process path, and that is what
+the helper returns under node or anywhere Workers cannot be created, so it is
+safe to pass unconditionally.
+
+No default pool is created here. Spawning workers is the consumer's decision:
+it owns the thread budget, and a library that quietly starts four workers per
+file would be a bad guest. bam-js only threads what it is given.
+
 ## [8.4.2](https://github.com/GMOD/bam-js/compare/v8.4.1...v8.4.2) (2026-08-10)
 
 ## [8.4.1](https://github.com/GMOD/bam-js/compare/v8.4.0...v8.4.1) (2026-08-10)
