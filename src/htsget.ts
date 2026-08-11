@@ -5,7 +5,11 @@ import Chunk from './chunk.ts'
 import { appendInRange, concatUint8Array, parseRefSeqs } from './util.ts'
 import { VirtualOffset } from './virtualOffset.ts'
 
-import type { BamRecordClass, BamRecordLike } from './bamFile.ts'
+import type {
+  BamRecordClass,
+  BamRecordLike,
+  ReferenceSequenceFetcher,
+} from './bamFile.ts'
 import type BamRecord from './record.ts'
 import type { BamOpts, BaseOpts } from './util.ts'
 import type { Fetcher } from 'generic-filehandle2'
@@ -145,12 +149,20 @@ export default class HtsgetFile<
     maxCacheBytes?: number
     /** see {@link maxCacheBytes}: inherited, and inert in htsget mode */
     cacheIdleTimeoutMs?: number
+    /**
+     * Reference bases for reads with no `MD` tag — see {@link BamFile}'s option
+     * of the same name. Unlike the cache options this one is live here: an
+     * htsget query resolves its reads' mismatches exactly as an indexed one
+     * does.
+     */
+    fetchReferenceSequence?: ReferenceSequenceFetcher
   }) {
     super({
       htsget: true,
       recordClass: args.recordClass,
       maxCacheBytes: args.maxCacheBytes,
       cacheIdleTimeoutMs: args.cacheIdleTimeoutMs,
+      fetchReferenceSequence: args.fetchReferenceSequence,
     })
     this.baseUrl = args.baseUrl
     this.trackId = args.trackId

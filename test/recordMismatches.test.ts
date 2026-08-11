@@ -338,7 +338,10 @@ test('a region that does not cover the whole read cannot be bound to it', async 
   const long = (
     await ecoli.getRecordsForRange('ref000001|chr', 10000, 20000)
   )[0]!
-  const partial = packReference(fakeReference(long.start, long.start + 100), long.start)
+  const partial = packReference(
+    fakeReference(long.start, long.start + 100),
+    long.start,
+  )
   const substitutions = long
     .getMismatches({ ref: partial })
     .filter(m => m.code === MISMATCH_SUBST)

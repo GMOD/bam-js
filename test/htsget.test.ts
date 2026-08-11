@@ -4,7 +4,7 @@ import zlib from 'zlib'
 import { unzip } from '@gmod/bgzf-filehandle'
 import { expect, test } from 'vitest'
 
-import { BamFile, HtsgetFile } from '../src/index.ts'
+import { BamFile, BamRecord, HtsgetFile, MISMATCH_SUBST } from '../src/index.ts'
 import { parseRefSeqs } from '../src/util.ts'
 
 import type { Fetcher } from 'generic-filehandle2'
@@ -291,4 +291,44 @@ test('an unknown reference name yields no records and no request', async () => {
 
   expect(await bam.getRecordsForRange('nonexistent', 0, 1000)).toEqual([])
   expect(calls.length).toBe(ticketsBefore)
+})
+
+// Mismatch resolution is BamFile's, but htsget overrides the query path it
+// hangs off, so it needs its own check that reads with no MD get a reference.
+// The dnanexus fixture's reads all carry one, so this hides it.
+class NoMDRecord extends BamRecord {
+  override get NUMERIC_MD() {
+    return undefined
+  }
+}
+
+test('reads with no MD are resolved against a fetched reference', async () => {
+  const { fetcher } = mockFetch()
+  const asked: [string, number, number][] = []
+  const bam = new HtsgetFile({
+    baseUrl,
+    trackId,
+    fetch: fetcher,
+    recordClass: NoMDRecord,
+    fetchReferenceSequence: async (refName, start, end) => {
+      asked.push([refName, start, end])
+      return 'A'.repeat(end - start)
+    },
+  })
+  const records = await bam.getRecordsForRange('1', 2000000, 2000001)
+  expect(records.length).toBe(39)
+  expect(asked).toHaveLength(1)
+  expect(asked[0]![0]).toBe('1')
+
+  // an all-A reference, so every non-A base of every read is a substitution
+  const record = records[0]!
+  expect(record.reference).toBeDefined()
+  const substitutions = record
+    .getMismatches()
+    .filter(m => m.code === MISMATCH_SUBST)
+  expect(substitutions.length).toBeGreaterThan(0)
+  for (const m of substitutions) {
+    expect(m.bases).not.toBe('A')
+    expect(String.fromCharCode(m.refBaseCode)).toBe('A')
+  }
 })

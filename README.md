@@ -41,6 +41,36 @@ const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
 )
 ```
 
+## Mismatches
+
+`record.getMismatches()` gives every difference between a read and the reference
+— substitutions, insertions, deletions, reference skips and clips — without you
+having to interpret `CIGAR` and `MD` yourself. There is a callback form,
+`record.forEachMismatch(cb, opts?)`, which allocates nothing per difference and
+takes a reference window to report within.
+
+Substitutions need either an `MD` tag on the read or the reference bases, and
+most aligners leave `MD` off. `fetchReferenceSequence` is how you supply them:
+
+```typescript
+const bam = new BamFile({
+  bamPath: 'test.bam',
+  fetchReferenceSequence: async (refName, start, end) =>
+    myGenome.getSequence(refName, start, end),
+})
+
+// one sequence fetch for the whole query, and only if some read needs it
+const records = await bam.getRecordsForRange('ctgA', 0, 50000)
+records[0].getMismatches()
+// [{ code: 88 /* 'X' */, refPos: 188, length: 1, bases: 'A', qual: 17,
+//    refBaseCode: 84 /* 'T' */, clipLength: 0 }, ...]
+```
+
+Without it, a read lacking `MD` still reports its indels and clips, but no
+substitutions — nothing in the record says where they are. See
+[docs/api.md](docs/api.md#mismatches) for the field meanings and for reads
+longer than the region you are looking at.
+
 ## Decompressing on a worker pool
 
 BGZF decompression is 70-90% of a cold query, and BGZF blocks are independently
