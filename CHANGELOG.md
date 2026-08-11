@@ -1,3 +1,9 @@
+## [8.8.0](https://github.com/GMOD/bam-js/compare/v8.7.0...v8.8.0) (2026-08-11)
+
+### Features
+
+- Export referenceNibble and CHAR_CODE_FROM_NIBBLE ([255a3dd](https://github.com/GMOD/bam-js/commit/255a3dd361798a3ccc11b13f965dfacc57460439))
+
 ## [8.7.0](https://github.com/GMOD/bam-js/compare/v8.6.0...v8.7.0) (2026-08-11)
 
 ### Chores
