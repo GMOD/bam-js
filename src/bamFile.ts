@@ -17,6 +17,7 @@ import {
 
 import type Chunk from './chunk.ts'
 import type { BamOpts, BaseOpts } from './util.ts'
+import type { BgzfWorkerPool } from '@gmod/bgzf-filehandle'
 import type { SharedBudget } from '@gmod/shared-read-cache'
 import type { GenericFilehandle } from 'generic-filehandle2'
 
@@ -169,6 +170,10 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
 
   private RecordClass: BamRecordClass<T>
 
+  /** see the constructor option of the same name */
+  private bgzfWorkerPool?:
+    BgzfWorkerPool | Promise<BgzfWorkerPool | undefined> | undefined
+
   constructor({
     bamFilehandle,
     bamPath,
@@ -185,6 +190,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     maxCacheBytes = DEFAULT_MAX_CACHE_BYTES,
     cacheIdleTimeoutMs = DEFAULT_CACHE_IDLE_TIMEOUT_MS,
     cacheBudget,
+    bgzfWorkerPool,
   }: {
     bamFilehandle?: GenericFilehandle
     bamPath?: string
@@ -258,8 +264,26 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
      * space to the one being panned.
      */
     cacheBudget?: SharedBudget
+    /**
+     * A `@gmod/bgzf-filehandle` worker pool to inflate this file's chunks on,
+     * instead of inflating them on the calling thread.
+     *
+     * BGZF decompression is 70-90% of a cold query (ADR 0003), and BGZF blocks
+     * are independently inflatable, so this is the one remaining lever of that
+     * size. Measured 2.7-4.1x on the pool's own fixtures.
+     *
+     * Accepts the promise `getSharedWorkerPool()` returns as well as a pool,
+     * so a caller whose own construction is synchronous can hand the pending
+     * pool straight over — it is awaited at the point of use, by which time it
+     * has long since resolved. `undefined` (which is what that helper gives
+     * back under node, or anywhere Workers cannot be created) keeps the
+     * in-process path, so this is safe to pass unconditionally.
+     */
+    bgzfWorkerPool?:
+      BgzfWorkerPool | Promise<BgzfWorkerPool | undefined> | undefined
   }) {
     this.renameRefSeq = renameRefSeqs
+    this.bgzfWorkerPool = bgzfWorkerPool
     this.RecordClass = (recordClass ?? BAMFeature) as BamRecordClass<T>
     this.chunkFeatureCache = new SharedReadCache<Chunk, ChunkEntry<T>>({
       maxSize: maxCacheBytes,
@@ -687,11 +711,15 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     // and for the same reason, before the decode loop in `_fetchRecords`.
     throwIfAborted(opts.signal)
 
+    // Awaited rather than stored resolved: the pool is commonly handed over
+    // as the pending promise from getSharedWorkerPool(), and awaiting an
+    // already-settled promise costs a microtask.
+    const pool = await this.bgzfWorkerPool
     const {
       buffer: data,
       cpositions,
       dpositions,
-    } = await unzipChunkSlice(buf, chunk)
+    } = await unzipChunkSlice(buf, chunk, pool)
     return {
       features: this.readBamFeatures(data, cpositions, dpositions, chunk),
       bytes: data.byteLength,

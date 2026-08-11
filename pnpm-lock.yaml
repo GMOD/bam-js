@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@gmod/bgzf-filehandle':
-        specifier: ^6.3.2
-        version: 6.3.2
+        specifier: ^6.4.0
+        version: 6.4.0
       '@gmod/shared-read-cache':
         specifier: ^1.5.1
         version: 1.5.1
@@ -285,8 +285,8 @@ packages:
     resolution: {integrity: sha512-+CNAzxglkrpNf/kKywqQfk74QjtceuOE7Qm+AF8miRvPF/wmmK5+OJOgVh3AVTT3RP2mH3+FOaxlE5v72owk0A==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
-  '@gmod/bgzf-filehandle@6.3.2':
-    resolution: {integrity: sha512-ZgVK7PGUMOByRQn5inARjcz2fSOH1hyIidPj1TBmPZVwVrIXeigHW6rAIs/U8UkxV0c8Xez2D14HGnF3uiq4UQ==}
+  '@gmod/bgzf-filehandle@6.4.0':
+    resolution: {integrity: sha512-PrID2FLkIqPZWSuHwYnc4A4riG4qJ6jOg+c4UXnfNio+hejZrKctUn7A3+BPMJ8i8W+S0fZOmCfKgreFHzFuBg==}
 
   '@gmod/shared-read-cache@1.5.1':
     resolution: {integrity: sha512-2Me6eOJhBrZzYruG1t73trs29ovAMSNnn6JzzzYcL4t1/bxK3EToyDBPslcoebTrg5zDeocA+yzgwsQ2mHe0eA==}
@@ -1516,7 +1516,7 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
-  '@gmod/bgzf-filehandle@6.3.2':
+  '@gmod/bgzf-filehandle@6.4.0':
     dependencies:
       generic-filehandle2: 2.2.1
       pako-esm2: 2.0.2
