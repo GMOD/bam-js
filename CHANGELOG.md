@@ -1,3 +1,18 @@
+## [8.6.0](https://github.com/GMOD/bam-js/compare/v8.5.1...v8.6.0) (2026-08-11)
+
+### Chores
+
+- Enforce type strippability in tsconfig, align eslint rules ([bfa9904](https://github.com/GMOD/bam-js/commit/bfa9904fbe878ab661cd69197dfa521123c20e8e))
+
+### Documentation
+
+- Document mismatches, and wire the reference through htsget ([1b8b70c](https://github.com/GMOD/bam-js/commit/1b8b70c5943596a70ec33bf320270eafd903cc16))
+- Measure the walk on the long-read fixtures, and price adoption ([e7c6ed0](https://github.com/GMOD/bam-js/commit/e7c6ed06b4a455d2c3603cd31535aa57109c5156))
+
+### Features
+
+- Report a read's mismatches, from MD or from a fetched reference ([427a83a](https://github.com/GMOD/bam-js/commit/427a83a96af4b6e7a3e1ca59a4033cee5143af22))
+
 ## [8.5.1](https://github.com/GMOD/bam-js/compare/v8.5.0...v8.5.1) (2026-08-11)
 
 ### Chores

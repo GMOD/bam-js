@@ -1,6 +1,6 @@
 {
   "name": "@gmod/bam",
-  "version": "8.5.1",
+  "version": "8.6.0",
   "packageManager": "pnpm@11.15.1",
   "description": "Parser for BAM and BAM index (bai) files",
   "license": "MIT",
