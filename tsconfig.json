@@ -13,8 +13,11 @@
     "strict": true,
     "allowImportingTsExtensions": true,
     "rewriteRelativeImportExtensions": true,
+    "erasableSyntaxOnly": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "noUncheckedIndexedAccess": true
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true
   }
 }
