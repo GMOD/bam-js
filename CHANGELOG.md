@@ -1,3 +1,16 @@
+## [8.5.1](https://github.com/GMOD/bam-js/compare/v8.5.0...v8.5.1) (2026-08-11)
+
+### Chores
+
+- Render only the commit subject, and link the commit ([140fea7](https://github.com/GMOD/bam-js/commit/140fea787f80c02f88a1b01ffe419ac404ded402))
+
+### Documentation
+
+- Cut the README down, move the caching discussion out ([a1d27ef](https://github.com/GMOD/bam-js/commit/a1d27ef8e59aac2f5da2ce6b491bf4ecd1b4bc4d))
+- Link the bgzf worker pool docs from the worker pool section ([0607d3b](https://github.com/GMOD/bam-js/commit/0607d3b4ca57b9e915a3722acf24fa64f776b0ad))
+- Put the release note after the trusted-publishing setup ([6696141](https://github.com/GMOD/bam-js/commit/6696141d5f3c2347a33984cb3bad66d9b7e4dff9))
+- Move the API reference to docs/api.md ([bc802b8](https://github.com/GMOD/bam-js/commit/bc802b8d04a76bedbec29b4fbd2c0b29b28ba2b5))
+
 ## [8.5.0](https://github.com/GMOD/bam-js/compare/v8.4.2...v8.5.0) (2026-08-11)
 
 ### Other Changes
