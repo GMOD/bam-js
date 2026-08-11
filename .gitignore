@@ -10,3 +10,5 @@ esm
 *.cpuprofile
 esm_*/
 pnpm-lock.yaml
+.claude/settings.local.json
+.claude/worktrees/
