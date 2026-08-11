@@ -192,7 +192,9 @@ export default class HtsgetFile<
       [],
       new Chunk(zero, zero, 0),
     )
-    return appendInRange(records, chrId, min, max)
+    const result = appendInRange(records, chrId, min, max)
+    await this._applyReferenceSequence(result, chrId, chr, opts)
+    return result
   }
 
   async getHeaderPre(opts: BaseOpts = {}) {

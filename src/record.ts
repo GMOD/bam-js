@@ -1,9 +1,15 @@
 import { CIGAR_REF_SKIP, CIGAR_SOFT_CLIP } from './cigar.ts'
 import Constants from './constants.ts'
+import { forEachMismatchNumeric } from './mismatches.ts'
+import { referenceCovers } from './reference.ts'
+import { SEQRET_CODES, SEQRET_DECODER } from './seqAlphabet.ts'
 
-const SEQRET = '=ACMGRSVTWYHKDBN'
-const SEQRET_DECODER = SEQRET.split('')
-const SEQRET_CODES = Uint8Array.from(SEQRET, c => c.charCodeAt(0))
+import type {
+  Mismatch,
+  MismatchCallback,
+  MismatchOptions,
+} from './mismatches.ts'
+import type { PackedReference } from './reference.ts'
 
 // Both bases of a SEQ byte, precomputed for all 256 bytes so decoding advances a
 // byte at a time. Two forms because `seq` has two strategies (see below): packed
@@ -371,6 +377,7 @@ export default class BamRecord {
   private _cachedNumericCigar?: NumericCigar
   private _cachedNUMERIC_MD?: Uint8Array | null
   private _cachedSeqStart?: number
+  private _reference?: PackedReference
 
   // Positional rather than an options object, because every argument is
   // unpacked into a field immediately and nothing keeps the wrapper. The
@@ -936,6 +943,91 @@ export default class BamRecord {
     } else {
       return undefined
     }
+  }
+
+  /**
+   * Bind reference bases for this read to resolve its substitutions against,
+   * for a read with no MD tag. `BamFile` calls this for you when it was given a
+   * `fetchReferenceSequence`; call it yourself when you have the bases from
+   * somewhere else.
+   *
+   * **`ref` must cover the whole read**, and this throws if it does not. The
+   * reason is that records are cached and shared between queries (ADR 0006), so
+   * a binding that varied by query would make one query's reads answer out of
+   * another's region. A region covering the read is the same data whichever
+   * query fetched it, so binding it is safe; a partial one is not, and the
+   * per-call `forEachMismatch(cb, {ref})` is where that belongs.
+   */
+  setReference(ref: PackedReference | undefined) {
+    if (ref !== undefined && !referenceCovers(ref, this.start, this.end)) {
+      throw new Error(
+        `reference region ${ref.start}-${ref.start + ref.length} does not cover the record at ${this.start}-${this.end}. Records are shared between queries, so only a region covering the whole read can be bound to one; pass a partial region per call instead, as forEachMismatch(cb, {ref})`,
+      )
+    }
+    this._reference = ref
+  }
+
+  /** the region {@link setReference} bound, if any */
+  get reference() {
+    return this._reference
+  }
+
+  /**
+   * Report each difference between this read and the reference —
+   * substitutions, insertions, deletions, reference skips and clips — without
+   * allocating an object per difference. This is the intended way to read a
+   * record's differences; deriving them from `CIGAR` and `MD` yourself takes
+   * rather more of the format to interpret correctly (see {@link Mismatch}).
+   *
+   * Substitutions come from the MD tag when the read has one, and otherwise
+   * from comparing SEQ against reference bases — which have to come from
+   * {@link setReference}, `opts.ref`, or the file's `fetchReferenceSequence`.
+   * With neither MD nor reference, indels and clips are still reported in full
+   * and substitutions are not reported at all: nothing in the record says where
+   * they are.
+   *
+   * @param callback called as
+   *   `(code, refPos, length, bases, qual, refBaseCode, clipLength)`
+   * @param opts optional reference window to restrict to, and an optional
+   *   per-call reference region; see {@link MismatchOptions}
+   */
+  forEachMismatch(callback: MismatchCallback, opts?: MismatchOptions) {
+    forEachMismatchNumeric(
+      this.NUMERIC_CIGAR,
+      this.NUMERIC_SEQ,
+      this.seq_length,
+      this.NUMERIC_MD,
+      this.qual,
+      opts?.ref ?? this._reference,
+      this.start,
+      opts?.start ?? Number.NEGATIVE_INFINITY,
+      opts?.end ?? Number.POSITIVE_INFINITY,
+      callback,
+    )
+  }
+
+  /**
+   * The same differences {@link forEachMismatch} reports, as an array of
+   * {@link Mismatch} objects. Convenient; allocates one object per difference,
+   * so the callback form is the one to reach for on a hot path.
+   */
+  getMismatches(opts?: MismatchOptions) {
+    const out: Mismatch[] = []
+    this.forEachMismatch(
+      (code, refPos, length, bases, qual, refBaseCode, clipLength) => {
+        out.push({
+          code,
+          refPos,
+          length,
+          bases,
+          qual,
+          refBaseCode,
+          clipLength,
+        })
+      },
+      opts,
+    )
+    return out
   }
 
   // Most public BamRecord fields are getters on the prototype, so

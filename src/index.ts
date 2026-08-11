@@ -8,8 +8,33 @@ export { default as CSI } from './csi.ts'
 export { default as BamRecord } from './record.ts'
 export { default as HtsgetFile } from './htsget.ts'
 
+// The mismatch walk, and the codes it reports differences as. The walk is
+// exported alongside `record.forEachMismatch` for callers holding BAM's packed
+// arrays without a record around them — a SAM parser, or a worker that was
+// posted the typed arrays.
+export {
+  MISMATCH_DELETION,
+  MISMATCH_HARD_CLIP,
+  MISMATCH_INSERTION,
+  MISMATCH_REF_SKIP,
+  MISMATCH_SOFT_CLIP,
+  MISMATCH_SUBST,
+  forEachMismatchNumeric,
+} from './mismatches.ts'
+export { packReference } from './reference.ts'
+
 export type { NumericCigar } from './record.ts'
-export type { BamRecordClass, BamRecordLike } from './bamFile.ts'
+export type {
+  BamRecordClass,
+  BamRecordLike,
+  ReferenceSequenceFetcher,
+} from './bamFile.ts'
+export type {
+  Mismatch,
+  MismatchCallback,
+  MismatchOptions,
+} from './mismatches.ts'
+export type { PackedReference } from './reference.ts'
 // the options every query method takes, and the shapes they hand back. The
 // package has no subpath exports, so a consumer typing a wrapper around
 // getRecordsForRange/indexCov can only name these if they come out of here.

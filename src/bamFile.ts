@@ -7,6 +7,7 @@ import BAI from './bai.ts'
 import CSI from './csi.ts'
 import NullFilehandle from './nullFilehandle.ts'
 import BAMFeature from './record.ts'
+import { packReference, referenceCovers } from './reference.ts'
 import { parseHeaderText } from './sam.ts'
 import {
   MAX_CONCURRENT_CHUNK_READS,
@@ -16,6 +17,7 @@ import {
 } from './util.ts'
 
 import type Chunk from './chunk.ts'
+import type { PackedReference } from './reference.ts'
 import type { BamOpts, BaseOpts } from './util.ts'
 import type { BgzfWorkerPool } from '@gmod/bgzf-filehandle'
 import type { SharedBudget } from '@gmod/shared-read-cache'
@@ -31,7 +33,41 @@ export interface BamRecordLike {
   next_refid: number
   flags: number
   tags: Record<string, unknown>
+  /**
+   * Optional, and read only to decide whether a read needs reference bases at
+   * all — a read with an MD tag carries its own. A `recordClass` without it is
+   * treated as having no MD, i.e. as always wanting the reference.
+   */
+  NUMERIC_MD?: Uint8Array | undefined
+  /**
+   * Optional; see {@link BamRecord.setReference}. A `recordClass` that does not
+   * implement it simply never gets a reference bound, whatever
+   * `fetchReferenceSequence` returns.
+   */
+  setReference?: (ref: PackedReference) => void
 }
+
+/**
+ * Supplies reference bases for a region, so reads with no MD tag can still
+ * report their substitutions. See {@link BamFile}'s option of the same name.
+ *
+ * `refName` is the name the query used, unchanged — `renameRefSeqs` maps the
+ * FILE's names into the caller's namespace, and this callback is on the
+ * caller's side of that. `start`/`end` are 0-based half-open.
+ *
+ * **The bases returned must begin at `start`.** Returning fewer than asked for
+ * is fine and is taken as `[start, start + seq.length)` — the end of a contig,
+ * or a source declining to hand over a huge span — and reads the shorter region
+ * does not cover are then left unresolved. Returning bases from somewhere else,
+ * e.g. clipping the LEFT of the requested range, cannot be detected and
+ * resolves every read against the wrong position.
+ */
+export type ReferenceSequenceFetcher = (
+  refName: string,
+  start: number,
+  end: number,
+  opts?: BaseOpts,
+) => Promise<string>
 
 export type BamRecordClass<T extends BamRecordLike = BAMFeature> = new (
   byteArray: Uint8Array,
@@ -174,6 +210,9 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   private bgzfWorkerPool?:
     BgzfWorkerPool | Promise<BgzfWorkerPool | undefined> | undefined
 
+  /** see the constructor option of the same name */
+  public fetchReferenceSequence?: ReferenceSequenceFetcher
+
   constructor({
     bamFilehandle,
     bamPath,
@@ -191,6 +230,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     cacheIdleTimeoutMs = DEFAULT_CACHE_IDLE_TIMEOUT_MS,
     cacheBudget,
     bgzfWorkerPool,
+    fetchReferenceSequence,
   }: {
     bamFilehandle?: GenericFilehandle
     bamPath?: string
@@ -281,9 +321,37 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
      */
     bgzfWorkerPool?:
       BgzfWorkerPool | Promise<BgzfWorkerPool | undefined> | undefined
+    /**
+     * Reference bases for a region, as `(refName, start, end, opts) =>
+     * Promise<string>`. Only reads that carry no `MD` tag need it, and it is
+     * only what {@link BamRecord.forEachMismatch} uses — nothing else in a
+     * query touches the reference.
+     *
+     * Without it, a read lacking MD still reports its indels and clips but no
+     * substitutions at all: neither the CIGAR nor SEQ says where they are.
+     * That is most aligners' output — minimap2 and bwa both leave MD off unless
+     * asked — so this is the difference between mismatches rendering and not.
+     *
+     * `getRecordsForRange` calls it at most ONCE per query, for the span of the
+     * reads that need it, and binds the result to each of them (see
+     * {@link BamRecord.setReference}). A query whose reads all carry MD does
+     * not call it at all.
+     *
+     * **The span asked for is the reads' union, not the query's**: the query's
+     * range plus however far its edge reads overhang it. Usually that is a few
+     * hundred bases more for Illumina and a couple of Mb for ultra-long ONT,
+     * but a BAM holding whole chromosomes as reads can make it a chromosome.
+     * Nothing here clamps that for you, because only you know what your
+     * sequence source can afford — clamp inside the callback and return the
+     * shorter region; reads it does not cover are then simply left unresolved,
+     * and {@link BamRecord.forEachMismatch}'s `opts.ref` is the windowed way to
+     * handle one of those reads.
+     */
+    fetchReferenceSequence?: ReferenceSequenceFetcher
   }) {
     this.renameRefSeq = renameRefSeqs
     this.bgzfWorkerPool = bgzfWorkerPool
+    this.fetchReferenceSequence = fetchReferenceSequence
     this.RecordClass = (recordClass ?? BAMFeature) as BamRecordClass<T>
     this.chunkFeatureCache = new SharedReadCache<Chunk, ChunkEntry<T>>({
       maxSize: maxCacheBytes,
@@ -469,7 +537,110 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       return []
     }
     const chunks = await this.index.blocksForRange(chrId, min - 1, max, opts)
-    return this._fetchChunkFeatures(chunks, chrId, min, max, opts)
+    return this._fetchChunkFeatures(chunks, chrId, chr, min, max, opts)
+  }
+
+  /**
+   * Reference bases for a region, packed for
+   * {@link BamRecord.forEachMismatch}'s `opts.ref`, or undefined when no
+   * `fetchReferenceSequence` was configured.
+   *
+   * The way to resolve a read that is longer than the region you are looking at
+   * — a contig or a whole chromosome stored as one BAM read. Those are never
+   * bound to a record automatically, since binding a partial region to a
+   * record shared between queries is the hazard ADR 0006 is about; walking one
+   * with a window and a region of your own choosing has no such problem:
+   *
+   * ```js
+   * const ref = await bam.getReferenceRegion('chr1', start, end)
+   * record.forEachMismatch(cb, { ref, start, end })
+   * ```
+   */
+  async getReferenceRegion(
+    refName: string,
+    start: number,
+    end: number,
+    opts?: BaseOpts,
+  ) {
+    const fetchReferenceSequence = this.fetchReferenceSequence
+    if (!fetchReferenceSequence) {
+      return undefined
+    }
+    // Packed once for the region rather than per read — the walk compares two
+    // bases per byte against the read's own packed SEQ, and this is the only
+    // per-base pass in it. Length comes from what came back rather than from
+    // what was asked for, so a callback that clips at the end of the contig
+    // still leaves the bases it did return usable.
+    return packReference(
+      await fetchReferenceSequence(refName, start, end, opts),
+      start,
+    )
+  }
+
+  /**
+   * Fetch reference bases for the reads in `records` that have no MD tag, and
+   * bind them to those reads so their substitutions resolve. A no-op unless
+   * `fetchReferenceSequence` was configured, and it issues at most one fetch.
+   *
+   * The span fetched is the union of the reads that need it, NOT the queried
+   * range: a read overhanging the range is only bound to a region covering all
+   * of it, because the records are shared between queries and a binding that
+   * varied by query would make one query's reads answer out of another's region
+   * (ADR 0006, ADR 0020). Reads on another reference — `viewAsPairs` mates with
+   * `pairAcrossChr` — are left out for the same reason, and unbound.
+   *
+   * Nothing clamps that union, since only the callback knows what its sequence
+   * source can afford; a callback that returns a shorter region than it was
+   * asked for leaves the reads it does not cover unbound, which is the same
+   * outcome by a route the consumer controls.
+   */
+  protected async _applyReferenceSequence(
+    records: T[],
+    chrId: number,
+    refName: string,
+    opts: BaseOpts = {},
+  ) {
+    const fetchReferenceSequence = this.fetchReferenceSequence
+    if (!fetchReferenceSequence) {
+      return
+    }
+    let start = Infinity
+    let end = 0
+    for (let i = 0, l = records.length; i < l; i++) {
+      const record = records[i]!
+      if (
+        record.ref_id === chrId &&
+        !record.NUMERIC_MD &&
+        record.setReference
+      ) {
+        if (record.start < start) {
+          start = record.start
+        }
+        if (record.end > end) {
+          end = record.end
+        }
+      }
+    }
+    // every read carries MD, or there are no reads: nothing to fetch
+    if (start >= end) {
+      return
+    }
+
+    const ref = await this.getReferenceRegion(refName, start, end, opts)
+    if (!ref) {
+      return
+    }
+    for (let i = 0, l = records.length; i < l; i++) {
+      const record = records[i]!
+      if (
+        record.ref_id === chrId &&
+        !record.NUMERIC_MD &&
+        record.setReference &&
+        referenceCovers(ref, record.start, record.end)
+      ) {
+        record.setReference(ref)
+      }
+    }
   }
 
   // Parsed records for a chunk, reading and decompressing it only on a miss.
@@ -496,6 +667,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   private async _fetchChunkFeatures(
     chunks: Chunk[],
     chrId: number,
+    chr: string,
     min: number,
     max: number,
     opts: BamOpts = {},
@@ -594,6 +766,11 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
         result.push(pairs[i]!)
       }
     }
+
+    // After the pairs, so a mate fetched from another chunk is resolved on the
+    // same terms as the reads it was fetched for. A no-op without
+    // `fetchReferenceSequence`, which is the default.
+    await this._applyReferenceSequence(result, chrId, chr, opts)
 
     return result
   }
