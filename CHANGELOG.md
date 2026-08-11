@@ -2,53 +2,7 @@
 
 ### Other Changes
 
-- Optionally inflate chunks on a bgzf worker pool (#132)
-
-* docs(adr): park the chunk-cache key instability, with the numbers
-
-The chunk cache is keyed on the MERGED chunk's virtual-offset span, and that
-span depends on the query, so a pan re-parses bytes it already has. Measured,
-mechanism pinned down, fix designed and costed — and not built, because the
-cost lands on files that get none of the benefit and the change reaches three
-repos.
-
-Worth writing down rather than leaving as a hunch, because the mechanism is
-not the one it looks like from the outside. It is not BAI supersets: the raw
-bin chunks ABUT, so optimizeChunks swallows the whole chain, and the merged
-endpoints then slide for two reasons — reg2bins picking up a bridging bin as
-the window moves, and getLowestChunk pruning the front as min rises. The raw
-chunks themselves are query-independent, which is the only reason a fix is
-conceivable at all.
-
-Waste is 56-72% on shallow short-read fixtures (200x.shortread, volvox,
-ecoli_nanopore) and 0% on deep long-read data at ordinary zoom. It tracks
-containment exactly: waste appears iff one parsed span strictly contains
-another, in every row measured.
-
-Also records why the obvious cheap variant — serving a subset chunk from a
-cached superset — is wrong. It reintroduces the duplicate-record hazard
-makeDisjoint exists to prevent, because a cached superset is not one of the
-current query's chunks and can overlap the others freely. Duplicated reads
-render twice rather than erroring, so that one is worth stating out loud.
-
-* feat: optionally inflate chunks on a bgzf worker pool
-
-BGZF decompression is 70-90% of a cold query (ADR 0003), and BGZF blocks are
-independently inflatable, so a worker pool is the one remaining lever of that
-size. @gmod/bgzf-filehandle 6.4.0 ships one; this is the seam that lets a
-caller hand it over.
-
-`bgzfWorkerPool` takes the promise `getSharedWorkerPool()` returns as well as a
-resolved pool, because the callers that want this construct synchronously —
-jbrowse builds its BamFile inside a sync `configure()` — and the pool is only
-available asynchronously. It is awaited at the point of use, by which time it
-has long since settled. `undefined` keeps the in-process path, and that is what
-the helper returns under node or anywhere Workers cannot be created, so it is
-safe to pass unconditionally.
-
-No default pool is created here. Spawning workers is the consumer's decision:
-it owns the thread budget, and a library that quietly starts four workers per
-file would be a bad guest. bam-js only threads what it is given.
+- Optionally inflate chunks on a bgzf worker pool (#132) ([e7f9470](https://github.com/GMOD/bam-js/commit/e7f9470fc41729c2e7589f22ad10758f676d13b5))
 
 ## [8.4.2](https://github.com/GMOD/bam-js/compare/v8.4.1...v8.4.2) (2026-08-10)
 
@@ -62,27 +16,7 @@ file would be a bad guest. bam-js only threads what it is given.
 
 ### Other Changes
 
-- Revert "chore: converge package.json" — the CHANGELOG prettier step
-
-Removes `prettier --write CHANGELOG.md` from the `version` script, which the
-previous commit added on a premise I did not check.
-
-The reasoning was: git-cliff writes CHANGELOG.md after `preversion` has run, so
-the format:check gate structurally cannot see it, while CI checks it on the tag
-commit -- a hole the gate cannot cover. The first half is true. The second is
-not: **every one of the 20 repos already lists CHANGELOG.md in
-.prettierignore**, so CI's format:check skips it too and there was never a hole.
-
-The step was also a no-op, verified rather than assumed: prettier skips an
-ignored file even when it is named explicitly on the command line, so a
-deliberately mangled CHANGELOG.md came back unchanged.
-
-hclust was the only repo that had this step, which is where I copied it from.
-It is reverted there too. The .prettierignore comments in bgzf-filehandle,
-cram-js and hclust say why nobody should add it back: reformatting a generated
-changelog fights the generator on every release.
-
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+- Revert "chore: converge package.json" — the CHANGELOG prettier step ([ea726f0](https://github.com/GMOD/bam-js/commit/ea726f0731b0b289750125570f8468979634172e))
 
 ## [8.4.0](https://github.com/GMOD/bam-js/compare/v8.3.1...v8.4.0) (2026-08-10)
 
