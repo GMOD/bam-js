@@ -21,17 +21,48 @@ const records = await bam.getRecordsForRange('ctgA', 0, 50000)
 ```
 
 Coordinates are 0-based half-open (not the same as `samtools view` inputs).
-`bamPath` reads a local file, so it is node-only; in the browser pass a
-filehandle or URL instead:
+`bamPath` reads a local file, so it is node-only; in the browser pass a URL or a
+generic-filehandle2 filehandle instead:
 
 ```typescript
-import { BamFile } from '@gmod/bam'
-
 const bam = new BamFile({
   bamUrl: 'https://example.com/yourfile.bam',
   baiUrl: 'https://example.com/yourfile.bam.bai',
 })
 ```
+
+Records come back unfiltered, and are shared between overlapping queries — treat
+them as read-only. Filter them yourself with the flag helpers and `getTag`,
+which decodes one tag instead of all of them:
+
+```typescript
+const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
+  r => r.isProperlyPaired() && !r.isSecondary() && r.getTag('RG') === 'rg1',
+)
+```
+
+## Decompressing on a worker pool
+
+BGZF decompression is 70-90% of a cold query, and BGZF blocks are independently
+inflatable. Hand `BamFile` a
+[`@gmod/bgzf-filehandle`](https://github.com/GMOD/bgzf-filehandle) worker pool
+and it inflates chunks there instead of on the calling thread — measured
+2.7-4.1x on the pool's own fixtures.
+
+```typescript
+import { getSharedWorkerPool } from '@gmod/bgzf-filehandle'
+
+const bam = new BamFile({
+  bamUrl: 'https://example.com/yourfile.bam',
+  // the pending promise is fine — it is awaited at the point of use
+  bgzfWorkerPool: getSharedWorkerPool(),
+})
+```
+
+No cross-origin isolation is needed. `getSharedWorkerPool()` gives back
+`undefined` under node, or anywhere Workers cannot be created, which keeps the
+in-process path — so this is safe to pass unconditionally. bam-js never creates
+a pool on its own: the thread budget belongs to the consumer.
 
 ## Usage with htsget
 
@@ -46,10 +77,8 @@ const records = await bam.getRecordsForRange('1', 2000000, 2000001)
 ```
 
 htsget fetches the server's range as-is, so `viewAsPairs`, `pairAcrossChr` and
-`maxInsertSize` are ignored.
-
-For a server that requires authentication, pass a `fetch` that adds the bearer
-token the spec calls for:
+`maxInsertSize` are ignored. For a server that requires authentication, pass a
+`fetch` that adds the bearer token:
 
 ```typescript
 const bam = new HtsgetFile({
@@ -63,146 +92,57 @@ const bam = new HtsgetFile({
 })
 ```
 
-Your `fetch` is called for the ticket request and for the data-block urls the
-ticket points at, so only attach credentials to hosts you trust — data blocks
-may live on a third-party host, and the spec has servers put whatever those need
-in each url's own `headers` field, which is applied either way.
+Your `fetch` is called for the ticket request _and_ for the data-block urls the
+ticket points at, which may live on a third-party host — so only attach
+credentials to hosts you trust.
 
-## Documentation
+## API
 
-### BamFile constructor
+### `new BamFile(opts)`
 
-- `bamPath`/`bamUrl`/`bamFilehandle` - local path, remote URL, or a
-  generic-filehandle2 object
-- `baiPath`/`baiUrl`/`baiFilehandle` - BAI index. Defaults to the `.bai` sibling
-  of `bamPath`/`bamUrl`
-- `csiPath`/`csiUrl`/`csiFilehandle` - CSI index, required for chromosomes
-  longer than 2^29
-- `renameRefSeqs` - `(refName: string) => string` applied to header ref names
-- `recordClass` - custom class extending `BamRecord` (see below)
-- `maxCacheBytes` - ceiling for the parsed-chunk cache, in decompressed bytes.
-  default: 1GB, `Infinity` for none. See [Caching](#caching)
-- `cacheIdleTimeoutMs` - drop a cached chunk once nothing has read it for this
-  long. default: 3 minutes; `0` disables it. See [Caching](#caching)
+| option                             | description                                               |
+| ---------------------------------- | --------------------------------------------------------- |
+| `bamPath`/`bamUrl`/`bamFilehandle` | local path, remote URL, or a generic-filehandle2 object   |
+| `baiPath`/`baiUrl`/`baiFilehandle` | BAI index. defaults to the `.bai` sibling of the BAM      |
+| `csiPath`/`csiUrl`/`csiFilehandle` | CSI index, required for chromosomes longer than 2^29      |
+| `renameRefSeqs`                    | `(refName: string) => string` applied to header ref names |
+| `recordClass`                      | custom class extending `BamRecord` (see below)            |
+| `bgzfWorkerPool`                   | worker pool to inflate chunks on (see above)              |
+| `maxCacheBytes`                    | per-file cache ceiling in decompressed bytes. default 1GB |
+| `cacheIdleTimeoutMs`               | drop a cached chunk after this long unread. default 3min  |
+| `cacheBudget`                      | `SharedBudget` bounding several files together            |
 
 The `path`/`url` forms are convenience wrappers for generic-filehandle2's
-`LocalFile` and `RemoteFile`.
+`LocalFile` and `RemoteFile`. The cache options are covered in
+[docs/caching.md](docs/caching.md).
 
-### Caching
+### `new HtsgetFile(opts)`
 
-Parsed chunks — the unit the BAM index hands out — are cached, so overlapping
-and adjacent queries reuse decompressed records instead of re-fetching them. Two
-options bound that cache, and they answer different questions.
+`baseUrl`, `trackId`, `fetch` and `recordClass`, as above.
 
-**`maxCacheBytes` is a ceiling under load, not a limit on what you can ask
-for.** Nothing is ever refused for being too large: a chunk bigger than the
-whole budget is still cached, reads in flight are never evicted, and eviction
-only drops a value that has already been returned once. The worst a budget can
-cost you is a re-read. It can make a query slower; it can never make one fail or
-come back short.
+### `getRecordsForRange(refName, start, end, opts?)`
 
-**It binds less often than its size suggests.** On the deepest data we measure —
-1000x coverage long reads, 240 windows over six laps — the cache settles at
-573MB across 60 entries and eviction never runs at the 1GB default. Treat it as
-a backstop against a session that pans forever, not as an operating constraint.
+`start`/`end` are 0-based half-open. `opts`:
 
-**Don't pick a number between one query and several.** Below one query's working
-set the cache inverts: each chunk is evicted before the next pan can reuse it,
-so the hit rate is zero, the full re-decompress is paid every time, and the
-unevictable entries retain the memory anyway. At a 200MB budget on that same
-file the cache holds exactly one entry, because one chunk there decompresses to
-181MB. Either size it above the working set or pass `Infinity` and bound memory
-some other way.
+| option          | description                                                         |
+| --------------- | ------------------------------------------------------------------- |
+| `signal`        | `AbortSignal` to stop processing                                    |
+| `viewAsPairs`   | re-dispatch requests to find mate pairs. default false              |
+| `pairAcrossChr` | let `viewAsPairs` pair across chromosomes. default false            |
+| `maxInsertSize` | distance limit for `viewAsPairs` within a chromosome. default 200kb |
+| `onProgress`    | `(bytesDownloaded, totalBytes?) => void`, called per BGZF chunk     |
 
-**`cacheIdleTimeoutMs` is the only thing that gives memory back.**
-`maxCacheBytes` is enforced when a read settles, so an idle cache sits at
-whatever it reached and never lowers — and for a page that holds a `BamFile` for
-the life of a track, that resting level is the number that actually matters. The
-idle sweep is what makes a generous ceiling affordable, by turning it into a
-peak under panning rather than a level a parked tab holds indefinitely. The
-clock runs from the last _read_ of a chunk, or from its parse landing if nothing
-has read it since, so panning back and forth over one region never expires it
-and a slow chunk still gets the full timeout to be reused in. Measured on a pan
-that held 331MB: 0MB once idle.
+### Other methods
 
-**Neither bounds peak memory**, and on deep data the gap is not small:
-
-- Up to six chunk reads run at once and an in-flight read is never evicted. At
-  181MB a chunk, that is ~476MB in flight before retention holds anything.
-- A query holds every chunk it parsed until it returns, whether or not the cache
-  still does.
-- An entry is weighed once, when its read settles, and records grow after that.
-  `end`, `CIGAR` and `tags` each memoize onto the record the first time they are
-  read, which is what a renderer does to every visible read — measured at +38%
-  over the weighed size.
-
-So these are bounds on retained decompressed bytes, not on the heap. Size
-against what you want to keep, and bound total memory at a level that can see
-the whole process.
-
-### HtsgetFile constructor
-
-- `baseUrl` - htsget reads endpoint, e.g. `https://htsget.example.com/reads`
-- `trackId` - id of the resource under `baseUrl`
-- `fetch` - `fetch` replacement for adding auth headers (see above)
-- `recordClass` - custom class extending `BamRecord` (see below)
-
-### async getRecordsForRange(refName, start, end, opts?)
-
-- `refName` - chromosome to fetch from
-- `start`/`end` - 0-based half-open coordinates
-- `opts.signal` - `AbortSignal` to stop processing
-- `opts.viewAsPairs` - re-dispatch requests to find mate pairs. default: false
-- `opts.pairAcrossChr` - let `viewAsPairs` pair across chromosomes. default:
-  false
-- `opts.maxInsertSize` - distance limit for `viewAsPairs` within a chromosome.
-  default: 200kb
-- `opts.onProgress` - `(bytesDownloaded, totalBytes?) => void`, called per BGZF
-  chunk for a determinate progress bar
-
-Returned records are cached and shared between overlapping queries, so treat
-them as read-only — attaching your own fields to a record mutates it for every
-other query holding it.
-
-Records come back unfiltered. Filter them yourself with the flag helpers and
-`getTag`, which decodes one tag instead of all of them:
-
-```typescript
-const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
-  r => r.isProperlyPaired() && !r.isSecondary() && r.getTag('RG') === 'rg1',
-)
-```
-
-### async getHeader(opts?)
-
-Returns the parsed SAM header. Called automatically by the query methods and
-cached, so you only need it when you want the header itself.
-`getHeaderText(opts?)` returns the raw header string.
-
-### async indexCov(refName, start?, end?)
-
-Returns `{start, end, score}` features estimating read density over 16kb
-windows, derived from the BAI linear index. CSI has no linear index, so a
-CSI-indexed file returns `[]`.
-
-### async lineCount(refName)
-
-Number of records on `refName` from the index's pseudo-bin (bin 37450 in BAI,
-`n_mapped` in the SAM spec), or 0 if `refName` is absent.
-
-### async hasRefSeq(refName)
-
-Whether `refName` is present in the file.
-
-### async estimatedBytesForRegions(regions, opts?)
-
-Compressed bytes the given `{refName, start, end}[]` would fetch — useful for
-warning before a large query.
-
-### clearFeatureCache()
-
-Drops the parsed-chunk cache immediately, rather than waiting for
-`maxCacheBytes` or `cacheIdleTimeoutMs` to reclaim it. See [Caching](#caching).
+| method                                     | returns                                                                                                         |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `getHeader(opts?)`                         | the parsed SAM header. called automatically by queries and cached                                               |
+| `getHeaderText(opts?)`                     | the raw header string                                                                                           |
+| `indexCov(refName, start?, end?)`          | `{start, end, score}[]` read density over 16kb windows, from the BAI linear index. `[]` for CSI, which has none |
+| `lineCount(refName)`                       | records on `refName` from the index's pseudo-bin, or 0 if absent                                                |
+| `hasRefSeq(refName)`                       | whether `refName` is in the file                                                                                |
+| `estimatedBytesForRegions(regions, opts?)` | compressed bytes a `{refName, start, end}[]` would fetch — useful for warning before a large query              |
+| `clearFeatureCache()`                      | drops the parsed-chunk cache immediately                                                                        |
 
 ### BamRecord
 
@@ -254,7 +194,7 @@ record.seqAt(idx) // single base at position
 record.toJSON()
 ```
 
-### Custom BamRecord class
+### Custom record class
 
 ```typescript
 import { BamFile, BamRecord } from '@gmod/bam'
@@ -272,18 +212,15 @@ const bam = new BamFile<CustomBamRecord>({
 
 // records are typed as CustomBamRecord[]
 const records = await bam.getRecordsForRange('ctgA', 0, 50000)
-console.log(records[0].customProperty)
 ```
+
+## Docs
+
+- [docs/caching.md](docs/caching.md) — sizing the parsed-chunk cache
+- [agent-docs/adr/](agent-docs/adr/) — the measurements behind the performance
+  and caching decisions
+- [CONTRIBUTING.md](CONTRIBUTING.md) — development and release steps
 
 ## License
 
 MIT © [Colin Diesh](https://github.com/cmdcolin)
-
-## Publishing
-
-[Trusted publishing](https://docs.npmjs.com/about-trusted-publishing) via GitHub
-Actions.
-
-```bash
-pnpm version patch  # or minor/major
-```
