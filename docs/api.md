@@ -195,6 +195,10 @@ around them — a SAM parser, or a worker that was posted the typed arrays.
 `origin` is the same knob as the option: pass the read's own start for
 read-relative positions, 0 for reference ones.
 
+`packReference(seq, start)` builds the region these take, and
+`referenceNibble(ref, i)` with `CHAR_CODE_FROM_NIBBLE` read a base back out of
+one — `i` is an index into the region, not a reference coordinate.
+
 ## Custom record class
 
 ```typescript

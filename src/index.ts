@@ -21,7 +21,14 @@ export {
   MISMATCH_SUBST,
   forEachMismatchNumeric,
 } from './mismatches.ts'
-export { packReference } from './reference.ts'
+// `referenceNibble` and `CHAR_CODE_FROM_NIBBLE` are what read a base back out
+// of a packed region — a consumer that holds one otherwise has no way to see
+// what is in it, which makes a binding untestable from the outside.
+export {
+  CHAR_CODE_FROM_NIBBLE,
+  packReference,
+  referenceNibble,
+} from './reference.ts'
 
 export type { NumericCigar } from './record.ts'
 export type {

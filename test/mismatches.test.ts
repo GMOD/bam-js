@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
 import {
+  CHAR_CODE_FROM_NIBBLE,
   MISMATCH_DELETION,
   MISMATCH_HARD_CLIP,
   MISMATCH_INSERTION,
@@ -9,6 +10,7 @@ import {
   MISMATCH_SUBST,
   forEachMismatchNumeric,
   packReference,
+  referenceNibble,
 } from '../src/index.ts'
 
 import type { Mismatch } from '../src/index.ts'
@@ -525,4 +527,16 @@ test('the codes are @gmod/cram’s vocabulary, i.e. CIGAR char codes', () => {
     MISMATCH_SOFT_CLIP,
     MISMATCH_HARD_CLIP,
   ]).toEqual(Array.from('XIDNSH', (c: string) => c.charCodeAt(0)))
+})
+
+test('a packed region can be read back out a base at a time', () => {
+  // what a consumer holding one needs in order to see what is in it: a
+  // soft-masked base reads back upper-cased, and an unknown character as N
+  const ref = packReference('acGTnZ', 100)
+  let out = ''
+  for (let i = 0; i < ref.length; i++) {
+    out += String.fromCharCode(CHAR_CODE_FROM_NIBBLE[referenceNibble(ref, i)]!)
+  }
+  expect(out).toBe('ACGTNN')
+  expect(ref.start).toBe(100)
 })
