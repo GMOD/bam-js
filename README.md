@@ -62,7 +62,9 @@ const bam = new BamFile({
 No cross-origin isolation is needed. `getSharedWorkerPool()` gives back
 `undefined` under node, or anywhere Workers cannot be created, which keeps the
 in-process path — so this is safe to pass unconditionally. bam-js never creates
-a pool on its own: the thread budget belongs to the consumer.
+a pool on its own: the thread budget belongs to the consumer. For worker counts,
+lifecycle and the pool's own benchmarks, see
+[bgzf-filehandle's worker pool docs](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/worker-pool.md).
 
 ## Usage with htsget
 
