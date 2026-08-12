@@ -318,6 +318,20 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
      * has long since resolved. `undefined` (which is what that helper gives
      * back under node, or anywhere Workers cannot be created) keeps the
      * in-process path, so this is safe to pass unconditionally.
+     *
+     * **Holding a pool for the life of this object is fine, and deliberately
+     * so.** It is stored here and awaited once per chunk read, which used to
+     * mean four workers and their grow-only wasm heaps stayed up from the first
+     * query until the page went away. As of `@gmod/bgzf-filehandle` 6.6.0 a
+     * pool reaps its own workers after 3 minutes idle and spawns a fresh set on
+     * the next call, and that is invisible from here — the pool object stays
+     * valid throughout.
+     *
+     * Which is also why a caller must NOT try to reclaim it by calling
+     * `destroySharedWorkerPool()` on an idle timer of its own: a destroyed pool
+     * throws out of `decompressBlocks`, so every open `BamFile` still holding
+     * one would fail its next read rather than fall back to inflating in
+     * process. Reclaiming is the pool's job, not the consumer's.
      */
     bgzfWorkerPool?:
       BgzfWorkerPool | Promise<BgzfWorkerPool | undefined> | undefined
