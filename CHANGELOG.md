@@ -1,3 +1,9 @@
+## [8.8.1](https://github.com/GMOD/bam-js/compare/v8.8.0...v8.8.1) (2026-08-12)
+
+### Other Changes
+
+- @gmod/bgzf-filehandle 6.6.0, and say why holding a pool is safe ([dadefd4](https://github.com/GMOD/bam-js/commit/dadefd4716ddb7cd7c4a0c5ae7b4ef22f9d7a991))
+
 ## [8.8.0](https://github.com/GMOD/bam-js/compare/v8.7.0...v8.8.0) (2026-08-11)
 
 ### Features
