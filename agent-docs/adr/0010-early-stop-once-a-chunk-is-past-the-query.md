@@ -278,11 +278,22 @@ other five workers consume all 21 tiny tail chunks, and the prefix is blocked at
 exactly the boundary that would have stopped it. Measured: 28 requests,
 unchanged.
 
-### What is not covered
+### The fixture, and why it is synthetic
 
-No fixture in this corpus has a query whose own data exceeds six chunks, which
-is why the evidence above is a remote 300x file rather than a test. A fixture
-with that shape is the thing to add before this is relied on.
+No real fixture here has this shape and building one is not practical: the 5MB
+merge cap means seven chunks of query data is >30MB compressed, a ~100MB file
+for one test. What is under test is the SCHEDULING, so `bai.test.ts`'s "the stop
+fires past the first batch when a query is deeper than it" supplies the chunk
+list and the records directly — 7 head chunks inside the query, 21 past it, the
+observed 300x proportions — and leaves `_fetchChunkFeatures` real.
+
+It asserts all 21 head records still come back, and that the reads land between
+`HEAD` and `HEAD + MAX_CONCURRENT_CHUNK_READS`. That upper bound is the
+overshoot written down as a number: the stop index is deterministic, the reads
+past it are not, and the test pins the bound rather than an exact count.
+
+Checked against the old behaviour rather than assumed: reverting the pool to the
+once-only check fails it with `expected 28 to be less than or equal to 13`.
 
 ## Notes for whoever picks this up
 

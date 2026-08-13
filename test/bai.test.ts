@@ -2,7 +2,9 @@ import { LocalFile } from 'generic-filehandle2'
 import { expect, test, vi } from 'vitest'
 
 import FakeRecord from './fakerecord.ts'
+import Chunk from '../src/chunk.ts'
 import { BAI, BamFile, BamRecord } from '../src/index.ts'
+import { MAX_CONCURRENT_CHUNK_READS } from '../src/util.ts'
 
 test('loads BAI volvox-sorted.bam.bai', async () => {
   const ti = new BAI({
@@ -764,6 +766,85 @@ test('reports download progress for getRecordsForRange', async () => {
   expect(ticks[0]![0]).toEqual(0)
   expect(ticks.at(-1)![0]).toEqual(ticks[0]![1])
   expect(ticks[0]![1]).toBeGreaterThan(0)
+})
+
+// The shape ADR 0010's amendment is about, and the one no real fixture in this
+// corpus has: a query whose OWN data is more than MAX_CONCURRENT_CHUNK_READS
+// chunks, followed by chunks the BAI bin hierarchy hands back from beyond it.
+//
+// Building it as a real BAM is not practical — `optimizeChunks` caps a merged
+// span at 5MB, so seven chunks of query data means >30MB compressed, a ~100MB
+// fixture for one test. The scheduling is what is under test, so the chunk list
+// and the records are supplied directly and only `_fetchChunkFeatures` is real.
+//
+// On the observed 300x case the head is 7 chunks and the tail 21; those are the
+// numbers used here.
+function deepQueryChunks(head: number, tail: number) {
+  const chunks: Chunk[] = []
+  let pos = 0
+  for (let i = 0; i < head + tail; i++) {
+    const size = 1000
+    chunks.push(
+      new Chunk(
+        { blockPosition: pos, dataPosition: 0 },
+        { blockPosition: pos + size, dataPosition: 0 },
+        i,
+        pos + size,
+      ),
+    )
+    pos += size
+  }
+  return chunks
+}
+
+test('the stop fires past the first batch when a query is deeper than it', async () => {
+  const HEAD = 7
+  const TAIL = 21
+  const MIN = 0
+  const MAX = 1000
+  const ti = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  await ti.getHeader()
+  const chrId = ti.chrToIndex!.ctgA!
+
+  const chunks = deepQueryChunks(HEAD, TAIL)
+  vi.spyOn(ti.index!, 'blocksForRange').mockResolvedValue(chunks)
+
+  // Head chunks sit inside the query; tail chunks start past its end, which is
+  // what `isPastQuery` reads. Every chunk is given records so an empty one
+  // cannot be what stops the walk.
+  const read = vi
+    .spyOn(
+      ti as unknown as {
+        _readChunkFeatures: (chunk: Chunk) => Promise<unknown>
+      },
+      '_readChunkFeatures',
+    )
+    .mockImplementation(async (chunk: Chunk) => {
+      const i = chunk.bin
+      const base = i < HEAD ? i * 100 : MAX + (i - HEAD + 1) * 100
+      await Promise.resolve()
+      return {
+        features: Array.from({ length: 3 }, (_, k) => ({
+          ref_id: chrId,
+          start: base + k,
+          end: base + k + 1,
+        })),
+        bytes: 100,
+      }
+    })
+
+  const records = await ti.getRecordsForRange('ctgA', MIN, MAX)
+
+  // every head record comes back — the stop must not cost the query its answer
+  expect(records).toHaveLength(HEAD * 3)
+  // and the tail is not read in full. The stop INDEX is deterministic (HEAD),
+  // but workers that had already taken an index run to completion, so the
+  // overshoot is bounded by the pool rather than being zero.
+  const reads = read.mock.calls.length
+  expect(reads).toBeGreaterThanOrEqual(HEAD)
+  expect(reads).toBeLessThanOrEqual(HEAD + MAX_CONCURRENT_CHUNK_READS)
+  expect(reads).toBeLessThan(HEAD + TAIL)
+  read.mockRestore()
 })
 
 test('a repeat query over the same region reuses the decompressed chunk', async () => {
