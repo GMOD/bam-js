@@ -1,7 +1,9 @@
 # ADR 0010 — Stopping a query once a chunk is past its range
 
 Status: Accepted, implemented — one barrier after the first batch, then the
-pool. See "The waves-vs-pool benchmark", which supersedes "Why not yet".
+pool. See "The waves-vs-pool benchmark", which supersedes "Why not yet", and the
+Amendment at the end, which revises the Decision for queries deeper than the
+batch.
 
 ## Context
 
@@ -219,6 +221,68 @@ more chunks the second time.
 The earlier "Why not yet" reasoning was correct about the mechanism and wrong
 about the magnitude. It assumed the barrier would be paid on the queries that
 benefit; it is not, because those queries stop in the first batch.
+
+## Amendment — the batch was also the stop's window, and deep coverage breaks that
+
+Status: accepted, implemented. Revises "Decision" above: the stop is now
+re-tested as each chunk lands, not only after the first batch.
+
+The decision above rests on one observation — "the stop, when it exists, fired
+inside the _first_ batch on every fixture measured (`needed` was 1-3
+everywhere)" — and therefore "a query that clears the first batch without
+stopping is one that needs its chunks". That holds while a query's own data is
+1-3 chunks. It fails when the data is more than `MAX_CONCURRENT_CHUNK_READS` of
+them, because then nothing in the first batch _can_ be past the query.
+
+GIAB's HG002 300x novoalign BAM (600GB, hs37d5), `1:10,000,000-10,100,000`:
+
+| chunks | what they hold                                                      |
+| ------ | ------------------------------------------------------------------- |
+| 0-6    | 32,800-35,504 records each, all in range — 24.5MB, the query's data |
+| 7-27   | 131-349 records each, **zero** in range — the BAI bin hierarchy     |
+
+Seven chunks of data against a batch of six, so the stop never fired and all
+twenty-one tail chunks were read: 2.0MB and 21 round trips returning nothing.
+Their first records step by 2^14, 2^17, 2^20, 2^23 — one chunk per bin level,
+each at the start of a successively larger bin, which `reg2bins` hands back at
+every level and the linear index cannot prune because it bounds only from below.
+
+Measured, six paired runs against the stock reader, records identical every
+time: **28 requests -> 12, 26.8MB -> 25.3MB**, wall clock 6.68s -> 5.40s mean
+(6.31 -> 5.50 median), prefix faster in four of six. The link's own spread is
+±3s, so treat the request and byte counts as the result and the time as
+consistent-in-direction.
+
+### What this costs, stated plainly
+
+**The stop INDEX stays deterministic; the OVERSHOOT does not.** Past-ness is
+monotone in chunk index — `optimizeChunks` returns chunks sorted by `minv` and a
+sorted BAM's file order is its coordinate order — so the smallest past index is
+a function of the chunk list alone, whatever order reads finish in, and no chunk
+below it is ever skipped. What varies with timing is how many chunks a worker
+had already taken when the stop was determined, bounded by the pool width. Those
+chunks contribute nothing to the result.
+
+That is weaker than what the barrier gave, and it is the same axis the first
+attempt failed on. The difference is that the first attempt could vary _which
+records were returned_; this cannot. `test/cache.test.ts`'s "a repeated query
+reads no more chunks the second time" still passes on this corpus, but it is now
+a property of the corpus rather than a guarantee of the algorithm.
+
+### A completed-prefix check was tried first and does not work
+
+Advancing a prefix — examine chunk `i` only once every chunk before it has
+finished — keeps the barrier's full determinism and was the obvious answer. It
+changes nothing here: chunk 6 is 3.5MB and slow, so while it is in flight the
+other five workers consume all 21 tiny tail chunks, and the prefix is blocked at
+exactly the boundary that would have stopped it. Measured: 28 requests,
+unchanged.
+
+### What is not covered
+
+No fixture in this corpus has a query whose own data exceeds six chunks, which
+is why the evidence above is a remote 300x file rather than a test. A fixture
+with that shape is the thing to add before this is relied on.
 
 ## Notes for whoever picks this up
 

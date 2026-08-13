@@ -737,19 +737,52 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       // at 0.92x-0.95x, against 0.82x-0.88x for barriering every wave.
       const batch = Math.min(MAX_CONCURRENT_CHUNK_READS, chunks.length)
       await Promise.all(Array.from({ length: batch }, (_, ci) => readOne(ci)))
-      let stopped = false
-      for (let ci = 0; ci < batch; ci++) {
-        if (isPastQuery(featureLists[ci], chrId, max)) {
-          stopped = true
-          break
+
+      // The stop, re-tested as each chunk lands rather than only once after the
+      // first batch.
+      //
+      // WHAT MAKES THIS DETERMINISTIC is that past-ness is MONOTONE in chunk
+      // index. `optimizeChunks` returns chunks sorted by `minv`, and a sorted
+      // BAM's file order is its coordinate order, so if chunk i's first record
+      // is past the query then every chunk after it is too. `stopIndex` is
+      // therefore the smallest such index whatever order the reads finish in,
+      // and no chunk below it is ever skipped — which is the property ADR 0010
+      // requires. What timing still varies is the OVERSHOOT: a worker that had
+      // already taken an index keeps it, so up to the pool width is fetched past
+      // the stop. Those chunks contribute nothing to the result either way.
+      //
+      // Checking once was calibrated on fixtures where the stop, when there was
+      // one, always fired inside the first batch. That holds while a query's own
+      // data is 1-3 chunks and breaks when it is more than
+      // MAX_CONCURRENT_CHUNK_READS of them: on a 300x BAM a 100kb window's data
+      // is SEVEN chunks, so nothing in the first six is past the query and the
+      // stop never fires. The query then reads 21 further chunks the BAI bin
+      // hierarchy hands back from beyond it — 131-349 records each, not one of
+      // them in range, 2.0MB and 21 round trips for nothing.
+      //
+      // A completed-PREFIX check was tried first and does not work here, for a
+      // reason worth keeping: chunk 6 is 3.5MB and slow, so while it is in
+      // flight the other five workers consume all 21 tiny tail chunks, and the
+      // prefix is blocked at exactly the boundary that would have stopped it.
+      // Measured: 28 requests, unchanged.
+      let stopIndex = chunks.length
+      const noteStop = (ci: number) => {
+        if (ci < stopIndex && isPastQuery(featureLists[ci], chrId, max)) {
+          stopIndex = ci
         }
       }
+      for (let ci = 0; ci < batch; ci++) {
+        noteStop(ci)
+      }
+      const stopped = stopIndex < chunks.length
 
       if (!stopped && chunks.length > batch) {
         let next = batch
         const readNext = async () => {
-          while (next < chunks.length) {
-            await readOne(next++)
+          while (next < stopIndex) {
+            const ci = next++
+            await readOne(ci)
+            noteStop(ci)
           }
         }
         const workers = Math.min(
