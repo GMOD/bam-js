@@ -1,3 +1,13 @@
+## [8.9.0](https://github.com/GMOD/bam-js/compare/v8.8.1...v8.9.0) (2026-08-13)
+
+### Performance Improvements
+
+- Re-test the early stop as each chunk lands, not only after the first batch ([226dbbf](https://github.com/GMOD/bam-js/commit/226dbbf39fe3d727051dda9bac0a002fa3f3545e))
+
+### Tests
+
+- Pin the deep-query stop, with the fixture built rather than found ([e00e79a](https://github.com/GMOD/bam-js/commit/e00e79a3d93749e8f58852063f9d52fc6a8aa363))
+
 ## [8.8.1](https://github.com/GMOD/bam-js/compare/v8.8.0...v8.8.1) (2026-08-12)
 
 ### Other Changes
