@@ -1,6 +1,11 @@
 # ADR 0019 — The chunk cache key slides as a query pans
 
-Status: **Parked.** Measured, mechanism understood, design sketched, not built.
+Status: **Parked, but the two costs that parked it now have an answer.** See "A
+key that does not slide" below: a canonical partition has fewer entries than the
+merged key ships today, and fills one cache entry per fetch, so
+`@gmod/shared-read-cache` needs nothing and this becomes a one-repo change. Not
+built; one measured regression is the open question.
+
 Records what the waste is, what fixing it is worth, and what fixing it costs —
 so the next person starts from the numbers rather than from the hunch.
 
@@ -147,12 +152,70 @@ subset's, so `isPastQuery` fires less often and the query reads more chunks.
 Duplicated reads are a silent failure — they render, they just render twice — so
 this is worth stating explicitly rather than rediscovering.
 
+## A key that does not slide
+
+The raw key above fixes the waste and pays for it twice: the entry count
+explodes, and one fetch has to fill N entries. Both are consequences of choosing
+the _finest_ query-independent unit. There is a coarser one.
+
+**Canonical.** Merge the refId's whole chunk list once, by the same gap and span
+rules, into a partition of the file. No query can reshape it: `reg2bins` and
+`getLowestChunk` both _select_ from a partition rather than produce one. A query
+computes its merged chunks as today, then reads the canonical chunks they land
+in. `benchmarks/canonicalKeySim.ts` sizes it off the index alone.
+
+Geometry is **10 windows of 19kb stepping 9.5kb**, not the 20k/5k of the table
+above, so the `merged` and `raw` columns here are not the same numbers as that
+one — read the three columns against each other, not across sections.
+
+| file            | merged (ships) |          raw |       canonical |
+| --------------- | -------------: | -----------: | --------------: |
+| 20x.shortread   |   3.36 MB / 13 |    2.17 / 16 |    **2.50 / 1** |
+| 200x.shortread  |  23.39 MB / 13 |   11.14 / 16 |   **13.94 / 3** |
+| 1000x.shortread |  49.64 MB / 18 |   49.42 / 17 |      64.80 / 18 |
+| 200x.longread   |  63.08 MB / 16 |   57.26 / 41 |   **55.31 / 6** |
+| 1000x.longread  | 291.74 MB / 60 | 278.97 / 179 | **269.27 / 14** |
+
+**Both objections go away.** Entries are 6 and 14 where the raw key gives 41 and
+179 — _fewer than shipping today_, because merging over a whole contig is
+coarser than merging one query's slice of it. So the entry-count cost above is
+specific to the raw key, not to re-keying. And one fetch fills exactly one
+entry, so there is no batch-fill path to build and this stops being a two-repo
+change.
+
+**It converges; the merged key does not.** Taking the pan from 10 windows to 30,
+canonical does not move at all — 13.94 MB on 200x.shortread either way — while
+merged grows 23.39 → 32.11 MB. That is the real statement of the bug: today
+every window mints a fresh key, so panning inside bytes already held keeps
+costing, and no cache size fixes it.
+
+**The open question is the one regression.** 1000x.shortread fetches 64.80 MB
+against 60.16 at convergence, ~8% worse, because a canonical chunk there is
+bigger than the query's own and is pulled whole. **The span cap does not fix
+it** — 0.25MB, 1MB and 5MB all land on ~64.8 MB, since the partition can never
+be finer than the file's raw BAI chunks, which are already ~5MB at that depth.
+That fixture is also the one with almost no redundancy to win (2.3% measured
+from the consumer side), so it is paying over-fetch for a saving that is not
+there. Which points at making this conditional on chunk shape — the same
+conclusion item 1 below reaches from the other direction.
+
+**A failed alternative, recorded so it is not re-proposed.** Snapping a query's
+merged span outward to linear-index boundaries — a fixed grid rather than a
+fixed partition — looked like it would give granularity as a tunable. It does
+not work: at one interval the boundaries sit where the merged spans already
+start and end, so it is indistinguishable from today; coarser grids over-fetch
+catastrophically (25x on 1000x.shortread at 16 intervals).
+
 ## If someone picks this up
 
 1. Decide whether the affected profile is worth it, or whether the fix should be
-   conditional on chunk shape. Long-read data pays the entry count for nothing.
-2. Batch-fill in `@gmod/shared-read-cache`: one fetch, N entries.
-3. Re-run ADR 0010's early-stop measurements at raw-chunk granularity.
+   conditional on chunk shape. Long-read data pays the raw key's entry count for
+   nothing; deep short-read data pays canonical's over-fetch for nothing.
+2. ~~Batch-fill in `@gmod/shared-read-cache`: one fetch, N entries.~~ Not needed
+   for the canonical key — one fetch, one entry.
+3. Re-run ADR 0010's early-stop measurements at whatever granularity is chosen.
+   Canonical chunks are coarser than today's, so the stop fires later, and the
+   "always inside the first batch" calibration has to be re-established.
 4. Gate on the samtools agreement suite, **plus** a record-count-and-identity
    check across a pan. Duplicates are the failure mode here and they are silent;
    assert the number of DISTINCT `fileOffset`s, the way `makeDisjoint` was
