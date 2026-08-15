@@ -34,9 +34,9 @@ const bam = new BamFile({
 })
 ```
 
-Records come back unfiltered, and are shared between overlapping queries — treat
-them as read-only. Filter them yourself with the flag helpers and `getTag`,
-which decodes one tag instead of all of them:
+Records come back unfiltered, and overlapping queries share them — treat them as
+read-only. Filter them yourself with the flag helpers and `getTag`, which
+decodes one tag instead of all of them:
 
 ```typescript
 const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
@@ -77,7 +77,7 @@ fields say, with that read walked through them:
 
 Substitutions need either an `MD` tag on the read or the reference bases, which
 is what `fetchReferenceSequence` is doing above — most aligners leave `MD` off,
-and it is called only if some read in the query needs it. Without it, a read
+and a query calls it only when one of its reads needs it. Without it, a read
 lacking `MD` still reports its indels and clips but no substitutions — nothing
 in the record says where they are. [docs/api.md](docs/api.md#mismatches) has the
 field meanings, and what to do about reads that run past the region you are
@@ -86,22 +86,22 @@ looking at.
 ## How a query flows
 
 A query turns the region into BGZF chunks through the index and decompresses
-each one in wasm. When nothing is cached yet, 70-90% of the time it takes to
-answer that query is spent decompressing. The rest is ordinary JS: records are
-views into their chunk's decompressed buffer, and their fields decode on access,
-so a query costs what you read off it. [docs/dataflow.md](docs/dataflow.md) has
-the diagram and walks it through.
+each one in wasm. With nothing cached yet, decompression takes 70-90% of the
+time that query needs. The rest is ordinary JS: records are views into their
+chunk's decompressed buffer, and their fields decode on access, so a query costs
+what you read off it. [docs/dataflow.md](docs/dataflow.md) has the diagram and
+walks it through.
 
-Those decompressed chunks are then kept, so overlapping and adjacent queries
-reuse them instead of inflating again — up to 1GB per file, dropped after three
-idle minutes. A consumer holding one file per track should bound them together
-with a shared `cacheBudget` rather than shrinking each file's own ceiling:
-[docs/caching.md](docs/caching.md).
+The file then holds on to those decompressed chunks, so overlapping and adjacent
+queries reuse them instead of inflating again — up to 1GB per file, dropped
+after three idle minutes. A consumer holding one file per track should bound
+them together with a shared `cacheBudget` rather than shrinking each file's own
+ceiling: [docs/caching.md](docs/caching.md).
 
 ## Decompressing on a worker pool
 
-BGZF blocks are independently inflatable, so that decompression can be spread
-across threads — measured 2.7-4.1x on the pool's own fixtures.
+BGZF blocks inflate independently, so that decompression can spread across
+threads — measured 2.7-4.1x on the pool's own fixtures.
 
 ```typescript
 import { getSharedWorkerPool } from '@gmod/bgzf-filehandle'
@@ -113,8 +113,8 @@ const bam = new BamFile({
 })
 ```
 
-Safe to pass unconditionally: `getSharedWorkerPool()` is `undefined` under node,
-or anywhere Workers cannot be created, which keeps the in-process path. No
+Safe to pass unconditionally: `getSharedWorkerPool()` returns `undefined` under
+node, or anywhere the host forbids Workers, which keeps the in-process path. No
 cross-origin isolation needed. bam-js never creates a pool on its own — the
 thread budget belongs to the consumer. Worker counts, lifecycle and benchmarks:
 [bgzf-filehandle's worker pool docs](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/worker-pool.md).
@@ -131,8 +131,8 @@ const bam = new HtsgetFile({
 const records = await bam.getRecordsForRange('1', 2000000, 2000001)
 ```
 
-htsget fetches the server's range as-is, so the mate-pairing options are
-ignored. Pass a `fetch` to add auth:
+htsget fetches the server's range as-is, so it ignores the mate-pairing options.
+Pass a `fetch` to add auth:
 
 ```typescript
 const bam = new HtsgetFile({
@@ -146,16 +146,16 @@ const bam = new HtsgetFile({
 })
 ```
 
-That `fetch` is called for the ticket request _and_ for the data-block urls the
-ticket points at, which may live on a third-party host — so only attach
-credentials to hosts you trust.
+That `fetch` serves the ticket request _and_ the data-block urls the ticket
+points at, which may live on a third-party host — so only attach credentials to
+hosts you trust.
 
 ## Docs
 
 - [docs/api.md](docs/api.md) — every constructor option, method and `BamRecord`
   field, plus custom record classes
 - [docs/cigar-and-md.md](docs/cigar-and-md.md) — what `CIGAR` and `MD` say, and
-  how mismatches are decoded from them
+  how the walk reads mismatches out of them
 - [docs/dataflow.md](docs/dataflow.md) — how a query flows, and where wasm sits
 - [docs/optimizations.md](docs/optimizations.md) — why each step of that path
   looks the way it does, and what measured it

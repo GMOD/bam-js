@@ -17,10 +17,10 @@ chunks.
 
 ## `maxCacheBytes` never refuses a read
 
-Nothing is rejected for being too large. A chunk bigger than the whole budget is
-still cached, a read in flight is never evicted, and eviction only drops a value
-that has already been returned. The worst a budget can cost you is a re-read: it
-can make a query slower, never make one fail or come back short.
+The cache never turns a chunk away for being too large. One bigger than the
+whole budget still goes in, eviction never touches a read in flight, and it only
+drops values it has already handed back. The worst a budget can cost you is a
+re-read: it can make a query slower, never make one fail or come back short.
 
 **It binds less often than its size suggests.** On the deepest data we measure —
 1000x coverage long reads, 240 windows over six laps — the cache settles at
@@ -28,8 +28,8 @@ can make a query slower, never make one fail or come back short.
 backstop against a session that pans forever, not as an everyday knob.
 
 **Don't pick a number between one query and several.** Below one query's working
-set the cache turns against you: each chunk is evicted before the next pan can
-reuse it, so the hit rate is zero, the full decompress is paid every time, and
+set the cache turns against you: each chunk falls out before the next pan can
+reuse it, so the hit rate is zero, every pan pays the full decompress again, and
 the unevictable entries hold the memory anyway. At a 200MB budget on that same
 file the cache holds exactly one entry, because one chunk there decompresses to
 181MB. Size above the working set, or pass `Infinity` and bound memory some
@@ -38,10 +38,10 @@ other way.
 
 ## `cacheIdleTimeoutMs` is the only thing that gives memory back
 
-`maxCacheBytes` is enforced when a read settles, so an idle cache stays at
-whatever level it reached — and for a page holding a `BamFile` for the life of a
-track, that resting level is the number that matters. The idle sweep is what
-makes a generous ceiling affordable, turning it into a peak reached while
+The cache checks `maxCacheBytes` only when a read settles, so an idle one sits
+at whatever level it reached — and for a page holding a `BamFile` for the life
+of a track, that resting level is the number that matters. The idle sweep is
+what makes a generous ceiling affordable, turning it into a peak reached while
 panning rather than a level a parked tab holds indefinitely.
 
 The clock runs from the last _read_ of a chunk, or from its parse landing if
@@ -61,7 +61,7 @@ Pass one `SharedBudget` (from `@gmod/shared-read-cache`) per worker and hand it
 to every file. Dividing `maxCacheBytes` by the track count instead walks
 straight into the cliff above — at 128MB a track re-reads every chunk on every
 pan — whereas a shared budget lets tracks nobody is looking at yield their space
-to the one being panned.
+to the one the user is panning.
 ([ADR 0018](../agent-docs/adr/0018-a-per-file-ceiling-is-not-a-bound-on-a-consumer-with-many-files.md))
 
 ## None of them bound peak memory
@@ -69,28 +69,28 @@ to the one being panned.
 They bound retained decompressed bytes, not the heap. On deep data the gap is
 not small:
 
-- Up to six chunk reads run at once and an in-flight read is never evicted — on
-  1000x long reads that is 476MB in flight before retention holds anything.
+- Up to six chunk reads run at once and eviction never touches one in flight —
+  on 1000x long reads that is 476MB in flight before retention holds anything.
 - A query holds every chunk it parsed until it returns, whether or not the cache
   still does.
-- An entry is weighed once, when its read settles, and records grow after that.
-  `end`, `CIGAR` and `tags` each memoize onto the record the first time they are
-  read — which is what a renderer does to every visible read — measured at +38%
-  over the weighed size.
+- The cache weighs an entry once, when its read settles, and records grow after
+  that. `end`, `CIGAR` and `tags` each memoize onto the record the first time
+  you touch them — which a renderer does to every visible read — measured at
+  +38% over the weighed size.
 
 So size these against what you want to keep, and bound total memory somewhere
 that can see the whole process.
 
 ## Records are shared
 
-Returned records are cached and shared between overlapping queries, so treat
-them as read-only: attaching your own fields to a record mutates it for every
-other query holding it.
+Overlapping queries share the records they hand back, so treat them as
+read-only: attaching your own fields to a record mutates it for every other
+query holding it.
 ([ADR 0006](../agent-docs/adr/0006-cached-records-are-shared-and-must-not-be-mutated.md))
 
 ## A hit needs the same chunk span, not just the same bytes
 
-Entries are keyed on the _merged_ chunk span a query resolved to, and merging
+An entry's key is the _merged_ chunk span a query resolved to, and merging
 depends on the query, so two overlapping pans can decode the same bytes under
 two keys. That costs some short-read files real work and leaves deep long-read
 data untouched; it is known and parked, with the numbers in

@@ -23,11 +23,11 @@ abandons the remaining chunks once one starts past the query.
 
 ## Where the worker pool sits
 
-The purple node is opt-in: pass a `bgzfWorkerPool` and chunk decompression
-moves off the main thread, and without one the same code runs in-process. The
-unit is a chunk's blocks, not the record building after them, which is why it
-is one node on a dashed edge rather than a box around several — decompression
-is where a query's time is (see below), so there is little else worth moving.
+The purple node is opt-in: pass a `bgzfWorkerPool` and chunk decompression moves
+off the main thread, and without one the same code runs in-process. The unit is
+a chunk's blocks, not the record building after them, which is why it is one
+node on a dashed edge rather than a box around several — decompression is where
+a query's time is (see below), so there is little else worth moving.
 [cram-js](https://github.com/GMOD/cram-js/blob/main/docs/dataflow.md) draws the
 same idea as a cluster, because a CRAM slice moves whole.
 
@@ -38,7 +38,8 @@ Everything orange is wasm, in
 it is decompressing BGZF blocks — reading the index and decoding records both
 stay in JS.
 
-That is where the time is: with nothing cached, 70-90% of a query's wall clock
-is spent decompressing, against 0.1-15ms building records. The boundary is
-crossed once per chunk, never per record. Why it sits there, and why there is no
-faster codec to reach for: [optimizations.md](optimizations.md#decompression).
+That is where the time is: with nothing cached, decompression takes 70-90% of a
+query's wall clock, against 0.1-15ms building records. A call crosses the
+boundary once per chunk, never per record. Why it sits there, and why there is
+no faster codec to reach for:
+[optimizations.md](optimizations.md#decompression).

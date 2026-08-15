@@ -1,7 +1,7 @@
 # Optimizations
 
-Why the query path looks the way it does. The path itself is drawn in
-[dataflow.md](dataflow.md).
+Why the query path looks the way it does. [dataflow.md](dataflow.md) draws the
+path itself.
 
 Two costs dominate a query that finds nothing cached, and nearly everything
 below is about one of them: inflating the BGZF blocks it fetched, and the
@@ -25,14 +25,14 @@ right to be measured at all.
 
 ### Parsed once, shared across callers
 
-`.bai`/`.csi` is a whole-file read, parsed on the first query and memoized for
-the life of the object.
+The first query reads the whole `.bai`/`.csi`, parses it, and memoizes the
+result for the life of the object.
 
 Shared rather than merely memoized: the parse runs under a signal of its own and
-is cancelled only once every caller waiting on it has given up, so a query that
-pans away cannot abort the index read concurrent queries depend on. The header
-is read the same way, and `indices(refId)` is separately LRU-memoized so
-repeated lookups don't re-walk the parsed bytes.
+aborts only once every caller waiting on it has given up, so a query that pans
+away cannot abort the index read concurrent queries depend on. The header takes
+the same route, and `indices(refId)` is separately LRU-memoized so repeated
+lookups don't re-walk the parsed bytes.
 
 ### The linear index is packed, not objects
 
@@ -60,10 +60,10 @@ binning scheme, which is far more than a query reads. Before any I/O,
 - drops chunks ending at or before the linear-index floor, _before_ sorting;
 - merges neighbours within 65KB (up to a 5MB span), so adjacent bins become one
   range request;
-- trims overlaps, so no byte is fetched twice — and, more importantly, so no
-  record is returned twice. Two bins can overlap inside one BGZF block while the
-  merge declines to join them, which on `test/data/out.bam` had 5 of 6551
-  records coming back duplicated.
+- trims overlaps, so no fetch covers the same byte twice — and, more
+  importantly, so no record comes back twice. Two bins can overlap inside one
+  BGZF block while the merge declines to join them, which on `test/data/out.bam`
+  had 5 of 6551 records coming back duplicated.
 
 `clampChunkEnds` then pulls each chunk's end down to the next known BGZF block
 boundary rather than over-reading a full maximum-size block. Smaller fetches and
@@ -161,8 +161,8 @@ record once read. `name` deliberately does not: consumers read it about once, so
 a cache would cost a field slot on every record and pin every name string for as
 long as the chunk stays cached, to save zero decodes.
 
-What each accessor costs the first time it is read, over a whole query's
-records, is what says which of them are worth tuning (min of 5):
+What each accessor costs on its first touch, over a whole query's records, is
+what says which of them are worth tuning (min of 5):
 
 | fixture                   |  seq |  tags | CIGAR |  name |
 | ------------------------- | ---: | ----: | ----: | ----: |
@@ -198,18 +198,18 @@ neither — i.e. every read in a file without base modifications. jbrowse issues
 exactly that lookup per record on every render, and it was 12.9% of the whole
 query on 1000x short-read data, spent proving absence.
 
-Values are decoded by char code below 32 bytes and `TextDecoder` above, since
-the decoder's ~0.35µs of fixed setup dominates the 4-13 byte Z values that are
-the common case. `B` array tags become typed-array views over the record's own
-buffer whenever alignment allows, and are copied only when it does not.
+Values below 32 bytes decode by char code and longer ones through `TextDecoder`,
+since the decoder's ~0.35µs of fixed setup dominates the 4-13 byte Z values that
+are the common case. `B` array tags become typed-array views over the record's
+own buffer whenever alignment allows, and copy only when it does not.
 
 ## Mismatches
 
-The reference is packed once per region, into BAM's own 4-bit alphabet, so the
-walk compares it against a read's already-packed `NUMERIC_SEQ` a byte — two
-bases — at a time, unpacking only the rare byte that differs. Packing is the
-only per-base pass in the whole walk, which is why it belongs to the region and
-not to the read.
+The walk packs the reference once per region, into BAM's own 4-bit alphabet, so
+it can compare against a read's already-packed `NUMERIC_SEQ` a byte — two bases
+— at a time, unpacking only the rare byte that differs. That packing is the only
+per-base pass in the whole walk, which is why it belongs to the region and not
+to the read.
 
 `getRecordsForRange` calls `fetchReferenceSequence` at most once per query, for
 the union span of the reads that lack an MD tag, and binds the result only to
@@ -228,13 +228,13 @@ read affordable to render a screenful of
 
 ## The chunk cache
 
-Parsed chunks are kept, bounded by decompressed bytes rather than entry count —
-records are views into their chunk's buffer, so one entry pins the whole thing
-and a count says nothing about memory. Sized to hold several queries, not one:
-below a single query's working set the cache does not degrade, it inverts, since
-each chunk is evicted before the next pan can reuse it. Sizing, the idle sweep,
-and why a consumer with many files needs a shared budget instead:
-[caching.md](caching.md).
+The cache holds parsed chunks and bounds itself by decompressed bytes rather
+than entry count — records are views into their chunk's buffer, so one entry
+pins the whole thing and a count says nothing about memory. Size it to hold
+several queries, not one: below a single query's working set the cache does not
+degrade, it inverts, since each chunk falls out before the next pan can reuse
+it. Sizing, the idle sweep, and why a consumer with many files needs a shared
+budget instead: [caching.md](caching.md).
 
 ## Decompression
 
@@ -243,12 +243,12 @@ per-block JS inflate by 2.6-3.5x and sits at parity with native `zlib`, so there
 is no faster codec to reach for; the remaining headroom is running blocks in
 parallel, which is `bgzfWorkerPool`.
 
-The boundary is crossed once per chunk read, never per record — a record would
-have to be serialized back out of a wasm heap that only ever grows
+A call crosses the boundary once per chunk read, never per record — per record,
+each one would have to serialize back out of a wasm heap that only ever grows
 ([ADR 0022](../agent-docs/adr/0022-the-wasm-boundary-sits-at-the-bgzf-block.md)).
 What happens on the other side of that call — one wasm call per chunk rather
-than per block, how a chunk's blocks are split across workers, and what was
-measured and rejected there — is in
+than per block, how the pool splits a chunk's blocks across workers, and what
+measuring there rejected — is in
 [bgzf-filehandle's own optimizations doc](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/optimizations.md).
 
 ## What the consumer has to do
@@ -267,25 +267,26 @@ worked example:
 - **One `cacheBudget` per JS context**, likewise. `maxCacheBytes` is per file,
   and a browser holds one file per open track, so three deep tracks browsing
   eight windows retained 1109MB with every cache well under its own 1GB ceiling
-  — nothing was bounding the sum. Dividing the ceiling by the track count is
-  worse than doing nothing.
+  — nothing bounded the sum. Dividing the ceiling by the track count is worse
+  than doing nothing.
 - **A coalescing range cache under the filehandle.** `RemoteFileWithRangeCache`
   fetches in 256KB aligned blocks, joins contiguous runs into one request and
   dedups in flight. It composes with the concurrent chunk fetch rather than
   fighting it — the byte counts above are identical with and without — because
   that layer dedups _bytes_ while the chunk cache dedups _decompression_. Its
   idle timeout is deliberately five times bam-js's, since compressed bytes are
-  the cheap layer and are what stands between a re-read and a re-download once
-  the parsed cache expires.
+  the cheap layer and they are what stands between a re-read and a re-download
+  once the parsed cache expires.
 - **`recordClass` instead of a wrapper object**, so a read is one object rather
   than a record plus a wrapper around it: ~33-40 bytes per read retained, which
   on a deep pileup is the kind of memory that costs.
 - **Filtering in a loop it was already running.** `filterBy` used to live here
-  and saved no I/O and no decompression — by the time it ran the expensive work
-  was done. The caller already visits every record, so filtering there is free
+  and saved no I/O and no decompression — by the time it ran, the expensive work
+  had already happened. The caller visits every record anyway, so filtering
+  there is free
   ([ADR 0005](../agent-docs/adr/0005-move-filterby-to-the-caller.md)).
-- **Overlapping the reference fetch with the alignment fetch**, once a file is
-  known to hold reads without MD. `packReference` carries its own start, so a
+- **Overlapping the reference fetch with the alignment fetch**, once you know a
+  file holds reads without MD. `packReference` carries its own start, so a
   region packed before the records land still locates any read in itself — worth
   ~20% of an uncached query at a CDN-like RTT.
 - **Gating on `estimatedBytesForRegions`** before issuing a query at all, which
@@ -293,16 +294,16 @@ worked example:
 
 ## What is left
 
-One waste, measured and not fixed: the cache is keyed on the _merged_ chunk
-span, and merging depends on the query, so a pan whose windows overlap decodes
-the same bytes under two keys. It is containment — one parse fully redoing
-another — on shallow-to-moderate short-read files whose bin chunks abut,
-including the volvox demo file, where a twelve-window pan decompresses 71% more
-than it needs to. Deep long-read data is untouched at ordinary zoom.
+One waste, measured and not fixed: the cache keys on the _merged_ chunk span,
+and merging depends on the query, so a pan whose windows overlap decodes the
+same bytes under two keys. It is containment — one parse fully redoing another —
+on shallow-to-moderate short-read files whose bin chunks abut, including the
+volvox demo file, where a twelve-window pan decompresses 71% more than it needs
+to. It leaves deep long-read data alone at ordinary zoom.
 
-Keying on raw chunks recovers exactly that and never costs bytes, but is parked
-rather than pending: the fetch unit must stay merged for the I/O reasons above,
-so one fetch would fill several cache entries — a change in
+Keying on raw chunks recovers exactly that and never costs bytes, but it stays
+parked rather than pending: the fetch unit must stay merged for the I/O reasons
+above, so one fetch would fill several cache entries — a change in
 `@gmod/shared-read-cache` too — and entry counts rise up to 10x on the long-read
 files that gain nothing. Numbers, the design that would work, and the variant
 that looks obvious and is wrong:
@@ -311,6 +312,5 @@ that looks obvious and is wrong:
 ## Further reading
 
 Every measurement here comes from an ADR in
-[`agent-docs/adr/`](../agent-docs/adr/), which also records what was tried and
-rejected — several of the obvious next optimizations have already been measured
-as losses.
+[`agent-docs/adr/`](../agent-docs/adr/), which also records what we tried and
+rejected — several of the obvious next optimizations already measured as losses.

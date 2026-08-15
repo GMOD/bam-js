@@ -1,4 +1,4 @@
-# CIGAR, MD, and how mismatches are decoded
+# CIGAR, MD, and how the walk decodes mismatches
 
 Background for `getMismatches`/`forEachMismatch`. The API reference is
 [api.md](api.md#mismatches); this is what the two fields those methods read
@@ -47,8 +47,7 @@ SEQ    ACGGTCAACGTTA
 MD     3A5^GG3
 ```
 
-Walking them together — CIGAR sets the frame, MD is consumed only by the `M`
-runs:
+Walking them together — CIGAR sets the frame, and only the `M` runs consume MD:
 
 | CIGAR | read  | ref     | MD             | reported                              |
 | ----- | ----- | ------- | -------------- | ------------------------------------- |
@@ -71,11 +70,11 @@ first of these that is available:
 1. **the `MD` tag** — cheapest, and what the aligner asserted
 2. **reference bases** — `opts.ref`, or whatever `setReference` bound; compared
    two bases per byte against the read's 4-bit packed `SEQ`
-3. **`X` CIGAR ops** — the position is known, but the reference base is only
-   known if 1 or 2 also supplied it (`refBaseCode` is 0 otherwise)
+3. **`X` CIGAR ops** — these give the position, but name the reference base only
+   if 1 or 2 also supplied it (`refBaseCode` is 0 otherwise)
 
-With none of them, indels and clips are still reported in full and substitutions
-are not reported at all. Nothing in the record says where they are.
+With none of them, the walk still reports indels and clips in full and skips
+substitutions entirely. Nothing in the record says where they are.
 
 ## Traps this walk exists to absorb
 
@@ -83,7 +82,7 @@ are not reported at all. Nothing in the record says where they are.
   would otherwise look for.
 - MD counts reference bases; the CIGAR counts both, so their offsets diverge at
   every insertion and clip.
-- A deletion's `^GG` payload has to be stepped over, not read as matches, or
+- A deletion's `^GG` payload needs stepping over, not reading as matches, or
   every later position in the read lands on the wrong part of the tag.
 - Most aligners omit MD entirely, so the reference has to stand in for it.
 - A read with `SEQ` of `*` has no bases at all, but its `X` ops still consume
