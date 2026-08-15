@@ -22,9 +22,10 @@ const bam = new BamFile({ bamPath: 'test.bam' })
 const records = await bam.getRecordsForRange('ctgA', 0, 50000)
 ```
 
-Coordinates are 0-based half-open (not the same as `samtools view` inputs).
-`bamPath` reads a local file, so it is node-only; in the browser pass a URL or a
-generic-filehandle2 filehandle instead:
+Coordinates are 0-based half-open, where `samtools view` takes 1-based closed —
+`ctgA:1-50000` there is `('ctgA', 0, 50000)` here. `bamPath` reads a local file,
+so it is node-only; in the browser pass a URL or a generic-filehandle2
+filehandle instead:
 
 ```typescript
 const bam = new BamFile({
@@ -48,7 +49,8 @@ const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
 `record.getMismatches()` gives every difference between a read and the reference
 — substitutions, insertions, deletions, reference skips and clips — without you
 interpreting `CIGAR` and `MD` yourself. `record.forEachMismatch(cb, opts?)` is
-the callback form, and allocates nothing per difference.
+the callback form, and allocates nothing per difference. What those two fields
+say, with a worked example: [docs/cigar-and-md.md](docs/cigar-and-md.md).
 
 Substitutions need either an `MD` tag on the read or the reference bases, and
 most aligners leave `MD` off. `fetchReferenceSequence` supplies them, called at
@@ -63,9 +65,9 @@ const bam = new BamFile({
 ```
 
 Without it, a read lacking `MD` still reports its indels and clips but no
-substitutions — nothing in the record says where they are. Field meanings, and
-reads longer than the region you are looking at:
-[docs/api.md](docs/api.md#mismatches).
+substitutions — nothing in the record says where they are.
+[docs/api.md](docs/api.md#mismatches) has the field meanings, and what to do
+about reads that run past the region you are looking at.
 
 ## How a query flows
 
@@ -78,8 +80,8 @@ the diagram and walks it through.
 
 ## Decompressing on a worker pool
 
-BGZF blocks are independently inflatable, so that decompression time can be
-spread across threads — measured 2.7-4.1x on the pool's own fixtures.
+BGZF blocks are independently inflatable, so that decompression can be spread
+across threads — measured 2.7-4.1x on the pool's own fixtures.
 
 ```typescript
 import { getSharedWorkerPool } from '@gmod/bgzf-filehandle'
@@ -124,14 +126,16 @@ const bam = new HtsgetFile({
 })
 ```
 
-It is called for the ticket request _and_ for the data-block urls the ticket
-points at, which may live on a third-party host — so only attach credentials to
-hosts you trust.
+That `fetch` is called for the ticket request _and_ for the data-block urls the
+ticket points at, which may live on a third-party host — so only attach
+credentials to hosts you trust.
 
 ## Docs
 
 - [docs/api.md](docs/api.md) — every constructor option, method and `BamRecord`
   field, plus custom record classes
+- [docs/cigar-and-md.md](docs/cigar-and-md.md) — what `CIGAR` and `MD` say, and
+  how mismatches are decoded from them
 - [docs/dataflow.md](docs/dataflow.md) — how a query flows, and where wasm sits
 - [docs/caching.md](docs/caching.md) — sizing the parsed-chunk cache
 - [agent-docs/adr/](agent-docs/adr/) — the measurements behind the performance
