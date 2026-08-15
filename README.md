@@ -157,6 +157,8 @@ credentials to hosts you trust.
 - [docs/cigar-and-md.md](docs/cigar-and-md.md) — what `CIGAR` and `MD` say, and
   how mismatches are decoded from them
 - [docs/dataflow.md](docs/dataflow.md) — how a query flows, and where wasm sits
+- [docs/optimizations.md](docs/optimizations.md) — why each step of that path
+  looks the way it does, and what measured it
 - [docs/caching.md](docs/caching.md) — sizing the parsed-chunk cache
 - [agent-docs/adr/](agent-docs/adr/) — the measurements behind the performance
   and caching decisions
