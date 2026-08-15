@@ -92,6 +92,12 @@ views into their chunk's decompressed buffer, and their fields decode on access,
 so a query costs what you read off it. [docs/dataflow.md](docs/dataflow.md) has
 the diagram and walks it through.
 
+Those decompressed chunks are then kept, so overlapping and adjacent queries
+reuse them instead of inflating again — up to 1GB per file, dropped after three
+idle minutes. A consumer holding one file per track should bound them together
+with a shared `cacheBudget` rather than shrinking each file's own ceiling:
+[docs/caching.md](docs/caching.md).
+
 ## Decompressing on a worker pool
 
 BGZF blocks are independently inflatable, so that decompression can be spread
@@ -125,8 +131,8 @@ const bam = new HtsgetFile({
 const records = await bam.getRecordsForRange('1', 2000000, 2000001)
 ```
 
-htsget fetches the server's range as-is, so `viewAsPairs`, `pairAcrossChr` and
-`maxInsertSize` are ignored. Pass a `fetch` to add auth:
+htsget fetches the server's range as-is, so the mate-pairing options are
+ignored. Pass a `fetch` to add auth:
 
 ```typescript
 const bam = new HtsgetFile({
