@@ -97,8 +97,8 @@ pool below. Measurements in
 
 ## Decompressing on a worker pool
 
-BGZF decompression is 70-90% of a cold query, and BGZF blocks are independently
-inflatable. Hand `BamFile` a
+BGZF blocks are independently inflatable, so that 70-90% can be spread across
+threads. Hand `BamFile` a
 [`@gmod/bgzf-filehandle`](https://github.com/GMOD/bgzf-filehandle) worker pool
 and it inflates chunks there instead of on the calling thread — measured
 2.7-4.1x on the pool's own fixtures.
