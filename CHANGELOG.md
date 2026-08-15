@@ -1,3 +1,47 @@
+## [8.10.0](https://github.com/GMOD/bam-js/compare/v8.9.0...v8.10.0) (2026-08-15)
+
+### Chores
+
+- Keep agent worktrees out of the toolchain's way ([2b04359](https://github.com/GMOD/bam-js/commit/2b04359ed591f854fe82f2038251f1745c4c864b))
+- Build each ref in a worktree ([1739194](https://github.com/GMOD/bam-js/commit/17391942e03e440f5c3c7b6b1dc33515bb7da5eb))
+
+### Documentation
+
+- 0019's two blockers have an answer — a canonical partition ([a3ccad0](https://github.com/GMOD/bam-js/commit/a3ccad0f6fa928eb030f3f046a7c76cb1dedd072))
+- A data-flow diagram, and where the wasm boundary sits ([719087e](https://github.com/GMOD/bam-js/commit/719087ec60379031f1679ea051cf4fae91806f99))
+- Stop saying 70-90% twice, and note how to re-render the diagram ([5cf013c](https://github.com/GMOD/bam-js/commit/5cf013ced70f370c0d573751a2114d188a1b1a95))
+- 0022's numbers now come from a benchmark that exists ([445b3e6](https://github.com/GMOD/bam-js/commit/445b3e66f66a550e74c4b0dad3a9d6a893e613bf))
+- Trim the README, moving the dataflow prose into docs/ ([94c8ab9](https://github.com/GMOD/bam-js/commit/94c8ab9e50234f2c929e0fe4d161a1675e4c80da))
+- Simplify the diagram and label the legend ([ec38f7e](https://github.com/GMOD/bam-js/commit/ec38f7eca683629526f811c7914e9ba46f2b33a7))
+- Say what the wasm actually does instead of 'only ever inflate' ([684ddd4](https://github.com/GMOD/bam-js/commit/684ddd42aaf8df112cc3f4913b8d82eaf6a63a3a))
+- Let the wasm paragraph read as prose ([cdde945](https://github.com/GMOD/bam-js/commit/cdde94581988d9a4af340f26945c6c9fba2da8fc))
+- Keep the dataflow diagram in docs/, not the README ([6962a70](https://github.com/GMOD/bam-js/commit/6962a7024c5d8d55b2bd7b5804248bfebe121718))
+- README title, citation and section order match the sibling repos ([2d4dce0](https://github.com/GMOD/bam-js/commit/2d4dce0242bf4150de79694c796830feb324fdd1))
+- Spell out what a cold query is and that 70-90% is time ([cb92635](https://github.com/GMOD/bam-js/commit/cb926356e64fe40987d97c5734a9ee4b8a8233b9))
+- Say 70-90% of the time spent answering an uncached query ([d3c0522](https://github.com/GMOD/bam-js/commit/d3c05220e540906ab8522fb8807199bf3837060f))
+- Explain CIGAR and MD, and tighten README prose ([32616b1](https://github.com/GMOD/bam-js/commit/32616b1481cbf825e677cceda7cbefe6f2c1c98a))
+- Tighten caching.md and link the ADRs inline ([c29987a](https://github.com/GMOD/bam-js/commit/c29987a3ebabdf9e7548b2770891cf7a33f61d39))
+- Show getMismatches output upfront, drop the duplicate snippet ([c150aa3](https://github.com/GMOD/bam-js/commit/c150aa36ad064e053d416867c37ab8a084512432))
+- One mismatch example per doc, at the top of the section ([2781054](https://github.com/GMOD/bam-js/commit/2781054b0b52da4a75638f0a7de7fd0896447ab9))
+- Note the chunk cache in the README, stop naming the pairing options ([10a6542](https://github.com/GMOD/bam-js/commit/10a654288e6214930ce0d35d92100a486f6b882a))
+- Add optimizations.md, mirroring tabix-js ([5067e9b](https://github.com/GMOD/bam-js/commit/5067e9baa31baf118556a94836d395ce28803872))
+- Say what "70-90%" is a share of, and record the parked cache-key waste ([5d41e3d](https://github.com/GMOD/bam-js/commit/5d41e3de6a32680d9cf22f0ee1f9e3964669c1b8))
+- Name transferables where the pool is described, and tighten ([c498867](https://github.com/GMOD/bam-js/commit/c498867498a04f3f415e58ae2a64e2b56135860b))
+- Fill the API gaps, and cut what two docs said twice ([fcbef2f](https://github.com/GMOD/bam-js/commit/fcbef2f9cafb329a9d34eb271f82e0f41fcb34d4))
+
+### Features
+
+- Export the Chunk type, and document benchmarks in CONTRIBUTING ([d5bf9c9](https://github.com/GMOD/bam-js/commit/d5bf9c9449e9ba258b37837206b88074e7881424))
+
+### Other Changes
+
+- A cache key that does not slide, sized against the two ADR 0019 knows ([15cce83](https://github.com/GMOD/bam-js/commit/15cce83c4c2d0f6b0667c3a5ac95f5cb3951bf3f))
+- Move graphviz dataflow diagram into docs/img/ ([0e2dda5](https://github.com/GMOD/bam-js/commit/0e2dda5f26853f7a0be21ee12232f29d98f30edb))
+
+### Styling
+
+- Reflow CONTRIBUTING.md after the docs/img move ([5ba054b](https://github.com/GMOD/bam-js/commit/5ba054b5471f13ab6476958bdae2e9ebf7beb321))
+
 ## [8.9.0](https://github.com/GMOD/bam-js/compare/v8.8.1...v8.9.0) (2026-08-13)
 
 ### Performance Improvements
