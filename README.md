@@ -69,9 +69,10 @@ reads longer than the region you are looking at:
 
 <img src="docs/dataflow.svg" alt="bam-js data flow" width="700">
 
-Orange is wasm, and it is only ever inflate — 70-90% of a cold query. Records
-are views into their chunk's decompressed buffer, so a query costs what you read
-off it. See [docs/dataflow.md](docs/dataflow.md).
+Orange is wasm: BGZF decompression, 70-90% of a cold query. Everything else,
+record decoding included, is JS. Records are views into their chunk's
+decompressed buffer, so a query costs what you read off it. See
+[docs/dataflow.md](docs/dataflow.md).
 
 ## Decompressing on a worker pool
 

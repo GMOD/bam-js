@@ -21,8 +21,8 @@ abandons the remaining chunks once one starts past the query.
 ## Where wasm sits
 
 Everything orange is wasm, in
-[`@gmod/bgzf-filehandle`](https://github.com/GMOD/bgzf-filehandle), and it is
-only ever inflate.
+[`@gmod/bgzf-filehandle`](https://github.com/GMOD/bgzf-filehandle). It does one
+thing — decompress BGZF blocks. Index parsing and record decoding are plain JS.
 
 That is where the time is: decompression is 70-90% of a cold query, against
 0.1-15ms for record construction. libdeflate-in-wasm is 2.6-3.5x a per-block
