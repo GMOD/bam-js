@@ -67,12 +67,11 @@ reads longer than the region you are looking at:
 
 ## How a query flows
 
-<img src="docs/dataflow.svg" alt="bam-js data flow" width="700">
-
-The orange boxes are wasm, decompressing BGZF blocks, and that is 70-90% of a
-cold query. The rest is ordinary JS: records are views into their chunk's
-decompressed buffer, and their fields decode on access, so a query costs what
-you read off it. See [docs/dataflow.md](docs/dataflow.md).
+A query turns the region into BGZF chunks through the index and decompresses
+each one in wasm, which is 70-90% of a cold query. The rest is ordinary JS:
+records are views into their chunk's decompressed buffer, and their fields
+decode on access, so a query costs what you read off it.
+[docs/dataflow.md](docs/dataflow.md) has the diagram and walks it through.
 
 ## Decompressing on a worker pool
 
