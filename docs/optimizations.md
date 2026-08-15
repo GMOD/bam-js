@@ -96,6 +96,13 @@ entirely, since the closure, worker array and `Promise.all` are pure overhead on
 a query that can take 0.2ms
 ([ADR 0008](../agent-docs/adr/0008-fetch-a-querys-chunks-concurrently.md)).
 
+This is the most machinery in the library for what used to be a `for` loop with
+an `await` in it, and "that looks overcomplicated" is the right instinct to have
+about it.
+[ADR 0009](../agent-docs/adr/0009-why-the-concurrent-fetch-is-as-big-as-it-is.md)
+takes each piece in turn, names the simpler thing it replaced and what that
+costs, and names the one piece closest to not being worth it.
+
 ### Concurrent queries share one in-flight read
 
 The cache only holds a chunk once its read _finishes_, so without this two

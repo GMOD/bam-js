@@ -65,7 +65,7 @@ the index download when that call is what triggers it.
 | `lineCount(refName)`                             | records on `refName` from the index's pseudo-bin, or 0 if absent                                                |
 | `hasRefSeq(refName)`                             | whether `refName` is in the file                                                                                |
 | `estimatedBytesForRegions(regions, opts?)`       | compressed bytes a `{refName, start, end}[]` would fetch — useful for warning before a large query              |
-| `blocksForRange(refName, start, end, opts?)`     | the index chunks a query would read, for describing one without running it                                      |
+| `blocksForRange(refName, start, end, opts?)`     | the `Chunk[]` a query would read — `minv`/`maxv` virtual offsets and a `fetchedSize()` apiece                   |
 | `clearFeatureCache()`                            | drops the parsed-chunk cache immediately                                                                        |
 | `getReferenceRegion(refName, start, end, opts?)` | a `PackedReference` for `forEachMismatch`'s `opts.ref`, via `fetchReferenceSequence`. `undefined` without one   |
 
@@ -284,5 +284,6 @@ above can only name these types by importing them from here.
 | `BamOpts`, `BaseOpts`                                                                                                        | _type_ — the options the query and index methods take                     |
 | `Mismatch`, `MismatchCallback`, `MismatchOptions`                                                                            | _type_ — what `getMismatches` returns, and what `forEachMismatch` takes   |
 | `PackedReference`, `NumericCigar`, `IndexCovEntry`                                                                           | _type_ — the shapes those return                                          |
+| `Chunk`, `Offset`, `OffsetCoords`                                                                                            | _type_ — what `blocksForRange` hands back                                 |
 | `BamRecordClass`, `BamRecordLike`, `ReferenceSequenceFetcher`                                                                | _type_ — for the `recordClass` and `fetchReferenceSequence` options       |
 | `Fetcher`                                                                                                                    | _type_ — re-exported from generic-filehandle2, for `HtsgetFile`'s `fetch` |

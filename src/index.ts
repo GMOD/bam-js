@@ -47,5 +47,10 @@ export type { PackedReference } from './reference.ts'
 // getRecordsForRange/indexCov can only name these if they come out of here.
 export type { BamOpts, BaseOpts } from './util.ts'
 export type { IndexCovEntry } from './bai.ts'
+// `blocksForRange` hands these back, so a caller sizing or describing a query
+// off them needs to be able to name them. Type-only: chunks come out of the
+// index, and nothing outside builds one.
+export type { default as Chunk } from './chunk.ts'
+export type { Offset, OffsetCoords } from './virtualOffset.ts'
 // for typing the HtsgetFile `fetch` option
 export type { Fetcher } from 'generic-filehandle2'

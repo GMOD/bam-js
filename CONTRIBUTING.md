@@ -24,6 +24,30 @@ Nothing checks this — graphviz is not a dependency and different versions emit
 different SVG bytes, so a staleness check would fail on toolchain drift rather
 than on a stale diagram.
 
+## Benchmarks
+
+`benchmarks/bam.bench.ts` compares two refs side by side rather than timing one
+build, since a number with nothing to compare it against says very little.
+
+```sh
+pnpm bench                            # origin/main vs your current branch
+BRANCH1=v8.9.0 BRANCH2=HEAD pnpm bench
+pnpm benchonly                        # reuse whatever was built last time
+```
+
+`scripts/build-both-branches.sh` builds each ref in a throwaway git worktree
+into `esm_branch1/` and `esm_branch2/`, so your checkout is never switched and
+your local edits are left alone — which also means only committed work is
+measured.
+
+Every benchmark region is pinned by a record-count assertion in
+`test/benchmark-regions.test.ts`. A query naming a contig its file does not have
+returns `[]` before touching any of the code being measured, so it stays green
+while timing nothing but `getHeader()` — seven of the ten cases were in exactly
+that state before they were pinned
+([ADR 0004](agent-docs/adr/0004-pin-benchmark-regions-with-a-test.md)). Change a
+region and the test tells you what it now yields.
+
 ## Publishing
 
 Releases publish automatically via GitHub Actions using npm trusted publishing
