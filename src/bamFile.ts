@@ -308,9 +308,10 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
      * A `@gmod/bgzf-filehandle` worker pool to inflate this file's chunks on,
      * instead of inflating them on the calling thread.
      *
-     * BGZF decompression is 70-90% of a cold query (ADR 0003), and BGZF blocks
-     * are independently inflatable, so this is the one remaining lever of that
-     * size. Measured 2.7-4.1x on the pool's own fixtures.
+     * Inflating the BGZF blocks is 70-90% of the wall clock of a query that
+     * finds nothing cached (ADR 0003), and BGZF blocks are independently
+     * inflatable, so this is the one remaining lever of that size. Measured
+     * 2.7-4.1x on the pool's own fixtures.
      *
      * Accepts the promise `getSharedWorkerPool()` returns as well as a pool,
      * so a caller whose own construction is synchronous can hand the pending
@@ -926,8 +927,8 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     // does not even take an options argument, so every read under it runs to
     // completion and arrives here with the cancellation unnoticed. Without this
     // a fully abandoned chunk still gets inflated and decoded — measured at 6
-    // chunks for one 20kb query on out.bam — which is the dominant cost of a
-    // cold query (ADR 0003), spent on records nobody will ever look at.
+    // chunks for one 20kb query on out.bam — which is where an uncached query
+    // spends most of its time (ADR 0003), on records nobody will ever look at.
     //
     // Safe precisely because this is the SHARED signal, not a caller's: it
     // fires only once every waiter has given up, so there is never a live

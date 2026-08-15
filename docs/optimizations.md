@@ -3,19 +3,24 @@
 Why the query path looks the way it does. The path itself is drawn in
 [dataflow.md](dataflow.md).
 
-Two costs dominate a query, and almost everything below is about one of them:
-BGZF decompression, which is 70-90% of a cold query, and network round trips,
-one per chunk. Record parsing barely registers by comparison — per query, min of
-5 ([ADR 0003](../agent-docs/adr/0003-where-bam-query-time-goes.md)):
+Two costs dominate a query that finds nothing in the cache, and almost
+everything below is about one of them: inflating the BGZF blocks it fetched, and
+the network round trip it pays per chunk. Turning those decompressed bytes into
+records is a rounding error beside either — per query, min of 5
+([ADR 0003](../agent-docs/adr/0003-where-bam-query-time-goes.md)):
 
-| file                                    |  read |      unzip | readBamFeatures |
-| --------------------------------------- | ----: | ---------: | --------------: |
-| chr22_nanopore_subset (14.2MB → 24.4MB) | 12 ms | **172 ms** |          0.1 ms |
-| shortreads_300x (5.2MB → 18.5MB)        | 12 ms |  **82 ms** |           15 ms |
-| volvox-sorted (0.4MB → 2.5MB)           |  6 ms |       9 ms |            3 ms |
+| file                                    | fetch |    inflate | build records |
+| --------------------------------------- | ----: | ---------: | ------------: |
+| chr22_nanopore_subset (14.2MB → 24.4MB) | 12 ms | **172 ms** |        0.1 ms |
+| shortreads_300x (5.2MB → 18.5MB)        | 12 ms |  **82 ms** |         15 ms |
+| volvox-sorted (0.4MB → 2.5MB)           |  6 ms |       9 ms |          3 ms |
 
-So anything that avoids a re-decompress beats any amount of parser tuning, and a
-micro-optimization in the record path has to be worth measuring at all.
+Inflate is the largest column on every fixture and 70-90% of the query's wall
+clock on the deep ones — that measurement is what the shorthand "decompression
+is 70-90% of the time" refers to wherever these docs and the ADRs use it. Two
+things follow: anything that avoids inflating the same bytes twice beats any
+amount of parser tuning, and a micro-optimization in the record path has to earn
+the right to be measured at all.
 
 ## Reading the index
 
@@ -150,7 +155,8 @@ record once read. `name` deliberately does not: consumers read it about once, so
 a cache would cost a field slot on every record and pin every name string for as
 long as the chunk stays cached, to save zero decodes.
 
-Cold accessor cost, min of 5, is what says which of these are worth tuning:
+What each accessor costs the first time it is read, over a whole query's
+records, is what says which of them are worth tuning (min of 5):
 
 | fixture                   |  seq |  tags | CIGAR |  name |
 | ------------------------- | ---: | ----: | ----: | ----: |
@@ -234,6 +240,10 @@ parallel, which is `bgzfWorkerPool`.
 The boundary is crossed once per chunk read, never per record — a record would
 have to be serialized back out of a wasm heap that only ever grows
 ([ADR 0022](../agent-docs/adr/0022-the-wasm-boundary-sits-at-the-bgzf-block.md)).
+What happens on the other side of that call — one wasm call per chunk rather
+than per block, how a chunk's blocks are split across workers, and what was
+measured and rejected there — is
+[bgzf-filehandle's own optimizations doc](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/optimizations.md).
 
 ## What the consumer has to do
 
@@ -269,9 +279,28 @@ worked example:
 - **Overlapping the reference fetch with the alignment fetch**, once a file is
   known to hold reads without MD. `packReference` carries its own start, so a
   region packed before the records land still locates any read in itself — worth
-  ~20% of a cold query at a CDN-like RTT.
+  ~20% of an uncached query at a CDN-like RTT.
 - **Gating on `estimatedBytesForRegions`** before issuing a query at all, which
   is the consumer that section above exists for.
+
+## What is left
+
+One known waste, measured and not fixed: the chunk cache is keyed on the
+_merged_ chunk span, and merging depends on the query, so a pan whose windows
+overlap can decode the same bytes under two different keys. It is containment
+rather than partial overlap — one parse fully redoing another — and it shows up
+on shallow-to-moderate short-read files whose bin chunks abut, including the
+volvox demo file, where a twelve-window pan decompresses 71% more than it needs
+to. Deep long-read data is untouched at ordinary zoom.
+
+Keying on raw chunks instead recovers exactly that and never costs bytes, but it
+is parked rather than pending: the fetch unit has to stay merged for the I/O
+reasons above, so one fetch would have to fill several cache entries — a change
+in `@gmod/shared-read-cache` as well as here — and the entry count goes up to
+10x on the long-read files that gain nothing from it. The numbers, the design
+that would work, and the variant that looks obvious and is wrong are all in
+[ADR 0019](../agent-docs/adr/0019-the-chunk-cache-key-slides-as-a-query-pans.md);
+start there rather than from a hunch.
 
 ## Further reading
 
