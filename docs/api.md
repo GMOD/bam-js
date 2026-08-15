@@ -110,10 +110,34 @@ record.toJSON()
 ## Mismatches
 
 `getMismatches(opts?)` returns every difference between the read and the
-reference. `forEachMismatch(callback, opts?)` reports the same set to
-`callback(code, refPos, length, bases, qual, refBaseCode, clipLength)` without
-allocating an object per difference — the argument order matches the fields
-below, and matches `@gmod/cram`'s method of the same name.
+reference. `forEachMismatch(callback, opts?)` reports the same set without
+allocating an object per difference, passing the fields below as arguments in
+that order — the same callback `@gmod/cram`'s method of the same name takes.
+
+```typescript
+// for a read at 100 with CIGAR 5M1I4M2D3M, SEQ ACGGTCAACGTTA, MD 3A5^GG3
+record.getMismatches()
+// [
+//   // X at 103: read G over reference A (65), quality 25
+//   { code: 88, refPos: 103, length: 1, bases: 'G', qual: 25, refBaseCode: 65, clipLength: 0 },
+//   // I before 105: one read base, C
+//   { code: 73, refPos: 105, length: 0, bases: 'C', qual: -1, refBaseCode: 0, clipLength: 1 },
+//   // D at 109: two reference bases
+//   { code: 68, refPos: 109, length: 2, bases: '', qual: -1, refBaseCode: 0, clipLength: 0 },
+// ]
+
+record.forEachMismatch(
+  (code, refPos, length, bases, qual, refBaseCode, clipLength) => {
+    if (code === MISMATCH_SUBST) {
+      drawBase(refPos, bases, qual)
+    }
+  },
+  { start, end, origin: record.start }, // optional, see below
+)
+```
+
+[cigar-and-md.md](cigar-and-md.md) walks that read through the two fields the
+methods read.
 
 | Field         | Meaning                                                                                                                  |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -138,17 +162,12 @@ reports, and are **not** the packed-CIGAR op numbers — `MISMATCH_DELETION` is 
 | `origin`       | what reported positions are relative to; 0 (reference) by default        |
 | `ref`          | a `PackedReference` to resolve substitutions against, for this call only |
 
-`origin: record.start` gives read-relative positions. The window stays absolute
-either way — it describes a region of the reference, not a position in the
-output — so a read-relative consumer can still clip to a genomic viewport:
-
-```js
-record.forEachMismatch(cb, { start, end, origin: record.start })
-```
-
-It exists so a consumer with its own coordinate convention can hand its own
-callback straight in; converting afterwards needs a second callback in between,
-which `@gmod/cram` measured at ~17% of its walk. That library's
+`origin: record.start`, as above, gives read-relative positions. The window
+stays absolute either way — it describes a region of the reference, not a
+position in the output — so a read-relative consumer can still clip to a genomic
+viewport. It exists so a consumer with its own coordinate convention can hand
+its own callback straight in; converting afterwards needs a second callback in
+between, which `@gmod/cram` measured at ~17% of its walk. That library's
 `forEachMismatch` takes the same option with the same meaning.
 
 ### Where the reference bases come from

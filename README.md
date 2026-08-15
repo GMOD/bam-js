@@ -48,9 +48,23 @@ const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
 
 `record.getMismatches()` gives every difference between a read and the reference
 — substitutions, insertions, deletions, reference skips and clips — without you
-interpreting `CIGAR` and `MD` yourself. `record.forEachMismatch(cb, opts?)` is
-the callback form, and allocates nothing per difference. What those two fields
-say, with a worked example: [docs/cigar-and-md.md](docs/cigar-and-md.md).
+interpreting `CIGAR` and `MD` yourself:
+
+```typescript
+// for a read at 100 with CIGAR 5M1I4M2D3M, SEQ ACGGTCAACGTTA, MD 3A5^GG3
+for (const { code, refPos, length, bases } of record.getMismatches()) {
+  console.log(String.fromCharCode(code), refPos, length, bases)
+}
+// X 103 1 G   substitution to G, over a reference A
+// I 105 0 C   one base inserted before 105
+// D 109 2     two reference bases deleted from 109
+```
+
+`code` is a CIGAR char code, to compare against the exported `MISMATCH_SUBST`,
+`MISMATCH_INSERTION`, … constants, and `record.forEachMismatch(cb, opts?)`
+reports the same set while allocating nothing per difference. What those two
+fields say, with that read walked through them:
+[docs/cigar-and-md.md](docs/cigar-and-md.md).
 
 Substitutions need either an `MD` tag on the read or the reference bases, and
 most aligners leave `MD` off. `fetchReferenceSequence` supplies them, called at
