@@ -70,15 +70,17 @@ reads longer than the region you are looking at:
 ## How a query flows
 
 A query turns the region into BGZF chunks through the index and decompresses
-each one in wasm, which is 70-90% of a cold query. The rest is ordinary JS:
+each one in wasm. That decompression takes 70-90% of the time a cold query
+spends — cold meaning nothing is cached yet, so every chunk has to be fetched
+and inflated rather than reused from a previous query. The rest is ordinary JS:
 records are views into their chunk's decompressed buffer, and their fields
 decode on access, so a query costs what you read off it.
 [docs/dataflow.md](docs/dataflow.md) has the diagram and walks it through.
 
 ## Decompressing on a worker pool
 
-BGZF blocks are independently inflatable, so that 70-90% can be spread across
-threads — measured 2.7-4.1x on the pool's own fixtures.
+BGZF blocks are independently inflatable, so that decompression time can be
+spread across threads — measured 2.7-4.1x on the pool's own fixtures.
 
 ```typescript
 import { getSharedWorkerPool } from '@gmod/bgzf-filehandle'

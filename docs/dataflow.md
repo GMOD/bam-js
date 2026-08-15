@@ -25,7 +25,8 @@ Everything orange is wasm, in
 it is decompressing BGZF blocks — reading the index and decoding records both
 stay in JS.
 
-That is where the time is: decompression is 70-90% of a cold query, against
+That is where the time is: decompression takes 70-90% of a cold query — one
+where nothing is cached yet, so every chunk is fetched and inflated — against
 0.1-15ms for record construction. libdeflate-in-wasm is 2.6-3.5x a per-block
 `pako` inflate while sitting at parity with native `zlib`, so there is no faster
 codec left to reach for — the remaining headroom is parallelism, which is the
