@@ -1,10 +1,10 @@
 // Source for docs/img/dataflow.svg, which docs/dataflow.md embeds.
 // Regenerate with: dot -Tsvg docs/img/dataflow.dot -o docs/img/dataflow.svg
 //
-// Deliberately the MAIN PATH only — htsget, viewAsPairs mate lookups, the
-// reference-sequence pass and the early stop are described in dataflow.md
-// instead. A diagram that shows every branch stops being the thing you look at
-// first.
+// Deliberately the MAIN PATH only — htsget, viewAsPairs mate lookups and the
+// early stop are described in dataflow.md instead. A diagram that shows every
+// branch stops being the thing you look at first. fetchReferenceSequence is in
+// because it is the one place a second data source enters the pipeline.
 //
 // SYNC: ~/src/gmod/tabix-js/docs/img/dataflow.dot — same palette, legend and
 // spine. ~/src/gmod/cram-js/docs/img/dataflow.dot shares them too, and draws
@@ -30,6 +30,7 @@ digraph bamjs {
   slice   [label="unzipChunkSlice" fillcolor="#ffd8b5" color="#bc4c00"]
   pool    [label="worker pool" fillcolor="#fbefff" color="#8250df"]
   feats   [label="readBamFeatures"]
+  refseq  [label="fetchReferenceSequence" fillcolor="#dafbe1" color="#1a7f37"]
   out     [label="BamRecord[]" fillcolor="#ddf4ff" color="#0969da"]
 
   query -> readidx
@@ -47,6 +48,8 @@ digraph bamjs {
   pool -> feats
   cache -> feats [label=" hit "]
   feats -> out [label=" in range "]
+  feats -> refseq [style=dashed label=" reads with no MD "]
+  refseq -> out [style=dashed label=" bases "]
 
   subgraph cluster_legend {
     label="Legend"

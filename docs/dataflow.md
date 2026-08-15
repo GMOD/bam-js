@@ -15,10 +15,23 @@ friends decode on access, so a query costs what you read off it.
 Why each of those steps looks the way it does, and what measured it, is
 [optimizations.md](optimizations.md).
 
-The diagram is the main path only. It leaves out htsget (which has no index and
-joins at `readBamFeatures`), the `viewAsPairs` and `fetchReferenceSequence`
-passes, which run after the records are assembled and go back through the same
-chunk cache, and the early stop once a chunk starts past the query.
+Apart from the reference fetch below, the diagram is the main path only. It
+leaves out htsget (which has no index and joins at `readBamFeatures`), the
+`viewAsPairs` pass, which runs after the records are assembled and goes back
+through the same chunk cache, and the early stop once a chunk starts past the
+query.
+
+## Where the reference fetch sits
+
+The green node at the bottom is the one place a second data source enters: a
+caller-supplied `fetchReferenceSequence`, called at most once per query for the
+union span of the reads that arrived without an `MD` tag, so their substitutions
+resolve. It runs after `viewAsPairs`, so a mate pulled from another chunk is
+covered on the same terms, and the bases bind only to reads the returned region
+covers whole — a partial binding would be per-query state on a record shared
+between queries
+([ADR 0020](../agent-docs/adr/0020-a-bound-reference-must-cover-the-whole-read.md)).
+Without the option, or with every read carrying `MD`, nothing is fetched.
 
 ## Where the worker pool sits
 
