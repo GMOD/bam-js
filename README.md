@@ -88,7 +88,7 @@ Everything orange is wasm, in
 [`@gmod/bgzf-filehandle`](https://github.com/GMOD/bgzf-filehandle), and it is
 only ever inflate. That is where the time is — decompression is 70-90% of a cold
 query, against 0.1-15ms for record construction — and libdeflate-in-wasm is
-2.5-3.6x a per-block `pako` inflate while sitting at parity with native `zlib`,
+2.6-3.5x a per-block `pako` inflate while sitting at parity with native `zlib`,
 so there is no faster codec left to reach for. The boundary is crossed once per
 chunk, never per record: a record would have to be serialized back out, and the
 wasm heap only grows. What headroom remains is parallelism, which is the worker

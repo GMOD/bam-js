@@ -32,16 +32,18 @@ It is where the time is. ADR 0003, per query, min-of-5:
 And it is a real win over the JS it replaced (`pako`, through bgzf-filehandle
 6.0.0; wasm landed in 6.0.1). Measured against a per-block `inflateRaw` — what a
 pure-JS BGZF reader does — and against node's native `zlib` as the reference
-floor, min-of-N, arms alternating each rep:
+floor. This lives in bgzf-filehandle as `benchmarks/inflate.bench.ts`
+(`pnpm benchonly inflate`); read its `min` column rather than the summary's
+mean, per the methodology note below:
 
-| file                         | wasm libdeflate | pako per block | node zlib per block |
-| ---------------------------- | --------------: | -------------: | ------------------: |
-| paired.bam (0.1 MB → 0.3 MB) |          0.6 ms |  2.1 ms (3.6x) |       0.8 ms (1.4x) |
-| T_ko.2bit.gz (0.5 MB)        |          2.9 ms |  9.2 ms (3.2x) |      2.5 ms (0.85x) |
-| shortreads_300x (5.1 → 18.5) |         40.0 ms |  121 ms (3.0x) |      53.7 ms (1.3x) |
-| chr22_nanopore (14.1 → 24.5) |          102 ms |  257 ms (2.5x) |      101 ms (0.99x) |
+| file                     | wasm libdeflate | pako per block | node zlib per block |
+| ------------------------ | --------------: | -------------: | ------------------: |
+| paired.bam (84 KB)       |         0.53 ms | 1.86 ms (3.5x) |      0.63 ms (1.2x) |
+| T_ko.2bit.gz (518 KB)    |         1.90 ms | 5.03 ms (2.6x) |     1.73 ms (0.91x) |
+| shortreads_300x (5.1 MB) |         38.7 ms |  123 ms (3.2x) |      48.0 ms (1.2x) |
+| chr22_nanopore (14.1 MB) |         83.8 ms |  241 ms (2.9x) |      91.2 ms (1.1x) |
 
-2.5–3.6x over JS, and **at parity with native zlib**. That second column is the
+2.6–3.5x over JS, and **at parity with native zlib**. That second column is the
 one that closes the question: there is no faster inflate to reach for, so the
 remaining decompression headroom is not in the codec at all. It is in running
 several blocks at once, which is what the worker pool does — BGZF blocks are
@@ -90,7 +92,15 @@ wasm at all, and only because a CSI is itself bgzip-compressed.
 
 ## Benchmarking note
 
-The table above was run with the methodology ADR 0003 sets out — alternating arm
-order each rep, min-of-N rather than mean — for the reason bgzf-filehandle ADR
-0001 gives: a sequential cold→warm A/B measured a phantom 26% purely from CPU
-frequency ramp.
+Read the `min` column, not the mean vitest prints in its summary. ADR 0003's
+methodology section explains why: this box often sits at load average >100,
+where the tail is noise and the floor is the signal. The means and the minima
+disagree by enough to matter — pako reads as 2.6–3.3x on the summary and
+2.6–3.5x on the minima.
+
+The benchmark asserts all three arms decompress to identical bytes before timing
+any of them, which is the guard against measuring an arm that quietly did less
+work. It does not alternate arm order the way a hand-rolled A/B must — vitest
+interleaves its own sampling — but the underlying hazard is the same one
+bgzf-filehandle ADR 0001 records: a sequential cold→warm comparison there
+measured a phantom 26% purely from CPU frequency ramp.
