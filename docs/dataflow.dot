@@ -1,0 +1,68 @@
+// Source for docs/dataflow.svg, which README.md embeds.
+// Regenerate with: dot -Tsvg docs/dataflow.dot -o docs/dataflow.svg
+digraph bamjs {
+  rankdir=TB
+  bgcolor="white"
+  nodesep=0.3
+  ranksep=0.34
+  node [shape=box style="filled,rounded" fillcolor="#f6f8fa" color="#57606a"
+        fontname="Helvetica" fontsize=10 margin="0.12,0.06"]
+  edge [color="#57606a" fontname="Helvetica" fontsize=9]
+
+  query    [label="getRecordsForRange(chr, min, max)" fillcolor="#ddf4ff" color="#0969da"]
+  out      [label="BamRecord[]\nviews into the chunk buffer,\nfields decoded on access" fillcolor="#ddf4ff" color="#0969da"]
+  hts      [label="HtsgetFile\nticket → data block urls" fillcolor="#ddf4ff" color="#0969da"]
+
+  readidx  [label="read .bai / .csi" fillcolor="#dafbe1" color="#1a7f37"]
+  readhdr  [label="read [0, firstDataLine)" fillcolor="#dafbe1" color="#1a7f37"]
+  readchk  [label="read chunk range\n(≤6 concurrent)" fillcolor="#dafbe1" color="#1a7f37"]
+
+  unzipidx [label="unzip\n(csi only)" fillcolor="#ffd8b5" color="#bc4c00"]
+  unziphdr [label="unzip" fillcolor="#ffd8b5" color="#bc4c00"]
+  unziphts [label="unzip" fillcolor="#ffd8b5" color="#bc4c00"]
+  slice    [label="unzipChunkSlice\n→ buffer + c/dpositions" fillcolor="#ffd8b5" color="#bc4c00"]
+  pool     [label="bgzfWorkerPool\none block per worker" fillcolor="#ffd8b5" color="#bc4c00"]
+
+  index    [label="BAI / CSI\nbins + linear index" fillcolor="#fff8c5" color="#9a6700"]
+  header   [label="header\nrefName → refId" fillcolor="#fff8c5" color="#9a6700"]
+  cache    [label="chunkFeatureCache\nshares in-flight reads,\nLRU by decompressed bytes" fillcolor="#fff8c5" color="#9a6700"]
+
+  blocks   [label="blocksForRange\nreg2bins → optimizeChunks → Chunk[]"]
+  feats    [label="readBamFeatures"]
+  narrow   [label="appendInRange\n+ stop once a chunk is past the query"]
+  pairs    [label="fetchPairs\n(viewAsPairs)"]
+  refseq   [label="fetchReferenceSequence\n→ setReference, reads with no MD"]
+
+  query -> readidx
+  readidx -> unzipidx
+  unzipidx -> index
+  index -> readhdr [label=" firstDataLine "]
+  readhdr -> unziphdr
+  unziphdr -> header
+  header -> blocks
+  index -> blocks
+  blocks -> cache [label=" Chunk[] "]
+  cache -> readchk [label=" miss "]
+  readchk -> slice
+  slice -> pool [style=dashed label=" if passed "]
+  slice -> feats
+  pool -> feats
+  hts -> unziphts
+  unziphts -> feats
+  feats -> narrow
+  cache -> narrow [label=" hit "]
+  narrow -> pairs [style=dashed]
+  pairs -> cache [style=dashed constraint=false]
+  narrow -> refseq [style=dashed]
+  refseq -> out [style=dashed]
+  narrow -> out
+
+  subgraph cluster_legend {
+    label="" color="white" margin=4
+    node [shape=box style="filled,rounded" fontsize=9 margin="0.08,0.03"]
+    l1 [label="I/O" fillcolor="#dafbe1" color="#1a7f37"]
+    l2 [label="wasm — @gmod/bgzf-filehandle" fillcolor="#ffd8b5" color="#bc4c00"]
+    l3 [label="cached / shared between queries" fillcolor="#fff8c5" color="#9a6700"]
+    l1 -> l2 -> l3 [style=invis]
+  }
+}

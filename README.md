@@ -71,6 +71,30 @@ substitutions — nothing in the record says where they are. See
 [docs/api.md](docs/api.md#mismatches) for the field meanings and for reads
 longer than the region you are looking at.
 
+## How a query flows
+
+<img src="docs/dataflow.svg" alt="bam-js data flow" width="700">
+
+A query resolves its reference name through the index and header, turns the
+range into a list of BGZF chunks, and reads each chunk through
+`chunkFeatureCache` — which shares a read already in flight and keeps parsed
+chunks around, so a pan back over the same region does no I/O at all. Records
+are views into their chunk's decompressed buffer; `seq`, `CIGAR`, `tags` and
+friends decode on access, so a query costs what you read off it.
+([docs/dataflow.dot](docs/dataflow.dot) is the source; regenerate with
+`dot -Tsvg docs/dataflow.dot -o docs/dataflow.svg`.)
+
+Everything orange is wasm, in
+[`@gmod/bgzf-filehandle`](https://github.com/GMOD/bgzf-filehandle), and it is
+only ever inflate. That is where the time is — decompression is 70-90% of a cold
+query, against 0.1-15ms for record construction — and libdeflate-in-wasm is
+2.5-3.6x a per-block `pako` inflate while sitting at parity with native `zlib`,
+so there is no faster codec left to reach for. The boundary is crossed once per
+chunk, never per record: a record would have to be serialized back out, and the
+wasm heap only grows. What headroom remains is parallelism, which is the worker
+pool below. Measurements in
+[agent-docs/adr/0022](agent-docs/adr/0022-the-wasm-boundary-sits-at-the-bgzf-block.md).
+
 ## Decompressing on a worker pool
 
 BGZF decompression is 70-90% of a cold query, and BGZF blocks are independently
