@@ -12,12 +12,12 @@ Use `pnpm version patch/minor/major` to release — it runs lint, format, types,
 tests and build, regenerates CHANGELOG.md with git-cliff, then pushes the
 version tag which triggers the publish workflow.
 
-`docs/dataflow.svg` is generated from `docs/dataflow.dot` and committed, since
-GitHub does not render DOT. If you edit the `.dot`, re-render it in the same
-commit:
+`docs/img/dataflow.svg` is generated from `docs/img/dataflow.dot` and
+committed, since GitHub does not render DOT. If you edit the `.dot`,
+re-render it in the same commit:
 
 ```sh
-dot -Tsvg docs/dataflow.dot -o docs/dataflow.svg
+dot -Tsvg docs/img/dataflow.dot -o docs/img/dataflow.svg
 ```
 
 Nothing checks this — graphviz is not a dependency and different versions emit

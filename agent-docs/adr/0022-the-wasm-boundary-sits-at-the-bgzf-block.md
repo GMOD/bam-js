@@ -4,7 +4,7 @@ Status: Accepted (documents the existing split; rejects widening it)
 
 ## Context
 
-`docs/dataflow.dot` marks five call sites as wasm, all of them in
+`docs/img/dataflow.dot` marks five call sites as wasm, all of them in
 `@gmod/bgzf-filehandle`: `unzip` for the header, for a CSI, and for an htsget
 block; `unzipChunkSlice` for a query chunk; and the worker pool that
 `unzipChunkSlice` fans blocks out to. Everything else — index parsing, record
