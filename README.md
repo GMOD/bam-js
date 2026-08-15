@@ -1,3 +1,5 @@
+# @gmod/bam
+
 [![NPM version](https://img.shields.io/npm/v/@gmod/bam.svg?style=flat-square)](https://npmjs.org/package/@gmod/bam)
 ![Build Status](https://img.shields.io/github/actions/workflow/status/GMOD/bam-js/publish.yml?branch=main)
 
@@ -134,6 +136,12 @@ hosts you trust.
 - [agent-docs/adr/](agent-docs/adr/) — the measurements behind the performance
   and caching decisions
 - [CONTRIBUTING.md](CONTRIBUTING.md) — development and release steps
+
+## Academic Use
+
+Written with [NHGRI](http://genome.gov) funding as part of
+[JBrowse](http://jbrowse.org). If you use this in a publication, please cite the
+most recent JBrowse paper at [jbrowse.org](http://jbrowse.org).
 
 ## License
 
