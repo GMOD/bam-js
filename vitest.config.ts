@@ -1,7 +1,10 @@
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
+    // a live agent worktree under .claude/ is another checkout of this
+    // repo, and vitest's include glob matches dotfolders
+    exclude: [...configDefaults.exclude, '**/.claude/**'],
     // Vitest's default is 5s, and several tests here do real work against real
     // BAMs: the samtools agreement tests run 1.6-2.4s each and
     // test/cache.test.ts's byte-budget test runs ~0.9s, decompressing tens of
