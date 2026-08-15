@@ -126,14 +126,20 @@ record.getMismatches()
 //   { code: 68, refPos: 109, length: 2, bases: '', qual: -1, refBaseCode: 0, clipLength: 0 },
 // ]
 
+// the same set, without an object per difference
 record.forEachMismatch(
   (code, refPos, length, bases, qual, refBaseCode, clipLength) => {
     if (code === MISMATCH_SUBST) {
       drawBase(refPos, bases, qual)
     }
   },
-  { start, end, origin: record.start }, // optional, see below
+  { start, end, origin: record.start }, // every option is optional, see below
 )
+
+// substitutions resolved against a reference window you fetched yourself,
+// rather than one bound to the record
+const ref = await bam.getReferenceRegion('chr1', start, end)
+record.forEachMismatch(cb, { ref, start, end })
 ```
 
 [cigar-and-md.md](cigar-and-md.md) walks that read through the two fields the
@@ -193,14 +199,10 @@ unresolved.
 That union is the query's range plus however far its edge reads overhang it, and
 nothing clamps it for you — a BAM holding whole chromosomes as reads can make it
 a chromosome. Clamp inside your callback if your sequence source cannot afford
-that, and resolve those reads a window at a time instead:
+that, and resolve those reads a window at a time with `getReferenceRegion` and
+`opts.ref`, as above.
 
-```typescript
-const ref = await bam.getReferenceRegion('chr1', start, end)
-record.forEachMismatch(cb, { ref, start, end })
-```
-
-Which is also the answer to why `setReference` throws unless the region covers
+That is also the answer to why `setReference` throws unless the region covers
 the whole read: records are shared between queries (see
 [ADR 0006](../agent-docs/adr/0006-cached-records-are-shared-and-must-not-be-mutated.md)),
 so a binding that varied per query would make one query's reads answer out of

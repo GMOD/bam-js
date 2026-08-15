@@ -51,9 +51,18 @@ const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
 interpreting `CIGAR` and `MD` yourself:
 
 ```typescript
-// for a read at 100 with CIGAR 5M1I4M2D3M, SEQ ACGGTCAACGTTA, MD 3A5^GG3
-for (const { code, refPos, length, bases } of record.getMismatches()) {
-  console.log(String.fromCharCode(code), refPos, length, bases)
+const bam = new BamFile({
+  bamPath: 'test.bam',
+  // reference bases for reads with no MD tag, at most one call per query
+  fetchReferenceSequence: (refName, start, end) =>
+    myGenome.getSequence(refName, start, end),
+})
+
+for (const record of await bam.getRecordsForRange('ctgA', 0, 50000)) {
+  // for a read at 100 with CIGAR 5M1I4M2D3M, SEQ ACGGTCAACGTTA, MD 3A5^GG3
+  for (const { code, refPos, length, bases } of record.getMismatches()) {
+    console.log(String.fromCharCode(code), refPos, length, bases)
+  }
 }
 // X 103 1 G   substitution to G, over a reference A
 // I 105 0 C   one base inserted before 105
@@ -66,22 +75,13 @@ reports the same set while allocating nothing per difference. What those two
 fields say, with that read walked through them:
 [docs/cigar-and-md.md](docs/cigar-and-md.md).
 
-Substitutions need either an `MD` tag on the read or the reference bases, and
-most aligners leave `MD` off. `fetchReferenceSequence` supplies them, called at
-most once per query and only if some read needs it:
-
-```typescript
-const bam = new BamFile({
-  bamPath: 'test.bam',
-  fetchReferenceSequence: async (refName, start, end) =>
-    myGenome.getSequence(refName, start, end),
-})
-```
-
-Without it, a read lacking `MD` still reports its indels and clips but no
-substitutions — nothing in the record says where they are.
-[docs/api.md](docs/api.md#mismatches) has the field meanings, and what to do
-about reads that run past the region you are looking at.
+Substitutions need either an `MD` tag on the read or the reference bases, which
+is what `fetchReferenceSequence` is doing above — most aligners leave `MD` off,
+and it is called only if some read in the query needs it. Without it, a read
+lacking `MD` still reports its indels and clips but no substitutions — nothing
+in the record says where they are. [docs/api.md](docs/api.md#mismatches) has the
+field meanings, and what to do about reads that run past the region you are
+looking at.
 
 ## How a query flows
 
