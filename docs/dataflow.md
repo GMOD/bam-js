@@ -12,6 +12,12 @@ chunks around, so a pan back over the same region does no I/O at all. Records
 are views into their chunk's decompressed buffer; `seq`, `CIGAR`, `tags` and
 friends decode on access, so a query costs what you read off it.
 
+The diagram is the main path only. It leaves out htsget (which has no index and
+joins at `readBamFeatures`), the `viewAsPairs` mate lookups and the
+`fetchReferenceSequence` pass — both of which run after the records are
+assembled and go back through the same chunk cache — and the early stop that
+abandons the remaining chunks once one starts past the query.
+
 ## Where wasm sits
 
 Everything orange is wasm, in
