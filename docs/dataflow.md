@@ -16,20 +16,20 @@ Why each of those steps looks the way it does, and what measured it, is
 [optimizations.md](optimizations.md).
 
 The diagram is the main path only. It leaves out htsget (which has no index and
-joins at `readBamFeatures`), the `viewAsPairs` mate lookups and the
-`fetchReferenceSequence` pass — both of which run after the records are
-assembled and go back through the same chunk cache — and the early stop that
-abandons the remaining chunks once one starts past the query.
+joins at `readBamFeatures`), the `viewAsPairs` and `fetchReferenceSequence`
+passes, which run after the records are assembled and go back through the same
+chunk cache, and the early stop once a chunk starts past the query.
 
 ## Where the worker pool sits
 
 The purple node is opt-in: pass a `bgzfWorkerPool` and chunk decompression moves
 off the main thread, and without one the same code runs in-process. The unit is
-a chunk's blocks, not the record building after them, which is why it is one
-node on a dashed edge rather than a box around several — decompression is where
-a query's time is (see below), so there is little else worth moving.
-[cram-js](https://github.com/GMOD/cram-js/blob/main/docs/dataflow.md) draws the
-same idea as a cluster, because a CRAM slice moves whole.
+a chunk's blocks, not the record building after them — decompression is where a
+query's time is (see below), so there is little else worth moving.
+
+"Off the main thread" is relative to wherever the caller runs. Nothing here
+needs the main thread, so the whole diagram can sit in a worker of its own, and
+the purple node is then a further pool underneath it.
 
 ## Where wasm sits
 
@@ -40,6 +40,5 @@ stay in JS.
 
 That is where the time is: with nothing cached, decompression takes 70-90% of a
 query's wall clock, against 0.1-15ms building records. A call crosses the
-boundary once per chunk, never per record. Why it sits there, and why there is
-no faster codec to reach for:
-[optimizations.md](optimizations.md#decompression).
+boundary once per chunk, never per record. Why, and why there is no faster codec
+to reach for: [optimizations.md](optimizations.md#decompression).

@@ -21,10 +21,9 @@ and a letter, and each consumes read bases, reference bases, or both:
 | `H` | hard clip, bases gone   | no   | no  |
 | `P` | padding                 | no   | no  |
 
-`M` is the one to watch: it means "aligned", not "matching". Most aligners emit
-`M` for both, so the CIGAR alone locates indels and clips but says nothing about
-substitutions. `--eqx`-style aligners emit `=`/`X` instead, which does carry
-them.
+`M` means "aligned", not "matching". Most aligners emit `M` for both, so the
+CIGAR alone locates indels and clips but says nothing about substitutions.
+`--eqx`-style aligners emit `=`/`X` instead, which does carry them.
 
 BAM stores the op count in 16 bits, so a read with more than 65535 ops keeps a
 `<seqlen>S<reflen>N` placeholder in the record and the real CIGAR in a `CG` tag.
@@ -58,7 +57,7 @@ Walking them together — CIGAR sets the frame, and only the `M` runs consume MD
 | `3M`  | 10–12 | 111–113 | `3`            | nothing                               |
 
 MD's `3A5` spans both `M` runs (9 aligned bases) uninterrupted, because the
-insertion between them consumes no reference. That is the usual first bug.
+insertion between them consumes no reference.
 
 ## How the walk resolves substitutions
 

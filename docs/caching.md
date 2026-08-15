@@ -17,10 +17,10 @@ chunks.
 
 ## `maxCacheBytes` never refuses a read
 
-The cache never turns a chunk away for being too large. One bigger than the
-whole budget still goes in, eviction never touches a read in flight, and it only
-drops values it has already handed back. The worst a budget can cost you is a
-re-read: it can make a query slower, never make one fail or come back short.
+The cache never turns a chunk away for being too large, eviction never touches a
+read in flight, and it only drops values it has already handed back. The worst a
+budget can cost you is a re-read: it can make a query slower, never make one
+fail or come back short.
 
 **It binds less often than its size suggests.** On the deepest data we measure —
 1000x coverage long reads, 240 windows over six laps — the cache settles at
@@ -39,10 +39,9 @@ other way.
 ## `cacheIdleTimeoutMs` is the only thing that gives memory back
 
 The cache checks `maxCacheBytes` only when a read settles, so an idle one sits
-at whatever level it reached — and for a page holding a `BamFile` for the life
-of a track, that resting level is the number that matters. The idle sweep is
-what makes a generous ceiling affordable, turning it into a peak reached while
-panning rather than a level a parked tab holds indefinitely.
+at whatever level it reached. The idle sweep is what makes a generous ceiling
+affordable: a peak reached while panning rather than a level a parked tab holds
+indefinitely.
 
 The clock runs from the last _read_ of a chunk, or from its parse landing if
 nothing has read it since, so panning back and forth over one region never
@@ -54,8 +53,8 @@ Measured on a pan that held 331MB: 0MB once idle. Pass `0` to disable.
 
 `maxCacheBytes` is per file, which bounds nothing for a consumer that opens one
 file per track. Three moderately deep alignment tracks browsing eight windows
-retained 1109MB, with no cache anywhere near its own 1GB ceiling — the ceilings
-were doing nothing at all, and the sum is what runs a tab out of memory.
+retained 1109MB, with no cache anywhere near its own 1GB ceiling — the sum is
+what runs a tab out of memory.
 
 Pass one `SharedBudget` (from `@gmod/shared-read-cache`) per worker and hand it
 to every file. Dividing `maxCacheBytes` by the track count instead walks

@@ -16,10 +16,9 @@ rounding error beside either — per query, min of 5 runs
 | volvox-sorted (0.4MB → 2.5MB)           |  6 ms |       9 ms |          3 ms |
 
 Inflate is the largest column on every fixture, and 70-90% of the query's wall
-clock on the deep ones — the measurement behind the "decompression is 70-90%"
-shorthand these docs and the ADRs use. So avoiding a re-inflate beats any amount
-of parser tuning, and a micro-optimization in the record path has to earn the
-right to be measured at all.
+clock on the deep ones. So avoiding a re-inflate beats any amount of parser
+tuning, and a micro-optimization in the record path has to earn the right to be
+measured at all.
 
 ## Reading the index
 
@@ -97,11 +96,10 @@ a query that can take 0.2ms
 ([ADR 0008](../agent-docs/adr/0008-fetch-a-querys-chunks-concurrently.md)).
 
 This is the most machinery in the library for what used to be a `for` loop with
-an `await` in it, and "that looks overcomplicated" is the right instinct to have
-about it.
+an `await` in it.
 [ADR 0009](../agent-docs/adr/0009-why-the-concurrent-fetch-is-as-big-as-it-is.md)
-takes each piece in turn, names the simpler thing it replaced and what that
-costs, and names the one piece closest to not being worth it.
+takes each piece in turn, with the simpler thing it replaced and what that
+costs.
 
 ### Concurrent queries share one in-flight read
 
@@ -144,10 +142,9 @@ without stopping is one that needs them; that caps the cost of being wrong at
 
 `estimatedBytesForRegions` answers "you are about to download a lot" from the
 index alone, and it forecasts the chunks the query will _read_ rather than the
-ones it could need — the same asymmetry as the early stop, seen from the other
-side. Summing every chunk was 5.6x over on the narrow windows a reader spends
-their time in, and did not fall as they zoomed in, so it warned on views costing
-a fraction of what it claimed and told them to do the one thing that cannot help
+ones it could need. Summing every chunk was 5.6x over on the narrow windows a
+reader spends their time in, and did not fall as they zoomed in, so it warned on
+views costing a fraction of what it claimed
 ([ADR 0017](../agent-docs/adr/0017-the-byte-estimate-forecasts-the-read-not-the-candidates.md)).
 
 ## Reading records
@@ -217,13 +214,12 @@ reads it fully covers — a partial binding would be per-query state written ont
 a record shared between queries
 ([ADR 0020](../agent-docs/adr/0020-a-bound-reference-must-cover-the-whole-read.md)).
 
-The walk itself is jbrowse's, kept byte-for-byte equivalent because a port 10%
-slower is not a port anyone can take. Two things around it: the window is
-clamped to int32 rather than left at the ±Infinity an unwindowed walk passes in,
-since every op compares against it and Infinity makes each of those a Float64
-comparison; and the walk stops at the window's right edge instead of running to
-the end of the CIGAR, which is what makes a whole chromosome stored as one BAM
-read affordable to render a screenful of
+The walk itself is jbrowse's, kept byte-for-byte equivalent. Two things around
+it: the window is clamped to int32 rather than left at the ±Infinity an
+unwindowed walk passes in, since every op compares against it and Infinity makes
+each of those a Float64 comparison; and the walk stops at the window's right
+edge instead of running to the end of the CIGAR, which is what makes a whole
+chromosome stored as one BAM read affordable to render a screenful of
 ([ADR 0021](../agent-docs/adr/0021-the-mismatch-walk-is-jbrowses-and-is-at-parity-with-it.md)).
 
 ## The chunk cache
