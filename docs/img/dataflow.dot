@@ -1,12 +1,13 @@
-// Source for docs/dataflow.svg, which README.md embeds.
-// Regenerate with: dot -Tsvg docs/dataflow.dot -o docs/dataflow.svg
+// Source for docs/img/dataflow.svg, which docs/dataflow.md embeds.
+// Regenerate with: dot -Tsvg docs/img/dataflow.dot -o docs/img/dataflow.svg
 //
 // Deliberately the MAIN PATH only — htsget, viewAsPairs mate lookups, the
 // reference-sequence pass and the early stop are described in dataflow.md
 // instead. A diagram that shows every branch stops being the thing you look at
 // first.
 //
-// SYNC: ~/src/gmod/tabix-js/docs/dataflow.dot — same palette, legend and spine.
+// SYNC: ~/src/gmod/tabix-js/docs/img/dataflow.dot — same palette, legend and
+// spine.
 digraph bamjs {
   rankdir=TB
   bgcolor="white"
