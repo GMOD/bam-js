@@ -45,12 +45,12 @@ const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
 
 `record.getMismatches()` gives every difference between a read and the reference
 — substitutions, insertions, deletions, reference skips and clips — without you
-having to interpret `CIGAR` and `MD` yourself. There is a callback form,
-`record.forEachMismatch(cb, opts?)`, which allocates nothing per difference and
-takes a reference window to report within.
+interpreting `CIGAR` and `MD` yourself. `record.forEachMismatch(cb, opts?)` is
+the callback form, and allocates nothing per difference.
 
 Substitutions need either an `MD` tag on the read or the reference bases, and
-most aligners leave `MD` off. `fetchReferenceSequence` is how you supply them:
+most aligners leave `MD` off. `fetchReferenceSequence` supplies them, called at
+most once per query and only if some read needs it:
 
 ```typescript
 const bam = new BamFile({
@@ -58,50 +58,25 @@ const bam = new BamFile({
   fetchReferenceSequence: async (refName, start, end) =>
     myGenome.getSequence(refName, start, end),
 })
-
-// one sequence fetch for the whole query, and only if some read needs it
-const records = await bam.getRecordsForRange('ctgA', 0, 50000)
-records[0].getMismatches()
-// [{ code: 88 /* 'X' */, refPos: 188, length: 1, bases: 'A', qual: 17,
-//    refBaseCode: 84 /* 'T' */, clipLength: 0 }, ...]
 ```
 
-Without it, a read lacking `MD` still reports its indels and clips, but no
-substitutions — nothing in the record says where they are. See
-[docs/api.md](docs/api.md#mismatches) for the field meanings and for reads
-longer than the region you are looking at.
+Without it, a read lacking `MD` still reports its indels and clips but no
+substitutions — nothing in the record says where they are. Field meanings, and
+reads longer than the region you are looking at:
+[docs/api.md](docs/api.md#mismatches).
 
 ## How a query flows
 
 <img src="docs/dataflow.svg" alt="bam-js data flow" width="700">
 
-A query resolves its reference name through the index and header, turns the
-range into a list of BGZF chunks, and reads each chunk through
-`chunkFeatureCache` — which shares a read already in flight and keeps parsed
-chunks around, so a pan back over the same region does no I/O at all. Records
-are views into their chunk's decompressed buffer; `seq`, `CIGAR`, `tags` and
-friends decode on access, so a query costs what you read off it.
-([docs/dataflow.dot](docs/dataflow.dot) is the source; regenerate with
-`dot -Tsvg docs/dataflow.dot -o docs/dataflow.svg`.)
-
-Everything orange is wasm, in
-[`@gmod/bgzf-filehandle`](https://github.com/GMOD/bgzf-filehandle), and it is
-only ever inflate. That is where the time is — decompression is 70-90% of a cold
-query, against 0.1-15ms for record construction — and libdeflate-in-wasm is
-2.6-3.5x a per-block `pako` inflate while sitting at parity with native `zlib`,
-so there is no faster codec left to reach for. The boundary is crossed once per
-chunk, never per record: a record would have to be serialized back out, and the
-wasm heap only grows. What headroom remains is parallelism, which is the worker
-pool below. Measurements in
-[agent-docs/adr/0022](agent-docs/adr/0022-the-wasm-boundary-sits-at-the-bgzf-block.md).
+Orange is wasm, and it is only ever inflate — 70-90% of a cold query. Records
+are views into their chunk's decompressed buffer, so a query costs what you read
+off it. See [docs/dataflow.md](docs/dataflow.md).
 
 ## Decompressing on a worker pool
 
 BGZF blocks are independently inflatable, so that 70-90% can be spread across
-threads. Hand `BamFile` a
-[`@gmod/bgzf-filehandle`](https://github.com/GMOD/bgzf-filehandle) worker pool
-and it inflates chunks there instead of on the calling thread — measured
-2.7-4.1x on the pool's own fixtures.
+threads — measured 2.7-4.1x on the pool's own fixtures.
 
 ```typescript
 import { getSharedWorkerPool } from '@gmod/bgzf-filehandle'
@@ -113,11 +88,10 @@ const bam = new BamFile({
 })
 ```
 
-No cross-origin isolation is needed. `getSharedWorkerPool()` gives back
-`undefined` under node, or anywhere Workers cannot be created, which keeps the
-in-process path — so this is safe to pass unconditionally. bam-js never creates
-a pool on its own: the thread budget belongs to the consumer. For worker counts,
-lifecycle and the pool's own benchmarks, see
+Safe to pass unconditionally: `getSharedWorkerPool()` is `undefined` under node,
+or anywhere Workers cannot be created, which keeps the in-process path. No
+cross-origin isolation needed. bam-js never creates a pool on its own — the
+thread budget belongs to the consumer. Worker counts, lifecycle and benchmarks:
 [bgzf-filehandle's worker pool docs](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/worker-pool.md).
 
 ## Usage with htsget
@@ -133,8 +107,7 @@ const records = await bam.getRecordsForRange('1', 2000000, 2000001)
 ```
 
 htsget fetches the server's range as-is, so `viewAsPairs`, `pairAcrossChr` and
-`maxInsertSize` are ignored. For a server that requires authentication, pass a
-`fetch` that adds the bearer token:
+`maxInsertSize` are ignored. Pass a `fetch` to add auth:
 
 ```typescript
 const bam = new HtsgetFile({
@@ -148,14 +121,15 @@ const bam = new HtsgetFile({
 })
 ```
 
-Your `fetch` is called for the ticket request _and_ for the data-block urls the
-ticket points at, which may live on a third-party host — so only attach
-credentials to hosts you trust.
+It is called for the ticket request _and_ for the data-block urls the ticket
+points at, which may live on a third-party host — so only attach credentials to
+hosts you trust.
 
 ## Docs
 
 - [docs/api.md](docs/api.md) — every constructor option, method and `BamRecord`
   field, plus custom record classes
+- [docs/dataflow.md](docs/dataflow.md) — how a query flows, and where wasm sits
 - [docs/caching.md](docs/caching.md) — sizing the parsed-chunk cache
 - [agent-docs/adr/](agent-docs/adr/) — the measurements behind the performance
   and caching decisions
