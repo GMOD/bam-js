@@ -26,6 +26,10 @@ and a letter, and each consumes read bases, reference bases, or both:
 substitutions. `--eqx`-style aligners emit `=`/`X` instead, which does carry
 them.
 
+BAM stores the op count in 16 bits, so a read with more than 65535 ops keeps a
+`<seqlen>S<reflen>N` placeholder in the record and the real CIGAR in a `CG` tag.
+`record.CIGAR` and `record.NUMERIC_CIGAR` follow that transparently.
+
 ## MD
 
 An aux tag that fills in what `M` left out, over the reference-consuming aligned

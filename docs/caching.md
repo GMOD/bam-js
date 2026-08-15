@@ -11,14 +11,16 @@ different question.
 | `cacheIdleTimeoutMs` | 3min    | how long may it retain it while idle?        |
 | `cacheBudget`        | none    | how much may _all my files together_ retain? |
 
-`clearFeatureCache()` drops everything immediately.
+`clearFeatureCache()` drops everything immediately. `HtsgetFile` accepts the
+same options but fills no cache — it reads whole ticket blocks rather than index
+chunks.
 
-## `maxCacheBytes` is a ceiling, not a limit on what you can ask for
+## `maxCacheBytes` never refuses a read
 
-Nothing is ever refused for being too large. A chunk bigger than the whole
-budget is still cached, a read in flight is never evicted, and eviction only
-drops a value that has already been returned. The worst a budget can cost you is
-a re-read: it can make a query slower, never make one fail or come back short.
+Nothing is rejected for being too large. A chunk bigger than the whole budget is
+still cached, a read in flight is never evicted, and eviction only drops a value
+that has already been returned. The worst a budget can cost you is a re-read: it
+can make a query slower, never make one fail or come back short.
 
 **It binds less often than its size suggests.** On the deepest data we measure —
 1000x coverage long reads, 240 windows over six laps — the cache settles at
@@ -37,10 +39,10 @@ other way.
 ## `cacheIdleTimeoutMs` is the only thing that gives memory back
 
 `maxCacheBytes` is enforced when a read settles, so an idle cache stays at
-whatever level it reached — and for a page that holds a `BamFile` for the life
-of a track, that resting level is the number that actually matters. The idle
-sweep is what makes a generous ceiling affordable, turning it into a peak
-reached while panning rather than a level a parked tab holds indefinitely.
+whatever level it reached — and for a page holding a `BamFile` for the life of a
+track, that resting level is the number that matters. The idle sweep is what
+makes a generous ceiling affordable, turning it into a peak reached while
+panning rather than a level a parked tab holds indefinitely.
 
 The clock runs from the last _read_ of a chunk, or from its parse landing if
 nothing has read it since, so panning back and forth over one region never
@@ -85,6 +87,14 @@ Returned records are cached and shared between overlapping queries, so treat
 them as read-only: attaching your own fields to a record mutates it for every
 other query holding it.
 ([ADR 0006](../agent-docs/adr/0006-cached-records-are-shared-and-must-not-be-mutated.md))
+
+## A hit needs the same chunk span, not just the same bytes
+
+Entries are keyed on the _merged_ chunk span a query resolved to, and merging
+depends on the query, so two overlapping pans can decode the same bytes under
+two keys. That costs some short-read files real work and leaves deep long-read
+data untouched; it is known and parked, with the numbers in
+[optimizations.md](optimizations.md#what-is-left).
 
 ## Further reading
 

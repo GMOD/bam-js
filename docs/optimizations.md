@@ -6,7 +6,7 @@ Why the query path looks the way it does. The path itself is drawn in
 Two costs dominate a query that finds nothing cached, and nearly everything
 below is about one of them: inflating the BGZF blocks it fetched, and the
 network round trip it pays per chunk. Building records out of those bytes is a
-rounding error beside either — per query, min of 5
+rounding error beside either — per query, min of 5 runs
 ([ADR 0003](../agent-docs/adr/0003-where-bam-query-time-goes.md)):
 
 | file                                    | fetch |    inflate | build records |
@@ -16,10 +16,10 @@ rounding error beside either — per query, min of 5
 | volvox-sorted (0.4MB → 2.5MB)           |  6 ms |       9 ms |          3 ms |
 
 Inflate is the largest column on every fixture, and 70-90% of the query's wall
-clock on the deep ones — that is the measurement behind the "decompression is
-70-90%" shorthand these docs and the ADRs use. So: avoiding a re-inflate beats
-any amount of parser tuning, and a micro-optimization in the record path has to
-earn the right to be measured at all.
+clock on the deep ones — the measurement behind the "decompression is 70-90%"
+shorthand these docs and the ADRs use. So avoiding a re-inflate beats any amount
+of parser tuning, and a micro-optimization in the record path has to earn the
+right to be measured at all.
 
 ## Reading the index
 
@@ -28,11 +28,11 @@ earn the right to be measured at all.
 `.bai`/`.csi` is a whole-file read, parsed on the first query and memoized for
 the life of the object.
 
-It is shared rather than merely memoized: the parse runs under a signal of its
-own and is cancelled only once every caller waiting on it has given up. A query
-that pans away therefore cannot abort the index read that concurrent queries
-depend on. The header is read the same way, and `indices(refId)` is separately
-LRU-memoized so repeated lookups don't re-walk the parsed bytes.
+Shared rather than merely memoized: the parse runs under a signal of its own and
+is cancelled only once every caller waiting on it has given up, so a query that
+pans away cannot abort the index read concurrent queries depend on. The header
+is read the same way, and `indices(refId)` is separately LRU-memoized so
+repeated lookups don't re-walk the parsed bytes.
 
 ### The linear index is packed, not objects
 
@@ -46,8 +46,8 @@ The first pass over the file exists only to find the minimum virtual offset —
 where the header ends — so `minVirtualOffset` compares packed offsets in place
 and allocates at most one object instead of one per entry. And an assembly of
 unplaced scaffolds reaches the per-reference parse tens of thousands of times
-(`cho.bam.bai`: 28751 references, 205 linear entries between them), so the empty
-linear index is one shared array rather than a pair per reference.
+(`cho.bam.bai` has 28751 references and 205 linear entries between them), so the
+empty linear index is one shared array rather than a pair per reference.
 
 ## Choosing and fetching chunks
 
@@ -241,7 +241,7 @@ have to be serialized back out of a wasm heap that only ever grows
 ([ADR 0022](../agent-docs/adr/0022-the-wasm-boundary-sits-at-the-bgzf-block.md)).
 What happens on the other side of that call — one wasm call per chunk rather
 than per block, how a chunk's blocks are split across workers, and what was
-measured and rejected there — is
+measured and rejected there — is in
 [bgzf-filehandle's own optimizations doc](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/optimizations.md).
 
 ## What the consumer has to do

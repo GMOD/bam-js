@@ -28,14 +28,7 @@ Everything orange is wasm, in
 it is decompressing BGZF blocks — reading the index and decoding records both
 stay in JS.
 
-That is where the time is: with nothing cached, 70-90% of the time it takes to
-answer a query is spent decompressing, against 0.1-15ms for record construction.
-libdeflate-in-wasm is 2.6-3.5x a per-block `pako` inflate while sitting at
-parity with native `zlib`, so there is no faster codec left to reach for — the
-remaining headroom is parallelism, which is the
-[worker pool](../README.md#decompressing-on-a-worker-pool).
-
-The boundary is crossed once per chunk, never per record: a record would have to
-be serialized back out of the wasm heap, and that heap only ever grows. The full
-argument, and the measurements behind it, are in
-[ADR 0022](../agent-docs/adr/0022-the-wasm-boundary-sits-at-the-bgzf-block.md).
+That is where the time is: with nothing cached, 70-90% of a query's wall clock
+is spent decompressing, against 0.1-15ms building records. The boundary is
+crossed once per chunk, never per record. Why it sits there, and why there is no
+faster codec to reach for: [optimizations.md](optimizations.md#decompression).
