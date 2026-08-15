@@ -3,10 +3,10 @@
 Why the query path looks the way it does. The path itself is drawn in
 [dataflow.md](dataflow.md).
 
-Two costs dominate a query that finds nothing in the cache, and almost
-everything below is about one of them: inflating the BGZF blocks it fetched, and
-the network round trip it pays per chunk. Turning those decompressed bytes into
-records is a rounding error beside either — per query, min of 5
+Two costs dominate a query that finds nothing cached, and nearly everything
+below is about one of them: inflating the BGZF blocks it fetched, and the
+network round trip it pays per chunk. Building records out of those bytes is a
+rounding error beside either — per query, min of 5
 ([ADR 0003](../agent-docs/adr/0003-where-bam-query-time-goes.md)):
 
 | file                                    | fetch |    inflate | build records |
@@ -15,12 +15,11 @@ records is a rounding error beside either — per query, min of 5
 | shortreads_300x (5.2MB → 18.5MB)        | 12 ms |  **82 ms** |         15 ms |
 | volvox-sorted (0.4MB → 2.5MB)           |  6 ms |       9 ms |          3 ms |
 
-Inflate is the largest column on every fixture and 70-90% of the query's wall
-clock on the deep ones — that measurement is what the shorthand "decompression
-is 70-90% of the time" refers to wherever these docs and the ADRs use it. Two
-things follow: anything that avoids inflating the same bytes twice beats any
-amount of parser tuning, and a micro-optimization in the record path has to earn
-the right to be measured at all.
+Inflate is the largest column on every fixture, and 70-90% of the query's wall
+clock on the deep ones — that is the measurement behind the "decompression is
+70-90%" shorthand these docs and the ADRs use. So: avoiding a re-inflate beats
+any amount of parser tuning, and a micro-optimization in the record path has to
+earn the right to be measured at all.
 
 ## Reading the index
 
@@ -254,8 +253,10 @@ worked example:
 
 - **One `bgzfWorkerPool` per JS context**, passed to every adapter — measured
   1.95x end to end on a 22-view pan/zoom over 1000x long-read data, real HTTP,
-  headless Chrome, 4 workers, same 38,246 records either way. It is one per RPC
-  worker rather than one per file, since that is the scope with spare cores.
+  headless Chrome, 4 workers, same 38,246 records either way. One per RPC worker
+  rather than one per file, since that is the scope with spare cores. The blocks
+  cross to the workers as transferables, so the fan-out costs one pass over the
+  compressed bytes and needs no cross-origin isolation.
 - **One `cacheBudget` per JS context**, likewise. `maxCacheBytes` is per file,
   and a browser holds one file per open track, so three deep tracks browsing
   eight windows retained 1109MB with every cache well under its own 1GB ceiling
@@ -285,22 +286,20 @@ worked example:
 
 ## What is left
 
-One known waste, measured and not fixed: the chunk cache is keyed on the
-_merged_ chunk span, and merging depends on the query, so a pan whose windows
-overlap can decode the same bytes under two different keys. It is containment
-rather than partial overlap — one parse fully redoing another — and it shows up
-on shallow-to-moderate short-read files whose bin chunks abut, including the
-volvox demo file, where a twelve-window pan decompresses 71% more than it needs
-to. Deep long-read data is untouched at ordinary zoom.
+One waste, measured and not fixed: the cache is keyed on the _merged_ chunk
+span, and merging depends on the query, so a pan whose windows overlap decodes
+the same bytes under two keys. It is containment — one parse fully redoing
+another — on shallow-to-moderate short-read files whose bin chunks abut,
+including the volvox demo file, where a twelve-window pan decompresses 71% more
+than it needs to. Deep long-read data is untouched at ordinary zoom.
 
-Keying on raw chunks instead recovers exactly that and never costs bytes, but it
-is parked rather than pending: the fetch unit has to stay merged for the I/O
-reasons above, so one fetch would have to fill several cache entries — a change
-in `@gmod/shared-read-cache` as well as here — and the entry count goes up to
-10x on the long-read files that gain nothing from it. The numbers, the design
-that would work, and the variant that looks obvious and is wrong are all in
-[ADR 0019](../agent-docs/adr/0019-the-chunk-cache-key-slides-as-a-query-pans.md);
-start there rather than from a hunch.
+Keying on raw chunks recovers exactly that and never costs bytes, but is parked
+rather than pending: the fetch unit must stay merged for the I/O reasons above,
+so one fetch would fill several cache entries — a change in
+`@gmod/shared-read-cache` too — and entry counts rise up to 10x on the long-read
+files that gain nothing. Numbers, the design that would work, and the variant
+that looks obvious and is wrong:
+[ADR 0019](../agent-docs/adr/0019-the-chunk-cache-key-slides-as-a-query-pans.md).
 
 ## Further reading
 
