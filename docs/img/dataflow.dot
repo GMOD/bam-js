@@ -7,7 +7,9 @@
 // first.
 //
 // SYNC: ~/src/gmod/tabix-js/docs/img/dataflow.dot — same palette, legend and
-// spine.
+// spine. ~/src/gmod/cram-js/docs/img/dataflow.dot shares them too, and draws
+// its pool as a cluster rather than a node because there the unit that moves
+// is a whole slice, not just the decompression.
 digraph bamjs {
   rankdir=TB
   bgcolor="white"
@@ -26,7 +28,7 @@ digraph bamjs {
   cache   [label="chunkFeatureCache" fillcolor="#fff8c5" color="#9a6700"]
   readchk [label="read chunk range" fillcolor="#dafbe1" color="#1a7f37"]
   slice   [label="unzipChunkSlice" fillcolor="#ffd8b5" color="#bc4c00"]
-  pool    [label="worker pool" fillcolor="#ffd8b5" color="#bc4c00"]
+  pool    [label="worker pool" fillcolor="#fbefff" color="#8250df"]
   feats   [label="readBamFeatures"]
   out     [label="BamRecord[]" fillcolor="#ddf4ff" color="#0969da"]
 
@@ -59,6 +61,7 @@ digraph bamjs {
     l1 [label="I/O" fillcolor="#dafbe1" color="#1a7f37"]
     l2 [label="wasm" fillcolor="#ffd8b5" color="#bc4c00"]
     l3 [label="cached / shared" fillcolor="#fff8c5" color="#9a6700"]
-    l1 -> l2 -> l3 [style=invis]
+    l4 [label="off the main thread" fillcolor="#fbefff" color="#8250df"]
+    l1 -> l2 -> l3 -> l4 [style=invis]
   }
 }

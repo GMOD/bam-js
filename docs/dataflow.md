@@ -21,6 +21,16 @@ joins at `readBamFeatures`), the `viewAsPairs` mate lookups and the
 assembled and go back through the same chunk cache — and the early stop that
 abandons the remaining chunks once one starts past the query.
 
+## Where the worker pool sits
+
+The purple node is opt-in: pass a `bgzfWorkerPool` and chunk decompression
+moves off the main thread, and without one the same code runs in-process. The
+unit is a chunk's blocks, not the record building after them, which is why it
+is one node on a dashed edge rather than a box around several — decompression
+is where a query's time is (see below), so there is little else worth moving.
+[cram-js](https://github.com/GMOD/cram-js/blob/main/docs/dataflow.md) draws the
+same idea as a cluster, because a CRAM slice moves whole.
+
 ## Where wasm sits
 
 Everything orange is wasm, in
