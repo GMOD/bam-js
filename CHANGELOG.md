@@ -1,3 +1,27 @@
+## [8.11.0](https://github.com/GMOD/bam-js/compare/v8.10.0...v8.11.0) (2026-08-16)
+
+### Bug Fixes
+
+- Identify streamed records by ordinal, not by a hash of their bytes ([2ba106b](https://github.com/GMOD/bam-js/commit/2ba106b26187a9428c06d5674f4db0272c354d5e))
+- Open the read-ahead only once a read comes back full-length ([baea625](https://github.com/GMOD/bam-js/commit/baea6253b53e7be332a0ee7e002dc1f97ff4f219))
+
+### Documentation
+
+- Fix stale paths in the dataflow.dot header ([b0b5190](https://github.com/GMOD/bam-js/commit/b0b51906926d6bf5dfb9218da831f57947107790))
+- Give the worker pool its own legend color, and describe it ([67d42ed](https://github.com/GMOD/bam-js/commit/67d42ed7cab0e1851461b9d3e594641feafde2f4))
+- Put the prose in the active voice ([5887a16](https://github.com/GMOD/bam-js/commit/5887a16dac81630cabdf0748103b555e3177fa4e))
+- Note the whole pipeline can run in a worker, and trim the prose ([cc2ec81](https://github.com/GMOD/bam-js/commit/cc2ec815ac07b1c7cafaa74e0526b9bee783f7dc))
+- Put fetchReferenceSequence on the dataflow diagram ([dd09b58](https://github.com/GMOD/bam-js/commit/dd09b58e5d80f453d5553fde1c89da669310aed8))
+- Correct the release command in CONTRIBUTING, and its voice ([2395a5c](https://github.com/GMOD/bam-js/commit/2395a5c1f56bf42808d06b44ec8b1dae48e373cb))
+
+### Features
+
+- StreamBamRecords, an index-free whole-file walk (closes #125) ([b60098e](https://github.com/GMOD/bam-js/commit/b60098ed93b9893f585e57445814235c9e2eafba))
+
+### Performance Improvements
+
+- Inflate on a worker pool, and keep several window reads in flight ([c1a27ff](https://github.com/GMOD/bam-js/commit/c1a27ffa9613a180228e33998febd55618bb63bb))
+
 ## [8.10.0](https://github.com/GMOD/bam-js/compare/v8.9.0...v8.10.0) (2026-08-15)
 
 ### Chores
