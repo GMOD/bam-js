@@ -44,6 +44,27 @@ const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
 )
 ```
 
+## Unsorted BAM
+
+A BAM that is unsorted, or still name-sorted as it came off the sequencer, has
+no index to query and so no `chr:start-end` to query it with. `streamBamRecords`
+walks one end to end instead, a batch of records at a time:
+
+```typescript
+import { streamBamRecords } from '@gmod/bam'
+
+for await (const records of streamBamRecords({ bamUrl: 'unsorted.bam' })) {
+  for (const record of records) {
+    // ...
+  }
+}
+```
+
+It reads the file a window at a time rather than all at once, so a 1GB BAM
+streams through in bounded memory. A standalone function rather than a `BamFile`
+method, so that streaming alone leaves `BAI`/`CSI` and the chunk cache out of
+your bundle. See [docs/api.md](docs/api.md) for `onHeader` and the window size.
+
 ## Mismatches
 
 `record.getMismatches()` gives every difference between a read and the reference

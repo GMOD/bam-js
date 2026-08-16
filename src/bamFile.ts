@@ -1,7 +1,6 @@
 import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
 import { SharedReadCache } from '@gmod/shared-read-cache'
 import crc32 from 'crc/calculators/crc32'
-import { LocalFile, RemoteFile } from 'generic-filehandle2'
 
 import BAI from './bai.ts'
 import CSI from './csi.ts'
@@ -10,9 +9,11 @@ import BAMFeature from './record.ts'
 import { packReference, referenceCovers } from './reference.ts'
 import { parseHeaderText } from './sam.ts'
 import {
+  BAM_MAGIC,
   MAX_CONCURRENT_CHUNK_READS,
   appendInRange,
   parseRefSeqs,
+  resolveFilehandle,
   throwIfAborted,
 } from './util.ts'
 
@@ -77,8 +78,6 @@ export type BamRecordClass<T extends BamRecordLike = BAMFeature> = new (
   dataView: DataView,
 ) => T
 
-export const BAM_MAGIC = 21840194
-
 const blockLen = 1 << 16
 
 // Ceiling on GROWING the header read. A million contigs is roughly 10MB of
@@ -89,17 +88,6 @@ const blockLen = 1 << 16
 // than a guess, so a header that genuinely runs past this still gets its one
 // exact read. See getHeaderPre.
 const maxHeaderReadLen = 32 * 1024 * 1024
-
-function resolveFilehandle(
-  filehandle?: GenericFilehandle,
-  path?: string,
-  url?: string,
-) {
-  return (
-    filehandle ??
-    (path ? new LocalFile(path) : url ? new RemoteFile(url) : undefined)
-  )
-}
 
 interface ChunkEntry<T> {
   // decompressed size of the chunk these features are views into

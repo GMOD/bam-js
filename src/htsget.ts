@@ -1,8 +1,13 @@
 import { unzip } from '@gmod/bgzf-filehandle'
 
-import BamFile, { BAM_MAGIC } from './bamFile.ts'
+import BamFile from './bamFile.ts'
 import Chunk from './chunk.ts'
-import { appendInRange, concatUint8Array, parseRefSeqs } from './util.ts'
+import {
+  BAM_MAGIC,
+  appendInRange,
+  concatUint8Array,
+  parseRefSeqs,
+} from './util.ts'
 import { VirtualOffset } from './virtualOffset.ts'
 
 import type {

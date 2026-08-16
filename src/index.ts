@@ -8,6 +8,12 @@ export { default as CSI } from './csi.ts'
 export { default as BamRecord } from './record.ts'
 export { default as HtsgetFile } from './htsget.ts'
 
+// The index-free whole-file walk, for BAMs an index cannot address. Kept out of
+// BamFile so that streaming it does not drag BAI/CSI and the chunk cache into a
+// consumer's bundle.
+export { streamBamRecords } from './streamBam.ts'
+export type { BamStreamHeader, StreamBamOptions } from './streamBam.ts'
+
 // The mismatch walk, and the codes it reports differences as. The walk is
 // exported alongside `record.forEachMismatch` for callers holding BAM's packed
 // arrays without a record around them — a SAM parser, or a worker that was

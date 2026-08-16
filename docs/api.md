@@ -27,6 +27,49 @@ decides what a range returns — so it ignores the mate-pairing options, and tak
 the cache options without using them, since ticket responses never reach the
 chunk cache.
 
+## `streamBamRecords(opts)`
+
+Reads every record of a BAM in file order, without an index — for files no index
+can address, such as an unsorted BAM or one still name-sorted as it came off the
+sequencer.
+
+```js
+import { streamBamRecords } from '@gmod/bam'
+
+for await (const records of streamBamRecords({
+  bamUrl: 'reads.bam',
+  onHeader: h => {
+    console.log(h.headerText, h.indexToChr)
+  },
+})) {
+  for (const record of records) {
+    // ...
+  }
+}
+```
+
+| option                                   | description                                                               |
+| ---------------------------------------- | ------------------------------------------------------------------------- |
+| `bamFilehandle` / `bamPath` / `bamUrl`   | the source, as in `BamFile`                                               |
+| `onHeader`                               | fires once before the first batch, with the header text and ref-seq table |
+| `windowSize`                             | compressed bytes per read. default 1MB, floored at one BGZF block         |
+| `recordClass`, `renameRefSeqs`, `signal` | as in `BamFile`                                                           |
+
+It yields an **array** of records per window rather than one record per `yield`:
+a whole-file walk is tens of millions of records and an async generator pays a
+promise per yield, so batching keeps the caller's inner loop synchronous. The
+header arrives through `onHeader` because the stream has to parse it anyway to
+find where the records start.
+
+A standalone function rather than a `BamFile` method on purpose. It shares the
+record and header parsers and nothing else, so a consumer who only streams pays
+for neither `BAI`/`CSI` nor the chunk cache — 87KB minified against 111KB for
+`BamFile`, over an identical wasm inflate bundle in both.
+
+Records are views into the window they came from, as everywhere else here, so
+holding one retains that whole window. Copy out the fields you want rather than
+keeping a scattered handful of records from a large file.
+
 ## `getRecordsForRange(refName, start, end, opts?)`
 
 `start`/`end` are 0-based half-open. `opts`:
@@ -278,6 +321,7 @@ above can only name these types by importing them from here.
 | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | `BamFile`, `HtsgetFile`, `BamRecord`                                                                                         | the three classes above                                                   |
 | `BAI`, `CSI`                                                                                                                 | the index parsers, for reading an index without its BAM                   |
+| `streamBamRecords`                                                                                                           | the index-free whole-file walk                                            |
 | `DEFAULT_MAX_CACHE_BYTES`, `DEFAULT_CACHE_IDLE_TIMEOUT_MS`                                                                   | the cache defaults, to adjust rather than replace                         |
 | `MISMATCH_SUBST`, `MISMATCH_INSERTION`, `MISMATCH_DELETION`, `MISMATCH_REF_SKIP`, `MISMATCH_SOFT_CLIP`, `MISMATCH_HARD_CLIP` | the `code` values to compare against                                      |
 | `forEachMismatchNumeric`                                                                                                     | the walk without a record around it                                       |
@@ -287,4 +331,5 @@ above can only name these types by importing them from here.
 | `PackedReference`, `NumericCigar`, `IndexCovEntry`                                                                           | _type_ — the shapes those return                                          |
 | `Chunk`, `Offset`, `OffsetCoords`                                                                                            | _type_ — what `blocksForRange` hands back                                 |
 | `BamRecordClass`, `BamRecordLike`, `ReferenceSequenceFetcher`                                                                | _type_ — for the `recordClass` and `fetchReferenceSequence` options       |
+| `StreamBamOptions`, `BamStreamHeader`                                                                                        | _type_ — what `streamBamRecords` takes, and what its `onHeader` gets      |
 | `Fetcher`                                                                                                                    | _type_ — re-exported from generic-filehandle2, for `HtsgetFile`'s `fetch` |

@@ -1,7 +1,24 @@
+import { LocalFile, RemoteFile } from 'generic-filehandle2'
+
 import Chunk from './chunk.ts'
 import { VirtualOffset } from './virtualOffset.ts'
 
 import type { OffsetCoords } from './virtualOffset.ts'
+import type { GenericFilehandle } from 'generic-filehandle2'
+
+/** 'BAM\1' read as a little-endian int32 */
+export const BAM_MAGIC = 21840194
+
+export function resolveFilehandle(
+  filehandle?: GenericFilehandle,
+  path?: string,
+  url?: string,
+) {
+  return (
+    filehandle ??
+    (path ? new LocalFile(path) : url ? new RemoteFile(url) : undefined)
+  )
+}
 
 export interface BamOpts {
   viewAsPairs?: boolean
