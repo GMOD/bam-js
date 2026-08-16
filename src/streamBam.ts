@@ -3,7 +3,6 @@ import {
   scanBgzfBlocks,
   unzip,
 } from '@gmod/bgzf-filehandle'
-import crc32 from 'crc/calculators/crc32'
 
 import BAMFeature from './record.ts'
 import { parseHeaderText } from './sam.ts'
@@ -113,6 +112,8 @@ export async function* streamBamRecords<T extends BamRecordLike = BAMFeature>({
   let blockCarry: Uint8Array | undefined
   let recordCarry: Uint8Array | undefined
   let sawHeader = false
+  // 1-based, as readBamFeatures' virtual-offset ids are
+  let recordIndex = 0
 
   for (;;) {
     throwIfAborted(signal)
@@ -184,11 +185,20 @@ export async function* streamBamRecords<T extends BamRecordLike = BAMFeature>({
           bytes,
           blockStart,
           blockEnd,
-          // The fileOffset an indexed read derives from BGZF virtual offsets.
-          // Nothing here can produce one — there is no index to seek back with
-          // — so use the same content hash readBamFeatures falls back to, which
-          // at least stays stable across runs.
-          crc32(bytes.subarray(blockStart, blockEnd)) >>> 0,
+          // An indexed read derives fileOffset from the record's BGZF virtual
+          // offset, which nothing here has: there is no index to seek back
+          // with. Its ordinal in the file is the other thing that identifies a
+          // record by position, and it is the same for a given file whatever
+          // the window size, so it is as stable as a virtual offset without
+          // pretending to be one.
+          //
+          // NOT the crc32 of the record bytes that readBamFeatures falls back
+          // to when it has no positions. That is a content hash, so the two
+          // byte-identical records in exact_duplicate.bam collide on it, and
+          // hashing every record costs ~40% of the walk (135ms of 340ms over
+          // out.bam) where a counter costs nothing. The fallback only fires on
+          // an unusual path there; here it would fire on every record.
+          recordIndex++,
           dataView,
         ),
       )

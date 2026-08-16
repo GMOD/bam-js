@@ -125,6 +125,30 @@ test('agrees with the indexed reader over a whole reference', async () => {
   )
 })
 
+describe('fileOffset', () => {
+  test('is unique even for byte-identical records', async () => {
+    // exact_duplicate.bam holds the same alignment twice, which is what a
+    // content hash cannot tell apart
+    const records = (
+      await collect({ bamPath: 'test/data/exact_duplicate.bam' })
+    ).flat()
+    expect(records.length).toBe(2)
+    expect(records[0]!.name).toBe(records[1]!.name)
+    expect(records[0]!.fileOffset).not.toBe(records[1]!.fileOffset)
+  })
+
+  test('does not depend on where the windows fell', async () => {
+    const offsets = async (windowSize?: number) =>
+      (await collect({ bamPath: nanopore, windowSize }))
+        .flat()
+        .map(r => r.fileOffset)
+    const whole = await offsets()
+    expect(new Set(whole).size).toBe(whole.length)
+    expect(await offsets(1)).toStrictEqual(whole)
+    expect(await offsets(100_001)).toStrictEqual(whole)
+  })
+})
+
 /** the smallest filehandle streamBamRecords needs, over a fixed buffer */
 function bufferFilehandle(buf: Uint8Array) {
   return {
