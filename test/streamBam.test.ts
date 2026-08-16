@@ -8,11 +8,13 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
+import { unzip } from '@gmod/bgzf-filehandle'
 import { describe, expect, test } from 'vitest'
 
 import { BamFile, streamBamRecords } from '../src/index.ts'
 
 import type { BamStreamHeader } from '../src/index.ts'
+import type { BgzfBlockInfo } from '@gmod/bgzf-filehandle'
 
 const namesorted = 'test/data/paired-region.namesorted.bam'
 const nanopore = 'test/data/ecoli_nanopore.bam'
@@ -146,6 +148,109 @@ describe('fileOffset', () => {
     expect(new Set(whole).size).toBe(whole.length)
     expect(await offsets(1)).toStrictEqual(whole)
     expect(await offsets(100_001)).toStrictEqual(whole)
+  })
+})
+
+test('inflates through a worker pool when given one', async () => {
+  // node has no workers, so stand in for one: the pool contract is "inflate
+  // these blocks, hand them back individually", which is what makes the
+  // parallel path assemble to the same bytes as the sequential one
+  const calls: number[] = []
+  const pool = {
+    async decompressBlocks(input: Uint8Array, blocks: BgzfBlockInfo[]) {
+      calls.push(blocks.length)
+      return {
+        blocks: await Promise.all(
+          blocks.map(b =>
+            unzip(
+              input.subarray(b.inputOffset, b.inputOffset + b.compressedSize),
+            ),
+          ),
+        ),
+      }
+    },
+    destroy() {
+      /* nothing to tear down */
+    },
+  }
+
+  const expected = identities(await collect({ bamPath: nanopore }))
+  const pooled = await collect({ bamPath: nanopore, bgzfWorkerPool: pool })
+  expect(calls.length).toBeGreaterThan(0)
+  expect(calls.every(n => n > 1)).toBe(true)
+  expect(identities(pooled)).toStrictEqual(expected)
+
+  // a promise, as getSharedWorkerPool() hands back — including its undefined,
+  // which has to fall through to inflating in process rather than throwing
+  expect(
+    identities(
+      await collect({
+        bamPath: nanopore,
+        bgzfWorkerPool: Promise.resolve(undefined),
+      }),
+    ),
+  ).toStrictEqual(expected)
+})
+
+describe('readAhead', () => {
+  /** a filehandle that records how many reads were outstanding at once */
+  function countingFilehandle(path: string) {
+    const buf = readFileSync(path)
+    const state = { inFlight: 0, maxInFlight: 0, reads: 0 }
+    const fh = {
+      read: async (length: number, position: number) => {
+        state.reads++
+        state.inFlight++
+        state.maxInFlight = Math.max(state.maxInFlight, state.inFlight)
+        // a turn of the event loop, so overlapping reads can be seen to overlap
+        await new Promise(r => setTimeout(r, 1))
+        state.inFlight--
+        return buf.subarray(position, position + length)
+      },
+      readFile: async () => buf,
+      stat: async () => ({ size: buf.length }),
+    } as unknown as NonNullable<
+      Parameters<typeof streamBamRecords>[0]['bamFilehandle']
+    >
+    return { fh, state }
+  }
+
+  test('keeps several reads in flight, and one when told to', async () => {
+    const deep = countingFilehandle(nanopore)
+    const flat = countingFilehandle(nanopore)
+    const expected = identities(await collect({ bamPath: nanopore }))
+
+    expect(
+      identities(
+        await collect({
+          bamFilehandle: deep.fh,
+          windowSize: 1,
+          readAhead: 4,
+        }),
+      ),
+    ).toStrictEqual(expected)
+    expect(deep.state.maxInFlight).toBe(4)
+
+    expect(
+      identities(
+        await collect({
+          bamFilehandle: flat.fh,
+          windowSize: 1,
+          readAhead: 1,
+        }),
+      ),
+    ).toStrictEqual(expected)
+    expect(flat.state.maxInFlight).toBe(1)
+
+    // depth costs at most depth-1 reads past the end, since a read's length is
+    // the only thing that says the file has ended
+    expect(deep.state.reads - flat.state.reads).toBeLessThanOrEqual(3)
+  })
+
+  test('a depth below one still makes progress', async () => {
+    expect(
+      identities(await collect({ bamPath: nanopore, readAhead: 0 })),
+    ).toStrictEqual(identities(await collect({ bamPath: nanopore })))
   })
 })
 

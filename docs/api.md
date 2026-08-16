@@ -53,7 +53,25 @@ for await (const records of streamBamRecords({
 | `bamFilehandle` / `bamPath` / `bamUrl`   | the source, as in `BamFile`                                               |
 | `onHeader`                               | fires once before the first batch, with the header text and ref-seq table |
 | `windowSize`                             | compressed bytes per read. default 1MB, floored at one BGZF block         |
+| `readAhead`                              | window reads in flight at once. default 4                                 |
+| `bgzfWorkerPool`                         | inflate windows on a worker pool, as in `BamFile`                         |
 | `recordClass`, `renameRefSeqs`, `signal` | as in `BamFile`                                                           |
+
+`readAhead` is what makes a remote walk tolerable, and the depth is the part
+that matters rather than the prefetching. One outstanding read overlaps a round
+trip with only the CPU spent on the window before it, which measured at **0%**
+end to end; four outstanding turn N sequential waits into roughly N/4. Over a
+local server holding each response for 20ms, an 18MB BAM walked in 196ms at
+depth 4 against 519ms at depth 1, and at 100ms of latency 1.9s against 7.4s.
+
+It costs `depth` windows of compressed bytes held at once, and up to `depth - 1`
+wasted requests at the end of the file — a read's length is the only thing that
+says the file has ended, so the reads queued behind the last one have already
+gone out by the time it lands.
+
+Without `bgzfWorkerPool` every window inflates on the calling thread. Over a
+whole file that is long enough to be worth keeping off whichever thread draws,
+so in a browser pass `getSharedWorkerPool()` or run the stream in a worker.
 
 It yields an **array** of records per window rather than one record per `yield`:
 a whole-file walk is tens of millions of records and an async generator pays a
