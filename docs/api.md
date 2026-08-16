@@ -59,8 +59,8 @@ for await (const records of streamBamRecords({
 
 `readAhead` is what makes a remote walk tolerable, and the depth is the part
 that matters rather than the prefetching. One outstanding read overlaps a round
-trip with only the CPU spent on the window before it, which measured at **0%**
-end to end; four outstanding turn N sequential waits into roughly N/4. Over a
+trip with only the CPU spent on the window before it, which measured at **no
+gain at all**; four outstanding turn N sequential waits into roughly N/4. Over a
 local server holding each response for 20ms, an 18MB BAM walked in 196ms at
 depth 4 against 519ms at depth 1, and at 100ms of latency 1.9s against 7.4s.
 

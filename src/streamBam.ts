@@ -104,7 +104,8 @@ export interface StreamBamOptions<T extends BamRecordLike = BAMFeature> {
    * Costs `depth` windows of compressed bytes held at once, and up to
    * `depth - 1` wasted requests at EOF: a read's length is the only thing that
    * says the file has ended, so the reads queued behind the last one have
-   * already gone out by the time it lands.
+   * already gone out by the time it lands. A file that fits in a single window
+   * pays neither — the depth only opens up once a read comes back full.
    */
   readAhead?: number
   /**
@@ -183,14 +184,21 @@ export async function* streamBamRecords<T extends BamRecordLike = BAMFeature>({
   // Several windows are in flight at once, consumed in the order they were
   // asked for. Depth is what makes this worth doing: with one read outstanding
   // the wait for a window can only overlap the CPU spent on the window before
-  // it, which is a fraction of a round trip — measured at 8% end to end, where
+  // it, which is a fraction of a round trip — measured at no gain at all, where
   // depth 4 hides most of the latency instead. See {@link
   // StreamBamOptions.readAhead}.
   const queue: Promise<Uint8Array>[] = []
   let nextReadPosition = 0
   let exhausted = false
+  // Widened to `depth` only once a read has come back full-length, i.e. once
+  // the file is known to be longer than one window. Opening at full depth
+  // would fetch a BAM smaller than a window in four requests, three of them
+  // answered 416, which is the common case for a small file and looks like a
+  // bug from the network tab. The ramp costs one round trip of depth on a file
+  // big enough to want it, out of however many windows it takes.
+  let allowed = 1
   const topUp = () => {
-    while (!exhausted && queue.length < depth) {
+    while (!exhausted && queue.length < allowed) {
       queue.push(bam.read(readLen, nextReadPosition, { signal }))
       nextReadPosition += readLen
     }
@@ -218,6 +226,8 @@ export async function* streamBamRecords<T extends BamRecordLike = BAMFeature>({
       if (read.length < readLen) {
         exhausted = true
         abandon()
+      } else {
+        allowed = depth
       }
       topUp()
       const compressed = blockCarry

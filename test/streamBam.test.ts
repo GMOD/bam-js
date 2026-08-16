@@ -247,6 +247,14 @@ describe('readAhead', () => {
     expect(deep.state.reads - flat.state.reads).toBeLessThanOrEqual(3)
   })
 
+  test('a file inside one window costs exactly one read', async () => {
+    // the depth must not open up before a read has come back full-length, or a
+    // small remote BAM is four requests with three 416s
+    const small = countingFilehandle(namesorted)
+    await collect({ bamFilehandle: small.fh, readAhead: 4 })
+    expect(small.state.reads).toBe(1)
+  })
+
   test('a depth below one still makes progress', async () => {
     expect(
       identities(await collect({ bamPath: nanopore, readAhead: 0 })),
