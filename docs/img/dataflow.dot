@@ -10,6 +10,11 @@
 // spine. ~/src/gmod/cram-js/docs/img/dataflow.dot shares them too, and draws
 // its pool as a cluster rather than a node because there the unit that moves
 // is a whole slice, not just the decompression.
+// ~/src/gmod/hic/docs/img/dataflow.dot keeps the palette and spine but carries
+// a two-entry legend: its inflate is pako in JS rather than wasm, and it has no
+// worker pool, so those two entries are absent there rather than restyled. Its
+// clusters are a third use of the mark again — the two chains a region pair
+// runs concurrently.
 digraph bamjs {
   rankdir=TB
   bgcolor="white"
