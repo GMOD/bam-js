@@ -34,6 +34,21 @@ const bam = new BamFile({
 })
 ```
 
+Over HTTP, a byte-range cache under the filehandle is worth having: it snaps
+reads to a 256 KiB grid and coalesces the misses into one request per contiguous
+run, which is what turns a query's scattered index and chunk reads into a couple
+of fetches. `bamFilehandle`/`baiFilehandle` take any generic-filehandle2 object,
+so it drops in:
+
+```typescript
+import { RemoteFileWithRangeCache } from '@gmod/range-cache-filehandle'
+
+const bam = new BamFile({
+  bamFilehandle: new RemoteFileWithRangeCache(url),
+  baiFilehandle: new RemoteFileWithRangeCache(`${url}.bai`),
+})
+```
+
 Records come back unfiltered, and overlapping queries share them — treat them as
 read-only. Filter them yourself with the flag helpers and `getTag`, which
 decodes one tag instead of all of them:

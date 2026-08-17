@@ -95,6 +95,23 @@ two keys. That costs some short-read files real work and leaves deep long-read
 data untouched; it is known and parked, with the numbers in
 [optimizations.md](optimizations.md#what-is-left).
 
+## The layer below
+
+Everything above caches what a chunk _parsed to_. Underneath it, a byte-range
+cache on the filehandle caches the compressed bytes a chunk was read from, and
+the two are worth sizing together —
+[@gmod/range-cache-filehandle](https://github.com/GMOD/range-cache-filehandle)
+is the one this was measured against.
+
+A read only reaches it when the caches above miss, which is why its own defaults
+are deliberately looser than these: a 15-minute idle window against the 3 here,
+because once these entries expire it is the only thing standing between a
+re-read and a re-download (its
+[tuning.md](https://github.com/GMOD/range-cache-filehandle/blob/main/docs/tuning.md)
+has the measurement). It also bounds memory per _module instance_ rather than
+per file, so it is not covered by `cacheBudget` and does not appear in any
+number on this page.
+
 ## Further reading
 
 Every measurement above comes from an ADR in
