@@ -442,6 +442,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 
 ### Bug Fixes
 
+* `hasRefSeq`, `lineCount`, and `blocksForRange` return empty/false results when called before the header is parsed ([d1312e0](https://github.com/GMOD/bam-js/commit/d1312e03c0020cfc7eefc4c11a5befe6ff757a1d))
 * qual for unmapped reads, flags sign-extension, CG-tag guard; dedup tag parser ([909b160](https://github.com/GMOD/bam-js/commit/909b160385a23b200372dc0e7c6d4f9e208999ac))
 * remove stale workflow query link from CI badge ([e38d9a7](https://github.com/GMOD/bam-js/commit/e38d9a74bcbb0301833d1846a1e3b2f3f092ba77))
 * update CI badge to reference publish.yml workflow ([f2434df](https://github.com/GMOD/bam-js/commit/f2434dff1d1d4f85d5cf9ae14f420067d1bb1249))
@@ -473,6 +474,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 - Fix CSI `reg2bins` off-by-one/clamp bug that could miss or mis-scope overlapping bins for CSI-indexed queries
 - Fix `BamRecord.toJSON`, which previously serialized almost nothing since `Object.keys()` can't see prototype getters
 - Fix `optimizeChunks` mutating `Chunk` objects shared with the index's per-refId cache
+- Fix BAI index parsing not passing `opts` (including the abort signal) to `filehandle.readFile`, unlike CSI which already honored it
 - Refactor shared `blocksForRange`/parse/lineCount logic into a common `IndexFile` base class
 
 ## [7.1.21](https://github.com/GMOD/bam-js/compare/v7.1.20...v7.1.21) (2026-04-27)
@@ -597,6 +599,8 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 # [7.0.0](https://github.com/GMOD/bam-js/compare/v6.1.1...v7.0.0) (2025-11-24)
 
 - Introduced the idea of returning TypedArrays for different tag types
+- Add `NUMERIC_CIGAR`, returning the raw underlying `Uint32Array` encoding of the CIGAR, alongside the string `CIGAR` getter
+- Add a chrId/min/max pre-filter during chunk feature parsing to skip decoding out-of-range records
 
 ## [6.1.1](https://github.com/GMOD/bam-js/compare/v6.1.0...v6.1.1) (2025-10-02)
 
@@ -843,13 +847,16 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 
 ## [1.0.41](https://github.com/GMOD/bam-js/compare/v1.0.40...v1.0.41) (2020-08-19)
 
-- Add htsget example
+- Add an `HtsgetFile` class for fetching BAM data from htsget servers, plus
+  an example
 - Support opts object to getHeader allowing things like auth headers to be
   passed right off the bat
 
 <a name="1.0.40"></a>
 
 ## [1.0.40](https://github.com/GMOD/bam-js/compare/v1.0.39...v1.0.40) (2020-07-30)
+
+- Use the `postversion` hook instead of `postpublish` for pushing tags
 
 <a name="1.0.39"></a>
 
@@ -939,6 +946,8 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 ## [1.0.27](https://github.com/GMOD/bam-js/compare/v1.0.26...v1.0.27) (2019-10-10)
 
 - Make feature IDs become generated based relative to the exact bgzip block
+- Increase default fetchSizeLimit and chunkSizeLimit, and fix a potential
+  error when concatenating large arrays of chunks (#45)
 
 <a name="1.0.26"></a>
 
@@ -959,6 +968,10 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 ## [1.0.24](https://github.com/GMOD/bam-js/compare/v1.0.22...v1.0.24) (2019-09-27)
 
 - Added typescript typings
+- Add a `streamRecordsForRange` API that streams results using async iteration
+- Fix a bug affecting pairing reads across chromosomes
+- Make CSI indexes throw an error for indexCov since CSI does not support it
+- Fix indexCov bugs and remove indexCovTotal
 
 <a name="1.0.23"></a>
 
