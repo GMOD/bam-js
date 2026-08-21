@@ -1,3 +1,22 @@
+## [8.11.1](https://github.com/GMOD/bam-js/compare/v8.11.0...v8.11.1) (2026-08-21)
+
+### Bug Fixes
+
+- Take the shared-read-cache release that fixes abort, eviction and weighing ([b333d37](https://github.com/GMOD/bam-js/commit/b333d373aa358b9762d8c1670e95f0e9bfd3fb45))
+- Move to shared-read-cache 1.7.2 ([3b10386](https://github.com/GMOD/bam-js/commit/3b10386fc6f9f28789e41cfd145d5511ef0ad145))
+
+### Documentation
+
+- Name hic in the dataflow diagram's SYNC header ([52a19b2](https://github.com/GMOD/bam-js/commit/52a19b2b3e59d3f05dc0aaf21f633cc98ad962df))
+- Point at @gmod/range-cache-filehandle for the layer below ([fbf19b3](https://github.com/GMOD/bam-js/commit/fbf19b3a4d1666afadc4853d072167f59e44c56a))
+- Correct why the abandoned-chunk check is worth having ([b11a58a](https://github.com/GMOD/bam-js/commit/b11a58ae79cc5dd525ccc74c0ba33cd7d7c6c628))
+- Point remote readers at @gmod/range-cache-filehandle ([ad32945](https://github.com/GMOD/bam-js/commit/ad329458e49eb994b83fede0c82ea5f534c2e025))
+- Say it in full sentences ([0282779](https://github.com/GMOD/bam-js/commit/028277914ca2c67be1c7bf4fc573ccc81cab8356))
+
+### Other Changes
+
+- Backfill CHANGELOG.md gaps found across v1.0.24 through v7.3.0 ([c936063](https://github.com/GMOD/bam-js/commit/c93606348a0a08ca006f9104aa5489ec0d7aae51))
+
 ## [8.11.0](https://github.com/GMOD/bam-js/compare/v8.10.0...v8.11.0) (2026-08-16)
 
 ### Bug Fixes
