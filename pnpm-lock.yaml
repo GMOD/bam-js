@@ -12,8 +12,8 @@ importers:
         specifier: ^6.6.0
         version: 6.6.0
       '@gmod/shared-read-cache':
-        specifier: ^1.5.1
-        version: 1.5.1
+        specifier: ^1.7.1
+        version: 1.7.1
       '@jbrowse/quick-lru':
         specifier: ^7.3.5
         version: 7.3.5
@@ -288,8 +288,8 @@ packages:
   '@gmod/bgzf-filehandle@6.6.0':
     resolution: {integrity: sha512-rCKRWfN4KXf4YYH4TeMKKq+56Viu+FX/l2B53uBIx2+ThP9yVbupFMtspteh7Z/lnP6R3vn2kfIytB0wt+bFbA==}
 
-  '@gmod/shared-read-cache@1.5.1':
-    resolution: {integrity: sha512-2Me6eOJhBrZzYruG1t73trs29ovAMSNnn6JzzzYcL4t1/bxK3EToyDBPslcoebTrg5zDeocA+yzgwsQ2mHe0eA==}
+  '@gmod/shared-read-cache@1.7.1':
+    resolution: {integrity: sha512-x67voqM7ADGj8o4HmwXobzSJ0+vB36AWUKHJkb7nL1AQSoZHzsTFEbDPik4hmUMqyp4QHPmXIGHgRuUVVQ2mvQ==}
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -1521,7 +1521,7 @@ snapshots:
       generic-filehandle2: 2.2.1
       pako-esm2: 2.0.2
 
-  '@gmod/shared-read-cache@1.5.1': {}
+  '@gmod/shared-read-cache@1.7.1': {}
 
   '@humanfs/core@0.19.2':
     dependencies:
