@@ -910,13 +910,15 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       },
     )
     // The last chance to bail before the expensive part, and the reason it is
-    // worth having: honouring the signal is optional in the filehandle.
-    // `RemoteFile` hands it to `fetch`, but `LocalFile.read(length, position)`
-    // does not even take an options argument, so every read under it runs to
-    // completion and arrives here with the cancellation unnoticed. Without this
-    // a fully abandoned chunk still gets inflated and decoded — measured at 6
-    // chunks for one 20kb query on out.bam — which is where an uncached query
-    // spends most of its time (ADR 0003), on records nobody will ever look at.
+    // worth having: a filehandle can only honour the signal as far as its
+    // transport allows. `RemoteFile` hands it to `fetch` and is cancelled
+    // outright; `LocalFile` takes the signal and checks it either side of the
+    // read, but node's fs has no signal on `FileHandle.read`, so the read
+    // itself runs to completion whatever happens and arrives here with the
+    // cancellation unnoticed. Without this a fully abandoned chunk still gets
+    // inflated and decoded — measured at 6 chunks for one 20kb query on
+    // out.bam — which is where an uncached query spends most of its time
+    // (ADR 0003), on records nobody will ever look at.
     //
     // Safe precisely because this is the SHARED signal, not a caller's: it
     // fires only once every waiter has given up, so there is never a live
