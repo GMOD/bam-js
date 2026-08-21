@@ -34,11 +34,12 @@ const bam = new BamFile({
 })
 ```
 
-Over HTTP, a byte-range cache under the filehandle is worth having: it snaps
-reads to a 256 KiB grid and coalesces the misses into one request per contiguous
-run, which is what turns a query's scattered index and chunk reads into a couple
-of fetches. `bamFilehandle`/`baiFilehandle` take any generic-filehandle2 object,
-so it drops in:
+Over HTTP, put
+[`@gmod/range-cache-filehandle`](https://github.com/GMOD/range-cache-filehandle)
+under the filehandle: it snaps reads to a 256 KiB grid and coalesces the misses
+into one request per contiguous run, turning a query's scattered index and chunk
+reads into a couple of fetches. `bamFilehandle`/`baiFilehandle` take any
+generic-filehandle2 object, so it drops in:
 
 ```typescript
 import { RemoteFileWithRangeCache } from '@gmod/range-cache-filehandle'
