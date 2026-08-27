@@ -36,10 +36,12 @@ const bam = new BamFile({
 
 Over HTTP it is worth putting
 [`@gmod/range-cache-filehandle`](https://github.com/GMOD/range-cache-filehandle)
-underneath the filehandle. It caches what it reads in 256 KiB chunks and turns
-the chunks a read is missing into one request per contiguous run, so the
-scattered index and data reads a query makes arrive as a couple of fetches
-rather than dozens. `bamFilehandle` and `baiFilehandle` accept any
+underneath the filehandle. A query fetches the index once, then reads the
+records as a handful of byte ranges spread through the BAM —
+[this visualizer](https://cmdcolin.github.io/bam_index_visualizer) draws that
+pattern for a file of your choosing. The cache serves those ranges out of 256
+KiB chunks, so neighboring ranges share a request and later queries reuse what
+is already fetched. `bamFilehandle` and `baiFilehandle` accept any
 generic-filehandle2 object, so it drops straight in:
 
 ```typescript
