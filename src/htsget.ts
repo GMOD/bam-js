@@ -91,31 +91,30 @@ async function fetchOk(fetchFn: Fetcher, url: string, opts?: RequestInit) {
   return res
 }
 
-async function fetchChunk(
-  fetchFn: Fetcher,
-  { url, headers }: HtsgetChunk,
-  opts?: RequestInit,
-) {
+/**
+ * Data blocks are fetched with the global fetch, never with the ticket fetcher.
+ * The spec is explicit ("HTTPS data block URLs", rule 6): a block url must
+ * carry whatever credential it needs itself, in the url or in its own `headers`,
+ * and the client "must not send the bearer token used for the API, if any, to
+ * the data block endpoint, unless copied in the required `headers`". A ticket
+ * can name any host, so honouring that is the difference between one endpoint's
+ * token going to that endpoint and it going wherever a ticket points.
+ */
+async function fetchChunk({ url, headers }: HtsgetChunk, opts?: RequestInit) {
   // pass base64 data URLs straight to fetch; otherwise apply headers (minus
   // referer, which isn't a permitted client-set header).
   // https://stackoverflow.com/a/54123275/2129219
   const { referer: _referer, ...rest } = headers ?? {}
   const res = url.startsWith('data:')
-    ? await fetchOk(fetchFn, url)
-    : await fetchOk(fetchFn, url, { ...opts, headers: rest })
+    ? await fetchOk(fetch, url)
+    : await fetchOk(fetch, url, { ...opts, headers: rest })
   return new Uint8Array(await res.arrayBuffer())
 }
 
-async function fetchAndConcat(
-  fetchFn: Fetcher,
-  arr: HtsgetChunk[],
-  opts?: RequestInit,
-) {
+async function fetchAndConcat(arr: HtsgetChunk[], opts?: RequestInit) {
   // Pipeline unzip after each fetch so decompression overlaps later fetches.
   return concatUint8Array(
-    await Promise.all(
-      arr.map(async c => unzip(await fetchChunk(fetchFn, c, opts))),
-    ),
+    await Promise.all(arr.map(async c => unzip(await fetchChunk(c, opts)))),
   )
 }
 
@@ -133,12 +132,13 @@ export default class HtsgetFile<
     baseUrl: string
     recordClass?: BamRecordClass<T>
     /**
-     * fetch implementation used for every request, so an `Authorization: Bearer
-     * <token>` header can be added for servers that require one. It is also
-     * called with the data-block urls from the ticket, which may point at
-     * third-party hosts, so only attach credentials to hosts you trust — the
-     * spec has servers put whatever a data block needs in that url's own
-     * `headers` field, which is applied either way.
+     * fetch implementation for the **ticket request**, so an `Authorization:
+     * Bearer <token>` header can be added for endpoints that require one.
+     *
+     * The data blocks a ticket names are NOT fetched with it — they can point
+     * at any host, and the spec forbids sending the API's token to them. A
+     * block needing authorization carries it in the ticket's own `headers`
+     * field for that url, which is applied regardless.
      */
     fetch?: Fetcher
     /**
@@ -179,12 +179,14 @@ export default class HtsgetFile<
    * concatenated, which per the spec is a complete BAM stream.
    */
   private async fetchTicket(query: string, opts?: BaseOpts) {
-    const url = `${this.baseUrl}/${this.trackId}?${query}`
+    // Exactly one slash between the two. An id may contain "/" and the spec's
+    // own examples start with one ("/byStudy/PRJEB4019"), while an endpoint is
+    // as often written with a trailing slash as without; concatenating raw
+    // produced "//" for either.
+    const url = `${this.baseUrl.replace(/\/+$/, '')}/${this.trackId.replace(/^\/+/, '')}?${query}`
     const res = await fetchOk(this.fetchFn, url, { signal: opts?.signal })
     const ticket: HtsgetTicket = await res.json()
-    return fetchAndConcat(this.fetchFn, ticket.htsget.urls, {
-      signal: opts?.signal,
-    })
+    return fetchAndConcat(ticket.htsget.urls, { signal: opts?.signal })
   }
 
   async getRecordsForRange(
@@ -199,7 +201,7 @@ export default class HtsgetFile<
       return []
     }
     const uncba = await this.fetchTicket(
-      `referenceName=${chr}&start=${min}&end=${max}&format=BAM`,
+      `referenceName=${encodeURIComponent(chr)}&start=${min}&end=${max}&format=BAM`,
       opts,
     )
     const zero = new VirtualOffset(0, 0)

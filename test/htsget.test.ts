@@ -2,7 +2,7 @@ import fs from 'fs'
 import zlib from 'zlib'
 
 import { unzip } from '@gmod/bgzf-filehandle'
-import { expect, test } from 'vitest'
+import { afterEach, expect, test } from 'vitest'
 
 import { BamFile, BamRecord, HtsgetFile, MISMATCH_SUBST } from '../src/index.ts'
 import { parseRefSeqs } from '../src/util.ts'
@@ -48,35 +48,72 @@ function urlOf(input: Parameters<Fetcher>[0]) {
  * ticket always gets the fixture as-is; rangeUrls lets a test reshape the
  * region ticket. base64 data: urls fall through to the real fetch so they
  * decode for real.
+ *
+ * Two halves, because HtsgetFile fetches them with two different functions: the
+ * ticket goes through the `fetch` option, and data blocks go through the global
+ * fetch so the option's credentials cannot reach them. Both record into the
+ * same `calls`, and `blockCalls` is the half a credential must never appear in.
  */
 function mockFetch({
   rangeUrls = fixtureUrls().all,
   error,
 }: { rangeUrls?: HtsgetUrl[]; error?: { status: number; body: string } } = {}) {
   const calls: Call[] = []
+  const blockCalls: Call[] = []
   const ticket = (urls: HtsgetUrl[]) =>
     error
       ? new Response(error.body, { status: error.status })
       : Response.json({ htsget: { urls } })
 
-  const fetcher: Fetcher = async (input, init) => {
+  const record = (
+    into: Call[],
+    input: Parameters<Fetcher>[0],
+    init?: RequestInit,
+  ) => {
     const url = urlOf(input)
-    calls.push({
+    const call = {
       url,
       headers: Object.fromEntries(new Headers(init?.headers).entries()),
-    })
-    return url.startsWith('data:')
-      ? fetch(url)
-      : url.startsWith(ticketUrl)
-        ? ticket(url.includes('class=header') ? fixtureUrls().all : rangeUrls)
-        : url === blockUrl
-          ? new Response(fs.readFileSync('test/htsget/data.bam'), {
-              status: 206,
-            })
-          : new Response('unexpected url', { status: 404 })
+    }
+    calls.push(call)
+    if (into !== calls) {
+      into.push(call)
+    }
+    return url
   }
+
+  const fetcher: Fetcher = async (input, init) => {
+    const url = record(calls, input, init)
+    return ticket(url.includes('class=header') ? fixtureUrls().all : rangeUrls)
+  }
+
+  const realFetch = globalThis.fetch
+  globalThis.fetch = (async (
+    input: Parameters<Fetcher>[0],
+    init?: RequestInit,
+  ) => {
+    const url = urlOf(input)
+    // the wasm bgzf module loads itself through fetch(<data url>), so anything
+    // this mock does not own has to reach the real one
+    if (!url.startsWith(blockUrl) && !url.startsWith('data:')) {
+      return realFetch(input, init)
+    }
+    if (url.startsWith('data:')) {
+      return realFetch(url)
+    }
+    record(blockCalls, input, init)
+    return new Response(fs.readFileSync('test/htsget/data.bam'), {
+      status: 206,
+    })
+  }) as typeof fetch
+
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
+
   return {
     calls,
+    blockCalls,
     fetcher,
     find: (pred: (c: Call) => boolean) => {
       const call = calls.find(pred)
@@ -86,6 +123,26 @@ function mockFetch({
       return call
     },
   }
+}
+
+/**
+ * Serves data-block urls, which HtsgetFile now fetches with the global fetch
+ * rather than the `fetch` option. Anything the map does not name — the wasm
+ * bgzf module's own `fetch(<data url>)` above all — reaches the real fetch.
+ */
+function stubBlocks(bodies: Record<string, BodyInit>) {
+  const realFetch = globalThis.fetch
+  globalThis.fetch = (async (
+    input: Parameters<Fetcher>[0],
+    init?: RequestInit,
+  ) => {
+    const url = urlOf(input)
+    const body = bodies[url]
+    return body === undefined ? realFetch(input, init) : new Response(body)
+  }) as typeof fetch
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
 }
 
 test('reads a header and a region through the ticket', async () => {
@@ -102,8 +159,14 @@ test('reads a header and a region through the ticket', async () => {
   ).toBeTruthy()
 })
 
-test('the supplied fetch is used for ticket and data-block requests', async () => {
-  const { fetcher, find } = mockFetch()
+// The spec's "HTTPS data block URLs" rule 6: a block carries its own
+// credential, in its url or in the ticket's `headers` for it, and the client
+// "must not send the bearer token used for the API, if any, to the data block
+// endpoint". A ticket names any host it likes, so the supplied fetch reaching a
+// block url is one endpoint's token going wherever that ticket points. This
+// used to assert the opposite.
+test('the supplied fetch reaches the ticket and never a data block', async () => {
+  const { fetcher, find, blockCalls } = mockFetch()
   const bam = new HtsgetFile({
     baseUrl,
     trackId,
@@ -118,7 +181,10 @@ test('the supplied fetch is used for ticket and data-block requests', async () =
   expect(find(c => c.url.startsWith(ticketUrl)).headers.authorization).toBe(
     'Bearer tok',
   )
-  expect(find(c => c.url === blockUrl).headers.authorization).toBe('Bearer tok')
+  expect(blockCalls.map(c => c.url)).toContain(blockUrl)
+  expect(blockCalls.every(c => c.headers.authorization === undefined)).toBe(
+    true,
+  )
 })
 
 test('applies the ticket-supplied headers, minus referer', async () => {
@@ -152,19 +218,16 @@ test('reads a ticket whose single block includes the header', async () => {
     headers: { Range: 'bytes=0-395272' },
     class: cls,
   })
+  stubBlocks({ [localUrl]: fs.readFileSync(path) })
   const fetcher: Fetcher = async input =>
-    urlOf(input).startsWith(localUrl)
-      ? new Response(fs.readFileSync(path), { status: 206 })
-      : Response.json({
-          htsget: {
-            format: 'BAM',
-            urls: [
-              block(
-                urlOf(input).includes('class=header') ? 'header' : undefined,
-              ),
-            ],
-          },
-        })
+    Response.json({
+      htsget: {
+        format: 'BAM',
+        urls: [
+          block(urlOf(input).includes('class=header') ? 'header' : undefined),
+        ],
+      },
+    })
 
   const viaHtsget = new HtsgetFile({
     baseUrl: 'http://localhost:8080/reads',
@@ -219,17 +282,18 @@ test('reads a ticket whose blocks carry no header', async () => {
     zlib.gzipSync(Buffer.from(raw.subarray(headerEnd))),
   )
 
+  stubBlocks({ hdr: fs.readFileSync(path), body: bodyOnly })
   const viaHtsget = new HtsgetFile({
     baseUrl,
     trackId,
     fetch: async input =>
-      urlOf(input).includes('class=header')
-        ? Response.json({ htsget: { urls: [{ url: 'hdr' }] } })
-        : urlOf(input).includes('referenceName')
-          ? Response.json({ htsget: { urls: [{ url: 'body' }] } })
-          : new Response(
-              urlOf(input) === 'hdr' ? fs.readFileSync(path) : bodyOnly,
-            ),
+      Response.json({
+        htsget: {
+          urls: [
+            { url: urlOf(input).includes('class=header') ? 'hdr' : 'body' },
+          ],
+        },
+      }),
   })
   const direct = new BamFile({ bamPath: path })
   await direct.getHeader()
@@ -251,17 +315,18 @@ test('a ticket cut off inside the BAM header is reported, not parsed', async () 
     zlib.gzipSync(Buffer.from(raw.subarray(0, 20))),
   )
 
+  stubBlocks({ hdr: fs.readFileSync(path), cut: truncated })
   const bam = new HtsgetFile({
     baseUrl,
     trackId,
     fetch: async input =>
-      urlOf(input).includes('class=header')
-        ? Response.json({ htsget: { urls: [{ url: 'hdr' }] } })
-        : urlOf(input).includes('referenceName')
-          ? Response.json({ htsget: { urls: [{ url: 'cut' }] } })
-          : new Response(
-              urlOf(input) === 'hdr' ? fs.readFileSync(path) : truncated,
-            ),
+      Response.json({
+        htsget: {
+          urls: [
+            { url: urlOf(input).includes('class=header') ? 'hdr' : 'cut' },
+          ],
+        },
+      }),
   })
 
   await expect(bam.getRecordsForRange('ctgA', 1000, 2000)).rejects.toThrow(
@@ -331,4 +396,54 @@ test('reads with no MD are resolved against a fetched reference', async () => {
     expect(m.bases).not.toBe('A')
     expect(String.fromCharCode(m.refBaseCode)).toBe('A')
   }
+})
+
+// The spec takes GET parameters URL-encoded ("receive either URL-encoded query
+// string parameters (GET)"). Interpolated raw, a PanSN contig name — the HPRC
+// convention, sample#haplotype#contig — ended the query at its first "#", so the
+// server saw referenceName=HG002 and no range at all, and answered a different
+// question instead of erroring.
+test('a refName with url-significant characters is encoded', async () => {
+  const { fetcher, find } = mockFetch()
+  const bam = new HtsgetFile({ baseUrl, trackId, fetch: fetcher })
+  // the header gate runs first and would return [] for a name it doesn't carry;
+  // it memoizes, so naming the contig after it is what gets a ticket requested
+  await bam.getHeader()
+  ;(bam as unknown as { chrToIndex: Record<string, number> }).chrToIndex = {
+    'HG002#1#chr1': 0,
+  }
+
+  await bam.getRecordsForRange('HG002#1#chr1', 100, 200)
+
+  const url = new URL(find(c => c.url.includes('referenceName')).url)
+  expect(url.searchParams.get('referenceName')).toBe('HG002#1#chr1')
+  expect(url.searchParams.get('start')).toBe('100')
+  expect(url.searchParams.get('end')).toBe('200')
+})
+
+// The id "format ... is left to the discretion of the API provider, including
+// allowing embedded '/' characters", and the spec's own examples start with one
+// ("/byStudy/PRJEB4019"). An endpoint is as often written with a trailing slash
+// as without. Concatenating raw produced "//" for either.
+test.each([
+  ['https://h/reads', 'NA12878'],
+  ['https://h/reads/', 'NA12878'],
+  ['https://h/reads', '/byStudy/PRJEB4019'],
+  ['https://h/reads/', '/byStudy/PRJEB4019'],
+])('joins %s and %s with one slash', async (base, id) => {
+  const seen: string[] = []
+  await new HtsgetFile({
+    baseUrl: base,
+    trackId: id,
+    fetch: async input => {
+      seen.push(urlOf(input))
+      return Response.json({ htsget: { urls: [] } })
+    },
+  })
+    .getHeader()
+    .catch(() => undefined)
+
+  expect(seen[0]).toBe(
+    `${base.replace(/\/$/, '')}${id.startsWith('/') ? id : `/${id}`}?class=header&format=BAM`,
+  )
 })
