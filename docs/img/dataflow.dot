@@ -12,8 +12,8 @@
 // is a whole slice, not just the decompression.
 // ~/src/gmod/hic/docs/img/dataflow.dot keeps the palette, legend and spine but
 // has no worker pool, so that entry is absent there rather than restyled. Its
-// clusters are a third use of the mark again — the two chains a region pair
-// runs concurrently.
+// clusters are a third use of the mark again — the two lookups a region
+// pair runs concurrently.
 digraph bamjs {
   rankdir=TB
   bgcolor="white"
