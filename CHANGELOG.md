@@ -1,3 +1,19 @@
+## [9.0.1](https://github.com/GMOD/bam-js/compare/v9.0.0...v9.0.1) (2026-08-31)
+
+### Bug Fixes
+
+- Record end reports bam_endpos semantics, one base for a zero reference span ([e7a7813](https://github.com/GMOD/bam-js/commit/e7a78132a2cacc25cfb68d38bb2cdf4fe87139c1))
+
+### Documentation
+
+- Say what the read pattern actually is before recommending the range cache ([05c7194](https://github.com/GMOD/bam-js/commit/05c71947dd4087b8208c802a117a2490dc41603c))
+- Fix stale hic-js sync note in dataflow.dot ([2cd7dd2](https://github.com/GMOD/bam-js/commit/2cd7dd2dadb06843e0550436f3015b4b85e857e7))
+- Use "lookups" not "chains" in hic-js sync note ([86e07ab](https://github.com/GMOD/bam-js/commit/86e07ab201955ce888513f91974a5e71fa3348da))
+
+### Tests
+
+- Assert the read pattern the README describes ([135ceee](https://github.com/GMOD/bam-js/commit/135ceeedc71f35455cef3d83522b5b7a50a8c1ad))
+
 ## [9.0.0](https://github.com/GMOD/bam-js/compare/v8.11.0...v9.0.0) (2026-08-27)
 
 ### Bug Fixes
