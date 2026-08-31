@@ -196,7 +196,8 @@ test('an unmapped record keeps the CIGAR it stores, and no reference span', asyn
   expect(f.CIGAR).toEqual('35M65S')
   // still zero: a span is a claim about alignment, and the query filter reads it
   expect(f.length_on_ref).toEqual(0)
-  expect(f.end).toEqual(f.start)
+  // but bam_endpos semantics: a placed record covers one base, not none
+  expect(f.end).toEqual(f.start + 1)
 })
 
 test('read as pairs', async () => {

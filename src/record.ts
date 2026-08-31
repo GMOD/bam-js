@@ -418,9 +418,14 @@ export default class BamRecord {
     return this._dataView.getInt32(this._start + 8, true)
   }
 
+  // The end htslib's bam_endpos() reports: a record consuming no reference —
+  // an unmapped mate placed at its mate's coordinate, or an empty CIGAR —
+  // still covers one base rather than none, so a consumer's interval search on
+  // the base it sits at can find it (endpos() in util.ts applies the same rule
+  // to this library's own range filter).
   get end() {
     if (this._cachedEnd === undefined) {
-      this._cachedEnd = this.start + this.length_on_ref
+      this._cachedEnd = this.start + Math.max(this.length_on_ref, 1)
     }
     return this._cachedEnd
   }
