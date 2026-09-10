@@ -57,32 +57,33 @@ for await (const records of streamBamRecords({
 | `bgzfWorkerPool`                         | inflate windows on a worker pool, as in `BamFile`                         |
 | `recordClass`, `renameRefSeqs`, `signal` | as in `BamFile`                                                           |
 
-`readAhead` is what makes a remote walk tolerable, and the depth is the part
-that matters rather than the prefetching. One outstanding read overlaps a round
-trip with only the CPU spent on the window before it, which measured at **no
-gain at all**; four outstanding turn N sequential waits into roughly N/4. Over a
-local server holding each response for 20ms, an 18MB BAM walked in 196ms at
-depth 4 against 519ms at depth 1, and at 100ms of latency 1.9s against 7.4s.
+`readAhead` makes a remote walk tolerable, and depth matters more than the
+prefetching itself. One outstanding read overlaps a round trip with only the CPU
+spent on the window before it, which measured at **no gain at all**; four
+outstanding turn N sequential waits into roughly N/4. Over a local server
+holding each response for 20ms, an 18MB BAM walked in 196ms at depth 4 against
+519ms at depth 1, and at 100ms of latency 1.9s against 7.4s.
 
-It costs `depth` windows of compressed bytes held at once, and up to `depth - 1`
-wasted requests at the end of the file — a read's length is the only thing that
-says the file has ended, so the reads queued behind the last one have already
-gone out by the time it lands.
+`readAhead` costs `depth` windows of compressed bytes held at once, and up to
+`depth - 1` wasted requests at the end of the file — the only sign that the file
+has ended is a read's length, so the reads queued behind the last one have
+already gone out by the time it lands.
 
 Without `bgzfWorkerPool` every window inflates on the calling thread. Over a
 whole file that is long enough to be worth keeping off whichever thread draws,
 so in a browser pass `getSharedWorkerPool()` or run the stream in a worker.
 
-It yields an **array** of records per window rather than one record per `yield`:
-a whole-file walk is tens of millions of records and an async generator pays a
-promise per yield, so batching keeps the caller's inner loop synchronous. The
-header arrives through `onHeader` because the stream has to parse it anyway to
-find where the records start.
+`streamBamRecords` yields an **array** of records per window rather than one
+record per `yield`: a whole-file walk is tens of millions of records and an
+async generator pays a promise per yield, so batching keeps the caller's inner
+loop synchronous. The header arrives through `onHeader` because the stream has
+to parse it anyway to find where the records start.
 
-A standalone function rather than a `BamFile` method on purpose. It shares the
-record and header parsers and nothing else, so a consumer who only streams pays
-for neither `BAI`/`CSI` nor the chunk cache — 87KB minified against 111KB for
-`BamFile`, over an identical wasm inflate bundle in both.
+`streamBamRecords` is a standalone function rather than a `BamFile` method on
+purpose. It shares the record and header parsers and nothing else, so a consumer
+who only streams pays for neither `BAI`/`CSI` nor the chunk cache — 87KB
+minified against 111KB for `BamFile`, over an identical wasm inflate bundle in
+both.
 
 Records are views into the window they came from, as everywhere else here, so
 holding one retains that whole window. Copy out the fields you want rather than
@@ -116,7 +117,7 @@ htslib's `bam_endpos()`.
 ## Other methods
 
 Everything taking `opts?` takes `signal` and `onProgress`, the latter reporting
-the index download when that call is what triggers it.
+the index download when that call triggers it.
 
 | method                                           | returns                                                                                                         |
 | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
@@ -260,14 +261,14 @@ reports, and are **not** the packed-CIGAR op numbers — `MISMATCH_DELETION` is 
 `origin: record.start`, as above, gives read-relative positions. The window
 stays absolute either way — it describes a region of the reference, not a
 position in the output — so a read-relative consumer can still clip to a genomic
-viewport. `origin` exists so a consumer with its own coordinate convention can
+viewport. The `origin` option lets a consumer with its own coordinate convention
 hand its callback straight in rather than wrapping it in a converting one, which
 `@gmod/cram` measured at ~17% of its walk. That library's `forEachMismatch`
 takes the same option with the same meaning.
 
 ### Where the reference bases come from
 
-The walk can only report a substitution if something says what the reference
+The walk can only report a substitution if something supplies what the reference
 holds. In order:
 
 1. the read's `MD` tag, when it has one — cheapest, and what the aligner
@@ -286,24 +287,25 @@ at `start`**; returning fewer than asked for is fine (the end of a contig, or a
 source declining a big span), and the reads that shorter region misses stay
 unresolved.
 
-That union is the query's range plus however far its edge reads overhang it, and
-nothing clamps it for you — a BAM holding whole chromosomes as reads can make it
-a chromosome. Clamp inside your callback if your sequence source cannot afford
-that, and resolve those reads a window at a time with `getReferenceRegion` and
-`opts.ref`, as above.
+The union span is the query's range plus however far its edge reads overhang it,
+and nothing clamps it for you — a BAM holding whole chromosomes as reads can
+make it a chromosome. Clamp inside your callback if your sequence source cannot
+afford that, and resolve those reads a window at a time with
+`getReferenceRegion` and `opts.ref`, as above.
 
-That is also the answer to why `setReference` throws unless the region covers
-the whole read: queries share their records (see
+`setReference` throws unless the region covers the whole read, because queries
+share their records (see
 [ADR 0006](../agent-docs/adr/0006-cached-records-are-shared-and-must-not-be-mutated.md)),
-so a binding that varied per query would make one query's reads answer out of
-another's region. A per-call `opts.ref` retains nothing and takes any extent.
+so a binding that varied per query would give one query's reads the bases of
+another query's region. A per-call `opts.ref` retains nothing and takes any
+extent.
 
 ### Without a `BamRecord`
 
 `forEachMismatchNumeric(cigar, seq, seqLength, md, qual, ref, refStart, windowStart, windowEnd, origin, callback)`
 is the walk itself, for callers holding BAM's packed arrays without a record
 around them — a SAM parser, or a worker someone posted the typed arrays to.
-`origin` is the same knob as the option: pass the read's own start for
+`origin` is the same parameter as the option: pass the read's own start for
 read-relative positions, 0 for reference ones.
 
 `packReference(seq, start)` builds the region these take, and

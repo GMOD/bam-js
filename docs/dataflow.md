@@ -40,9 +40,9 @@ off the main thread, and without one the same code runs in-process. The unit is
 a chunk's blocks, not the record building after them — decompression is where a
 query's time is (see below), so there is little else worth moving.
 
-"Off the main thread" is relative to wherever the caller runs. Nothing here
-needs the main thread, so the whole diagram can sit in a worker of its own, and
-the purple node is then a further pool underneath it.
+"Off the main thread" is relative to wherever the caller runs. Every step above
+can run off the main thread, so the whole diagram can sit in a worker of its
+own, and the purple node is then a further pool underneath it.
 
 ## Where wasm sits
 
@@ -51,7 +51,7 @@ Everything orange is wasm, in
 it is decompressing BGZF blocks — reading the index and decoding records both
 stay in JS.
 
-That is where the time is: with nothing cached, decompression takes 70-90% of a
-query's wall clock, against 0.1-15ms building records. A call crosses the
-boundary once per chunk, never per record. Why, and why there is no faster codec
-to reach for: [optimizations.md](optimizations.md#decompression).
+With nothing cached, decompression takes 70-90% of a query's wall clock, against
+0.1-15ms building records. A call crosses the boundary once per chunk, never per
+record. Why, and why there is no faster codec to reach for, is in
+[optimizations.md](optimizations.md#decompression).

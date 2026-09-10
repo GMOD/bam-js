@@ -20,14 +20,14 @@ same commit:
 dot -Tsvg docs/img/dataflow.dot -o docs/img/dataflow.svg
 ```
 
-Nothing checks this — graphviz is not a dependency and different versions emit
-different SVG bytes, so a staleness check would fail on toolchain drift rather
-than on a stale diagram.
+No automated check catches this — graphviz is not a dependency and different
+versions emit different SVG bytes, so a staleness check would fail on toolchain
+drift rather than on a stale diagram.
 
 ## Benchmarks
 
 `benchmarks/bam.bench.ts` compares two refs side by side rather than timing one
-build, since a number with nothing to compare it against says very little.
+build, since a number with nothing to compare it against means little.
 
 ```sh
 pnpm bench                            # origin/main vs your current branch
@@ -60,5 +60,5 @@ npm >=11.10.0 and 2FA).
 
 Once npm publish succeeds, the `release` job creates the GitHub release for the
 tag, taking its notes from that version's CHANGELOG.md section — which
-`scripts/release-notes.sh` extracts, so run that with a version to preview what
-a release will say.
+`scripts/release-notes.sh` extracts, so run that with a version to preview a
+release's notes.

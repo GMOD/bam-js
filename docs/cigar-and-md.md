@@ -1,8 +1,7 @@
 # CIGAR, MD, and how the walk decodes mismatches
 
 Background for `getMismatches`/`forEachMismatch`. The API reference is
-[api.md](api.md#mismatches); this is what the two fields those methods read
-actually say.
+[api.md](api.md#mismatches); this page covers what the two fields contain.
 
 ## CIGAR
 
@@ -22,7 +21,7 @@ and a letter, and each consumes read bases, reference bases, or both:
 | `P` | padding                 | no   | no  |
 
 `M` means "aligned", not "matching". Most aligners emit `M` for both, so the
-CIGAR alone locates indels and clips but says nothing about substitutions.
+CIGAR alone locates indels and clips but carries nothing about substitutions.
 `--eqx`-style aligners emit `=`/`X` instead, which does carry them.
 
 BAM stores the op count in 16 bits, so a read with more than 65535 ops keeps a
@@ -73,9 +72,9 @@ first of these that is available:
    if 1 or 2 also supplied it (`refBaseCode` is 0 otherwise)
 
 With none of them, the walk still reports indels and clips in full and skips
-substitutions entirely. Nothing in the record says where they are.
+substitutions entirely. The record does not contain their positions.
 
-## Traps this walk exists to absorb
+## Traps this walk avoids
 
 - `M` does not mean match, and `=`/`X` CIGARs carry substitutions the `MD` path
   would otherwise look for.

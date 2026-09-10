@@ -79,10 +79,11 @@ for await (const records of streamBamRecords({ bamUrl: 'unsorted.bam' })) {
 }
 ```
 
-It reads the file a window at a time rather than all at once, so a 1GB BAM
-streams through in bounded memory. A standalone function rather than a `BamFile`
-method, so that streaming alone leaves `BAI`/`CSI` and the chunk cache out of
-your bundle. See [docs/api.md](docs/api.md) for `onHeader` and the window size.
+`streamBamRecords` reads the file a window at a time rather than all at once, so
+a 1GB BAM streams through in bounded memory. It is a standalone function rather
+than a `BamFile` method, so that streaming alone leaves `BAI`/`CSI` and the
+chunk cache out of your bundle. See [docs/api.md](docs/api.md) for `onHeader`
+and the window size.
 
 ## Mismatches
 
@@ -111,17 +112,17 @@ for (const record of await bam.getRecordsForRange('ctgA', 0, 50000)) {
 
 `code` is a CIGAR char code, to compare against the exported `MISMATCH_SUBST`,
 `MISMATCH_INSERTION`, … constants, and `record.forEachMismatch(cb, opts?)`
-reports the same set while allocating nothing per difference. What those two
-fields say, with that read walked through them:
+reports the same set while allocating nothing per difference. What the two
+fields mean, with that read walked through them:
 [docs/cigar-and-md.md](docs/cigar-and-md.md).
 
 Substitutions need either an `MD` tag on the read or the reference bases, which
-is what `fetchReferenceSequence` is doing above — most aligners leave `MD` off,
-and a query calls it only when one of its reads needs it. Without it, a read
-lacking `MD` still reports its indels and clips but no substitutions — nothing
-in the record says where they are. [docs/api.md](docs/api.md#mismatches) has the
-field meanings, and what to do about reads that run past the region you are
-looking at.
+`fetchReferenceSequence` supplies above — most aligners leave `MD` off, and a
+query calls it only when one of its reads needs it. Without it, `getMismatches`
+still returns indels and clips for a read lacking `MD`, but no substitutions —
+the record does not contain their positions.
+[docs/api.md](docs/api.md#mismatches) has the field meanings, and what to do
+about reads that run past the region you are looking at.
 
 ## How a query flows
 
@@ -156,7 +157,7 @@ const bam = new BamFile({
 Safe to pass unconditionally: `getSharedWorkerPool()` returns `undefined` under
 node, or anywhere the host forbids Workers, which keeps the in-process path. No
 cross-origin isolation needed. bam-js never creates a pool on its own — the
-thread budget belongs to the consumer. Worker counts, lifecycle and benchmarks:
+consumer controls the thread budget. Worker counts, lifecycle and benchmarks:
 [bgzf-filehandle's worker pool docs](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/worker-pool.md).
 
 ## Usage with htsget
@@ -186,15 +187,15 @@ const bam = new HtsgetFile({
 })
 ```
 
-That `fetch` serves the ticket request _and_ the data-block urls the ticket
-points at, which may live on a third-party host — so only attach credentials to
-hosts you trust.
+The `fetch` you pass makes both the ticket request and the data-block requests
+the ticket points at, and those data-block URLs may be on a third-party host —
+so only attach credentials to hosts you trust.
 
 ## Docs
 
 - [docs/api.md](docs/api.md) — every constructor option, method and `BamRecord`
   field, plus custom record classes
-- [docs/cigar-and-md.md](docs/cigar-and-md.md) — what `CIGAR` and `MD` say, and
+- [docs/cigar-and-md.md](docs/cigar-and-md.md) — what `CIGAR` and `MD` mean, and
   how the walk reads mismatches out of them
 - [docs/dataflow.md](docs/dataflow.md) — how a query flows, and where wasm sits
 - [docs/optimizations.md](docs/optimizations.md) — why each step of that path

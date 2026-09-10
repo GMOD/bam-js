@@ -14,6 +14,10 @@
 // has no worker pool, so that entry is absent there rather than restyled. Its
 // clusters are a third use of the mark again — the two lookups a region
 // pair runs concurrently.
+// ~/src/gmod/gbz-base-js/docs/img/dataflow.dot is the fifth, and drops two
+// legend entries rather than restyling them: nothing there is wasm and nothing
+// leaves the main thread. Its cluster is the storage layer every I/O step reads
+// through, drawn connected to nothing — the edges to it buried the spine.
 digraph bamjs {
   rankdir=TB
   bgcolor="white"
