@@ -315,3 +315,6 @@ once-only check fails it with `expected 28 to be less than or equal to 13`.
 - `featureLists` becomes sparse, so the append loop must skip holes.
 - CSI is unaffected in principle but untested here: `getLowestChunk` returns 0:0
   for CSI, so it never narrows anything and the same win should be available.
+  Since 2026-09-21 CSI's `getLowestChunk` takes the `loffset` of the finest bin
+  at or left of the query start, as htslib does, and resolves to the same bytes
+  as BAI on the volvox and CHM1 fixtures.

@@ -87,14 +87,9 @@ test('SAM spec pdf', async () => {
   expect(features[4]!.tags.SA).toEqual('ref,9,+,5S6M,30,1;')
 })
 
-// CSI has no linear index (CSIv1.tex §3), so getLowestChunk returns 0:0 and
-// optimizeChunks never narrows a query by it — every chunk of every overlapping
-// bin survives. The batch-and-stop in _fetchChunkFeatures (ADR 0010) is
-// therefore at least as load-bearing here as it is for BAI, but every other
-// .csi fixture in this repo resolves to a single chunk, so nothing exercised it.
-//
-// This file's index hands a narrow window 22 chunks. Pinning CSI against BAI
-// keeps both the record set and the number of chunks actually read in step.
+// This file's index hands a narrow window 22 chunks, which exercises the
+// batch-and-stop in _fetchChunkFeatures (ADR 0010) on CSI. Pinning CSI against
+// BAI keeps both the record set and the number of chunks actually read in step.
 test.each([
   ['22', 16_000_000, 10_000],
   ['22', 16_000_000, 100_000],
@@ -138,6 +133,36 @@ test.each([
   expect(csi.stats.reads).toBe(bai.stats.reads)
   expect(csi.stats.reads).toBeLessThanOrEqual(csiChunks.length)
 })
+
+// CSI has no linear index (CSIv1.tex §3), but each bin's loffset is the linear
+// index entry at its first window, so the finest bin at or left of the query
+// start gives the same lower bound BAI's linear index does. Before, CSI used
+// 0:0 and read every chunk from the start of the reference.
+test.each([
+  ['volvox-sorted', 1000],
+  ['volvox-sorted', 20_000],
+  ['another_chm1_id_difference', 5000],
+])(
+  'csi fetches the same bytes as bai on %s, %i bp windows',
+  async (name, w) => {
+    const bamPath = `test/data/${name}.bam`
+    const bai = new BamFile({ bamPath, baiPath: `${bamPath}.bai` })
+    const csi = new BamFile({ bamPath, csiPath: `${bamPath}.csi` })
+    await bai.getHeader()
+    await csi.getHeader()
+    const spans = async (b: BamFile, ref: string, s: number) =>
+      (await b.blocksForRange(ref, s, s + w)).map(
+        c => `${c.minv.blockPosition}+${c.fetchedSize()}`,
+      )
+    for (const { refName, length } of bai.indexToChr!) {
+      for (let s = 0; s < length; s += Math.ceil(length / 20)) {
+        expect(await spans(csi, refName, s)).toEqual(
+          await spans(bai, refName, s),
+        )
+      }
+    }
+  },
+)
 
 // The CSI counterpart of bai.test.ts's "a query end past what BAI can address"
 // case. CSI shifts with Math.floor division rather than `>>`, so it never had

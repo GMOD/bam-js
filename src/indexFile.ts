@@ -145,7 +145,8 @@ export default abstract class IndexFile<
   ): readonly (readonly [number, number])[]
 
   // Lower-bound virtual offset for chunks that could contain alignments in
-  // [min, ...). BAI uses its linear index; CSI has none and returns 0:0.
+  // [min, ...). BAI uses its linear index, CSI the loffset of a bin at or left
+  // of min.
   protected abstract getLowestChunk(
     refIndex: RefIndex,
     min: number,

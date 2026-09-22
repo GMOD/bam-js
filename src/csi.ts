@@ -10,6 +10,7 @@ import {
 } from './util.ts'
 import { VirtualOffset, fromBytes } from './virtualOffset.ts'
 
+import type { ParsedIndexBase, RefIndex } from './indexFile.ts'
 import type { BaseOpts } from './util.ts'
 
 const CSI1_MAGIC = 21582659 // CSI\1
@@ -24,7 +25,15 @@ function rshift(num: number, bits: number) {
   return Math.floor(num / 2 ** bits)
 }
 
-export default class CSI extends IndexFile {
+interface CsiRefIndex extends RefIndex {
+  loffsets: Map<number, VirtualOffset>
+}
+
+interface CsiParsed extends ParsedIndexBase<CsiRefIndex> {
+  csi: true
+}
+
+export default class CSI extends IndexFile<CsiParsed> {
   private maxBinNumber = 0
   protected depth = 0
   protected minShift = 0
@@ -74,7 +83,7 @@ export default class CSI extends IndexFile {
   }
 
   // fetch and parse the index
-  async _parse(opts: BaseOpts) {
+  async _parse(opts: BaseOpts): Promise<CsiParsed> {
     const buffer = await this.filehandle.readFile(opts)
     const bytes = await unzip(buffer)
 
@@ -93,7 +102,7 @@ export default class CSI extends IndexFile {
 
     this.minShift = dataView.getInt32(4, true)
     this.depth = dataView.getInt32(8, true)
-    this.maxBinNumber = ((1 << ((this.depth + 1) * 3)) - 1) / 7
+    this.maxBinNumber = (8 ** (this.depth + 1) - 1) / 7
     const maxBinNumber = this.maxBinNumber
     const auxLength = dataView.getInt32(12, true)
     // A tabix-only branch, which is why parseAuxData and the parseNameBytes it
@@ -128,10 +137,10 @@ export default class CSI extends IndexFile {
         if (bin > this.maxBinNumber) {
           curr += 28 + 16
         } else {
-          // A bin's loffset is the smallest virtual offset of any record in it,
-          // so the minimum over loffsets is already the minimum over the bin's
-          // chunks — one read per bin instead of one per chunk. Checked against
-          // every .csi in test/data: same answer on all 19.
+          // A bin's loffset is the linear-index entry at its first window, so
+          // the smallest over every bin is the first record's offset — one
+          // read per bin instead of one per chunk. Checked against every .csi
+          // in test/data: same answer on all 19.
           firstDataLine = minVirtualOffset(bytes, curr, 1, firstDataLine)
           curr += 8 // loffset
           const chunkCount = dataView.getInt32(curr, true)
@@ -149,6 +158,7 @@ export default class CSI extends IndexFile {
       const binCount = dataView.getInt32(curr, true)
       curr += 4
       const binIndex: Record<number, Chunk[]> = {}
+      const loffsets = new Map<number, VirtualOffset>()
       let pseudoBinStats
       for (let j = 0; j < binCount; j++) {
         const bin = dataView.getUint32(curr, true)
@@ -157,7 +167,8 @@ export default class CSI extends IndexFile {
           pseudoBinStats = parsePseudoBin(bytes, curr + 28)
           curr += 28 + 16
         } else {
-          curr += 8 // skip loffset; firstDataLine was computed in the first pass
+          loffsets.set(bin, fromBytes(bytes, curr))
+          curr += 8
           const chunkCount = dataView.getInt32(curr, true)
           curr += 4
           const chunks = new Array<Chunk>(chunkCount)
@@ -175,6 +186,7 @@ export default class CSI extends IndexFile {
       clampChunkEnds(Object.values(binIndex).flat())
       return {
         binIndex,
+        loffsets,
         stats: pseudoBinStats,
       }
     }
@@ -188,12 +200,27 @@ export default class CSI extends IndexFile {
     }
   }
 
-  // CSI has no linear index — every refId starts from the beginning of file.
-  protected getLowestChunk() {
-    return ZERO_OFFSET
+  /**
+   * CSI has no linear index, but each bin's `loffset` is the linear-index entry
+   * at the bin's first window (htslib's `update_loff`), so the finest bin at or
+   * left of `min` bounds the query from below the way BAI's linear index does.
+   * Walks left through siblings and then up to the parent, as `hts_itr_query`
+   * does for CSI.
+   */
+  protected getLowestChunk(refIndex: CsiRefIndex, min: number) {
+    const { loffsets } = refIndex
+    const leaves = 8 ** this.depth
+    let bin =
+      (leaves - 1) / 7 +
+      Math.min(Math.floor(min / 2 ** this.minShift), leaves - 1)
+    while (bin > 0 && !loffsets.has(bin)) {
+      const parent = Math.floor((bin - 1) / 8)
+      bin = bin > parent * 8 + 1 ? bin - 1 : parent
+    }
+    return loffsets.get(bin) ?? ZERO_OFFSET
   }
 
-  // ...and so there is nothing to bound the far end of a query with either, so
+  // No linear index means nothing to forecast the far end of a query with, so
   // estimatedBytesForRegions keeps summing every chunk on a CSI-indexed file.
   protected getHighestChunk() {
     return undefined
