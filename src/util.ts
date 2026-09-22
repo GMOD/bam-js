@@ -344,6 +344,16 @@ export function clampChunkEnds(
   }
 }
 
+// SAMv1 §4.2 counts NUL padding in l_text, and htslib reads the text as a C
+// string, so the header ends at the first NUL.
+export function decodeHeaderText(bytes: Uint8Array, lText: number) {
+  const text = bytes.subarray(8, 8 + lText)
+  const nul = text.indexOf(0)
+  return new TextDecoder('utf8').decode(
+    nul === -1 ? text : text.subarray(0, nul),
+  )
+}
+
 // Parse the BAM reference-sequence table (SAMv1.pdf §4.2). Returns undefined
 // if `uncba` doesn't yet contain the full table — caller fetches more bytes
 // and retries.

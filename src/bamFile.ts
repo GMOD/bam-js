@@ -12,6 +12,7 @@ import {
   BAM_MAGIC,
   MAX_CONCURRENT_CHUNK_READS,
   appendInRange,
+  decodeHeaderText,
   optimizeChunks,
   parseRefSeqs,
   readBlockSize,
@@ -466,9 +467,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     const parsed = parseRefSeqs(uncba, headLen + 8, this.renameRefSeq)
     let samHeader
     if (parsed) {
-      const headerText = new TextDecoder('utf8').decode(
-        uncba.subarray(8, 8 + headLen),
-      )
+      const headerText = decodeHeaderText(uncba, headLen)
       this.header = headerText
       this.chrToIndex = parsed.chrToIndex
       this.indexToChr = parsed.indexToChr

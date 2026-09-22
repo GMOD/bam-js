@@ -53,3 +53,35 @@ test('the BGZF writer round-trips an unmodified file', async () => {
   const bytes = await unzip(readFileSync('test/data/tiny.bam'))
   expect(await unzip(bgzf(bytes))).toEqual(bytes)
 })
+
+test('the header text ends at its first NUL', async () => {
+  const bytes = await unzip(readFileSync('test/data/tiny.bam'))
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  const lText = dv.getInt32(4, true)
+  const padded = new Uint8Array(bytes.length + 16)
+  padded.set(bytes.subarray(0, 8 + lText))
+  padded.set(bytes.subarray(8 + lText), 8 + lText + 16)
+  new DataView(padded.buffer).setInt32(4, lText + 16, true)
+  const compressed = bgzf(padded)
+  const bamFilehandle = {
+    read: async (length: number, position: number) =>
+      compressed.subarray(position, position + length),
+  } as unknown as NonNullable<
+    Parameters<typeof streamBamRecords>[0]['bamFilehandle']
+  >
+
+  const unpadded = new BamFile({ bamPath: 'test/data/tiny.bam' })
+  const expected = await unpadded.getHeader()
+  expect(unpadded.header).not.toContain('\0')
+
+  const bam = new BamFile({ bamFilehandle, baiPath: 'test/data/tiny.bam.bai' })
+  expect(await bam.getHeader()).toEqual(expected)
+  expect(bam.header).toEqual(unpadded.header)
+
+  let streamed
+  const records = await Array.fromAsync(
+    streamBamRecords({ bamFilehandle, onHeader: h => (streamed = h) }),
+  )
+  expect(streamed!.headerText).toEqual(unpadded.header)
+  expect(records.length).toBeGreaterThan(0)
+})

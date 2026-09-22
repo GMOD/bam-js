@@ -9,6 +9,7 @@ import { parseHeaderText } from './sam.ts'
 import {
   BAM_MAGIC,
   concatUint8Array,
+  decodeHeaderText,
   parseRefSeqs,
   readBlockSize,
   resolveFilehandle,
@@ -274,9 +275,7 @@ export async function* streamBamRecords<T extends BamRecordLike = BAMFeature>({
           recordCarry = bytes
           continue
         }
-        const headerText = new TextDecoder('utf8').decode(
-          bytes.subarray(8, 8 + lText),
-        )
+        const headerText = decodeHeaderText(bytes, lText)
         onHeader?.({
           headerText,
           samHeader: parseHeaderText(headerText),
