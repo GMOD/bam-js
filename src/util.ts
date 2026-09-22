@@ -9,6 +9,22 @@ import type { GenericFilehandle } from 'generic-filehandle2'
 /** 'BAM\1' read as a little-endian int32 */
 export const BAM_MAGIC = 21840194
 
+/**
+ * The `block_size` of the record at `offset`, rejecting one too small to hold a
+ * record's 32 bytes of fixed fields, as htslib's `bam_read1` does. A negative
+ * one would otherwise leave the loops that advance by it standing still,
+ * pushing a record per turn until the process runs out of memory.
+ */
+export function readBlockSize(dataView: DataView, offset: number) {
+  const blockSize = dataView.getInt32(offset, true)
+  if (blockSize < 32) {
+    throw new Error(
+      `corrupt BAM record: block_size ${blockSize} at byte ${offset}`,
+    )
+  }
+  return blockSize
+}
+
 export function resolveFilehandle(
   filehandle?: GenericFilehandle,
   path?: string,

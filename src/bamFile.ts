@@ -13,6 +13,7 @@ import {
   MAX_CONCURRENT_CHUNK_READS,
   appendInRange,
   parseRefSeqs,
+  readBlockSize,
   resolveFilehandle,
   throwIfAborted,
 } from './util.ts'
@@ -961,7 +962,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     const hasCpositions = cpositions.length > 0
 
     while (blockStart + 4 < ba.length) {
-      const blockSize = dataView.getInt32(blockStart, true)
+      const blockSize = readBlockSize(dataView, blockStart)
       const blockEnd = blockStart + 4 + blockSize - 1
 
       if (hasDpositions) {

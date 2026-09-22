@@ -10,6 +10,7 @@ import {
   BAM_MAGIC,
   concatUint8Array,
   parseRefSeqs,
+  readBlockSize,
   resolveFilehandle,
   throwIfAborted,
 } from './util.ts'
@@ -288,7 +289,7 @@ export async function* streamBamRecords<T extends BamRecordLike = BAMFeature>({
 
       const sink: T[] = []
       while (blockStart + 4 <= bytes.length) {
-        const blockSize = dataView.getInt32(blockStart, true)
+        const blockSize = readBlockSize(dataView, blockStart)
         const blockEnd = blockStart + 4 + blockSize - 1
         if (blockEnd >= bytes.length) {
           break
