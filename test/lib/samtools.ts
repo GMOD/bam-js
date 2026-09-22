@@ -189,15 +189,9 @@ export function samFields(
   ].join('\t')
 }
 
-/**
- * QUAL as samtools spells it.
- *
- * "No quality" is 0xff in every byte, and htslib decides on the first one
- * alone, so this does too. Either reader hands back the stored bytes, which is
- * the same answer in a different spelling.
- */
+/** QUAL as samtools spells it. */
 export function qualString(qual: Uint8Array | null | undefined) {
-  if (!qual?.length || qual[0] === 0xff) {
+  if (!qual?.length) {
     return '*'
   }
   let out = ''

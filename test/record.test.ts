@@ -425,3 +425,11 @@ test('a long-CIGAR placeholder spanning more than 2^27 reports its whole span', 
   expect(rec.length_on_ref).toBe(200_000_000)
   expect(rec.CIGAR).toBe('5M199999990D5M')
 })
+
+test('qual is null for a QUAL of *, which BAM stores as 0xff bytes', () => {
+  const rec = makeAlignment({ cigar: [op(4, M)], seqLength: 4, qual: 0xff })
+  expect(rec.qual).toBeNull()
+  expect(makeAlignment({ cigar: [op(4, M)], seqLength: 4 }).qual).toEqual(
+    new Uint8Array([30, 30, 30, 30]),
+  )
+})

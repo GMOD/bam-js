@@ -440,16 +440,18 @@ export default class BamRecord {
   }
 
   // QUAL is present whenever the record has bases — independent of the unmapped
-  // flag (unmapped reads routinely carry SEQ/QUAL). A zero-length SEQ means
-  // there is no quality to return.
+  // flag (unmapped reads routinely carry SEQ/QUAL). null for a zero-length SEQ,
+  // and for a QUAL of `*`, which BAM stores as 0xFF in every byte (SAMv1
+  // §4.2.3). htslib decides on the first byte alone, and so does this.
   get qual() {
     const seqLen = this.seq_length
     if (seqLen === 0) {
       return null
-    } else {
-      const p = this.seqStart + ((seqLen + 1) >> 1)
-      return this._byteArray.subarray(p, p + seqLen)
     }
+    const p = this.seqStart + ((seqLen + 1) >> 1)
+    return this._byteArray[p] === 0xff
+      ? null
+      : this._byteArray.subarray(p, p + seqLen)
   }
 
   get strand() {
