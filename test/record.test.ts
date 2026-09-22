@@ -330,3 +330,98 @@ test('an unknown B tag subtype stops the walk instead of desyncing it', () => {
   expect(fresh.getTag('XB')).toBeUndefined()
   errors.mockRestore()
 })
+
+const M = 0
+const D = 2
+const N = 3
+const S = 4
+
+// Multiplied rather than shifted: `len << 4` wraps for len >= 2^27, which is
+// the range these tests are about.
+function op(len: number, code: number) {
+  return len * 16 + code
+}
+
+// A mapped record at `pos` with the given CIGAR, `seqLength` bases and a CG:B:I
+// tag when `cg` is given. `nameLength` moves the CIGAR's byte alignment, which
+// decides whether a long CIGAR is read through a Uint32Array view or a DataView.
+function makeAlignment({
+  pos = 1000,
+  cigar,
+  cg,
+  seqLength = 0,
+  qual = 30,
+  nameLength = 2,
+}: {
+  pos?: number
+  cigar: number[]
+  cg?: number[]
+  seqLength?: number
+  qual?: number
+  nameLength?: number
+}) {
+  const seqBytes = (seqLength + 1) >> 1
+  const size =
+    36 +
+    nameLength +
+    4 * cigar.length +
+    seqBytes +
+    seqLength +
+    (cg ? 8 + 4 * cg.length : 0)
+  const buf = new Uint8Array(size)
+  const dv = new DataView(buf.buffer)
+  dv.setInt32(0, size - 4, true)
+  dv.setInt32(8, pos, true)
+  dv.setInt32(12, nameLength, true)
+  dv.setInt32(16, cigar.length, true)
+  dv.setInt32(20, seqLength, true)
+  dv.setInt32(24, -1, true)
+  buf.fill('q'.charCodeAt(0), 36, 36 + nameLength - 1)
+  let p = 36 + nameLength
+  for (const o of cigar) {
+    dv.setUint32(p, o, true)
+    p += 4
+  }
+  buf.fill(0x11, p, p + seqBytes)
+  p += seqBytes
+  buf.fill(qual, p, p + seqLength)
+  p += seqLength
+  if (cg) {
+    buf.set([0x43, 0x47, 0x42, 0x49], p) // CG, B, I
+    dv.setInt32(p + 4, cg.length, true)
+    p += 8
+    for (const o of cg) {
+      dv.setUint32(p, o, true)
+      p += 4
+    }
+  }
+  return new BamRecord(buf, 0, size - 1, 0, dv)
+}
+
+test('a CIGAR op of 2^27 or more decodes unsigned', () => {
+  const rec = makeAlignment({ cigar: [op(150_000_000, M)] })
+  expect(rec.length_on_ref).toBe(150_000_000)
+  expect(rec.end).toBe(1000 + 150_000_000)
+  expect(rec.CIGAR).toBe('150000000M')
+})
+
+test('a long CIGAR read through a Uint32Array view decodes unsigned too', () => {
+  const cigar = [
+    op(150_000_000, M),
+    ...Array.from({ length: 60 }, () => op(1, M)),
+  ]
+  const rec = makeAlignment({ cigar, nameLength: 4 })
+  expect(rec.length_on_ref).toBe(150_000_060)
+  expect(rec.NUMERIC_CIGAR).toBeInstanceOf(Uint32Array)
+  expect(rec.CIGAR.startsWith('150000000M1M')).toBe(true)
+})
+
+test('a long-CIGAR placeholder spanning more than 2^27 reports its whole span', () => {
+  const rec = makeAlignment({
+    cigar: [op(10, S), op(200_000_000, N)],
+    cg: [op(5, M), op(199_999_990, D), op(5, M)],
+    seqLength: 10,
+  })
+  expect(rec.length_on_ref).toBe(200_000_000)
+  expect(rec.CIGAR).toBe('5M199999990D5M')
+})

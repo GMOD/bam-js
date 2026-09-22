@@ -696,7 +696,9 @@ export default class BamRecord {
     // htslib stores the placeholder as exactly two ops: <seqlen>S<reflen>N.
     if (numCigarOps === 2) {
       const cigop = this._dataView.getInt32(p, true)
-      return (cigop & 0xf) === CIGAR_SOFT_CLIP && cigop >> 4 === this.seq_length
+      return (
+        (cigop & 0xf) === CIGAR_SOFT_CLIP && cigop >>> 4 === this.seq_length
+      )
     } else {
       return false
     }
@@ -716,7 +718,7 @@ export default class BamRecord {
       if ((cigop2 & 0xf) !== CIGAR_REF_SKIP) {
         console.warn('CG tag with no N tag')
       }
-      return cigop2 >> 4
+      return cigop2 >>> 4
     }
 
     const absOffset = this._byteArray.byteOffset + p
@@ -732,7 +734,7 @@ export default class BamRecord {
       let lref = 0
       for (let c = 0; c < numCigarOps; ++c) {
         const co = cigarView[c]!
-        lref += (co >> 4) * ((CIGAR_CONSUMES_REF_MASK >> (co & 0xf)) & 1)
+        lref += (co >>> 4) * ((CIGAR_CONSUMES_REF_MASK >> (co & 0xf)) & 1)
       }
       return lref
     }
@@ -740,7 +742,7 @@ export default class BamRecord {
     let lref = 0
     for (let c = 0; c < numCigarOps; ++c) {
       const co = this._dataView.getInt32(p + c * 4, true)
-      lref += (co >> 4) * ((CIGAR_CONSUMES_REF_MASK >> (co & 0xf)) & 1)
+      lref += (co >>> 4) * ((CIGAR_CONSUMES_REF_MASK >> (co & 0xf)) & 1)
     }
     return lref
   }
@@ -811,7 +813,7 @@ export default class BamRecord {
     let result = ''
     for (let i = 0, l = numeric.length; i < l; i++) {
       const packed = numeric[i]!
-      result += packed >> 4
+      result += packed >>> 4
       result += String.fromCharCode(ASCII_CIGAR_CODES[packed & 0xf]!)
     }
     return result
