@@ -219,6 +219,20 @@ test('read as pairs', async () => {
   expect(f.start).toEqual(f2.start)
 })
 
+// Two mates' lookups here resolve to overlapping chunks,
+// 0:179-165074:53878 and 141294:22912-165074:53878, and every mate the two
+// share used to come back twice: 169 records, 146 of them distinct.
+test('read as pairs returns each mate once', async () => {
+  const b = new BamFile({
+    bamPath: 'test/data/test_deletion_2_0.snps.bwa_align.sorted.grouped.bam',
+  })
+  const features = await b.getRecordsForRange('Chromosome', 16000, 17000, {
+    viewAsPairs: true,
+  })
+  expect(new Set(features.map(f => f.fileOffset)).size).toBe(146)
+  expect(features).toHaveLength(146)
+})
+
 // Both mates of one pair must produce the same string, otherwise the two halves
 // of a normal pair render as different orientations. This is the reference
 // implementation the orientation table has to agree with; it is a copy of

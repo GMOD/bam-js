@@ -12,6 +12,7 @@ import {
   BAM_MAGIC,
   MAX_CONCURRENT_CHUNK_READS,
   appendInRange,
+  optimizeChunks,
   parseRefSeqs,
   readBlockSize,
   resolveFilehandle,
@@ -819,10 +820,12 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     // make the count NaN.
     const readNameCounts = new Map<string, number>()
     const readIds = new Set<number>()
+    const names = new Array<string>(records.length)
 
     for (let i = 0, l = records.length; i < l; i++) {
       const r = records[i]!
       const name = r.name
+      names[i] = name
       readNameCounts.set(name, (readNameCounts.get(name) ?? 0) + 1)
       readIds.add(r.fileOffset)
     }
@@ -830,10 +833,9 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     const matePromises: Promise<Chunk[]>[] = []
     for (let i = 0, l = records.length; i < l; i++) {
       const f = records[i]!
-      const name = f.name
       if (
         this.index &&
-        readNameCounts.get(name) === 1 &&
+        readNameCounts.get(names[i]!) === 1 &&
         (pairAcrossChr ||
           (f.next_refid === chrId &&
             Math.abs(f.start - f.next_pos) < maxInsertSize))
@@ -849,20 +851,11 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       }
     }
 
-    const map = new Map<string, Chunk>()
-    const res = await Promise.all(matePromises)
-    for (let i = 0, l = res.length; i < l; i++) {
-      const chunks = res[i]!
-      for (let j = 0, jl = chunks.length; j < jl; j++) {
-        const m = chunks[j]!
-        // Key on the virtual-offset span — the same key _cachedChunkFeatures
-        // uses. Chunk.toString() also folds in `bin` and fetchedSize(), which
-        // keeps two chunks covering an identical span apart here even though
-        // the cache below collapses them, so their records came back twice.
-        map.set(chunkCacheKey(m), m)
-      }
-    }
-    const mateChunks = [...map.values()]
+    // Each mate's lookup is merged on its own, so two of them can resolve to
+    // different spans over the same records. Merging the union again makes
+    // them disjoint, which is what keeps a mate in the overlap from coming
+    // back once per span.
+    const mateChunks = optimizeChunks((await Promise.all(matePromises)).flat())
 
     // Bounded for the reason ADR 0008 bounds the main query path: a viewAsPairs
     // query over a busy region resolves to many distinct mate chunks, and an
