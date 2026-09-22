@@ -7,6 +7,12 @@ waits on implementation, and each item says what evidence it rests on.
 
 Line numbers are at `b80b203`.
 
+**Status, later on 2026-09-21: all implemented.** Bugs 1-7, both optimizations,
+the cleanups and the corpus test landed on `worktree-parsing-review`, `212c094`
+through `12b8abb`, with the measurements in each commit message. `max_off` got
+ADR 0023, which drops merged chunks rather than trimming them. The theoretical
+placed-unmapped case below is still open.
+
 ## Suggested order
 
 1. `max_off` pruning — the largest win jbrowse would see, and it is sound.
