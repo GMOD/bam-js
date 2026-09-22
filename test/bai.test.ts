@@ -520,6 +520,9 @@ test('get CIGAR from a CG long tag', async () => {
   await ti1.getHeader()
   const ret1 = await ti1.getRecordsForRange('chr1', 0, 3000000)
   expect(ret1[0]!.CIGAR.slice(0, 4)).toBe('1M1D')
+  expect(ret1[0]!.num_cigar_ops).toBe(ret1[0]!.NUMERIC_CIGAR.length)
+  expect(ret1[0]!.num_cigar_ops).toBeGreaterThan(65_535)
+  expect(ret1[0]!.tags.CG).toBeUndefined()
 })
 
 test('get header text', async () => {

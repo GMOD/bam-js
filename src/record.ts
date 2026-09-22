@@ -512,8 +512,8 @@ export default class BamRecord {
   }
 
   getTag(tagName: string) {
-    if (this._cachedTags !== undefined) {
-      return this._cachedTags[tagName]
+    if (this._cachedTags !== undefined || tagName === 'CG') {
+      return this.tags[tagName]
     }
     return this._findTag(tagName, false)
   }
@@ -623,6 +623,9 @@ export default class BamRecord {
       )
       p = end
     }
+    if (this._hasCGPlaceholder() && isNumericCigar(tags.CG)) {
+      delete tags.CG
+    }
     return tags
   }
 
@@ -706,6 +709,15 @@ export default class BamRecord {
     }
   }
 
+  // SAMv1 §4.2.2: with the placeholder and a CG tag, the tag is the CIGAR and
+  // a reader removes it from the tags, as htslib does
+  private _hasCGPlaceholder() {
+    return this._isCGTagPattern(
+      this.b0 + this.read_name_length,
+      this.flag_nc & 0xffff,
+    )
+  }
+
   private _computeLengthOnRef(): number {
     const flag_nc = this._dataView.getInt32(this._start + 16, true)
     if (flag_nc & (Constants.BAM_FUNMAP << 16)) {
@@ -765,10 +777,10 @@ export default class BamRecord {
     const p = this.b0 + this.read_name_length
 
     if (this._isCGTagPattern(p, numCigarOps)) {
-      // getTag, not this.tags: the real CIGAR lives in one tag, so there's no
-      // reason to decode every other tag on the record to reach it
-      const cg = this.getTag('CG')
-      return isNumericCigar(cg) ? cg : new Uint32Array(0)
+      const cg = this._findTag('CG', false)
+      if (isNumericCigar(cg)) {
+        return cg
+      }
     }
 
     const absOffset = this._byteArray.byteOffset + p
@@ -822,11 +834,14 @@ export default class BamRecord {
   }
 
   get num_cigar_ops() {
-    return this.flag_nc & 0xffff
+    return this._hasCGPlaceholder()
+      ? this.NUMERIC_CIGAR.length
+      : this.flag_nc & 0xffff
   }
 
+  // the stored CIGAR field, which for a long CIGAR is the two-op placeholder
   get num_cigar_bytes() {
-    return this.num_cigar_ops << 2
+    return (this.flag_nc & 0xffff) << 2
   }
 
   get read_name_length() {

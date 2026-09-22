@@ -426,6 +426,33 @@ test('a long-CIGAR placeholder spanning more than 2^27 reports its whole span', 
   expect(rec.CIGAR).toBe('5M199999990D5M')
 })
 
+test('a long-CIGAR placeholder swaps in CG and drops it from the tags', () => {
+  const make = () =>
+    makeAlignment({
+      cigar: [op(10, S), op(20, N)],
+      cg: [op(5, M), op(10, D), op(5, M)],
+      seqLength: 10,
+    })
+  const rec = make()
+  expect(rec.num_cigar_ops).toBe(3)
+  expect(rec.num_cigar_bytes).toBe(8)
+  expect(rec.getTag('CG')).toBeUndefined()
+  expect(rec.tags).toEqual({})
+  expect(rec.CIGAR).toBe('5M10D5M')
+  // getTag before and after the tags are cached agree
+  const cached = make()
+  expect(cached.tags.CG).toBeUndefined()
+  expect(cached.getTag('CG')).toBeUndefined()
+  expect(cached.CIGAR).toBe('5M10D5M')
+})
+
+test('a long-CIGAR placeholder with no CG tag keeps its stored ops', () => {
+  const rec = makeAlignment({ cigar: [op(10, S), op(20, N)], seqLength: 10 })
+  expect(rec.CIGAR).toBe('10S20N')
+  expect(rec.num_cigar_ops).toBe(2)
+  expect(rec.length_on_ref).toBe(20)
+})
+
 test('qual is null for a QUAL of *, which BAM stores as 0xff bytes', () => {
   const rec = makeAlignment({ cigar: [op(4, M)], seqLength: 4, qual: 0xff })
   expect(rec.qual).toBeNull()
