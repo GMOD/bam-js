@@ -386,6 +386,9 @@ test('large indexcov human 1000g', async () => {
   })
   const ret = await ti.indexCov(10, 0, 1000000)
   expect(ret).toMatchSnapshot()
+  // the linear index starts 0, 0, 0, 4682: the window before the first read
+  // is empty, not the size of everything in the file before it
+  expect(ret.slice(0, 3).map(r => r.score)).toEqual([0, 0, 0])
   const empty = await ti.indexCov(0)
   expect(empty).toEqual([])
 })

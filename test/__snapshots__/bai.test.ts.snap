@@ -601,7 +601,7 @@ exports[`large indexcov human 1000g 1`] = `
   },
   {
     "end": 49152,
-    "score": 43.23452166175142,
+    "score": 0,
     "start": 32768,
   },
   {

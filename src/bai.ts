@@ -49,6 +49,23 @@ function roundUp(n: number, multiple: number) {
   return rem === 0 ? n : n - rem + multiple
 }
 
+/**
+ * Older samtools leaves 0:0 in linear-index windows no read overlaps. htslib
+ * fills interior ones from the next entry on load (`hts.c`, "fill missing
+ * values"); this also fills leading ones, which htslib leaves at 0. Either
+ * way the entry stays a lower bound, since no record overlaps that window.
+ * Left as 0, a leading entry scores its whole absolute file offset in
+ * `indexCov`, and `getLowestChunk` falls back to the start of the file.
+ */
+function fillLinearGaps(blocks: Float64Array, data: Float64Array) {
+  for (let j = blocks.length - 2; j >= 0; j--) {
+    if (blocks[j] === 0 && data[j] === 0) {
+      blocks[j] = blocks[j + 1]!
+      data[j] = data[j + 1]!
+    }
+  }
+}
+
 export interface IndexCovEntry {
   start: number
   end: number
@@ -195,6 +212,7 @@ export default class BAI extends IndexFile<BaiParsed> {
         linearDataPositions[j] = (bytes[curr + 1]! << 8) | bytes[curr]!
         curr += 8
       }
+      fillLinearGaps(linearBlockPositions, linearDataPositions)
 
       clampChunkEnds(Object.values(binIndex).flat(), linearBlockPositions)
       return {
