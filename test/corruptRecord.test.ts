@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs'
 import { unzip } from '@gmod/bgzf-filehandle'
 import { expect, test } from 'vitest'
 
-import { BamFile, streamBamRecords } from '../src/index.ts'
 import Chunk from '../src/chunk.ts'
+import { BamFile, streamBamRecords } from '../src/index.ts'
 import { parseRefSeqs } from '../src/util.ts'
 import { VirtualOffset } from '../src/virtualOffset.ts'
 import { bgzf } from './lib/bgzf.ts'
@@ -43,11 +43,9 @@ test.for([-4, 8])(
     } as unknown as NonNullable<
       Parameters<typeof streamBamRecords>[0]['bamFilehandle']
     >
-    await expect(async () => {
-      for await (const _ of streamBamRecords({ bamFilehandle })) {
-        // drain
-      }
-    }).rejects.toThrow(`block_size ${blockSize}`)
+    await expect(
+      Array.fromAsync(streamBamRecords({ bamFilehandle })),
+    ).rejects.toThrow(`block_size ${blockSize}`)
   },
 )
 
