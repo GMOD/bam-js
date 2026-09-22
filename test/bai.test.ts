@@ -4,7 +4,9 @@ import { expect, test, vi } from 'vitest'
 import FakeRecord from './fakerecord.ts'
 import Chunk from '../src/chunk.ts'
 import { BAI, BamFile, BamRecord } from '../src/index.ts'
+import { maxOffset } from '../src/indexFile.ts'
 import { MAX_CONCURRENT_CHUNK_READS } from '../src/util.ts'
+import { QUERY_END, syntheticQuery } from './lib/syntheticQuery.ts'
 
 test('loads BAI volvox-sorted.bam.bai', async () => {
   const ti = new BAI({
@@ -588,27 +590,51 @@ test('estimatedBytesForRegions forecasts what a query really reads', async () =>
   fetched = 0
   await ti.getRecordsForRange(region.refName, region.start, region.end)
 
-  // exactly the bytes the query pulled, and a 45% saving on what summing every
-  // chunk claimed
+  // exactly the bytes the query pulled. Before max_off the bins offered 9.96MB
+  // here and the query read 5.50MB; now they offer only what is read.
   expect(fetched).toEqual(estimate)
-  expect(everyChunk).toBeGreaterThan(estimate * 1.5)
+  expect(everyChunk).toEqual(estimate)
 })
 
-// The other half of the same rule: chr22_nanopore's linear index puts its entry
-// past a 10kb query at that query's own first chunk — one ultra-long read is
-// enough — so the bound orders nothing and the estimate falls back to every
-// chunk rather than to the batch floor. Deliberately NOT the tighter answer:
-// see chunksLikelyRead for the file that makes the floor wrong by 5x there.
-test('estimatedBytesForRegions falls back when the linear index orders nothing', async () => {
-  const ti = new BamFile({
-    bamPath: 'test/data/chr22_nanopore_subset.bam',
-  })
-  await ti.getHeader()
-  const region = { refName: '22', start: 16_000_000, end: 16_010_000 }
-  const estimate = await ti.estimatedBytesForRegions([region])
-  const chunks = await ti.index!.blocksForRange(21, region.start, region.end)
-  expect(chunks.length).toBeGreaterThan(6)
-  expect(estimate).toEqual(chunks.reduce((a, c) => a + c.fetchedSize(), 0))
+// One ultra-long read pins chr22_nanopore's linear index 9603 bytes into the
+// file, so this window used to inherit all 22 chunks of its bins and lean on the
+// early stop to read 6 of them. The bins right of the query bound it from the
+// other side, from the index alone.
+test('max_off drops the chunks past a narrow long-read window', async () => {
+  const bam = new BamFile({ bamPath: 'test/data/chr22_nanopore_subset.bam' })
+  const chunks = await bam.blocksForRange('22', 16_000_000, 16_010_000)
+  expect(chunks).toHaveLength(1)
+  const records = await bam.getRecordsForRange('22', 16_000_000, 16_010_000)
+  expect(records).toHaveLength(0)
+})
+
+function chunkAt(blockPosition: number, bin: number) {
+  return new Chunk(
+    { blockPosition, dataPosition: 0 },
+    { blockPosition: blockPosition + 1, dataPosition: 0 },
+    bin,
+  )
+}
+
+// minShift 4 and depth 1 or 2 keep the bin numbers small: at depth 1 the leaves
+// are bins 1-8, 16bp each; at depth 2 they are 9-72 under parents 1-8.
+test('maxOffset takes the lowest chunk of the first bin right of the query', () => {
+  // end 20 is in leaf 2; leaf 3 is absent, so leaf 4 answers
+  expect(
+    maxOffset({ 4: [chunkAt(50, 4), chunkAt(40, 4)] }, 20, 4, 1),
+  ).toMatchObject({ blockPosition: 40 })
+  // leaf 17 is the first child of bin 2, so the walk steps up to bin 2 before
+  // looking at any of its children
+  expect(
+    maxOffset({ 2: [chunkAt(70, 2)], 18: [chunkAt(60, 18)] }, 120, 4, 2),
+  ).toMatchObject({ blockPosition: 70 })
+})
+
+test('maxOffset has no answer with nothing right of the query', () => {
+  expect(maxOffset({ 1: [chunkAt(10, 1)] }, 20, 4, 1)).toBeUndefined()
+  // the last leaf, whose right neighbour would be past the scheme
+  expect(maxOffset({ 1: [chunkAt(10, 1)] }, 128, 4, 1)).toBeUndefined()
+  expect(maxOffset({ 8: [chunkAt(10, 8)] }, 200, 4, 1)).toBeUndefined()
 })
 
 // use on any large long read data file
@@ -783,72 +809,17 @@ test('reports download progress for getRecordsForRange', async () => {
   expect(ticks[0]![1]).toBeGreaterThan(0)
 })
 
-// The shape ADR 0010's amendment is about, and the one no real fixture in this
-// corpus has: a query whose OWN data is more than MAX_CONCURRENT_CHUNK_READS
-// chunks, followed by chunks the BAI bin hierarchy hands back from beyond it.
-//
-// Building it as a real BAM is not practical — `optimizeChunks` caps a merged
-// span at 5MB, so seven chunks of query data means >30MB compressed, a ~100MB
-// fixture for one test. The scheduling is what is under test, so the chunk list
-// and the records are supplied directly and only `_fetchChunkFeatures` is real.
-//
-// On the observed 300x case the head is 7 chunks and the tail 21; those are the
-// numbers used here.
-function deepQueryChunks(head: number, tail: number) {
-  const chunks: Chunk[] = []
-  let pos = 0
-  for (let i = 0; i < head + tail; i++) {
-    const size = 1000
-    chunks.push(
-      new Chunk(
-        { blockPosition: pos, dataPosition: 0 },
-        { blockPosition: pos + size, dataPosition: 0 },
-        i,
-        pos + size,
-      ),
-    )
-    pos += size
-  }
-  return chunks
-}
-
+// The shape ADR 0010's amendment is about: a query whose OWN data is more than
+// MAX_CONCURRENT_CHUNK_READS chunks, followed by chunks the BAI bin hierarchy
+// hands back from beyond it. On the observed 300x case the head is 7 chunks and
+// the tail 21; those are the numbers used here.
 test('the stop fires past the first batch when a query is deeper than it', async () => {
   const HEAD = 7
   const TAIL = 21
-  const MIN = 0
-  const MAX = 1000
   const ti = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
-  await ti.getHeader()
-  const chrId = ti.chrToIndex!.ctgA!
+  const read = await syntheticQuery(ti, HEAD, TAIL)
 
-  const chunks = deepQueryChunks(HEAD, TAIL)
-  vi.spyOn(ti.index!, 'blocksForRange').mockResolvedValue(chunks)
-
-  // Head chunks sit inside the query; tail chunks start past its end, which is
-  // what `isPastQuery` reads. Every chunk is given records so an empty one
-  // cannot be what stops the walk.
-  const read = vi
-    .spyOn(
-      ti as unknown as {
-        _readChunkFeatures: (chunk: Chunk) => Promise<unknown>
-      },
-      '_readChunkFeatures',
-    )
-    .mockImplementation(async (chunk: Chunk) => {
-      const i = chunk.bin
-      const base = i < HEAD ? i * 100 : MAX + (i - HEAD + 1) * 100
-      await Promise.resolve()
-      return {
-        features: Array.from({ length: 3 }, (_, k) => ({
-          ref_id: chrId,
-          start: base + k,
-          end: base + k + 1,
-        })),
-        bytes: 100,
-      }
-    })
-
-  const records = await ti.getRecordsForRange('ctgA', MIN, MAX)
+  const records = await ti.getRecordsForRange('ctgA', 0, QUERY_END)
 
   // every head record comes back — the stop must not cost the query its answer
   expect(records).toHaveLength(HEAD * 3)

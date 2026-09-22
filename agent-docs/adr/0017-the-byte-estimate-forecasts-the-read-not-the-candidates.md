@@ -2,6 +2,12 @@
 
 Status: Accepted, implemented. Builds directly on ADR 0010 (the early stop).
 
+> **Since ADR 0023** `blocksForRange` drops chunks past htslib's `max_off`, so
+> the candidates this ADR forecasts from are mostly the chunks a query reads.
+> Re-measured on the fixtures, `chunksLikelyRead` now changes the forecast in 4
+> of 320 windows, and undershoots in all 4. The numbers below predate that, and
+> ADR 0023 says what to check on COLO829BL before removing the forecast.
+
 ## Context
 
 `estimatedBytesForRegions` summed `fetchedSize()` over every chunk

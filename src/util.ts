@@ -82,10 +82,13 @@ export const MAX_CONCURRENT_CHUNK_READS = 6
  *
  * `blocksForRange` returns every chunk of every bin overlapping the query, at
  * every level of the binning scheme, minus the ones the linear index puts
- * entirely before it. On a long-read file that is wildly more than the query
- * reads: a coarse bin's chunks run to the end of the bin's span, so a 380bp
- * window on a deep ONT BAM resolves to 90 chunks / 43.5MB, of which
- * `getRecordsForRange` reads 6 / 7.8MB before the early stop fires.
+ * entirely before it. Until `max_off` (ADR 0023) also dropped the ones past it,
+ * that was wildly more than a long-read query reads: a coarse bin's chunks run
+ * to the end of the bin's span, so a 380bp window on a deep ONT BAM resolved to
+ * 90 chunks / 43.5MB, of which `getRecordsForRange` read 6 / 7.8MB before the
+ * early stop fired. Since then this changes the forecast in 4 of 320 fixture
+ * windows, undershooting in all 4; ADR 0023 says what to check before
+ * removing it.
  *
  * Two bounds, and the answer is the larger:
  *

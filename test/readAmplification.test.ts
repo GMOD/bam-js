@@ -15,8 +15,8 @@ class CountingFile extends LocalFile {
   }
 }
 
-const BAM = 'test/data/chr22_nanopore_subset.bam'
-const REGION = ['22', 16300000, 16310000] as const
+const BAM = 'test/data/out.bam'
+const REGION = ['1', 700000, 710000] as const
 
 function openFiles() {
   const bam = new CountingFile(BAM)
@@ -34,7 +34,7 @@ describe('what a query reads', () => {
   it('fetches the index whole, once, rather than as scattered reads of it', async () => {
     const { bai, file, readIndex } = openFiles()
     await file.getRecordsForRange(...REGION)
-    await file.getRecordsForRange('22', 16400000, 16410000)
+    await file.getRecordsForRange('1', 800000, 810000)
 
     expect(readIndex).toHaveBeenCalledTimes(1)
     expect(bai.reads).toEqual([])
@@ -46,7 +46,7 @@ describe('what a query reads', () => {
     bam.reads = []
 
     const records = await file.getRecordsForRange(...REGION)
-    expect(records).toHaveLength(8)
+    expect(records).toHaveLength(108)
     expect(bam.reads).toHaveLength(6)
 
     // spread, not contiguous: chunk merging leaves gaps between the reads, and

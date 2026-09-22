@@ -8,6 +8,8 @@ import {
   DEFAULT_MAX_CACHE_BYTES,
   HtsgetFile,
 } from '../src/index.ts'
+import { MAX_CONCURRENT_CHUNK_READS } from '../src/util.ts'
+import { QUERY_END, syntheticQuery } from './lib/syntheticQuery.ts'
 
 import type {
   BufferEncoding,
@@ -106,23 +108,17 @@ test('a multi-chunk query keeps every chunk it parsed', async () => {
   expect(bam.chunkFeatureCache.size).toBe(stats.reads)
 })
 
-// The BAI linear index degenerates on long reads: one read spanning a wide span
-// pins the lower bound near the start of the file, so optimizeChunks filters
-// nothing and a narrow window inherits every chunk of every overlapping bin.
 // Chunks are file-ordered and the BAM is coordinate-sorted, so the first chunk
 // found to start past the query proves every later one does too (ADR 0010).
+// One chunk of data and 21 past it: the first batch is read whole, and the stop
+// it finds there ends the query.
 test('a query stops reading once a chunk lies past its range', async () => {
-  const bam = new BamFile({ bamPath: 'test/data/chr22_nanopore_subset.bam' })
-  await bam.getHeader()
-  const stats = countChunkReads(bam)
+  const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  const read = await syntheticQuery(bam, 1, 21)
 
-  const chunks = await bam.blocksForRange('22', 16_000_000, 16_010_000)
-  expect(chunks.length).toBeGreaterThan(10)
-
-  const records = await bam.getRecordsForRange('22', 16_000_000, 16_010_000)
-  expect(records.length).toBe(0)
-  // far fewer reads than the index handed us chunks
-  expect(stats.reads).toBeLessThan(chunks.length)
+  const records = await bam.getRecordsForRange('ctgA', 0, QUERY_END)
+  expect(records).toHaveLength(3)
+  expect(read).toHaveBeenCalledTimes(MAX_CONCURRENT_CHUNK_READS)
 })
 
 // The property that makes the stop safe to have at all. An earlier attempt
@@ -131,16 +127,15 @@ test('a query stops reading once a chunk lies past its range', async () => {
 // read MORE chunks than the first, and the cache grew on every pan. The barrier
 // after the first batch makes the decision a function of chunk order alone.
 test('a repeated query reads no more chunks the second time', async () => {
-  const bam = new BamFile({ bamPath: 'test/data/chr22_nanopore_subset.bam' })
-  await bam.getHeader()
-  const stats = countChunkReads(bam)
+  const bam = new BamFile({ bamPath: 'test/data/volvox-sorted.bam' })
+  const read = await syntheticQuery(bam, 1, 21)
 
-  await bam.getRecordsForRange('22', 16_000_000, 16_010_000)
-  const cold = stats.reads
+  await bam.getRecordsForRange('ctgA', 0, QUERY_END)
+  const cold = read.mock.calls.length
   expect(cold).toBeGreaterThan(0)
 
-  await bam.getRecordsForRange('22', 16_000_000, 16_010_000)
-  expect(stats.reads).toBe(cold)
+  await bam.getRecordsForRange('ctgA', 0, QUERY_END)
+  expect(read).toHaveBeenCalledTimes(cold)
 })
 
 // The stop must not lose records. Checks a narrow window against the same reads

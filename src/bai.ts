@@ -83,6 +83,9 @@ function reg2bins(beg: number, end: number) {
 }
 
 export default class BAI extends IndexFile<BaiParsed> {
+  protected minShift = BAI_LINEAR_SHIFT
+  protected depth = BAI_DEPTH
+
   async _parse(opts: BaseOpts): Promise<BaiParsed> {
     const bytes = await this.filehandle.readFile(opts)
     const dataView = new DataView(

@@ -2,6 +2,7 @@ import { SharedReadCache } from '@gmod/shared-read-cache'
 import QuickLRU from '@jbrowse/quick-lru'
 
 import { chunksLikelyRead, optimizeChunks } from './util.ts'
+import { compareOffsets } from './virtualOffset.ts'
 
 import type Chunk from './chunk.ts'
 import type { BaseOpts } from './util.ts'
@@ -48,6 +49,58 @@ export function memoizeByRefId<T>(
   }
 }
 
+/**
+ * The virtual offset past which a coordinate-sorted file holds nothing
+ * overlapping `[.., end)`, from the binning index alone: htslib's `max_off`
+ * (`hts_itr_query` in hts.c).
+ *
+ * Walk right from the finest bin after the one holding `end - 1`, stepping up
+ * to the parent at every first child, so each bin visited begins at or past
+ * `end` and never overlaps the query. Every record in such a bin starts at or
+ * past `end`, so the first chunk of the first bin that exists is a record past
+ * the query, and in a sorted file so is every record after it.
+ *
+ * A bound, unlike the linear-index forecast in `chunksLikelyRead`: it rests on
+ * the same sort order `appendInRange` and the early stop already assume, and
+ * cannot drop a record they would keep. See ADR 0023 for why the caller drops
+ * whole merged chunks with it rather than trimming them.
+ */
+export function maxOffset(
+  binIndex: Record<number, Chunk[]>,
+  end: number,
+  minShift: number,
+  depth: number,
+) {
+  if (end > 2 ** (minShift + depth * 3)) {
+    return undefined
+  }
+  const binCount = (8 ** (depth + 1) - 1) / 7
+  let bin = (8 ** depth - 1) / 7 + Math.floor((end - 1) / 2 ** minShift) + 1
+  if (bin >= binCount) {
+    bin = 0
+  }
+  for (;;) {
+    while (bin % 8 === 1) {
+      bin = (bin - 1) / 8
+    }
+    if (bin === 0) {
+      return undefined
+    }
+    const chunks = binIndex[bin]
+    if (chunks?.length) {
+      let lowest = chunks[0]!.minv
+      for (let i = 1; i < chunks.length; i++) {
+        const minv = chunks[i]!.minv
+        if (compareOffsets(minv, lowest) < 0) {
+          lowest = minv
+        }
+      }
+      return lowest
+    }
+    bin++
+  }
+}
+
 export default abstract class IndexFile<
   TParsed extends ParsedIndexBase = ParsedIndexBase,
 > {
@@ -78,6 +131,11 @@ export default abstract class IndexFile<
     start?: number,
     end?: number,
   ): Promise<{ start: number; end: number; score: number }[]>
+
+  // The binning scheme: the finest bins are 2^minShift wide, and there are
+  // depth levels below bin 0. BAI is CSI with minShift 14 and depth 5.
+  protected abstract minShift: number
+  protected abstract depth: number
 
   // Bin numbers that overlap [min, max). Subclasses implement BAI's fixed
   // 5-level scheme or CSI's configurable scheme (SAMv1.pdf §5.1.1, CSIv1.tex §2).
@@ -133,7 +191,16 @@ export default abstract class IndexFile<
         }
       }
     }
-    return optimizeChunks(chunks, this.getLowestChunk(ba, min))
+    const merged = optimizeChunks(chunks, this.getLowestChunk(ba, min))
+    const past = maxOffset(binIndex, max, this.minShift, this.depth)
+    if (past) {
+      let n = merged.length
+      while (n > 0 && compareOffsets(merged[n - 1]!.minv, past) >= 0) {
+        n--
+      }
+      merged.length = n
+    }
+    return merged
   }
 
   // SYNC: ~/src/gmod/tabix-js/src/indexFile.ts parse — same shape and the same
@@ -197,7 +264,8 @@ export default abstract class IndexFile<
    * exists — was being told 5.6x the truth on exactly the windows a reader
    * spends their time in, and cannot answer it by zooming: every window narrower
    * than a linear-index interval resolves to the same chunks and so to the same
-   * number.
+   * number. The table predates `max_off` (ADR 0023), which now drops most of
+   * the gap between the first two columns from `blocksForRange` itself.
    *
    * Still summed over merged chunks rather than per region, so two regions
    * sharing a chunk are charged for it once.

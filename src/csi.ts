@@ -26,8 +26,8 @@ function rshift(num: number, bits: number) {
 
 export default class CSI extends IndexFile {
   private maxBinNumber = 0
-  private depth = 0
-  private minShift = 0
+  protected depth = 0
+  protected minShift = 0
 
   // CSI omits the linear index that BAI's indexCov derives coverage from
   // (CSIv1.tex §3, hts-specs), so there's no equivalent to return.

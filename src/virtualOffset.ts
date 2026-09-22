@@ -35,3 +35,7 @@ export function fromBytes(bytes: Uint8Array, offset = 0) {
     (bytes[offset + 1]! << 8) | bytes[offset]!,
   )
 }
+
+export function compareOffsets(a: OffsetCoords, b: OffsetCoords) {
+  return a.blockPosition - b.blockPosition || a.dataPosition - b.dataPosition
+}

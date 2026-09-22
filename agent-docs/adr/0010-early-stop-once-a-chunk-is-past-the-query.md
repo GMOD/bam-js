@@ -5,6 +5,13 @@ pool. See "The waves-vs-pool benchmark", which supersedes "Why not yet", and the
 Amendment at the end, which revises the Decision for queries deeper than the
 batch.
 
+> **Since ADR 0023** `blocksForRange` drops, from the index alone, the chunks
+> this stop used to find by reading one. Every fixture measured below now
+> resolves to chunks the query needs, and chr22_nanopore's 10kb window to 1
+> chunk rather than 22. The stop stays for files where the bins right of the
+> query cannot bound it, such as jb2bench's 1000x.longread, and its tests now
+> supply their own chunk list.
+
 ## Context
 
 `getRecordsForRange` reads every chunk `blocksForRange` returns. On most files
