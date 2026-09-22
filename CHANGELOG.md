@@ -1,3 +1,38 @@
+## [10.0.0](https://github.com/GMOD/bam-js/compare/v9.0.1...v10.0.0) (2026-09-22)
+
+### Bug Fixes
+
+- Decode CIGAR op lengths of 2^27 and over as unsigned ([212c094](https://github.com/GMOD/bam-js/commit/212c0942736ace10a8a29b6f12000a575436191b))
+- Qual is null for a QUAL of * ([f90fb25](https://github.com/GMOD/bam-js/commit/f90fb2589f5ad31bb53bae833528ca27718ad286))
+- Reject a record block_size under 32 instead of hanging ([c215572](https://github.com/GMOD/bam-js/commit/c215572f748694144da6a7b64c657f380c20d6ac))
+- ViewAsPairs returns each mate once ([77d4c01](https://github.com/GMOD/bam-js/commit/77d4c01cc3142e1e5b374aaa9430d615485a1999))
+- Fill zero linear-index entries so indexCov does not spike ([b90f775](https://github.com/GMOD/bam-js/commit/b90f775307a2e9af7c9fdaa041a66994f68c7fd7))
+- End the header text at its first NUL ([11c7057](https://github.com/GMOD/bam-js/commit/11c7057932d4a08a65bcbf8d62a1cd03023ae73d))
+- Follow SAMv1 on the long-CIGAR placeholder ([c02ee2b](https://github.com/GMOD/bam-js/commit/c02ee2b2e972061e5ad74735b27f62c43b1cdb79))
+
+### Documentation
+
+- Handoff for the 2026-09-21 parsing review ([2a42302](https://github.com/GMOD/bam-js/commit/2a42302892652ab8e3e8649acfb90c47176cbc73))
+- Mark the parsing-review handoff implemented ([0fe2b50](https://github.com/GMOD/bam-js/commit/0fe2b505ef0759ab67d83635db0af7f95dd5c5bd))
+
+### Other Changes
+
+- Reduce tropes ([b80b203](https://github.com/GMOD/bam-js/commit/b80b203e5474b5f40441746b851e854113dbff40))
+
+### Performance Improvements
+
+- Drop chunks that start past htslib's max_off ([82caa34](https://github.com/GMOD/bam-js/commit/82caa34e512d52f7c36a67b7badb967c3f6dd508))
+- Bound CSI queries from below by bin loffset ([2e94713](https://github.com/GMOD/bam-js/commit/2e94713248d86600eeccb3b9ff425b2433f2651c))
+
+### Refactoring
+
+- Query the index from min, not min - 1 ([3217298](https://github.com/GMOD/bam-js/commit/3217298502c5d268b87890d38764e59790fd3215))
+
+### Tests
+
+- Order corruptRecord imports and drain the stream with Array.fromAsync ([0333c71](https://github.com/GMOD/bam-js/commit/0333c71578b07243865e3f7ceed77332ad62e52c))
+- Check every field and tag of the hts-specs SAM corpus ([12b8abb](https://github.com/GMOD/bam-js/commit/12b8abb3ad9027b9b69b7676bf1f20dcf193636a))
+
 ## [9.0.1](https://github.com/GMOD/bam-js/compare/v9.0.0...v9.0.1) (2026-08-31)
 
 ### Bug Fixes
