@@ -540,7 +540,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     if (chrId === undefined || !this.index) {
       return []
     }
-    const chunks = await this.index.blocksForRange(chrId, min - 1, max, opts)
+    const chunks = await this.index.blocksForRange(chrId, min, max, opts)
     return this._fetchChunkFeatures(chunks, chrId, chr, min, max, opts)
   }
 

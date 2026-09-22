@@ -477,7 +477,7 @@ export default class BamRecord {
     return this.seqStart + ((seqLen + 1) >> 1) + seqLen
   }
 
-  // batch fromCharCode: fastest for typical name lengths (see benchmarks/string-building.bench.ts)
+  // batch fromCharCode: fastest for typical name lengths (benchmarks/string-building.bench.ts, removed in 36a3968)
   //
   // Deliberately NOT memoized, unlike end/tags/length_on_ref. Consumers read a
   // read name about once — jbrowse-components' buildBaseFeatureData copies it
@@ -677,7 +677,7 @@ export default class BamRecord {
     return !!(this.flags & Constants.BAM_FSUPPLEMENTARY)
   }
 
-  // Benchmark results for CIGAR parsing strategies (see benchmarks/cigar-lifecycle.bench.ts):
+  // Benchmark results for CIGAR parsing strategies (benchmarks/cigar-strategies.bench.ts, removed in 36a3968):
   //
   // Aligned data:
   //   - Plain array is 1.6-1.8x faster than Uint32Array for small CIGARs (≤50 ops)
