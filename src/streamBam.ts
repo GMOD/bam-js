@@ -305,12 +305,13 @@ export async function* streamBamRecords<T extends BamRecordLike = BAMFeature>({
             // the window size, so it is as stable as a virtual offset without
             // pretending to be one.
             //
-            // NOT the crc32 of the record bytes that readBamFeatures falls back
-            // to when it has no positions. That is a content hash, so the two
-            // byte-identical records in exact_duplicate.bam collide on it, and
-            // hashing every record costs ~40% of the walk (135ms of 340ms over
-            // out.bam) where a counter costs nothing. The fallback only fires on
-            // an unusual path there; here it would fire on every record.
+            // NOT the hash of the record bytes that readBamFeatures falls back
+            // to when it has no positions: the two byte-identical records in
+            // exact_duplicate.bam collide on any content hash, and hashing
+            // every record cost ~40% of the walk (135ms of 340ms over out.bam,
+            // measured with crc32) where a counter costs nothing. The fallback
+            // only fires on an unusual path there; here it would fire on every
+            // record.
             recordIndex++,
             dataView,
           ),

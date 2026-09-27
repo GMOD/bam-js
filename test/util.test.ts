@@ -6,6 +6,7 @@ import {
   appendInRange,
   chunksLikelyRead,
   clampChunkEnds,
+  contentHash53,
   minVirtualOffset,
   optimizeChunks,
   parseRefSeqs,
@@ -317,4 +318,15 @@ test('chunksLikelyRead is a no-op without a bound, or under one batch', () => {
   expect(chunksLikelyRead(few, 1)).toBe(few)
   // a bound past every chunk keeps the array itself, not a copy
   expect(chunksLikelyRead(many, Number.MAX_SAFE_INTEGER)).toBe(many)
+})
+
+// "plumless" and "buckeroo" share a crc32 (0x4ddb0c25), which is what the
+// record id used to be over htsget
+test('contentHash53 separates a crc32 collision and stays a safe integer', () => {
+  const enc = new TextEncoder()
+  const a = enc.encode('plumless')
+  const b = enc.encode('buckeroo')
+  expect(contentHash53(a, 0, a.length)).not.toBe(contentHash53(b, 0, b.length))
+  expect(Number.isSafeInteger(contentHash53(a, 0, a.length))).toBe(true)
+  expect(contentHash53(a, 0, a.length)).toBe(contentHash53(a, 0, a.length))
 })

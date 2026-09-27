@@ -159,6 +159,24 @@ test('reads a header and a region through the ticket', async () => {
   ).toBeTruthy()
 })
 
+// An htsget stream has no file positions, so a record's id is a hash of its
+// bytes; callers deduplicate on it, so a colliding pair loses a read
+test('an htsget record id is a distinct safe integer, the same on every query', async () => {
+  const { fetcher } = mockFetch()
+  const ids = async () =>
+    (
+      await new HtsgetFile({
+        baseUrl,
+        trackId,
+        fetch: fetcher,
+      }).getRecordsForRange('1', 2000000, 2000001)
+    ).map(r => r.fileOffset)
+  const first = await ids()
+  expect(first.every(id => Number.isSafeInteger(id))).toBe(true)
+  expect(new Set(first).size).toBe(first.length)
+  expect(await ids()).toEqual(first)
+})
+
 // The spec's "HTTPS data block URLs" rule 6: a block carries its own
 // credential, in its url or in the ticket's `headers` for it, and the client
 // "must not send the bearer token used for the API, if any, to the data block

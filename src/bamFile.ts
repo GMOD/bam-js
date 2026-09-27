@@ -1,6 +1,5 @@
 import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
 import { SharedReadCache } from '@gmod/shared-read-cache'
-import crc32 from 'crc/calculators/crc32'
 
 import BAI from './bai.ts'
 import CSI from './csi.ts'
@@ -12,6 +11,7 @@ import {
   BAM_MAGIC,
   MAX_CONCURRENT_CHUNK_READS,
   appendInRange,
+  contentHash53,
   decodeHeaderText,
   optimizeChunks,
   parseRefSeqs,
@@ -974,7 +974,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
                 (blockStart - dpositions[pos]!) +
                 chunk.minv.dataPosition +
                 1
-            : crc32(ba.subarray(blockStart, blockEnd)) >>> 0,
+            : contentHash53(ba, blockStart, blockEnd),
           dataView,
         )
 

@@ -25,6 +25,29 @@ export function readBlockSize(dataView: DataView, offset: number) {
   return blockSize
 }
 
+/**
+ * A 53-bit hash of `bytes[start, end)`: cyrb53 (public domain), taken over
+ * bytes. The id of a record read with no file positions, which has to be the
+ * same for the same record in every query, so it hashes content. It is 53 bits
+ * rather than crc32's 32 because ids are deduplicated: at 32 bits a fetch of
+ * 150,000 records expects about 2.6 distinct pairs to collide, each silently
+ * dropping a read, where 53 bits expect about 1e-6.
+ */
+export function contentHash53(bytes: Uint8Array, start: number, end: number) {
+  let h1 = 0xdeadbeef
+  let h2 = 0x41c6ce57
+  for (let i = start; i < end; i++) {
+    const b = bytes[i]!
+    h1 = Math.imul(h1 ^ b, 2654435761)
+    h2 = Math.imul(h2 ^ b, 1597334677)
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507)
+  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909)
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507)
+  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909)
+  return 4294967296 * (2097151 & h2) + (h1 >>> 0)
+}
+
 export function resolveFilehandle(
   filehandle?: GenericFilehandle,
   path?: string,
