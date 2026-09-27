@@ -1,6 +1,6 @@
 {
   "name": "@gmod/bam",
-  "version": "10.0.0",
+  "version": "10.0.1",
   "packageManager": "pnpm@11.15.1",
   "description": "Parser for BAM and BAM index (bai) files",
   "license": "MIT",
@@ -58,9 +58,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "crc": "^4.3.2",
     "@types/node": "^26.2.0",
     "@vitest/coverage-v8": "^4.1.11",
+    "crc": "^4.3.2",
     "eslint": "^10.9.0",
     "eslint-plugin-import-x": "^4.17.1",
     "git-cliff": "^2.13.1",

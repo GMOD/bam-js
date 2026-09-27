@@ -1,3 +1,9 @@
+## [10.0.1](https://github.com/GMOD/bam-js/compare/v10.0.0...v10.0.1) (2026-09-27)
+
+### Bug Fixes
+
+- An htsget record's id is a 53-bit content hash, not crc32 ([35dde91](https://github.com/GMOD/bam-js/commit/35dde9128a30fe9dedec93a8d530b3c55a210b0c))
+
 ## [10.0.0](https://github.com/GMOD/bam-js/compare/v9.0.1...v10.0.0) (2026-09-22)
 
 ### Bug Fixes
