@@ -5,6 +5,7 @@ minimumReleaseAge: 4320
 # Same exemption jbrowse-components carries for the same reason.
 minimumReleaseAgeExclude:
   - '@gmod/*'
+  - '@jbrowse/quick-lru'
 allowBuilds:
   esbuild: true
   unrs-resolver: true

@@ -15,8 +15,8 @@ importers:
         specifier: ^1.7.2
         version: 1.7.2
       '@jbrowse/quick-lru':
-        specifier: ^7.3.5
-        version: 7.3.5
+        specifier: ^8.0.0
+        version: 8.0.0
       generic-filehandle2:
         specifier: ^2.4.0
         version: 2.4.0
@@ -311,9 +311,9 @@ packages:
     resolution: {integrity: sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==}
     engines: {node: '>=18.18'}
 
-  '@jbrowse/quick-lru@7.3.5':
-    resolution: {integrity: sha512-DPEtODWKt+QGmCg+EO36sSmKOmdjJOwtxeV/4PBnf+7jqC/P7R4YIz+/yohtqh9UZ38dbLtXIlmigPlkZy8SAA==}
-    engines: {node: '>=18'}
+  '@jbrowse/quick-lru@8.0.0':
+    resolution: {integrity: sha512-zToC0THd94TGr4cWMp9eOCRB8eeN004ncajZzVOoM8WEWV90YMTX5SX9zY6Nk1hhY7ASKWnfOmguXt7SoXaLzw==}
+    engines: {node: '>=22'}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -1543,7 +1543,7 @@ snapshots:
 
   '@humanwhocodes/retry@0.4.3': {}
 
-  '@jbrowse/quick-lru@7.3.5': {}
+  '@jbrowse/quick-lru@8.0.0': {}
 
   '@jridgewell/resolve-uri@3.1.2': {}
 
