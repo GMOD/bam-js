@@ -1,3 +1,9 @@
+## [10.0.3](https://github.com/GMOD/bam-js/compare/v10.0.2...v10.0.3) (2026-10-05)
+
+### Performance Improvements
+
+- Read the BAM header beside its index ([1a088c0](https://github.com/GMOD/bam-js/commit/1a088c0de36927f1e62837396524683ca55e6d89))
+
 ## [10.0.2](https://github.com/GMOD/bam-js/compare/v10.0.1...v10.0.2) (2026-10-01)
 
 ## [10.0.1](https://github.com/GMOD/bam-js/compare/v10.0.0...v10.0.1) (2026-09-27)
