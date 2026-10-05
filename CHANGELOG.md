@@ -1,3 +1,9 @@
+## [10.0.4](https://github.com/GMOD/bam-js/compare/v10.0.3...v10.0.4) (2026-10-05)
+
+### Bug Fixes
+
+- Await the index beside the header read, so abandoning one cancels both ([34f2dec](https://github.com/GMOD/bam-js/commit/34f2dec29fff3ad301745af0d808b578af324948))
+
 ## [10.0.3](https://github.com/GMOD/bam-js/compare/v10.0.2...v10.0.3) (2026-10-05)
 
 ### Performance Improvements
