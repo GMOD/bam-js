@@ -1008,18 +1008,36 @@ test('a member releases its weight back to the budget', async () => {
   expect(budget.total).toBe(0)
 })
 
-// A header that fits in the first block is read beside the index, so it does
-// not pay the index's round trip before its own
-test('a small header resolves while the index read is still parked', async () => {
+// The header is read beside the index rather than after it, and the index parse
+// stays the header parse's own: abandoning the header cancels it, so the next
+// caller reads the index afresh instead of joining a read nobody owns
+test('the header read starts beside a parked index read, and cancels it', async () => {
   const bai = new GatedFile('test/data/volvox-sorted.bam.bai')
   const bam = new BamFile({
     bamFilehandle: new LocalFile('test/data/volvox-sorted.bam'),
     baiFilehandle: bai,
   })
-  const header = await bam.getHeader()
-  expect(header.length).toBeGreaterThan(0)
-  expect(bam.chrToIndex?.ctgA).toEqual(0)
+  const readSpy = vi.spyOn(bam.bam, 'read')
+  const caller = new AbortController()
+  let settled = false
+  const headerP = bam.getHeader({ signal: caller.signal })
+  void headerP.then(
+    () => (settled = true),
+    () => (settled = true),
+  )
+  await bai.waitForReads(1)
+  while (readSpy.mock.calls.length === 0) {
+    await new Promise(resolve => setTimeout(resolve, 0))
+  }
+  await readSpy.mock.results[0]!.value
+  await new Promise(resolve => setTimeout(resolve, 10))
+  expect(bai.reads).toBe(1)
+  expect(settled).toBe(false)
+
+  caller.abort()
+  await expect(headerP).rejects.toThrow(/abort/i)
+
   bai.open()
-  const records = await bam.getRecordsForRange('ctgA', 1, 5000)
-  expect(records.length).toBeGreaterThan(0)
+  await expect(bam.getHeader()).resolves.toBeDefined()
+  expect(bai.reads).toBe(2)
 })

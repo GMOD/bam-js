@@ -415,19 +415,22 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
       )
     }
     // The first block's worth of bytes holds the header of nearly every BAM,
-    // so read it beside the index rather than after it. Only a header that
-    // runs past it waits for the index: the records start at firstDataLine, so
-    // reading up to it plus the bgzf block straddling it covers the header.
-    // firstDataLine is undefined when the index records no data at all
-    // (header-only BAM), and it undershoots when the index leaves offsets
-    // unset, so grow the read until the ref-seq table parses. Never readFile()
-    // here: on a remote BAM that is a whole-file download to read a header.
-    const indexP = this.index.parse(opts)
-    indexP.catch(() => undefined)
-    let buffer = await this.bam.read(blockLen, 0, { signal: opts.signal })
+    // so read it beside the index rather than after it. Both are awaited, so
+    // the index parse stays owned by this one and is cancelled with it. A
+    // header that runs past the first block is sized from the index: the
+    // records start at firstDataLine, so reading up to it plus the bgzf block
+    // straddling it covers the header. firstDataLine is undefined when the
+    // index records no data at all (header-only BAM), and it undershoots when
+    // the index leaves offsets unset, so grow the read until the ref-seq table
+    // parses. Never readFile() here: on a remote BAM that is a whole-file
+    // download to read a header.
+    const [{ firstDataLine }, first] = await Promise.all([
+      this.index.parse(opts),
+      this.bam.read(blockLen, 0, { signal: opts.signal }),
+    ])
+    let buffer = first
     let samHeader = this.applyHeader(await unzip(buffer))
     if (samHeader === undefined && buffer.length === blockLen) {
-      const { firstDataLine } = await indexP
       let readLen = Math.max(
         firstDataLine === undefined
           ? 0
