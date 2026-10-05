@@ -201,7 +201,7 @@ so only attach credentials to hosts you trust.
 - [docs/optimizations.md](docs/optimizations.md) — why each step of that path
   looks the way it does, and what measured it
 - [docs/caching.md](docs/caching.md) — sizing the parsed-chunk cache
-- [agent-docs/adr/](agent-docs/adr/) — the measurements behind the performance
+- [agent-docs/architecture-decision-records/](agent-docs/architecture-decision-records/) — the measurements behind the performance
   and caching decisions
 - [CONTRIBUTING.md](CONTRIBUTING.md) — development and release steps
 

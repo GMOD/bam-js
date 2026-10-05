@@ -30,7 +30,7 @@ resolve. It runs after `viewAsPairs`, so a mate pulled from another chunk is
 covered on the same terms, and the bases bind only to reads the returned region
 covers whole — a partial binding would be per-query state on a record shared
 between queries
-([ADR 0020](../agent-docs/adr/0020-a-bound-reference-must-cover-the-whole-read.md)).
+([ADR 0020](../agent-docs/architecture-decision-records/0020-a-bound-reference-must-cover-the-whole-read.md)).
 Without the option, or with every read carrying `MD`, nothing is fetched.
 
 ## Where the worker pool sits

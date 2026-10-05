@@ -45,7 +45,7 @@ Every benchmark region is pinned by a record-count assertion in
 returns `[]` before touching any of the code being measured, so it stays green
 while timing nothing but `getHeader()` — seven of the ten cases were in exactly
 that state before they were pinned
-([ADR 0004](agent-docs/adr/0004-pin-benchmark-regions-with-a-test.md)). Change a
+([ADR 0004](agent-docs/architecture-decision-records/0004-pin-benchmark-regions-with-a-test.md)). Change a
 region and the test tells you what it now yields.
 
 ## Publishing

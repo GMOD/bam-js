@@ -7,7 +7,7 @@ Two costs dominate a query that finds nothing cached, and nearly everything
 below is about one of them: inflating the BGZF blocks it fetched, and the
 network round trip it pays per chunk. Building records out of those bytes is a
 rounding error beside either — per query, min of 5 runs
-([ADR 0003](../agent-docs/adr/0003-where-bam-query-time-goes.md)):
+([ADR 0003](../agent-docs/architecture-decision-records/0003-where-bam-query-time-goes.md)):
 
 | file                                    | fetch |    inflate | build records |
 | --------------------------------------- | ----: | ---------: | ------------: |
@@ -72,7 +72,7 @@ Dropping the merge — on the theory that a consumer with a coalescing range cac
 makes it redundant — is much worse for everyone else: a bare consumer goes from
 6 reads to 95-378 on the same queries _and_ downloads more, because every small
 chunk pays its own tail padding where a merged one amortizes it
-([ADR 0011](../agent-docs/adr/0011-chunk-merging-stays-even-behind-a-range-cache.md)).
+([ADR 0011](../agent-docs/architecture-decision-records/0011-chunk-merging-stays-even-behind-a-range-cache.md)).
 
 ### A query's chunks go out together
 
@@ -93,11 +93,11 @@ per-host connection cap browsers enforce — above it the requests queue in the
 browser anyway while peak memory keeps growing. A one-chunk query skips the pool
 entirely, since the closure, worker array and `Promise.all` are pure overhead on
 a query that can take 0.2ms
-([ADR 0008](../agent-docs/adr/0008-fetch-a-querys-chunks-concurrently.md)).
+([ADR 0008](../agent-docs/architecture-decision-records/0008-fetch-a-querys-chunks-concurrently.md)).
 
 The concurrent fetch pool is the largest piece of machinery in the library, in
 place of a sequential `for` loop with an `await`.
-[ADR 0009](../agent-docs/adr/0009-why-the-concurrent-fetch-is-as-big-as-it-is.md)
+[ADR 0009](../agent-docs/architecture-decision-records/0009-why-the-concurrent-fetch-is-as-big-as-it-is.md)
 goes through each piece, with the cost of that loop beside it.
 
 ### Concurrent queries share one in-flight read
@@ -113,7 +113,7 @@ chunks. Issued concurrently they cost 9 decompressions and 85.5MB inflated,
 against 3 and 29.4MB serially — concurrency made the query _slower_ than doing
 it one at a time (240ms vs 113ms). Sharing the in-flight read brings it to 3
 decompressions and 86ms, i.e. faster than serial, as a caller fanning out
-expects ([ADR 0007](../agent-docs/adr/0007-share-in-flight-chunk-reads.md)).
+expects ([ADR 0007](../agent-docs/architecture-decision-records/0007-share-in-flight-chunk-reads.md)).
 
 ### The query stops once a chunk is past it
 
@@ -135,7 +135,7 @@ same query read 6 chunks cold and 9 warm, so a repeat query did _more_ I/O than
 the first. Only one barrier, because a query that gets through its first six
 chunks without stopping is one that needs them; that caps the cost of being
 wrong at 0.92x-0.95x against 0.82x-0.88x for barriering every wave
-([ADR 0010](../agent-docs/adr/0010-early-stop-once-a-chunk-is-past-the-query.md)).
+([ADR 0010](../agent-docs/architecture-decision-records/0010-early-stop-once-a-chunk-is-past-the-query.md)).
 
 ### Forecasting a query costs no I/O
 
@@ -144,7 +144,7 @@ index alone, and it forecasts the chunks the query will _read_ rather than the
 ones it could need. Summing every chunk was 5.6x over on the narrow windows a
 reader spends their time in, and did not fall as they zoomed in, so it warned on
 views costing a fraction of what it claimed
-([ADR 0017](../agent-docs/adr/0017-the-byte-estimate-forecasts-the-read-not-the-candidates.md)).
+([ADR 0017](../agent-docs/architecture-decision-records/0017-the-byte-estimate-forecasts-the-read-not-the-candidates.md)).
 
 ## Reading records
 
@@ -181,7 +181,7 @@ concatenating them first, which avoids an intermediate cons string per op —
 1.23-1.35x on long reads, where this accessor dominates. A precomputed op-char
 table is _slower_ than `String.fromCharCode`, because V8 already hands back an
 interned single-character string
-([ADR 0012](../agent-docs/adr/0012-cram-js-decode-optimizations-mostly-do-not-transfer.md),
+([ADR 0012](../agent-docs/architecture-decision-records/0012-cram-js-decode-optimizations-mostly-do-not-transfer.md),
 which also records six ports from cram-js that do not transfer here).
 
 ### One tag, not all of them
@@ -211,7 +211,7 @@ than once per read.
 the union span of the reads that lack an MD tag, and binds the result only to
 reads it fully covers — a partial binding would be per-query state written onto
 a record shared between queries
-([ADR 0020](../agent-docs/adr/0020-a-bound-reference-must-cover-the-whole-read.md)).
+([ADR 0020](../agent-docs/architecture-decision-records/0020-a-bound-reference-must-cover-the-whole-read.md)).
 
 The walk itself is jbrowse's, kept byte-for-byte equivalent. Two things around
 it: the window is clamped to int32 rather than left at the ±Infinity an
@@ -220,7 +220,7 @@ against Infinity runs as a Float64 comparison rather than an int32 one; and the
 walk stops at the window's right edge instead of running to the end of the
 CIGAR, which makes a whole chromosome stored as one BAM read affordable to
 render a screenful of
-([ADR 0021](../agent-docs/adr/0021-the-mismatch-walk-is-jbrowses-and-is-at-parity-with-it.md)).
+([ADR 0021](../agent-docs/architecture-decision-records/0021-the-mismatch-walk-is-jbrowses-and-is-at-parity-with-it.md)).
 
 ## The chunk cache
 
@@ -242,7 +242,7 @@ parallel, which is `bgzfWorkerPool`.
 A call crosses the boundary once per chunk read, never per record — per record,
 the call would have to serialize each one back out of a wasm heap that only ever
 grows
-([ADR 0022](../agent-docs/adr/0022-the-wasm-boundary-sits-at-the-bgzf-block.md)).
+([ADR 0022](../agent-docs/architecture-decision-records/0022-the-wasm-boundary-sits-at-the-bgzf-block.md)).
 What happens on the other side of that call — one wasm call per chunk rather
 than per block, how the pool splits a chunk's blocks across workers, and what
 measuring there rejected — is in
@@ -281,7 +281,7 @@ worked example:
   here and saved no I/O and no decompression — by the time it ran, the expensive
   work had already happened. The caller visits every record anyway, so filtering
   there costs nothing extra
-  ([ADR 0005](../agent-docs/adr/0005-move-filterby-to-the-caller.md)).
+  ([ADR 0005](../agent-docs/architecture-decision-records/0005-move-filterby-to-the-caller.md)).
 - **Overlapping the reference fetch with the alignment fetch**, once you know a
   file holds reads without MD. `packReference` carries its own start, so a
   region packed before the records land can still resolve the position of any
@@ -304,10 +304,10 @@ above, so one fetch would fill several cache entries — a change in
 `@gmod/shared-read-cache` too — and entry counts rise up to 10x on the long-read
 files that gain nothing. Numbers, the design that would work, and the variant
 that looks obvious and is wrong:
-[ADR 0019](../agent-docs/adr/0019-the-chunk-cache-key-slides-as-a-query-pans.md).
+[ADR 0019](../agent-docs/architecture-decision-records/0019-the-chunk-cache-key-slides-as-a-query-pans.md).
 
 ## Further reading
 
 Every measurement here comes from an ADR in
-[`agent-docs/adr/`](../agent-docs/adr/), which also records what we tried and
+[`agent-docs/architecture-decision-records/`](../agent-docs/architecture-decision-records/), which also records what we tried and
 rejected — several of the obvious next optimizations already measured as losses.

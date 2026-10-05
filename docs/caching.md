@@ -34,7 +34,7 @@ the unevictable entries hold the memory anyway. At a 200MB budget on that same
 file the cache holds exactly one entry, because one chunk there decompresses to
 181MB. Size above the working set, or pass `Infinity` and bound memory some
 other way.
-([ADR 0014](../agent-docs/adr/0014-size-the-chunk-cache-to-hold-several-queries.md))
+([ADR 0014](../agent-docs/architecture-decision-records/0014-size-the-chunk-cache-to-hold-several-queries.md))
 
 ## `cacheIdleTimeoutMs` is the only thing that gives memory back
 
@@ -47,7 +47,7 @@ The clock runs from the last _read_ of a chunk, or from its parse landing if
 nothing has read it since, so panning back and forth over one region never
 expires it, and a slow chunk still gets the full timeout in which to be reused.
 Measured on a pan that held 331MB: 0MB once idle. Pass `0` to disable.
-([ADR 0015](../agent-docs/adr/0015-reclaim-the-chunk-cache-when-nothing-is-using-it.md))
+([ADR 0015](../agent-docs/architecture-decision-records/0015-reclaim-the-chunk-cache-when-nothing-is-using-it.md))
 
 ## `cacheBudget` bounds a consumer with many files
 
@@ -61,7 +61,7 @@ to every file. Dividing `maxCacheBytes` by the track count instead walks
 straight into the cliff above — at 128MB a track re-reads every chunk on every
 pan — whereas a shared budget lets tracks nobody is looking at yield their space
 to the one the user is panning.
-([ADR 0018](../agent-docs/adr/0018-a-per-file-ceiling-is-not-a-bound-on-a-consumer-with-many-files.md))
+([ADR 0018](../agent-docs/architecture-decision-records/0018-a-per-file-ceiling-is-not-a-bound-on-a-consumer-with-many-files.md))
 
 ## None of them bound peak memory
 
@@ -85,7 +85,7 @@ that can see the whole process.
 Overlapping queries share the records they hand back, so treat them as
 read-only: attaching your own fields to a record mutates it for every other
 query holding it.
-([ADR 0006](../agent-docs/adr/0006-cached-records-are-shared-and-must-not-be-mutated.md))
+([ADR 0006](../agent-docs/architecture-decision-records/0006-cached-records-are-shared-and-must-not-be-mutated.md))
 
 ## A hit needs the same chunk span, not just the same bytes
 
@@ -115,9 +115,9 @@ number on this page.
 ## Further reading
 
 Every measurement above comes from an ADR in
-[`agent-docs/adr/`](../agent-docs/adr/). Beyond the ones linked here,
-[0001](../agent-docs/adr/0001-chunk-cache-keeps-every-parsed-chunk.md) covers
+[`agent-docs/architecture-decision-records/`](../agent-docs/architecture-decision-records/). Beyond the ones linked here,
+[0001](../agent-docs/architecture-decision-records/0001-chunk-cache-keeps-every-parsed-chunk.md) covers
 what the chunk cache keeps, and
-[0013](../agent-docs/adr/0013-the-batch-eviction-policy-does-not-transfer.md)
-and [0016](../agent-docs/adr/0016-the-cache-does-not-grow-and-lru-stays.md) why
+[0013](../agent-docs/architecture-decision-records/0013-the-batch-eviction-policy-does-not-transfer.md)
+and [0016](../agent-docs/architecture-decision-records/0016-the-cache-does-not-grow-and-lru-stays.md) why
 it stays LRU rather than taking cram-js's batch eviction or growing on demand.

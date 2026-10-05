@@ -295,7 +295,7 @@ afford that, and resolve those reads a window at a time with
 
 `setReference` throws unless the region covers the whole read, because queries
 share their records (see
-[ADR 0006](../agent-docs/adr/0006-cached-records-are-shared-and-must-not-be-mutated.md)),
+[ADR 0006](../agent-docs/architecture-decision-records/0006-cached-records-are-shared-and-must-not-be-mutated.md)),
 so a binding that varied per query would give one query's reads the bases of
 another query's region. A per-call `opts.ref` retains nothing and takes any
 extent.
