@@ -711,8 +711,9 @@ test('large header, index with leading zero linear index entries', async () => {
   expect(String((await ti.index!.parse()).firstDataLine)).toEqual('69596:0')
   await ti.getHeader()
   expect(Object.keys(ti.chrToIndex!).length).toEqual(11003)
-  // 69596 (where the records start) + one bgzf block, in a single read
-  expect(bam.reads).toEqual([135132])
+  // the first block, read beside the index, then 69596 (where the records
+  // start) + one bgzf block
+  expect(bam.reads).toEqual([65536, 135132])
 })
 
 // With every window zeroed there is no firstDataLine to size from, so the read

@@ -1007,3 +1007,19 @@ test('a member releases its weight back to the budget', async () => {
   bam.clearFeatureCache()
   expect(budget.total).toBe(0)
 })
+
+// A header that fits in the first block is read beside the index, so it does
+// not pay the index's round trip before its own
+test('a small header resolves while the index read is still parked', async () => {
+  const bai = new GatedFile('test/data/volvox-sorted.bam.bai')
+  const bam = new BamFile({
+    bamFilehandle: new LocalFile('test/data/volvox-sorted.bam'),
+    baiFilehandle: bai,
+  })
+  const header = await bam.getHeader()
+  expect(header.length).toBeGreaterThan(0)
+  expect(bam.chrToIndex?.ctgA).toEqual(0)
+  bai.open()
+  const records = await bam.getRecordsForRange('ctgA', 1, 5000)
+  expect(records.length).toBeGreaterThan(0)
+})

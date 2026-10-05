@@ -414,34 +414,41 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
         'no index to read a header from: use HtsgetFile for htsget sources',
       )
     }
-    const indexData = await this.index.parse(opts)
-
-    // The records start at firstDataLine, so reading up to it plus the bgzf
-    // block straddling it covers the header. It is undefined when the index
-    // records no data at all (header-only BAM), and it undershoots when the
-    // index leaves offsets unset, so grow the read until the ref-seq table
-    // parses. Never readFile() here: on a remote BAM that is a whole-file
-    // download to read a header.
-    let readLen =
-      indexData.firstDataLine === undefined
-        ? blockLen
-        : indexData.firstDataLine.blockPosition + blockLen
-
-    // do/while, so the index-derived length is always read once and only the
-    // doubling is bounded. Testing readLen before the first read instead meant
-    // a BAM whose header genuinely exceeds maxHeaderReadLen — millions of
-    // contigs — was rejected without a single byte being fetched, and reported
-    // as 'Insufficient data for reference sequences' when the data was there.
-    let samHeader
-    let atEof: boolean
-    do {
-      const buffer = await this.bam.read(readLen, 0, { signal: opts.signal })
-      // a short read means readLen ran past the end of the file, so there are
-      // no more bytes to grow into
-      atEof = buffer.length < readLen
-      samHeader = this.applyHeader(await unzip(buffer))
-      readLen *= 2
-    } while (samHeader === undefined && !atEof && readLen <= maxHeaderReadLen)
+    // The first block's worth of bytes holds the header of nearly every BAM,
+    // so read it beside the index rather than after it. Only a header that
+    // runs past it waits for the index: the records start at firstDataLine, so
+    // reading up to it plus the bgzf block straddling it covers the header.
+    // firstDataLine is undefined when the index records no data at all
+    // (header-only BAM), and it undershoots when the index leaves offsets
+    // unset, so grow the read until the ref-seq table parses. Never readFile()
+    // here: on a remote BAM that is a whole-file download to read a header.
+    const indexP = this.index.parse(opts)
+    indexP.catch(() => undefined)
+    let buffer = await this.bam.read(blockLen, 0, { signal: opts.signal })
+    let samHeader = this.applyHeader(await unzip(buffer))
+    if (samHeader === undefined && buffer.length === blockLen) {
+      const { firstDataLine } = await indexP
+      let readLen = Math.max(
+        firstDataLine === undefined
+          ? 0
+          : firstDataLine.blockPosition + blockLen,
+        2 * blockLen,
+      )
+      // do/while, so the index-derived length is always read once and only
+      // the doubling is bounded. Testing readLen before the first read instead
+      // meant a BAM whose header genuinely exceeds maxHeaderReadLen — millions
+      // of contigs — was rejected without its one exact read, and reported as
+      // 'Insufficient data for reference sequences' when the data was there.
+      let atEof: boolean
+      do {
+        buffer = await this.bam.read(readLen, 0, { signal: opts.signal })
+        // a short read means readLen ran past the end of the file, so there
+        // are no more bytes to grow into
+        atEof = buffer.length < readLen
+        samHeader = this.applyHeader(await unzip(buffer))
+        readLen *= 2
+      } while (samHeader === undefined && !atEof && readLen <= maxHeaderReadLen)
+    }
     if (samHeader === undefined) {
       throw new Error('Insufficient data for reference sequences')
     }
