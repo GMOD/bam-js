@@ -24,7 +24,7 @@ import type Chunk from './chunk.ts'
 import type { PackedReference } from './reference.ts'
 import type { BamOpts, BaseOpts } from './util.ts'
 import type { BgzfWorkerPool } from '@gmod/bgzf-filehandle'
-import type { SharedBudget } from '@gmod/shared-read-cache'
+import type { Budget } from '@gmod/shared-read-cache'
 import type { GenericFilehandle } from 'generic-filehandle2'
 
 export interface BamRecordLike {
@@ -294,7 +294,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
      * whereas a shared budget lets tracks nobody is looking at yield their
      * space to the one being panned.
      */
-    cacheBudget?: SharedBudget
+    cacheBudget?: Budget
     /**
      * A `@gmod/bgzf-filehandle` worker pool to inflate this file's chunks on,
      * instead of inflating them on the calling thread.
