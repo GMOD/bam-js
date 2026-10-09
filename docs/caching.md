@@ -115,9 +115,12 @@ number on this page.
 ## Further reading
 
 Every measurement above comes from an ADR in
-[`agent-docs/architecture-decision-records/`](../agent-docs/architecture-decision-records/). Beyond the ones linked here,
-[0001](../agent-docs/architecture-decision-records/0001-chunk-cache-keeps-every-parsed-chunk.md) covers
-what the chunk cache keeps, and
+[`agent-docs/architecture-decision-records/`](../agent-docs/architecture-decision-records/).
+Beyond the ones linked here,
+[0001](../agent-docs/architecture-decision-records/0001-chunk-cache-keeps-every-parsed-chunk.md)
+covers what the chunk cache keeps, and
 [0013](../agent-docs/architecture-decision-records/0013-the-batch-eviction-policy-does-not-transfer.md)
-and [0016](../agent-docs/architecture-decision-records/0016-the-cache-does-not-grow-and-lru-stays.md) why
-it stays LRU rather than taking cram-js's batch eviction or growing on demand.
+and
+[0016](../agent-docs/architecture-decision-records/0016-the-cache-does-not-grow-and-lru-stays.md)
+why it stays LRU rather than taking cram-js's batch eviction or growing on
+demand.

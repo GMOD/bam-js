@@ -113,7 +113,8 @@ chunks. Issued concurrently they cost 9 decompressions and 85.5MB inflated,
 against 3 and 29.4MB serially — concurrency made the query _slower_ than doing
 it one at a time (240ms vs 113ms). Sharing the in-flight read brings it to 3
 decompressions and 86ms, i.e. faster than serial, as a caller fanning out
-expects ([ADR 0007](../agent-docs/architecture-decision-records/0007-share-in-flight-chunk-reads.md)).
+expects
+([ADR 0007](../agent-docs/architecture-decision-records/0007-share-in-flight-chunk-reads.md)).
 
 ### The query stops once a chunk is past it
 
@@ -309,5 +310,6 @@ that looks obvious and is wrong:
 ## Further reading
 
 Every measurement here comes from an ADR in
-[`agent-docs/architecture-decision-records/`](../agent-docs/architecture-decision-records/), which also records what we tried and
-rejected — several of the obvious next optimizations already measured as losses.
+[`agent-docs/architecture-decision-records/`](../agent-docs/architecture-decision-records/),
+which also records what we tried and rejected — several of the obvious next
+optimizations already measured as losses.
