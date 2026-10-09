@@ -1,3 +1,18 @@
+## [10.0.5](https://github.com/GMOD/bam-js/compare/v10.0.4...v10.0.5) (2026-10-09)
+
+### Chores
+
+- Bump @gmod/shared-read-cache to 2.0.0 ([93c3639](https://github.com/GMOD/bam-js/commit/93c3639e50e16c9671906444b55b96b98cb60958))
+
+### Documentation
+
+- Format ([b7e7d20](https://github.com/GMOD/bam-js/commit/b7e7d20e3367c5dcf7b26faece6b7c30a85ae6ec))
+
+### Other Changes
+
+- Reorganize agent-docs: adr/ becomes architecture-decision-records/, add CLAUDE.md, TODO.md and an idea file ([30c7d0f](https://github.com/GMOD/bam-js/commit/30c7d0f9fbe59746ce8517194ff43185b3e08a37))
+- Point docs at architecture-decision-records/ ([8f55659](https://github.com/GMOD/bam-js/commit/8f55659f6987a8b5805f314da48a1cc7eaff63dd))
+
 ## [10.0.4](https://github.com/GMOD/bam-js/compare/v10.0.3...v10.0.4) (2026-10-05)
 
 ### Bug Fixes
