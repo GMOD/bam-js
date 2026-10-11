@@ -24,6 +24,12 @@ No automated check catches this — graphviz is not a dependency and different
 versions emit different SVG bytes, so a staleness check would fail on toolchain
 drift rather than on a stale diagram.
 
+[docs/api.md](docs/api.md) is written by hand, and `test/apiDocs.test.ts` fails
+when it misses an export of `src/index.ts`, a constructor option, or a public
+member of `BamFile`, `HtsgetFile`, `BamRecord` or the option types. Document the
+new name, or add it to the test's `undocumented` list with the reason it is
+internal.
+
 ## Benchmarks
 
 `benchmarks/bam.bench.ts` compares two refs side by side rather than timing one
