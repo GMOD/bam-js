@@ -1,46 +1,150 @@
-# API
+# API reference
 
-## `new BamFile(opts)`
+Every coordinate in this API is 0-based half-open. The [README](../README.md)
+has a quick start.
 
-| option                             | description                                               |
-| ---------------------------------- | --------------------------------------------------------- |
-| `bamPath`/`bamUrl`/`bamFilehandle` | local path, remote URL, or a generic-filehandle2 object   |
-| `baiPath`/`baiUrl`/`baiFilehandle` | BAI index. defaults to the `.bai` sibling of the BAM      |
-| `csiPath`/`csiUrl`/`csiFilehandle` | CSI index, required for chromosomes longer than 2^29      |
-| `renameRefSeqs`                    | `(refName: string) => string` applied to header ref names |
-| `recordClass`                      | custom class extending `BamRecord` (see below)            |
-| `fetchReferenceSequence`           | reference bases for reads with no `MD` tag (see below)    |
-| `bgzfWorkerPool`                   | worker pool to inflate chunks on                          |
-| `maxCacheBytes`                    | per-file cache ceiling in decompressed bytes. default 1GB |
-| `cacheIdleTimeoutMs`               | drop a cached chunk after this long unread. default 3min  |
-| `cacheBudget`                      | `SharedBudget` bounding several files together            |
+- [`BamFile`](#bamfile): open a file and query a region
+- [`HtsgetFile`](#htsgetfile): query an htsget server
+- [`streamBamRecords`](#streambamrecords): read a whole file without an index
+- [`BamRecord`](#bamrecord): one alignment
+- [Mismatches](#mismatches): the differences between a read and the reference
+- [Exports](#exports)
 
-The `path`/`url` forms are convenience wrappers for generic-filehandle2's
-`LocalFile` and `RemoteFile`; `path` reads local disk, so it is node-only. The
-[caching.md](caching.md) covers the cache options.
+## `BamFile`
 
-## `new HtsgetFile(opts)`
+```typescript
+const bam = new BamFile({
+  bamUrl: 'https://example.com/file.bam',
+  baiUrl: 'https://example.com/file.bam.bai',
+})
+```
 
-`baseUrl`, `trackId`, `recordClass` and `fetchReferenceSequence` as above, plus
-a `fetch` to attach auth headers with. There is no index here — the server
-decides what a range returns — so it ignores the mate-pairing options, and takes
-the cache options without using them, since ticket responses never reach the
-chunk cache.
+### Options
 
-## `streamBamRecords(opts)`
+| Option                               | Default                  | Description                                                                                        |
+| ------------------------------------ | ------------------------ | -------------------------------------------------------------------------------------------------- |
+| `bamUrl`, `bamPath`, `bamFilehandle` |                          | the BAM, as a URL, a local path, or a generic-filehandle2 handle                                   |
+| `baiUrl`, `baiPath`, `baiFilehandle` | the BAM's `.bai` sibling | a BAI index                                                                                        |
+| `csiUrl`, `csiPath`, `csiFilehandle` |                          | a CSI index, required for references longer than 2^29                                              |
+| `fetchReferenceSequence`             |                          | reference bases for reads with no `MD` tag; see [Reference sequence](#reference-sequence)          |
+| `bgzfWorkerPool`                     |                          | a worker pool, or the promise of one, to decompress on; see the [README](../README.md#worker-pool) |
+| `maxCacheBytes`                      | 1 GB                     | decompressed bytes of chunks to keep; see [caching.md](caching.md)                                 |
+| `cacheIdleTimeoutMs`                 | 3 minutes                | drop a chunk nothing has read for this long                                                        |
+| `cacheBudget`                        |                          | a `SharedBudget` that bounds several files together                                                |
+| `renameRefSeqs`                      |                          | `(refName) => string`, applied to the header's reference names                                     |
+| `recordClass`                        | `BamRecord`              | a `BamRecord` subclass to return from queries; see [recordClass](#recordclass)                     |
 
-Reads every record of a BAM in file order, without an index — for files no index
-can address, such as an unsorted BAM or one still name-sorted as it came off the
-sequencer.
+A `path` reads local disk, so it works only in node.
 
-```js
+### Methods
+
+| Method                                           | Returns                        | Description                                                                 |
+| ------------------------------------------------ | ------------------------------ | --------------------------------------------------------------------------- |
+| `getRecordsForRange(refName, start, end, opts?)` | `Promise<BamRecord[]>`         | records overlapping the range; `[]` for a name the file lacks               |
+| `getHeader(opts?)`                               | parsed SAM header              | the header, parsed once and cached                                          |
+| `getHeaderText(opts?)`                           | `Promise<string>`              | the header text                                                             |
+| `hasRefSeq(refName, opts?)`                      | `Promise<boolean>`             | whether the file has the reference                                          |
+| `lineCount(refName, opts?)`                      | `Promise<number>`              | records on the reference, from the index; 0 if absent                       |
+| `indexCov(refName, start?, end?, opts?)`         | `{ start, end, score }[]`      | read density over 16 kb windows, from the BAI linear index; `[]` for CSI    |
+| `estimatedBytesForRegions(regions, opts?)`       | `Promise<number>`              | compressed bytes a `{ refName, start, end }[]` would fetch                  |
+| `blocksForRange(refName, start, end, opts?)`     | `Promise<Chunk[]>`             | the chunks a query would read                                               |
+| `getReferenceRegion(refName, start, end, opts?)` | `PackedReference \| undefined` | reference bases for `forEachMismatch`'s `ref`, via `fetchReferenceSequence` |
+| `clearFeatureCache()`                            |                                | drop the chunk cache now                                                    |
+
+Every `opts` takes `signal` and `onProgress`. On a method that downloads the
+index, `onProgress` reports that download.
+
+| Property                   | Description                                                   |
+| -------------------------- | ------------------------------------------------------------- |
+| `chrToIndex`, `indexToChr` | reference name to numeric id, and id to `{ refName, length }` |
+| `header`                   | the header text, once a query or `getHeader` has read it      |
+| `index`                    | the `BAI` or `CSI` index                                      |
+| `bam`                      | the BAM filehandle                                            |
+
+### `getRecordsForRange` options
+
+| Option          | Default  | Description                                                        |
+| --------------- | -------- | ------------------------------------------------------------------ |
+| `signal`        |          | an `AbortSignal` that cancels the query                            |
+| `onProgress`    |          | `(bytesDownloaded, totalBytes) => void`, called per chunk          |
+| `viewAsPairs`   | `false`  | also fetch the mate of each read whose mate lies outside the range |
+| `pairAcrossChr` | `false`  | with `viewAsPairs`, also fetch mates on other references           |
+| `maxInsertSize` | `200000` | with `viewAsPairs`, skip mates farther away than this              |
+
+A read is returned when it shares at least one base with the range, as in
+`samtools view`. A record that covers no reference, such as an unmapped read
+placed at its mate's position, covers the one base it sits at.
+
+Records arrive in index chunk order, which is not coordinate order, and
+`viewAsPairs` mates come last, so sort them if you need position order.
+Overlapping queries share records, so treat them as read-only
+([ADR 0006](../agent-docs/architecture-decision-records/0006-cached-records-are-shared-and-must-not-be-mutated.md)).
+
+### Reference sequence
+
+`fetchReferenceSequence(refName, start, end, opts?)` returns reference bases
+beginning at `start`. A query calls it at most once, for the span of the reads
+that have no `MD` tag, and never when every read has one. Returning fewer bases
+than asked for is fine, for example at the end of a contig, and the reads past
+what it returned report no substitutions.
+
+The span is the query's range plus however far its edge reads extend past it,
+and the library does not clamp it, so a BAM of reads as long as a chromosome can
+ask for the chromosome. A sequence source that cannot afford that can clamp
+inside the callback and resolve the remaining reads a window at a time with
+`getReferenceRegion` and the mismatch `ref` option.
+
+### `recordClass`
+
+Queries return instances of this `BamRecord` subclass, so a consumer can add
+methods to the record instead of wrapping it. `@gmod/cram` takes the same
+option.
+
+```typescript
+class MyRecord extends BamRecord {
+  get label() {
+    return `${this.name}:${this.start}`
+  }
+}
+
+const bam = new BamFile<MyRecord>({ bamUrl, recordClass: MyRecord })
+```
+
+## `HtsgetFile`
+
+```typescript
+const bam = new HtsgetFile({
+  baseUrl: 'https://htsget.example.com/reads',
+  trackId: 'NA12878',
+  fetch: (url, init) => {
+    const headers = new Headers(init?.headers)
+    headers.set('authorization', `Bearer ${token}`)
+    return fetch(url, { ...init, headers })
+  },
+})
+```
+
+`HtsgetFile` takes `baseUrl` and `trackId`, plus `recordClass` and
+`fetchReferenceSequence` as in `BamFile`, and has the same query methods. The
+optional `fetch` makes the ticket request and the requests for the data blocks
+the ticket lists. Those blocks can be on another host, so attach credentials
+only for hosts you trust.
+
+The server decides what a range returns, so `HtsgetFile` ignores the
+mate-pairing options. It accepts the cache options but does not use them.
+
+## `streamBamRecords`
+
+Reads every record of a BAM in file order without an index, for a file no index
+can address, such as an unsorted or name-sorted BAM. It yields an array of
+records per window.
+
+```typescript
 import { streamBamRecords } from '@gmod/bam'
 
 for await (const records of streamBamRecords({
   bamUrl: 'reads.bam',
-  onHeader: h => {
-    console.log(h.headerText, h.indexToChr)
-  },
+  onHeader: h => console.log(h.headerText),
 })) {
   for (const record of records) {
     // ...
@@ -48,308 +152,202 @@ for await (const records of streamBamRecords({
 }
 ```
 
-| option                                   | description                                                               |
-| ---------------------------------------- | ------------------------------------------------------------------------- |
-| `bamFilehandle` / `bamPath` / `bamUrl`   | the source, as in `BamFile`                                               |
-| `onHeader`                               | fires once before the first batch, with the header text and ref-seq table |
-| `windowSize`                             | compressed bytes per read. default 1MB, floored at one BGZF block         |
-| `readAhead`                              | window reads in flight at once. default 4                                 |
-| `bgzfWorkerPool`                         | inflate windows on a worker pool, as in `BamFile`                         |
-| `recordClass`, `renameRefSeqs`, `signal` | as in `BamFile`                                                           |
+| Option                                   | Default | Description                                        |
+| ---------------------------------------- | ------- | -------------------------------------------------- |
+| `bamUrl`, `bamPath`, `bamFilehandle`     |         | the BAM, as in `BamFile`                           |
+| `onHeader`                               |         | called once before the first batch; see below      |
+| `windowSize`                             | 1 MB    | compressed bytes per read, at least one BGZF block |
+| `readAhead`                              | 4       | window reads in flight at once                     |
+| `bgzfWorkerPool`                         |         | a worker pool to decompress on, as in `BamFile`    |
+| `recordClass`, `renameRefSeqs`, `signal` |         | as in `BamFile`                                    |
 
-`readAhead` makes a remote walk tolerable, and depth matters more than the
-prefetching itself. One outstanding read overlaps a round trip with only the CPU
-spent on the window before it, which measured at **no gain at all**; four
-outstanding turn N sequential waits into roughly N/4. Over a local server
-holding each response for 20ms, an 18MB BAM walked in 196ms at depth 4 against
-519ms at depth 1, and at 100ms of latency 1.9s against 7.4s.
+`onHeader` receives an object with the header text as `headerText`, the header
+parsed into lines as `samHeader`, and the reference tables as `chrToIndex` and
+`indexToChr`, as on `BamFile`.
 
-`readAhead` costs `depth` windows of compressed bytes held at once, and up to
-`depth - 1` wasted requests at the end of the file — the only sign that the file
-has ended is a read's length, so the reads queued behind the last one have
-already gone out by the time it lands.
+Without `bgzfWorkerPool`, the whole file decompresses on the calling thread, so
+in a browser pass `getSharedWorkerPool()` or run the stream in a worker. A
+record is a view into its window, so a record you keep holds that whole window
+in memory; copy the fields you need instead.
+[optimizations.md](optimizations.md#streaming-a-whole-file) has the measurements
+behind `readAhead` and the batching.
 
-Without `bgzfWorkerPool` every window inflates on the calling thread. Over a
-whole file that is long enough to be worth keeping off whichever thread draws,
-so in a browser pass `getSharedWorkerPool()` or run the stream in a worker.
+## `BamRecord`
 
-`streamBamRecords` yields an **array** of records per window rather than one
-record per `yield`: a whole-file walk is tens of millions of records and an
-async generator pays a promise per yield, so batching keeps the caller's inner
-loop synchronous. The header arrives through `onHeader` because the stream has
-to parse it anyway to find where the records start.
+### Properties
 
-`streamBamRecords` is a standalone function rather than a `BamFile` method on
-purpose. It shares the record and header parsers and nothing else, so a consumer
-who only streams pays for neither `BAI`/`CSI` nor the chunk cache — 87KB
-minified against 111KB for `BamFile`, over an identical wasm inflate bundle in
-both.
+| Property                 | Type                           | Description                                                 |
+| ------------------------ | ------------------------------ | ----------------------------------------------------------- |
+| `name`                   | `string`                       | read name (`QNAME`)                                         |
+| `ref_id`                 | `number`                       | numeric reference id; `indexToChr` gives the name           |
+| `start`                  | `number`                       | 0-based start                                               |
+| `end`                    | `number`                       | 0-based exclusive end, at least `start + 1`                 |
+| `length_on_ref`          | `number`                       | reference bases the alignment covers; 0 when unmapped       |
+| `strand`                 | `1 \| -1`                      | the strand the read mapped to                               |
+| `mq`, `score`            | `number \| undefined`          | mapping quality; `undefined` for 255                        |
+| `flags`                  | `number`                       | SAM flags; see [Flag methods](#flag-methods)                |
+| `CIGAR`                  | `string`                       | CIGAR, such as `50M2I48M`                                   |
+| `seq`                    | `string`                       | read sequence                                               |
+| `seq_length`             | `number`                       | read length, without decoding the sequence                  |
+| `qual`                   | `Uint8Array \| null`           | base qualities; `null` when `SEQ` is empty or `QUAL` is `*` |
+| `tags`                   | `object`                       | every auxiliary tag; `getTag` is faster for one             |
+| `next_refid`, `next_pos` | `number`                       | the mate's reference id and position (SAM `RNEXT`, `PNEXT`) |
+| `template_length`        | `number`                       | SAM `TLEN`                                                  |
+| `pair_orientation`       | `string \| undefined`          | `F1R2`-style orientation; `undefined` for an unpaired read  |
+| `fileOffset`             | `number`                       | an id unique to the record within the file                  |
+| `reference`              | `PackedReference \| undefined` | whatever `setReference` bound                               |
 
-Records are views into the window they came from, as everywhere else here, so
-holding one retains that whole window. Copy out the fields you want rather than
-keeping a scattered handful of records from a large file.
+`end`, `CIGAR` and `tags` decode on first access and then stay on the record.
+Every other field decodes on each access. A read with more than 65535 CIGAR
+operations stores its CIGAR in a `CG` tag, and `CIGAR`, `NUMERIC_CIGAR`, `end`
+and `num_cigar_ops` all read the real CIGAR from it.
 
-## `getRecordsForRange(refName, start, end, opts?)`
+### Methods
 
-`start`/`end` are 0-based half-open. `opts`:
+| Method                       | Returns                   | Description                                                       |
+| ---------------------------- | ------------------------- | ----------------------------------------------------------------- |
+| `getTag(name)`               | tag value or `undefined`  | one auxiliary tag, without decoding the rest                      |
+| `getTagRaw(name)`            | `Uint8Array \| undefined` | a string tag's bytes, skipping the conversion to a string         |
+| `getTagAlt(name, alt)`       | tag value or `undefined`  | either of two alias tags, such as `MM` and `Mm`, in one pass      |
+| `seqAt(i)`                   | `string \| undefined`     | the base at a read position                                       |
+| `getMismatches(opts?)`       | `Mismatch[]`              | each difference from the reference; see [Mismatches](#mismatches) |
+| `forEachMismatch(cb, opts?)` |                           | the same differences, one call each                               |
+| `setReference(ref)`          |                           | bind reference bases to resolve substitutions against             |
+| `toJSON()`                   | object                    | the record as a plain object                                      |
 
-| option          | description                                                         |
-| --------------- | ------------------------------------------------------------------- |
-| `signal`        | `AbortSignal` to stop processing                                    |
-| `viewAsPairs`   | issue extra queries to find mate pairs. default false               |
-| `pairAcrossChr` | let `viewAsPairs` pair across chromosomes. default false            |
-| `maxInsertSize` | distance limit for `viewAsPairs` within a chromosome. default 200kb |
-| `onProgress`    | `(bytesDownloaded, totalBytes?) => void`, called per BGZF chunk     |
+### Flag methods
 
-Records come back unfiltered, and overlapping queries share them — treat them as
-read-only. They arrive in chunk order, which is **not** coordinate order, since
-bins at different levels of the index cover overlapping spans, and `viewAsPairs`
-mates follow everything else. Sort if you need position order. A `refName` the
-file does not have is not an error: the query returns `[]`, as do `indexCov` and
-`blocksForRange`.
+Each returns a `boolean`.
 
-A read comes back when it shares at least one base with the range, so one ending
-exactly where the query begins does not — the same records `samtools view`
-gives. A record covering no reference at all, such as an unmapped mate placed at
-its mate's coordinate, still counts as covering the one base it sits at, as in
-htslib's `bam_endpos()`.
+| Method                        | True when                               |
+| ----------------------------- | --------------------------------------- |
+| `isPaired()`                  | the read is paired                      |
+| `isProperlyPaired()`          | both segments mapped as a proper pair   |
+| `isSegmentUnmapped()`         | this read did not map                   |
+| `isMateUnmapped()`            | the mate did not map                    |
+| `isReverseComplemented()`     | the read mapped to the reverse strand   |
+| `isMateReverseComplemented()` | the mate mapped to the reverse strand   |
+| `isRead1()`, `isRead2()`      | the read is the first or second segment |
+| `isSecondary()`               | the alignment is secondary              |
+| `isSupplementary()`           | the alignment is supplementary          |
+| `isFailedQc()`                | the read failed quality control         |
+| `isDuplicate()`               | the read is a PCR or optical duplicate  |
 
-## Other methods
+### Typed arrays and raw fields
 
-Everything taking `opts?` takes `signal` and `onProgress`, the latter reporting
-the index download when that call triggers it.
+The properties below read the record's bytes without building strings, for
+renderers and other code that walks many records.
 
-| method                                           | returns                                                                                                         |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `getHeader(opts?)`                               | the parsed SAM header. called automatically by queries and cached                                               |
-| `getHeaderText(opts?)`                           | the raw header string                                                                                           |
-| `indexCov(refName, start?, end?)`                | `{start, end, score}[]` read density over 16kb windows, from the BAI linear index. `[]` for CSI, which has none |
-| `lineCount(refName)`                             | records on `refName` from the index's pseudo-bin, or 0 if absent                                                |
-| `hasRefSeq(refName)`                             | whether `refName` is in the file                                                                                |
-| `estimatedBytesForRegions(regions, opts?)`       | compressed bytes a `{refName, start, end}[]` would fetch — useful for warning before a large query              |
-| `blocksForRange(refName, start, end, opts?)`     | the `Chunk[]` a query would read — `minv`/`maxv` virtual offsets and a `fetchedSize()` apiece                   |
-| `clearFeatureCache()`                            | drops the parsed-chunk cache immediately                                                                        |
-| `getReferenceRegion(refName, start, end, opts?)` | a `PackedReference` for `forEachMismatch`'s `opts.ref`, via `fetchReferenceSequence`. `undefined` without one   |
-
-## BamRecord
-
-```typescript
-// Core alignment fields
-record.fileOffset // stable per-record id from its position, not a byte offset
-record.ref_id // numerical sequence id from SAM header
-record.start // 0-based start coordinate
-record.end // 0-based end coordinate
-record.length_on_ref // reference bases the alignment spans, 0 if unmapped
-record.name // QNAME
-record.seq // sequence string
-record.seq_length // its length, without decoding it
-record.qual // Uint8Array of quality scores (null if SEQ is empty)
-record.CIGAR // CIGAR string e.g. "50M2I48M"
-record.flags // SAM flags integer
-record.mq // mapping quality (undefined if 255; `score` is an alias)
-record.strand // 1 or -1
-record.template_length // TLEN
-
-// Mate info
-record.next_refid
-record.next_pos
-record.pair_orientation // 'F1R2', 'R2F1', … for a paired read, else undefined
-
-// Auxiliary data
-record.tags // all aux tags e.g. {MD: "100", NM: 0}
-record.getTag('MD') // one tag, without decoding the rest
-record.getTagRaw('MD') // string tag as Uint8Array, skipping string conversion
-record.getTagAlt('MM', 'Mm') // either of an alias pair, in one pass
-
-// Typed-array views, for rendering without allocating strings
-record.NUMERIC_MD // MD tag as Uint8Array
-record.NUMERIC_CIGAR // Uint32Array of packed CIGAR operations
-record.NUMERIC_SEQ // Uint8Array of 4-bit encoded sequence
-
-// Flag methods
-record.isPaired()
-record.isProperlyPaired()
-record.isSegmentUnmapped()
-record.isMateUnmapped()
-record.isReverseComplemented()
-record.isMateReverseComplemented()
-record.isRead1()
-record.isRead2()
-record.isSecondary()
-record.isFailedQc()
-record.isDuplicate()
-record.isSupplementary()
-
-// Mismatches (see below)
-record.getMismatches(opts?) // Mismatch[]
-record.forEachMismatch(cb, opts?) // the same, allocating nothing per difference
-record.setReference(ref) // bases to resolve substitutions against
-record.reference // whatever setReference bound, if anything
-
-// Utility
-record.seqAt(idx) // single base at position
-record.toJSON()
-```
-
-`end`, `CIGAR` and `tags` memoize onto the record the first time you touch them;
-everything else decodes on each access. Reads with more than 65535 CIGAR
-operations store the real CIGAR in a `CG` tag, which `CIGAR`, `NUMERIC_CIGAR`
-and `end` follow transparently — only the raw `num_cigar_ops` field still
-reports the two-op placeholder.
+| Property           | Contents                                                                                |
+| ------------------ | --------------------------------------------------------------------------------------- |
+| `NUMERIC_CIGAR`    | packed CIGAR operations, as BAM stores them                                             |
+| `NUMERIC_SEQ`      | the sequence, two 4-bit bases per byte                                                  |
+| `NUMERIC_MD`       | the `MD` tag's bytes                                                                    |
+| `byteArray`        | the decompressed buffer the record sits in                                              |
+| `b0`               | the offset of the read name in `byteArray`                                              |
+| `seqStart`         | the offset of `SEQ` in `byteArray`                                                      |
+| `tagsStart`        | the offset of the auxiliary tags in `byteArray`                                         |
+| `bin_mq_nl`        | BAM's packed bin, mapping quality and name length                                       |
+| `flag_nc`          | BAM's packed flags and CIGAR operation count                                            |
+| `read_name_length` | bytes in the read name, including its terminator                                        |
+| `num_cigar_ops`    | CIGAR operations, counting the real CIGAR in a `CG` tag                                 |
+| `num_cigar_bytes`  | bytes of the stored CIGAR field, which is a placeholder when a `CG` tag holds the CIGAR |
+| `num_seq_bytes`    | bytes of `NUMERIC_SEQ`                                                                  |
 
 ## Mismatches
 
-`getMismatches(opts?)` returns every difference between the read and the
-reference. `forEachMismatch(callback, opts?)` reports the same set without
-allocating an object per difference, passing the fields below as arguments in
-that order — the same callback `@gmod/cram`'s method of the same name takes.
+`getMismatches(opts?)` returns each difference between the read and the
+reference. `forEachMismatch(callback, opts?)` passes the same fields to
+`callback` as arguments, in the order below, without allocating an object per
+difference. `@gmod/cram` has the same two methods with the same callback.
 
 ```typescript
 // for a read at 100 with CIGAR 5M1I4M2D3M, SEQ ACGGTCAACGTTA, MD 3A5^GG3
 record.getMismatches()
 // [
-//   // X at 103: read G over reference A (65), quality 25
 //   { code: 88, refPos: 103, length: 1, bases: 'G', qual: 25, refBaseCode: 65, clipLength: 0 },
-//   // I before 105: one read base, C
 //   { code: 73, refPos: 105, length: 0, bases: 'C', qual: -1, refBaseCode: 0, clipLength: 1 },
-//   // D at 109: two reference bases
 //   { code: 68, refPos: 109, length: 2, bases: '', qual: -1, refBaseCode: 0, clipLength: 0 },
 // ]
 
-// the same set, without an object per difference
 record.forEachMismatch(
   (code, refPos, length, bases, qual, refBaseCode, clipLength) => {
     if (code === MISMATCH_SUBST) {
       drawBase(refPos, bases, qual)
     }
   },
-  { start, end, origin: record.start }, // every option is optional, see below
+  { start, end, origin: record.start },
 )
-
-// substitutions resolved against a reference window you fetched yourself,
-// rather than one bound to the record
-const ref = await bam.getReferenceRegion('chr1', start, end)
-record.forEachMismatch(cb, { ref, start, end })
 ```
 
-[cigar-and-md.md](cigar-and-md.md) walks that read through the two fields the
-methods read.
+[cigar-and-md.md](cigar-and-md.md) walks that read through the `CIGAR` and `MD`
+fields the methods read.
 
-| Field         | Meaning                                                                                                                  |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `code`        | char code of `X` = substitution, `I` = insertion, `D` = deletion, `N` = reference skip, `S` = soft clip, `H` = hard clip |
-| `refPos`      | 0-based reference position                                                                                               |
-| `length`      | reference bases covered: 1 for a substitution, the deleted or skipped length for `D`/`N`, 0 for insertions and clips     |
-| `bases`       | the substituted base, or the inserted bases; empty for `D`/`N`/`S`/`H`                                                   |
-| `qual`        | quality of a substituted base, `-1` when the read stores none                                                            |
-| `refBaseCode` | char code of the reference base a substitution replaces, `0` when unknown                                                |
-| `clipLength`  | read bases consumed: the inserted or clipped length, else 0                                                              |
+| Field         | Description                                                                           |
+| ------------- | ------------------------------------------------------------------------------------- |
+| `code`        | char code of `X` substitution, `I` insertion, `D` deletion, `N` skip, `S` or `H` clip |
+| `refPos`      | 0-based reference position                                                            |
+| `length`      | reference bases covered: 1 for `X`, the length for `D` and `N`, else 0                |
+| `bases`       | the substituted or inserted bases                                                     |
+| `qual`        | quality of a substituted base, or `-1`                                                |
+| `refBaseCode` | char code of the reference base a substitution replaces, or `0` when unknown          |
+| `clipLength`  | read bases consumed by an insertion or clip, else 0                                   |
 
-Compare `code` against the exported `MISMATCH_SUBST`, `MISMATCH_INSERTION`, …
-constants. They are CIGAR char codes, deliberately the same values `@gmod/cram`
-reports, and are **not** the packed-CIGAR op numbers — `MISMATCH_DELETION` is 68
-(`'D'`), not 2.
+Compare `code` against the exported `MISMATCH_SUBST`, `MISMATCH_INSERTION` and
+the other `MISMATCH_*` constants. They are CIGAR char codes, the same values
+`@gmod/cram` reports, so `MISMATCH_DELETION` is 68 (`'D'`) rather than BAM's
+packed op number 2.
 
-`opts`:
+| Option         | Description                                                                           |
+| -------------- | ------------------------------------------------------------------------------------- |
+| `start`, `end` | a reference range; only differences touching it are reported                          |
+| `origin`       | reported positions are relative to it; 0 by default, `record.start` for read-relative |
+| `ref`          | a `PackedReference` to resolve substitutions against, for this call only              |
 
-| option         | description                                                              |
-| -------------- | ------------------------------------------------------------------------ |
-| `start`, `end` | only report differences touching this reference range, 0-based half-open |
-| `origin`       | what reported positions are relative to; 0 (reference) by default        |
-| `ref`          | a `PackedReference` to resolve substitutions against, for this call only |
-
-`origin: record.start`, as above, gives read-relative positions. The window
-stays absolute either way — it describes a region of the reference, not a
-position in the output — so a read-relative consumer can still clip to a genomic
-viewport. The `origin` option lets a consumer with its own coordinate convention
-hand its callback straight in rather than wrapping it in a converting one, which
-`@gmod/cram` measured at ~17% of its walk. That library's `forEachMismatch`
-takes the same option with the same meaning.
+`start` and `end` stay reference coordinates whatever `origin` is.
 
 ### Where the reference bases come from
 
-The walk can only report a substitution if something supplies what the reference
-holds. In order:
+A substitution can be reported only when something supplies the reference base.
+The walk uses the first of these that applies:
 
-1. the read's `MD` tag, when it has one — cheapest, and what the aligner
-   asserted
-2. `opts.ref`, a region you packed yourself with `packReference(seq, start)`
-3. whatever `setReference` bound, which `getRecordsForRange` does for you when
-   you built the file with `fetchReferenceSequence`
+1. the read's `MD` tag
+2. `opts.ref`, a region packed with `packReference(seq, start)`
+3. the reference `setReference` bound, which `getRecordsForRange` binds when the
+   file has a `fetchReferenceSequence`
 
-With none of them, the walk still reports indels and clips in full and skips
-substitutions entirely.
-
-`getRecordsForRange` calls `fetchReferenceSequence(refName, start, end, opts?)`
-at most once per query, for the union span of the reads that lack `MD`, and
-never for a query whose reads all carry one. The bases it returns must **begin
-at `start`**; returning fewer than asked for is fine (the end of a contig, or a
-source declining a big span), and the reads that shorter region misses stay
-unresolved.
-
-The union span is the query's range plus however far its edge reads overhang it,
-and nothing clamps it for you — a BAM holding whole chromosomes as reads can
-make it a chromosome. Clamp inside your callback if your sequence source cannot
-afford that, and resolve those reads a window at a time with
-`getReferenceRegion` and `opts.ref`, as above.
-
+With none of them, the walk reports indels and clips but no substitutions.
 `setReference` throws unless the region covers the whole read, because queries
-share their records (see
-[ADR 0006](../agent-docs/architecture-decision-records/0006-cached-records-are-shared-and-must-not-be-mutated.md)),
-so a binding that varied per query would give one query's reads the bases of
-another query's region. A per-call `opts.ref` retains nothing and takes any
-extent.
+share records and a per-query binding would give one query's reads another
+query's bases. `opts.ref` keeps nothing on the record and takes any region.
 
 ### Without a `BamRecord`
 
 `forEachMismatchNumeric(cigar, seq, seqLength, md, qual, ref, refStart, windowStart, windowEnd, origin, callback)`
-is the walk itself, for callers holding BAM's packed arrays without a record
-around them — a SAM parser, or a worker someone posted the typed arrays to.
-`origin` is the same parameter as the option: pass the read's own start for
-read-relative positions, 0 for reference ones.
+is the walk on BAM's packed arrays, for code that has them without a record,
+such as a SAM parser or a worker that received the typed arrays.
+`packReference(seq, start)` builds a reference region, and
+`referenceNibble(ref, i)` with `CHAR_CODE_FROM_NIBBLE` reads a base back out of
+one, where `i` is an index into the region.
 
-`packReference(seq, start)` builds the region these take, and
-`referenceNibble(ref, i)` with `CHAR_CODE_FROM_NIBBLE` read a base back out of
-one — `i` is an index into the region, not a reference coordinate.
+## Exports
 
-## Custom record class
+The package has no subpath exports, so these are the only names a consumer can
+import.
 
-```typescript
-import { BamFile, BamRecord } from '@gmod/bam'
-
-class CustomBamRecord extends BamRecord {
-  get customProperty() {
-    return `custom-${this.name}`
-  }
-}
-
-const bam = new BamFile<CustomBamRecord>({
-  bamPath: 'test.bam',
-  recordClass: CustomBamRecord,
-})
-
-// records are typed as CustomBamRecord[]
-const records = await bam.getRecordsForRange('ctgA', 0, 50000)
-```
-
-## Everything the package exports
-
-There are no subpath exports, so a consumer typing a wrapper around any of the
-above can only name these types by importing them from here.
-
-| export                                                                                                                       | what it is                                                                |
-| ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `BamFile`, `HtsgetFile`, `BamRecord`                                                                                         | the three classes above                                                   |
-| `BAI`, `CSI`                                                                                                                 | the index parsers, for reading an index without its BAM                   |
-| `streamBamRecords`                                                                                                           | the index-free whole-file walk                                            |
-| `DEFAULT_MAX_CACHE_BYTES`, `DEFAULT_CACHE_IDLE_TIMEOUT_MS`                                                                   | the cache defaults, to adjust rather than replace                         |
-| `MISMATCH_SUBST`, `MISMATCH_INSERTION`, `MISMATCH_DELETION`, `MISMATCH_REF_SKIP`, `MISMATCH_SOFT_CLIP`, `MISMATCH_HARD_CLIP` | the `code` values to compare against                                      |
-| `forEachMismatchNumeric`                                                                                                     | the walk without a record around it                                       |
-| `packReference`, `referenceNibble`, `CHAR_CODE_FROM_NIBBLE`                                                                  | build a packed reference region, and read a base back out of one          |
-| `BamOpts`, `BaseOpts`                                                                                                        | _type_ — the options the query and index methods take                     |
-| `Mismatch`, `MismatchCallback`, `MismatchOptions`                                                                            | _type_ — what `getMismatches` returns, and what `forEachMismatch` takes   |
-| `PackedReference`, `NumericCigar`, `IndexCovEntry`                                                                           | _type_ — the shapes those return                                          |
-| `Chunk`, `Offset`, `OffsetCoords`                                                                                            | _type_ — what `blocksForRange` hands back                                 |
-| `BamRecordClass`, `BamRecordLike`, `ReferenceSequenceFetcher`                                                                | _type_ — for the `recordClass` and `fetchReferenceSequence` options       |
-| `StreamBamOptions`, `BamStreamHeader`                                                                                        | _type_ — what `streamBamRecords` takes, and what its `onHeader` gets      |
-| `Fetcher`                                                                                                                    | _type_ — re-exported from generic-filehandle2, for `HtsgetFile`'s `fetch` |
+| Export                                                                                                                       | Description                                                         |
+| ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `BamFile`, `HtsgetFile`, `BamRecord`                                                                                         | the classes above                                                   |
+| `BAI`, `CSI`                                                                                                                 | the index parsers, for reading an index without its BAM             |
+| `streamBamRecords`                                                                                                           | the whole-file walk                                                 |
+| `DEFAULT_MAX_CACHE_BYTES`, `DEFAULT_CACHE_IDLE_TIMEOUT_MS`                                                                   | the cache defaults                                                  |
+| `MISMATCH_SUBST`, `MISMATCH_INSERTION`, `MISMATCH_DELETION`, `MISMATCH_REF_SKIP`, `MISMATCH_SOFT_CLIP`, `MISMATCH_HARD_CLIP` | the mismatch `code` values                                          |
+| `forEachMismatchNumeric`                                                                                                     | the mismatch walk without a record                                  |
+| `packReference`, `referenceNibble`, `CHAR_CODE_FROM_NIBBLE`                                                                  | build a packed reference region and read bases from it              |
+| `BamOpts`, `BaseOpts`                                                                                                        | _type_: the options the query and index methods take                |
+| `Mismatch`, `MismatchCallback`, `MismatchOptions`                                                                            | _type_: the mismatch methods' result and arguments                  |
+| `PackedReference`, `NumericCigar`, `IndexCovEntry`                                                                           | _type_: the results of `packReference`, `NUMERIC_CIGAR`, `indexCov` |
+| `Chunk`, `Offset`, `OffsetCoords`                                                                                            | _type_: what `blocksForRange` returns                               |
+| `BamRecordClass`, `BamRecordLike`, `ReferenceSequenceFetcher`                                                                | _type_: the `recordClass` and `fetchReferenceSequence` options      |
+| `StreamBamOptions`, `BamStreamHeader`                                                                                        | _type_: `streamBamRecords`' options and `onHeader` argument         |
+| `Fetcher`                                                                                                                    | _type_: `HtsgetFile`'s `fetch`, from generic-filehandle2            |

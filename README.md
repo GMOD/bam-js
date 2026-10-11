@@ -3,46 +3,41 @@
 [![NPM version](https://img.shields.io/npm/v/@gmod/bam.svg?style=flat-square)](https://npmjs.org/package/@gmod/bam)
 ![Build Status](https://img.shields.io/github/actions/workflow/status/GMOD/bam-js/publish.yml?branch=main)
 
-Parser for BAM files and their BAI/CSI indexes.
-
-## Install
+Read BAM files and their BAI or CSI indexes in node or the browser.
 
 ```bash
 npm install @gmod/bam
 ```
 
-## Usage
+## Quick start
 
 ```typescript
 import { BamFile } from '@gmod/bam'
 
-const bam = new BamFile({ bamPath: 'test.bam' })
-
-// same records as `samtools view test.bam ctgA:1-50000`
-const records = await bam.getRecordsForRange('ctgA', 0, 50000)
-```
-
-Coordinates are 0-based half-open, where `samtools view` takes 1-based closed —
-`ctgA:1-50000` there is `('ctgA', 0, 50000)` here. `bamPath` reads a local file,
-so it is node-only; in the browser pass a URL or a generic-filehandle2
-filehandle instead:
-
-```typescript
 const bam = new BamFile({
-  bamUrl: 'https://example.com/yourfile.bam',
-  baiUrl: 'https://example.com/yourfile.bam.bai',
+  bamUrl: 'https://example.com/file.bam',
+  baiUrl: 'https://example.com/file.bam.bai',
 })
+
+const records = await bam.getRecordsForRange('chr1', 10000, 20000)
+
+for (const record of records) {
+  console.log(record.name, record.start, record.CIGAR)
+}
 ```
 
-Over HTTP it is worth putting
+URLs work in node and the browser. For local files, pass `bamPath` and
+`baiPath`.
+
+### Range caching
+
+A query fetches the index once, then reads the records as a few byte ranges
+spread through the BAM, and a plain URL sends each range as a separate request.
+[This visualizer](https://cmdcolin.github.io/bam_index_visualizer) draws those
+ranges for a file of your choosing.
 [`@gmod/range-cache-filehandle`](https://github.com/GMOD/range-cache-filehandle)
-underneath the filehandle. A query fetches the index once, then reads the
-records as a handful of byte ranges spread through the BAM —
-[this visualizer](https://cmdcolin.github.io/bam_index_visualizer) draws that
-pattern for a file of your choosing. The cache serves those ranges out of 256
-KiB chunks, so neighboring ranges share a request and later queries reuse what
-is already fetched. `bamFilehandle` and `baiFilehandle` accept any
-generic-filehandle2 object, so it drops straight in:
+serves the reads from 256 KiB chunks, so neighboring ranges share a request and
+later queries reuse what was already fetched:
 
 ```typescript
 import { RemoteFileWithRangeCache } from '@gmod/range-cache-filehandle'
@@ -53,9 +48,27 @@ const bam = new BamFile({
 })
 ```
 
-Records come back unfiltered, and overlapping queries share them — treat them as
-read-only. Filter them yourself with the flag helpers and `getTag`, which
-decodes one tag instead of all of them:
+## Coordinates
+
+Coordinates are 0-based half-open, where `samtools view` takes 1-based closed,
+so `samtools view file.bam ctgA:1-50000` returns the same records as
+`getRecordsForRange('ctgA', 0, 50000)`. A query for a reference the file lacks
+returns `[]`.
+
+## Records
+
+```typescript
+record.name // read name
+record.start // 0-based start
+record.CIGAR // '50M2I48M'
+record.seq // read sequence
+record.getTag('NM') // one auxiliary tag
+record.isReverseComplemented() // the usual SAM flags
+```
+
+Queries return records unfiltered, and overlapping queries share them, so treat
+them as read-only. `getTag` decodes one tag instead of all of them, which makes
+it the cheap way to filter:
 
 ```typescript
 const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
@@ -63,11 +76,55 @@ const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
 )
 ```
 
+[docs/api.md](docs/api.md#bamrecord) lists every field and method.
+
+## Mismatches
+
+`record.getMismatches()` lists each difference between a read and the reference:
+substitutions, insertions, deletions, reference skips and clips.
+
+```typescript
+// a read at 100 with CIGAR 5M1I4M2D3M, SEQ ACGGTCAACGTTA and MD 3A5^GG3
+for (const { code, refPos, length, bases } of record.getMismatches()) {
+  console.log(String.fromCharCode(code), refPos, length, bases)
+}
+// X 103 1 G   substitution to G
+// I 105 0 C   one base inserted before 105
+// D 109 2     two reference bases deleted from 109
+```
+
+A substitution needs the read's `MD` tag or the reference bases. Most aligners
+leave `MD` off, so pass `fetchReferenceSequence: (refName, start, end) => ...`
+to `BamFile`; a query calls it only when one of its reads lacks `MD`.
+[docs/api.md](docs/api.md#mismatches) has the fields and options.
+
+## Worker pool
+
+BGZF blocks decompress independently, so a worker pool can spread decompression
+across threads, which measured 2.7-4.1x faster on the pool's own fixtures:
+
+```typescript
+import { getSharedWorkerPool } from '@gmod/bgzf-filehandle'
+
+const bam = new BamFile({
+  bamUrl,
+  baiUrl,
+  bgzfWorkerPool: getSharedWorkerPool(),
+})
+```
+
+`getSharedWorkerPool()` returns a promise of the pool, which bam-js awaits when
+it first decompresses. The pool is `undefined` under node and wherever the host
+forbids workers, and bam-js then decompresses in-process, so the option is safe
+to pass everywhere. The pool needs no cross-origin isolation, and bam-js never
+starts one itself.
+[bgzf-filehandle's docs](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/worker-pool.md)
+cover pool size and lifecycle.
+
 ## Unsorted BAM
 
-A BAM that is unsorted, or still name-sorted as it came off the sequencer, has
-no index to query and so no `chr:start-end` to query it with. `streamBamRecords`
-walks one end to end instead, a batch of records at a time:
+An unsorted or name-sorted BAM has no index to query, so `streamBamRecords`
+reads it from start to end, an array of records at a time:
 
 ```typescript
 import { streamBamRecords } from '@gmod/bam'
@@ -79,88 +136,9 @@ for await (const records of streamBamRecords({ bamUrl: 'unsorted.bam' })) {
 }
 ```
 
-`streamBamRecords` reads the file a window at a time rather than all at once, so
-a 1GB BAM streams through in bounded memory. It is a standalone function rather
-than a `BamFile` method, so that streaming alone leaves `BAI`/`CSI` and the
-chunk cache out of your bundle. See [docs/api.md](docs/api.md) for `onHeader`
-and the window size.
+[docs/api.md](docs/api.md#streambamrecords) has the options.
 
-## Mismatches
-
-`record.getMismatches()` gives every difference between a read and the reference
-— substitutions, insertions, deletions, reference skips and clips — without you
-interpreting `CIGAR` and `MD` yourself:
-
-```typescript
-const bam = new BamFile({
-  bamPath: 'test.bam',
-  // reference bases for reads with no MD tag, at most one call per query
-  fetchReferenceSequence: (refName, start, end) =>
-    myGenome.getSequence(refName, start, end),
-})
-
-for (const record of await bam.getRecordsForRange('ctgA', 0, 50000)) {
-  // for a read at 100 with CIGAR 5M1I4M2D3M, SEQ ACGGTCAACGTTA, MD 3A5^GG3
-  for (const { code, refPos, length, bases } of record.getMismatches()) {
-    console.log(String.fromCharCode(code), refPos, length, bases)
-  }
-}
-// X 103 1 G   substitution to G, over a reference A
-// I 105 0 C   one base inserted before 105
-// D 109 2     two reference bases deleted from 109
-```
-
-`code` is a CIGAR char code, to compare against the exported `MISMATCH_SUBST`,
-`MISMATCH_INSERTION`, … constants, and `record.forEachMismatch(cb, opts?)`
-reports the same set while allocating nothing per difference. What the two
-fields mean, with that read walked through them:
-[docs/cigar-and-md.md](docs/cigar-and-md.md).
-
-Substitutions need either an `MD` tag on the read or the reference bases, which
-`fetchReferenceSequence` supplies above — most aligners leave `MD` off, and a
-query calls it only when one of its reads needs it. Without it, `getMismatches`
-still returns indels and clips for a read lacking `MD`, but no substitutions —
-the record does not contain their positions.
-[docs/api.md](docs/api.md#mismatches) has the field meanings, and what to do
-about reads that run past the region you are looking at.
-
-## How a query flows
-
-A query turns the region into BGZF chunks through the index and decompresses
-each one in wasm. With nothing cached yet, decompression takes 70-90% of the
-time that query needs. The rest is ordinary JS: records are views into their
-chunk's decompressed buffer, and their fields decode on access, so a query costs
-what you read off it. [docs/dataflow.md](docs/dataflow.md) has the diagram and
-walks it through.
-
-The file then holds on to those decompressed chunks, so overlapping and adjacent
-queries reuse them instead of inflating again — up to 1GB per file, dropped
-after three idle minutes. A consumer holding one file per track should bound
-them together with a shared `cacheBudget` rather than shrinking each file's own
-ceiling: [docs/caching.md](docs/caching.md).
-
-## Decompressing on a worker pool
-
-BGZF blocks inflate independently, so that decompression can spread across
-threads — measured 2.7-4.1x on the pool's own fixtures.
-
-```typescript
-import { getSharedWorkerPool } from '@gmod/bgzf-filehandle'
-
-const bam = new BamFile({
-  bamUrl: 'https://example.com/yourfile.bam',
-  // the pending promise is fine — it is awaited at the point of use
-  bgzfWorkerPool: getSharedWorkerPool(),
-})
-```
-
-Safe to pass unconditionally: `getSharedWorkerPool()` returns `undefined` under
-node, or anywhere the host forbids Workers, which keeps the in-process path. No
-cross-origin isolation needed. bam-js never creates a pool on its own — the
-consumer controls the thread budget. Worker counts, lifecycle and benchmarks:
-[bgzf-filehandle's worker pool docs](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/worker-pool.md).
-
-## Usage with htsget
+## htsget
 
 ```typescript
 import { HtsgetFile } from '@gmod/bam'
@@ -172,40 +150,23 @@ const bam = new HtsgetFile({
 const records = await bam.getRecordsForRange('1', 2000000, 2000001)
 ```
 
-htsget fetches the server's range as-is, so it ignores the mate-pairing options.
-Pass a `fetch` to add auth:
-
-```typescript
-const bam = new HtsgetFile({
-  baseUrl: 'https://htsget.example.com/reads',
-  trackId: 'NA12878',
-  fetch: (url, init) => {
-    const headers = new Headers(init?.headers)
-    headers.set('authorization', `Bearer ${token}`)
-    return fetch(url, { ...init, headers })
-  },
-})
-```
-
-The `fetch` you pass makes both the ticket request and the data-block requests
-the ticket points at, and those data-block URLs may be on a third-party host —
-so only attach credentials to hosts you trust.
+[docs/api.md](docs/api.md#htsgetfile) shows how to add authentication.
 
 ## Docs
 
-- [docs/api.md](docs/api.md) — every constructor option, method and `BamRecord`
-  field, plus custom record classes
-- [docs/cigar-and-md.md](docs/cigar-and-md.md) — what `CIGAR` and `MD` mean, and
-  how the walk reads mismatches out of them
-- [docs/dataflow.md](docs/dataflow.md) — how a query flows, and where wasm sits
-- [docs/optimizations.md](docs/optimizations.md) — why each step of that path
-  looks the way it does, and what measured it
-- [docs/caching.md](docs/caching.md) — sizing the parsed-chunk cache
-- [agent-docs/architecture-decision-records/](agent-docs/architecture-decision-records/)
-  — the measurements behind the performance and caching decisions
-- [CONTRIBUTING.md](CONTRIBUTING.md) — development and release steps
+- [docs/api.md](docs/api.md): every option, method and `BamRecord` field
+- [docs/cigar-and-md.md](docs/cigar-and-md.md): what `CIGAR` and `MD` contain,
+  and how the mismatch walk reads them
+- [docs/caching.md](docs/caching.md): sizing the chunk cache
+- [docs/dataflow.md](docs/dataflow.md): a diagram of a query from index to
+  records
+- [docs/optimizations.md](docs/optimizations.md): the measurements behind the
+  read path's design
+- [agent-docs/architecture-decision-records/](agent-docs/architecture-decision-records/):
+  design decisions, with their measurements
+- [CONTRIBUTING.md](CONTRIBUTING.md): development and release
 
-## Academic Use
+## Academic use
 
 Written with [NHGRI](http://genome.gov) funding as part of
 [JBrowse](http://jbrowse.org). If you use this in a publication, please cite the

@@ -249,6 +249,27 @@ than per block, how the pool splits a chunk's blocks across workers, and what
 measuring there rejected — is in
 [bgzf-filehandle's own optimizations doc](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/optimizations.md).
 
+## Streaming a whole file
+
+`streamBamRecords` keeps `readAhead` window reads in flight at once, and the
+depth is what helps. One outstanding read overlaps a round trip only with the
+CPU spent on the window before it, which measured no gain. Four outstanding turn
+N sequential waits into roughly N/4: over a local server holding each response
+for 20ms, an 18MB BAM walked in 196ms at depth 4 against 519ms at depth 1, and
+at 100ms of latency in 1.9s against 7.4s. The cost is `depth` windows of
+compressed bytes held at once, and up to `depth - 1` wasted requests at the end
+of the file, because the length of a read is the only sign that the file has
+ended.
+
+The stream yields an array of records per window. A whole-file walk is tens of
+millions of records, and an async generator pays a promise per yield, so
+batching keeps the caller's inner loop synchronous.
+
+`streamBamRecords` is a standalone function that shares the record and header
+parsers with `BamFile` and nothing else, so a consumer who only streams bundles
+neither `BAI`/`CSI` nor the chunk cache: 87KB minified against 111KB for
+`BamFile`, over an identical wasm inflate bundle in both.
+
 ## What the consumer has to do
 
 Some of the biggest wins are not in this library at all, because they are
