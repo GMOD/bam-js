@@ -31,13 +31,15 @@ URLs work in node and the browser. For local files, pass `bamPath` and
 
 ### Range caching
 
-A query fetches the index once, then reads the records as a few byte ranges
-spread through the BAM, and a plain URL sends each range as a separate request.
+bam-js fetches the index once, then reads each query's records as a few byte
+ranges spread through the BAM. With `bamUrl`, bam-js sends a separate HTTP
+request for each range.
 [This visualizer](https://cmdcolin.github.io/bam_index_visualizer) draws those
 ranges for a file of your choosing.
 [`@gmod/range-cache-filehandle`](https://github.com/GMOD/range-cache-filehandle)
-serves the reads from 256 KiB chunks, so neighboring ranges share a request and
-later queries reuse what was already fetched:
+fetches the file in 256 KiB chunks and answers each range from them, so it
+fetches neighboring ranges in one request and answers later queries from chunks
+it already has:
 
 ```typescript
 import { RemoteFileWithRangeCache } from '@gmod/range-cache-filehandle'
@@ -95,7 +97,7 @@ for (const { code, refPos, length, bases } of record.getMismatches()) {
 
 A substitution needs the read's `MD` tag or the reference bases. Most aligners
 leave `MD` off, so pass `fetchReferenceSequence: (refName, start, end) => ...`
-to `BamFile`; a query calls it only when one of its reads lacks `MD`.
+to `BamFile`. bam-js calls it only for a query with a read that lacks `MD`.
 [docs/api.md](docs/api.md#mismatches) has the fields and options.
 
 ## Worker pool

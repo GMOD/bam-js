@@ -83,16 +83,17 @@ Overlapping queries share records, so treat them as read-only
 ### Reference sequence
 
 `fetchReferenceSequence(refName, start, end, opts?)` returns reference bases
-beginning at `start`. A query calls it at most once, for the span of the reads
-that have no `MD` tag, and never when every read has one. Returning fewer bases
-than asked for is fine, for example at the end of a contig, and the reads past
-what it returned report no substitutions.
+beginning at `start`. bam-js calls it at most once per query, for the span of
+the reads that have no `MD` tag, and not at all when every read has one. The
+callback can return fewer bases than asked for, for example at the end of a
+contig, and bam-js then reports no substitutions for the reads past the bases it
+returned.
 
 The span is the query's range plus however far its edge reads extend past it,
-and the library does not clamp it, so a BAM of reads as long as a chromosome can
-ask for the chromosome. A sequence source that cannot afford that can clamp
-inside the callback and resolve the remaining reads a window at a time with
-`getReferenceRegion` and the mismatch `ref` option.
+and bam-js does not clamp it, so for a BAM of reads as long as a chromosome, the
+span can be the whole chromosome. A sequence source that cannot afford that can
+clamp inside the callback and resolve the remaining reads a window at a time
+with `getReferenceRegion` and the mismatch `ref` option.
 
 ### `recordClass`
 
@@ -243,7 +244,7 @@ renderers and other code that walks many records.
 | `NUMERIC_CIGAR`    | packed CIGAR operations, as BAM stores them                                             |
 | `NUMERIC_SEQ`      | the sequence, two 4-bit bases per byte                                                  |
 | `NUMERIC_MD`       | the `MD` tag's bytes                                                                    |
-| `byteArray`        | the decompressed buffer the record sits in                                              |
+| `byteArray`        | the decompressed buffer that holds the record                                           |
 | `b0`               | the offset of the read name in `byteArray`                                              |
 | `seqStart`         | the offset of `SEQ` in `byteArray`                                                      |
 | `tagsStart`        | the offset of the auxiliary tags in `byteArray`                                         |
