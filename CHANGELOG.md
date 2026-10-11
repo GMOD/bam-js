@@ -1,3 +1,14 @@
+## [10.0.6](https://github.com/GMOD/bam-js/compare/v10.0.5...v10.0.6) (2026-10-11)
+
+### Documentation
+
+- Lead the README with remote files, and restructure api.md as tables ([3e75df6](https://github.com/GMOD/bam-js/commit/3e75df65a5459e7301441d8afc9cfa5bc65fedba))
+- Name the actor in the README and api.md prose ([b96ddd3](https://github.com/GMOD/bam-js/commit/b96ddd3284ef7895dcb3c5cbefe89921702de4f5))
+
+### Tests
+
+- Fail when docs/api.md misses a public member or export ([4d3f839](https://github.com/GMOD/bam-js/commit/4d3f8397ad093da94ae1ec588b1641b090a376fb))
+
 ## [10.0.5](https://github.com/GMOD/bam-js/compare/v10.0.4...v10.0.5) (2026-10-09)
 
 ### Chores
