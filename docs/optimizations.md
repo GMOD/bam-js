@@ -90,11 +90,11 @@ caching fetch layer:
 | chr22_nanopore_subset | 3 both   | 14.2MB | 277 ms     | **185 ms** |
 
 Request and byte counts are identical in both columns, so concurrency lowers
-latency without using more bandwidth. The pool fetches six chunks at a time, the
-HTTP/1.1 per-host connection cap that browsers enforce; above six, the browser
-queues the requests anyway while peak memory keeps growing. A one-chunk query
-skips the pool, since the closure, worker array and `Promise.all` only add time
-to a query that can take 0.2ms
+latency without using more bandwidth. The pool fetches six chunks at a time
+because browsers cap HTTP/1.1 at six connections per host; above six, the
+browser queues the requests anyway while peak memory keeps growing. A one-chunk
+query skips the pool, since the closure, worker array and `Promise.all` only add
+time to a query that can take 0.2ms
 ([ADR 0008](../agent-docs/architecture-decision-records/0008-fetch-a-querys-chunks-concurrently.md)).
 
 The concurrent fetch pool, which replaces a sequential `for` loop with an

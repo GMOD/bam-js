@@ -10,7 +10,7 @@ with an `await` in the body. The fetch is now about 45 lines of mechanism in
 in-flight map keyed by chunk, a signal comparison, a retry, a bounded worker
 pool, a per-chunk result slot and a single-chunk fast path.
 
-Calling that diff overcomplicated is a reasonable reaction, and "the benchmarks
+Calling that diff overcomplicated is the correct instinct, and "the benchmarks
 say so" is not enough of an answer to it. This ADR takes each piece, names the
 simpler code it replaced, and gives what that simpler code costs. It also names
 the one piece that is close to the line, and the condition under which we should

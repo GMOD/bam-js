@@ -64,8 +64,8 @@ numeric `minBlock`/`minData` tracking, 8237 entries × 60 reps:
 | current (`findFirstData(f, fromBytes(...))`) | **0.845 ms** |
 | numeric min, no allocation                   | 1.055 ms     |
 
-V8's escape analysis already handles the allocation. Index parse is 2.2 ms on
-the largest test `.bai` (393 KB) anyway, and it is memoized per file.
+Escape analysis already handles the allocation. Index parse is 2.2 ms on the
+largest test `.bai` (393 KB) anyway, and it is memoized per file.
 
 ### 3. Switching `get name` to `TextDecoder`
 

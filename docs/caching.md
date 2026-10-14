@@ -64,7 +64,7 @@ track count instead puts each track below its working set, as described above:
 at 128MB a track re-reads every chunk on every pan.
 ([ADR 0018](../agent-docs/architecture-decision-records/0018-a-per-file-ceiling-is-not-a-bound-on-a-consumer-with-many-files.md))
 
-## Peak memory
+## None of them bound peak memory
 
 `maxCacheBytes`, `cacheIdleTimeoutMs` and `cacheBudget` bound the decompressed
 bytes the cache retains, not the heap. On deep data the heap can be much larger:

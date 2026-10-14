@@ -110,9 +110,9 @@ before.
   waiter.
 
   The redundancy costs mutation coverage, because mutation testing catches
-  neither check alone while the other still produces correct behaviour. Removing
-  both reproduces the bug, and the tests catch that, because they assert the
-  behaviour rather than either line.
+  neither check alone while the other still produces correct behaviour. Only
+  removing both reproduces the bug, and the tests catch that, because they
+  assert the behaviour rather than either line.
 
   **The shared controller replaced a retry**, and this ADR keeps the reasons.
   Originally the read ran under whichever caller started it, and a waiter that

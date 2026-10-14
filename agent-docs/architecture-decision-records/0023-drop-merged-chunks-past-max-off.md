@@ -17,10 +17,10 @@ first one that exists is a record past the query, and in a coordinate-sorted
 file so is everything after it. That offset is `max_off`, and `maxOffset` in
 `indexFile.ts` computes it.
 
-`max_off` is a bound rather than a forecast. It depends only on the sort order
-that `appendInRange` and the early stop already assume. The linear-index
-forecast that ADR 0017 declined to prune a fetch with is different, because that
-forecast can drop records.
+`max_off` is a bound rather than a forecast. It depends on the sort order that
+`appendInRange` and the early stop already assume. The linear-index forecast
+that ADR 0017 declined to prune a fetch with is different, because that forecast
+can drop records.
 
 ## Decision
 

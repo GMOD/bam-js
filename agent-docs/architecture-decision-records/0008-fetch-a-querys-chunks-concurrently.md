@@ -58,15 +58,15 @@ memory keeps growing.
 
   The request count and byte count are **identical** in both columns, so the
   concurrency cuts latency without adding bandwidth or request amplification,
-  and the two layers work together. When several of our concurrent chunk reads
-  fall inside the same 256 KB block, the byte-level dedup in the layer below
-  merges them into one fetch.
+  and the two layers work together. The counts match because of the byte-level
+  dedup in the layer below: when several of our concurrent chunk reads fall
+  inside the same 256 KB block, it merges them into one fetch.
 
   `RemoteFileWithRangeCache` dedups _bytes_ but not _decompression_, so it does
   nothing for duplicate inflates. ADR 0007's dedup is therefore still needed
   alongside it.
 
-- **Local single-query performance is unchanged, as designed.**
+- **Local single-query performance is unchanged, by construction.**
   `benchmarks/bam.bench.ts` issues one sequential query against a local file,
   the one workload that neither this change nor ADR 0007 targets, because it has
   no round trips to hide and no concurrent queries to share. Parity is the

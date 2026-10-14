@@ -84,8 +84,8 @@ Move all filtering to the caller and drop `filterBy` from bam-js: `FilterBy`,
   | 10% of records     | 0.29 MB | 7.8 MB        |
   | 0 records          | 0.01 MB | 7.8 MB        |
 
-  Filtering can reclaim only the ~120 B wrapper objects, never the payload. That
-  is 2.4 MB of 10.5 MB even at 90% rejection, and under 1% on long reads (757
+  Filtering can reclaim only the ~120 B wrapper objects, never the payload. Even
+  at 90% rejection that frees 2.4 MB of 10.5 MB, and under 1% on long reads (757
   nanopore records over a 24.4 MB buffer), so filtering frees next to nothing on
   exactly the files where memory matters most. Shrinking what a chunk pins would
   mean copying survivors out of the shared buffer, trading away the zero-copy

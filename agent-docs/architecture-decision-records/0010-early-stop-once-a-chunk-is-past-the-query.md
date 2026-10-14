@@ -30,8 +30,8 @@ chr22_nanopore_subset.bam.bai   ref=21   1020 linear entries, 0 unset
   pos 16,400,000 -> linearIndex[1000] = 9603
 ```
 
-Offset 9603 is near the start of a 14MB file, so a narrow window reads every
-chunk of every overlapping bin, at every level of the binning scheme:
+The bound sits 9603 bytes into a 14MB file, so a narrow window reads every chunk
+of every overlapping bin, at every level of the binning scheme:
 
 | window | chunks | fetched | records returned |
 | ------ | ------ | ------- | ---------------- |
@@ -89,12 +89,12 @@ We implemented the stop as a `stopAfter` index shared by the worker pool in
 correct, and all record-count assertions, including the ten pinned benchmark
 regions, were unchanged.
 
-**We backed it out because the stop index depends on worker scheduling.** In
-`test/cache.test.ts`, running the identical query twice parsed 6 chunks and
-then 9. On a warm cache `_cachedChunkFeatures` resolves without I/O, so workers
-claim indices far faster than any of them can set `stopAfter`. The second query
-therefore does _more_ I/O than the first, and the cache grows on repeat queries,
-which breaks the panning property that ADR 0001 protects.
+**We backed it out because the stop index depends on worker scheduling.**
+`test/cache.test.ts` caught it: running the identical query twice parsed 6
+chunks and then 9. On a warm cache `_cachedChunkFeatures` resolves without I/O,
+so workers claim indices far faster than any of them can set `stopAfter`. The
+second query therefore does _more_ I/O than the first, and the cache grows on
+repeat queries, which breaks the panning property that ADR 0001 protects.
 
 The obvious fix is to process chunks in fixed waves of
 `MAX_CONCURRENT_CHUNK_READS` and check the stop condition at each wave boundary.
@@ -324,7 +324,7 @@ once-only check fails it with `expected 28 to be less than or equal to 13`.
   never reaches its end.
 - `featureLists` becomes sparse, so the append loop must skip holes.
 - CSI is unaffected in principle but untested here. Until 2026-09-21,
-  `getLowestChunk` returned 0:0 for CSI, so it never narrowed anything and the
-  same win should have been available. CSI's `getLowestChunk` now takes the
-  `loffset` of the finest bin at or left of the query start, as htslib does, and
-  resolves to the same bytes as BAI on the volvox and CHM1 fixtures.
+  `getLowestChunk` returned 0:0 for CSI, so it never narrowed anything. CSI's
+  `getLowestChunk` now takes the `loffset` of the finest bin at or left of the
+  query start, as htslib does, and resolves to the same bytes as BAI on the
+  volvox and CHM1 fixtures, so the same win should be available.
