@@ -54,13 +54,13 @@ amortize it. `out.bam` whole goes 17.90MB → 29.33MB unmerged.
 **The range cache does not make up the difference.** The cache joins only
 _contiguous_ runs, so a scattered bin set stays scattered: `out.bam` 20kb goes
 from 1 range request to 5, and 6.25MB to 13.25MB. Merging wins or ties on 7 of
-the 10 queries even with the cache in front, and it is dramatically better for a
-bare consumer on 5 of them (6 reads vs 95-378).
+the 9 queries even with the cache in front, and it is dramatically better for a
+bare consumer on 5 of them (3-6 reads vs 95-378).
 
-Unmerged is ahead only marginally and only on bytes, on the two narrow nanopore
-windows (6.50MB vs 7.00MB) and ultra-long (4.33 vs 4.46). Those queries have an
-identical request count either way, because the early stop already caps them at
-6 reads.
+Unmerged is ahead only marginally and only on bytes, on chr22 10kb (6.50MB vs
+7.00MB through the cache) and ultra-long (4.33MB vs 4.46MB bare). Those queries
+have an identical request count either way, because the early stop already caps
+them at 6 reads.
 
 ## The gap constant
 

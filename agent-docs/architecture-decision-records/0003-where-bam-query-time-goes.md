@@ -82,8 +82,9 @@ The crossover is at ~32–40 chars, right at the typical Illumina read-name
 length, so a threshold would give no reliable gain either way.
 
 **We re-checked on real records, and the conclusion holds for a better reason.**
-The table above uses synthetic buffers. On actual BAMs, read names do not
-straddle the crossover at all; they are at or above it:
+The table above uses synthetic buffers, but on actual BAMs read names do not
+straddle the crossover. The median name is at or above it in four of the five
+corpora and far below it in `200x.longread`:
 
 | corpus                   | p50 name | ≥32 chars | example                                     |
 | ------------------------ | -------- | --------- | ------------------------------------------- |
@@ -93,9 +94,9 @@ straddle the crossover at all; they are at or above it:
 | volvox-sorted            | 32       | 79%       | `ctgA_3_555_0:0:0_2:0:0_102d`               |
 | jb2bench 200x.longread   | 7        | 0%        | `S1_2667`                                   |
 
-By the synthetic table, those lengths should make `TextDecoder` the winner.
-Measured over the real record sets (min-of-15, alternating arms), `Array` +
-spread still wins:
+By the synthetic table, the four longer-named corpora should make `TextDecoder`
+the winner. Measured over the real record sets (min-of-15, alternating arms),
+`Array` + spread still wins:
 
 | corpus          | Array+spread | TextDecoder | hybrid @32 |
 | --------------- | ------------ | ----------- | ---------- |

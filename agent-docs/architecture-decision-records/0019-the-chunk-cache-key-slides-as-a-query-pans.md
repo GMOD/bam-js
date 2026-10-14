@@ -124,7 +124,7 @@ one key per call, so the change also needs a batch-fill path in
 `@gmod/shared-read-cache`.
 
 **The raw key multiplies the entry count on the files that gain nothing.** The
-long-read fixtures go from 6 → 41 and 14 → 179 entries, so they pay more LRU
+long-read fixtures go from 6 → 41 and 60 → 179 entries, so they pay more LRU
 churn and per-entry overhead for no benefit. An attempt should expect to make
 the raw key conditional rather than universal.
 
