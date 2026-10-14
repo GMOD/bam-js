@@ -1,7 +1,7 @@
 # CIGAR, MD, and how the walk decodes mismatches
 
-This page explains the two fields that `getMismatches` and `forEachMismatch`
-read. The API reference is [api.md](api.md#mismatches).
+`getMismatches` and `forEachMismatch` read these two fields. The API reference
+is [api.md](api.md#mismatches).
 
 ## CIGAR
 

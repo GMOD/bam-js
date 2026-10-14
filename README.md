@@ -31,15 +31,12 @@ instead.
 
 ### Range caching
 
-bam-js fetches the index once, then reads each query's records as a few byte
-ranges spread through the BAM. With `bamUrl`, bam-js sends a separate HTTP
-request for each range.
-[This visualizer](https://cmdcolin.github.io/bam_index_visualizer) draws those
-ranges for a file of your choosing.
+With `bamUrl`, bam-js sends a separate HTTP request for each byte range a query
+reads ([this visualizer](https://cmdcolin.github.io/bam_index_visualizer) draws
+them).
 [`@gmod/range-cache-filehandle`](https://github.com/GMOD/range-cache-filehandle)
-fetches the file in 256 KiB chunks and answers each range from them, so it
-fetches neighboring ranges in one request and answers later queries from chunks
-it already has:
+fetches in 256 KiB chunks, so neighboring ranges share a request and later
+queries reuse chunks it already has:
 
 ```typescript
 import { RemoteFileWithRangeCache } from '@gmod/range-cache-filehandle'
@@ -102,8 +99,8 @@ to `BamFile`. bam-js calls it only for a query with a read that lacks `MD`.
 
 ## Worker pool
 
-BGZF blocks decompress independently, so a worker pool can spread decompression
-across threads, which measured 2.7-4.1x faster on the pool's own fixtures:
+A worker pool spreads BGZF decompression across threads, which measured 2.7-4.1x
+faster on the pool's own fixtures:
 
 ```typescript
 import { getSharedWorkerPool } from '@gmod/bgzf-filehandle'
@@ -115,18 +112,15 @@ const bam = new BamFile({
 })
 ```
 
-`getSharedWorkerPool()` returns a promise of the pool, which bam-js awaits when
-it first decompresses. The pool is `undefined` under node and wherever the host
-forbids workers, and bam-js then decompresses in-process, so the option is safe
-to pass everywhere. The pool needs no cross-origin isolation, and bam-js never
-starts one itself.
+The pool is `undefined` under node and wherever the host forbids workers, and
+bam-js then decompresses in-process, so the option is safe to pass everywhere.
 [bgzf-filehandle's docs](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/worker-pool.md)
 cover pool size and lifecycle.
 
 ## Unsorted BAM
 
-An unsorted or name-sorted BAM has no index to query, so `streamBamRecords`
-reads it from start to end, an array of records at a time:
+For an unsorted or name-sorted BAM, `streamBamRecords` reads the file from start
+to end, an array of records at a time:
 
 ```typescript
 import { streamBamRecords } from '@gmod/bam'

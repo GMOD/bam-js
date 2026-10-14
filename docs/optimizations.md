@@ -16,9 +16,8 @@ fraction of either. The table gives the time per query, min of 5 runs
 | volvox-sorted (0.4MB → 2.5MB)           |  6 ms |       9 ms |          3 ms |
 
 Inflate is the largest column on every fixture, and 70-90% of the query's wall
-clock on the deep ones. Avoiding a re-inflate therefore beats any amount of
-parser tuning, and a micro-optimization in the record path is rarely worth
-measuring in the first place.
+clock on the deep ones, so avoiding a re-inflate beats any amount of parser
+tuning.
 
 ## Reading the index
 
@@ -96,10 +95,9 @@ pool entirely, since the closure, worker array and `Promise.all` are pure
 overhead on a query that can take 0.2ms
 ([ADR 0008](../agent-docs/architecture-decision-records/0008-fetch-a-querys-chunks-concurrently.md)).
 
-The concurrent fetch pool is the largest piece of machinery in the library, in
-place of a sequential `for` loop with an `await`.
+The concurrent fetch pool is the largest piece of machinery in the library.
 [ADR 0009](../agent-docs/architecture-decision-records/0009-why-the-concurrent-fetch-is-as-big-as-it-is.md)
-goes through each piece, with the cost of that loop beside it.
+goes through each piece against a sequential `for` loop with an `await`.
 
 ### Concurrent queries share one in-flight read
 
@@ -161,8 +159,8 @@ memoized, because consumers read it about once. A cache would cost a field slot
 on every record and keep every name string in memory for as long as the chunk
 stays cached, to save zero decodes.
 
-What each accessor costs on its first touch, over a whole query's records, shows
-which of them are worth tuning (min of 5):
+The cost of each accessor's first touch, over a whole query's records (min of
+5):
 
 | fixture                   |  seq |  tags | CIGAR |  name |
 | ------------------------- | ---: | ----: | ----: | ----: |
@@ -208,9 +206,8 @@ own buffer whenever alignment allows, and copy only when it does not.
 
 The walk packs the reference once per region into BAM's own 4-bit alphabet, so
 it can compare against a read's already-packed `NUMERIC_SEQ` a byte (two bases)
-at a time, unpacking only the rare byte that differs. That packing is the only
-per-base pass in the whole walk, which is why it runs once per region rather
-than once per read.
+at a time, unpacking only the rare byte that differs. That packing is the walk's
+only per-base pass, and it runs once per region rather than once per read.
 
 `getRecordsForRange` calls `fetchReferenceSequence` at most once per query, for
 the union span of the reads that lack an MD tag, and binds the result only to
@@ -277,8 +274,8 @@ neither `BAI`/`CSI` nor the chunk cache: 87KB minified against 111KB for
 
 ## What the consumer has to do
 
-Some of the biggest wins come from decisions a consumer makes about the whole
-process rather than about one file, so this library cannot make them.
+Some of the biggest wins come from decisions about the whole process rather than
+one file, so this library cannot make them.
 [jbrowse-components](https://github.com/GMOD/jbrowse-components) makes these:
 
 - **One `bgzfWorkerPool` per JS context**, passed to every adapter. We measured
@@ -291,8 +288,8 @@ process rather than about one file, so this library cannot make them.
 - **One `cacheBudget` per JS context**, also passed to every adapter.
   `maxCacheBytes` is per file, and a browser holds one file per open track, so
   three deep tracks browsing eight windows retained 1109MB with every cache well
-  under its own 1GB ceiling. The ceiling bounds one file, not the sum across
-  files. Dividing the ceiling by the track count is worse than doing nothing.
+  under its own 1GB ceiling. Dividing the ceiling by the track count is worse
+  than doing nothing.
 - **A coalescing range cache under the filehandle.** `RemoteFileWithRangeCache`
   fetches in 256KB aligned blocks, joins contiguous runs into one request and
   dedups in flight. It composes with the concurrent chunk fetch instead of

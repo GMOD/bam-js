@@ -13,8 +13,8 @@ are views into their chunk's decompressed buffer, and `seq`, `CIGAR`, `tags` and
 the other fields decode on access, so a query's decoding cost depends on which
 fields you read.
 
-[optimizations.md](optimizations.md) explains why each of those steps looks the
-way it does, with the measurements.
+[optimizations.md](optimizations.md) has the reasoning and measurements behind
+each step.
 
 The diagram shows the main path plus the reference fetch below. It leaves out
 htsget, which has no index and joins the path at `readBamFeatures`; the
@@ -40,11 +40,8 @@ The purple node runs only when a caller passes a `bgzfWorkerPool`, which moves
 chunk decompression off the main thread. Without one, the same code runs
 in-process. The pool receives a chunk's blocks and leaves the record building
 after them on the calling thread. Decompression is where a query's time is (see
-below), so there is little else worth moving.
-
-"Off the main thread" is relative to wherever the caller runs. Every step above
-can run off the main thread, so a consumer can run the whole diagram in a
-worker, and the purple node is then a further pool underneath that worker.
+below), so there is little else worth moving. A consumer can also run the whole
+diagram in a worker, and the purple node is then a further pool underneath it.
 
 ## Where wasm sits
 

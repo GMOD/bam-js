@@ -1,9 +1,8 @@
 # Caching
 
 `BamFile` caches parsed chunks, the unit the BAM index points to, so overlapping
-and adjacent queries reuse decompressed records instead of re-fetching them.
-Three constructor options bound that cache, and the table lists the question
-each one answers.
+and adjacent queries reuse decompressed records. Three constructor options bound
+the cache:
 
 | option               | default | question                                     |
 | -------------------- | ------- | -------------------------------------------- |
@@ -18,9 +17,8 @@ than index chunks.
 ## `maxCacheBytes` never refuses a read
 
 The cache accepts a chunk of any size, eviction skips reads in flight, and the
-cache drops only values it has already returned. The worst a budget can cost you
-is a re-read: it can make a query slower, never make one fail or come back
-short.
+cache drops only values it has already returned. A budget can make a query
+slower, never make one fail or come back short.
 
 **The default binds less often than its size suggests.** On the deepest data we
 measure (1000x coverage long reads, 240 windows over six laps), the cache
@@ -38,10 +36,8 @@ above the working set, or pass `Infinity` and bound memory some other way.
 
 ## `cacheIdleTimeoutMs` is the only thing that gives memory back
 
-The cache checks `maxCacheBytes` only when a read settles, so an idle one sits
-at whatever level it reached. The idle sweep frees that memory, so a generous
-ceiling limits a peak reached while panning rather than memory that a parked tab
-holds indefinitely.
+The cache checks `maxCacheBytes` only when a read settles, so an idle cache sits
+at whatever level it reached until the idle sweep frees it.
 
 The clock runs from the last _read_ of a chunk, or from when its parse finished
 if nothing has read it since, so panning back and forth over one region never
@@ -96,19 +92,19 @@ data untouched; the fix is known and parked, with the numbers in
 
 ## The byte-range cache underneath
 
-Everything above caches what a chunk _parsed to_. Underneath it, a byte-range
-cache on the filehandle caches the compressed bytes a chunk was read from. Size
-the two together; this page was measured against
-[@gmod/range-cache-filehandle](https://github.com/GMOD/range-cache-filehandle).
+Everything above caches what a chunk _parsed to_. A byte-range cache on the
+filehandle, such as
+[@gmod/range-cache-filehandle](https://github.com/GMOD/range-cache-filehandle),
+caches the compressed bytes underneath, so size the two together.
 
-A read reaches the byte-range cache only when the caches above miss, so its own
-defaults are deliberately looser than these: a 15-minute idle window against the
-3 minutes here. Once a chunk-cache entry expires, the byte-range cache is all
-that keeps a re-read from becoming a re-download (its
+The byte-range cache sees a read only when the chunk cache misses, so its
+defaults are deliberately looser: a 15-minute idle window against the 3 minutes
+here. Once a chunk-cache entry expires, the byte-range cache keeps a re-read
+from becoming a re-download (its
 [tuning.md](https://github.com/GMOD/range-cache-filehandle/blob/main/docs/tuning.md)
-has the measurement). The byte-range cache also bounds memory per _module
-instance_ rather than per file, so `cacheBudget` does not cover it, and it does
-not appear in any number on this page.
+has the measurement). It bounds memory per _module instance_ rather than per
+file, so `cacheBudget` does not cover it, and no number on this page includes
+it.
 
 ## Further reading
 
