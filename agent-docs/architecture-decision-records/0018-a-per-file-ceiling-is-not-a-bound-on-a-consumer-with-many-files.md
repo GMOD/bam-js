@@ -10,8 +10,8 @@ deepest fixture measured (569 MB) never thrashes. ADR 0016 then audited
 retention and found no growth. Both are about **one file**.
 
 jbrowse holds one `BamFile` per adapter config for the life of the track and
-passes no budget, so the ceiling is per open track. What that costs was never
-measured. Three moderately deep tracks browsing eight 50 kb windows:
+passes no budget, so the ceiling is per open track. We had not measured what
+that costs, so we browsed eight 50 kb windows on three moderately deep tracks:
 
 | step | 1000x.shortread | 200x.longread | 200x.shortread | aggregate | RSS     |
 | ---: | --------------: | ------------: | -------------: | --------: | ------- |
@@ -19,12 +19,13 @@ measured. Three moderately deep tracks browsing eight 50 kb windows:
 |    3 |          384 MB |         72 MB |         154 MB |    610 MB | 994 MB  |
 |    7 |          675 MB |        124 MB |         310 MB |   1109 MB | 1665 MB |
 
-Still climbing, and **no cache is anywhere near its own 1 GB ceiling** — so not
-one byte of that was the budget doing anything. Nothing bounded it. The only
-reclamation available was `DEFAULT_CACHE_IDLE_TIMEOUT_MS`, which by construction
-does nothing while the reader is browsing.
+The aggregate is still climbing at step 7, and **no cache is anywhere near its
+own 1 GB ceiling**, so the budget evicted none of that memory and no other
+mechanism bounded it. The only reclamation available was
+`DEFAULT_CACHE_IDLE_TIMEOUT_MS`, which by construction reclaims nothing while
+the reader is browsing.
 
-Scaled by track count, on a six-window browse:
+The next table scales the track count on a six-window browse:
 
 | tracks | per-file 1 GB each | shared 1 GB total |
 | -----: | -----------------: | ----------------: |
@@ -34,8 +35,9 @@ Scaled by track count, on a six-window browse:
 
 ## Rejected: divide the ceiling by the track count
 
-The obvious fix, and it walks straight into the cliff the per-file number exists
-to avoid. Three tracks, browse then pan back, counting refills on the revisit:
+Dividing the ceiling is the obvious fix, and it brings back the refill blow-up
+that the per-file number was sized to avoid (ADR 0014). With three tracks, we
+browsed and then panned back, counting refills on the revisit:
 
 | per-file budget | aggregate held | revisit refills |
 | --------------- | -------------: | --------------: |
@@ -44,55 +46,57 @@ to avoid. Three tracks, browse then pan back, counting refills on the revisit:
 | 512 MB          |         918 MB |               8 |
 | 1024 MB (ship)  |        1109 MB |               0 |
 
-The cold pass over the same ground was 98 refills, so the 128 MB row — what
-eight tracks sharing a gigabyte would each get — is **worse than having no cache
-at all**. An equal split cannot work, because the divisor is the thing that
-makes each share too small.
+The cold pass over the same ground took 98 refills, so the 128 MB row is **worse
+than having no cache at all**. 128 MB is what each of eight tracks sharing a
+gigabyte would get. An equal split cannot work, because dividing by the track
+count shrinks each share below a working set.
 
 ## Decision
 
-`cacheBudget`, a `SharedBudget` from `@gmod/shared-read-cache` that several
-files hold jointly, evicting globally least-recently-used across all of them.
-Opt-in; `maxCacheBytes` keeps its 1 GB default and its meaning.
+Add `cacheBudget`, a `SharedBudget` from `@gmod/shared-read-cache` that several
+files hold jointly and that evicts the globally least-recently-used entry across
+all of them. The budget is opt-in; `maxCacheBytes` keeps its 1 GB default and
+its meaning.
 
-At an equal aggregate ceiling the shared budget beats the split on both axes —
-1024 MB held and 4 refills, against 773 MB held and 16 refills — because a
-member yields only what is globally least-recently-used. Tracks nobody is
-looking at hand their space to the one being panned, so the active track keeps a
-whole working set however many tracks are open. That is precisely what an equal
-split cannot do.
+At an equal aggregate ceiling, the shared budget does better than the split on
+both measures (1024 MB held and 4 refills, against 773 MB held and 16 refills),
+because it evicts from a member only what is globally least-recently-used. It
+evicts the entries of tracks nobody is looking at first, so the track being
+panned keeps a whole working set however many tracks are open. An equal split
+cannot do that.
 
 ## Consequences / rationale
 
-- **Inert until it binds.** At 2 and 4 tracks the shared rows above are
-  identical to the per-file rows, refill for refill. It is a ceiling, not an
-  allocation, and it changes nothing for a consumer that was never near it.
+- **The shared budget changes nothing until it binds.** At 2 and 4 tracks the
+  shared rows above are identical to the per-file rows, refill for refill. The
+  budget is a ceiling, not an allocation, so a consumer that was never near it
+  sees no change.
 
-- **Bounding memory costs re-reads, and the number is not small.** Six tracks
-  under a shared gigabyte cost 33 revisit refills against 0. That is the trade
-  being bought, and it should be stated rather than discovered: this lowers the
-  ceiling a browsing session can reach, it does not make the working set
-  smaller. Below the working set the ADR 0014 cliff is waiting, shared budget or
-  not — at 256 MB across three tracks the cold pass itself rose from 70 refills
-  to 110.
+- **A bound on memory costs re-reads, and the number is not small.** Six tracks
+  under a shared gigabyte cost 33 revisit refills against 0. We accept that
+  trade-off. The budget lowers the ceiling a browsing session can reach, but it
+  does not make the working set smaller. Below the working set, refills climb as
+  ADR 0014 measured, with or without a shared budget. At 256 MB across three
+  tracks, the cold pass itself rose from 70 refills to 110.
 
 - **RSS moves less than retention does.** 1442 → 989 MB held is 31%; 2250 → 1984
-  MB RSS is 12%. The rest is transient — `@gmod/bgzf-filehandle`'s grow-only
-  module-global wasm memory among it — and no cache budget touches that.
+  MB RSS is 12%. The rest is transient, with `@gmod/bgzf-filehandle`'s grow-only
+  module-global wasm memory among it, and no cache budget affects it.
 
-- **Members are held weakly.** A budget outliving a closed track and keeping its
-  `BamFile` reachable would be a leak of exactly the kind this exists to
-  prevent; jbrowse reclaims a closed track by dropping the last strong reference
-  to its adapter. The budget holds a `WeakRef` and the member's last known
-  weight beside it, crediting it back when it finds the member collected. There
-  is no `unregister` for a consumer to forget.
+- **The budget holds members weakly.** A budget that outlived a closed track and
+  kept its `BamFile` reachable would cause exactly the kind of leak it is meant
+  to prevent, because jbrowse reclaims a closed track by dropping the last
+  strong reference to its adapter. The budget stores a `WeakRef` to each member
+  with the member's last known weight, and credits that weight back when it
+  finds the member collected. A consumer therefore has no `unregister` to
+  forget.
 
-- **Not a default.** A default shared budget would need a scope to be shared
-  _within_, and this library has no idea whether it is one file in a script or
-  forty in a worker pool. The consumer that knows — one budget per worker,
-  handed to every file — is the one that should say so.
+- **The shared budget is not a default.** A default shared budget would need a
+  scope to be shared _within_, and the library cannot tell whether it serves one
+  file in a script or forty in a worker pool. The consumer knows, so the
+  consumer should create the budget, one per worker, and hand it to every file.
 
-## What this does NOT establish
+## What this does not establish
 
 Peak memory is still unbounded, on the same grounds as ADR 0015: reads in flight
 are never evicted, six run at once, and a query holds every chunk it parsed
@@ -101,7 +105,7 @@ what grows while a reader browses.
 
 ## Methodology
 
-`~/src/jb2bench/data`, `LocalFile`, `cacheIdleTimeoutMs: 0` so the idle sweep
-cannot be mistaken for the budget working. Retention is the sum of
-`chunkFeatureCache.totalSize`; refills count `_readChunkFeatures` calls. Working
-sets must be measured with the budget off — see ADR 0013's correction note.
+The runs use `~/src/jb2bench/data` and `LocalFile`, with `cacheIdleTimeoutMs: 0`
+so the idle sweep cannot be mistaken for the budget working. Retention is the
+sum of `chunkFeatureCache.totalSize`; refills count `_readChunkFeatures` calls.
+Measure working sets with the budget off (see ADR 0013's correction note).

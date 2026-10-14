@@ -4,69 +4,71 @@ Status: Accepted
 
 ## Context
 
-Before ADRs 0007 and 0008, fetching a query's chunks was a `for` loop with an
-`await` in the body — five lines. It is now an in-flight map keyed by chunk, a
-signal comparison, a retry, a bounded worker pool, a per-chunk result slot and a
-single-chunk fast path: about 45 lines of mechanism in `_startChunkRead`,
-`_cachedChunkFeatures` and `_fetchChunkFeatures`.
+Before ADRs 0007 and 0008, fetching a query's chunks was a five-line `for` loop
+with an `await` in the body. The fetch is now about 45 lines of mechanism in
+`_startChunkRead`, `_cachedChunkFeatures` and `_fetchChunkFeatures`: an
+in-flight map keyed by chunk, a signal comparison, a retry, a bounded worker
+pool, a per-chunk result slot and a single-chunk fast path.
 
-"This is overcomplicated" is the correct instinct to have about that diff, and
-it deserves an answer better than "the benchmarks say so". This ADR takes each
-piece, names the simpler thing it replaced, and gives what that simpler thing
-actually costs. It also names the one piece that is genuinely close to the line,
-and the condition under which it should be deleted.
+Calling that diff overcomplicated is a reasonable reaction, and "the benchmarks
+say so" is not enough of an answer to it. This ADR takes each piece, names the
+simpler code it replaced, and gives what that simpler code costs. It also names
+the one piece that is close to the line, and the condition under which we should
+delete it.
 
 ## The short answer
 
-Two facts about the primary consumer drive everything else:
+The design follows from two facts about the primary consumer:
 
 - **jbrowse issues one `getRecordsForRange` per rendered block, concurrently,
-  with no serialization.** Those per-block ranges collapse onto very few chunk
-  keys. Without in-flight sharing, 8 adjacent windows cost 9 decompressions
-  instead of 3 and concurrency made the query _slower than doing it serially_
-  (240 ms vs 113 ms — ADR 0007).
-- **One query spans ~15 chunks, each its own HTTP range request.** Read serially
-  that is ~15 round trips: 734 ms vs 192 ms at a 50 ms RTT, with an identical
-  request and byte count either way (ADR 0008).
+  with no serialization.** Those per-block ranges map to very few chunk keys.
+  Without in-flight sharing, 8 adjacent windows cost 9 decompressions instead of
+  3, and concurrency made the query _slower than doing it serially_ (240 ms vs
+  113 ms — ADR 0007).
+- **One query spans ~15 chunks, and each chunk is a separate HTTP range
+  request.** Read serially, that is ~15 round trips: 734 ms vs 192 ms at a 50 ms
+  RTT, with an identical request and byte count either way (ADR 0008).
 
-Neither is a micro-optimization and neither is hypothetical — they are the
-normal access pattern of the library's main consumer, on the transport it
-actually ships against. The rest of the code is bookkeeping those two facts
-force.
+The per-block fan-out and the ~15-chunk query are what the library's main
+consumer does, on the transport it ships against, so neither is a
+micro-optimization or a hypothetical case. The rest of the code is bookkeeping
+that these two patterns require.
 
 ## Piece by piece
 
 ### "Just use `Promise.all(chunks.map(...))`"
 
-That is the unbounded version, and it is genuinely shorter — the worker pool
-exists only to cap concurrency at 6.
+`Promise.all` is the unbounded version, and it is shorter. The worker pool only
+caps concurrency at 6.
 
-What the cap buys: `blocksForRange` over a whole chromosome returns hundreds of
-chunks, and every chunk inflated is a decompressed buffer pinned for as long as
-any record views into it. Unbounded, that inflates all of them at once. What the
-cap costs: nothing on the transport that matters — browsers cap at 6 connections
-per host anyway, so requests 7..N would queue in the browser rather than in our
-loop.
+`blocksForRange` over a whole chromosome returns hundreds of chunks, and every
+chunk inflated is a decompressed buffer pinned for as long as any record views
+into it. Without the cap, the loop inflates all of them at once. In a browser,
+the transport that matters, the cap changes nothing, because browsers allow 6
+connections per host anyway, so requests 7..N would queue in the browser instead
+of in our loop.
 
-Five lines to convert an unbounded memory spike into a queue is a good trade.
+Five lines of code turn an unbounded memory spike into a queue, which is worth
+it.
 
-This ADR originally noted an inconsistency it left behind: `fetchPairs` still
-fanned out over mate chunks with an unbounded `Promise.all`. That has since been
-closed — a `viewAsPairs` query over a busy region resolves to many distinct mate
-chunks, so the memory argument above applied there verbatim. It now uses the
-same inline pool, capped by the same `MAX_CONCURRENT_CHUNK_READS`.
+When this ADR was first written, `fetchPairs` still fanned out over mate chunks
+with an unbounded `Promise.all`, and the ADR noted the inconsistency. A
+`viewAsPairs` query over a busy region resolves to many distinct mate chunks, so
+the memory argument above applied there verbatim. `fetchPairs` now uses the same
+inline pool, capped by the same `MAX_CONCURRENT_CHUNK_READS`.
 
-Its chunk deduplication moved at the same time, from `Chunk.toString()` to
-`chunkCacheKey()` — the key `_cachedChunkFeatures` uses. `toString()` folds in
-`bin` and `fetchedSize()`, so two chunks covering an identical virtual-offset
-span stayed separate entries in the mate map even though the cache below
-collapses them onto one entry, and their records came back twice.
+The chunk deduplication in `fetchPairs` moved at the same time, from
+`Chunk.toString()` to `chunkCacheKey()`, the key `_cachedChunkFeatures` uses.
+`toString()` folds in `bin` and `fetchedSize()`, so two chunks covering an
+identical virtual-offset span stayed separate entries in the mate map, even
+though the cache below stores them as one entry, and their records came back
+twice.
 
 ### "Then at least extract a generic `mapConcurrent` helper"
 
-Tried, measured, rejected. Replacing the inline pool with a
-`mapConcurrent(items, limit, fn)` helper costs an extra async frame per chunk,
-and that is visible on warm queries:
+We tried a `mapConcurrent(items, limit, fn)` helper in place of the inline pool,
+measured it and rejected it. The helper adds an async frame per chunk, and the
+cost is visible on warm queries:
 
 |                         | tiny.bam (1 chunk) | out.bam (14 chunks) |
 | ----------------------- | ------------------ | ------------------- |
@@ -74,52 +76,52 @@ and that is visible on warm queries:
 | helper vs inline, run 2 | 1.125x             | 1.152x              |
 | helper vs inline, run 3 | 1.102x             | 1.108x              |
 
-Interleaved A/B, both implementations alternating within one process with the
-order rotated per round, min of 9 rounds. The regression keeps its sign across
-runs; by the methodology in ADR 0008 that makes it real, not an artifact. The
-same measurement on the inline pool flips sign run to run (0.99, 1.30, 1.07 on
-`out.bam`), which is what noise looks like here.
+The benchmark is an interleaved A/B: both implementations alternate within one
+process, with the order rotated per round, and the result is the min of 9
+rounds. The regression keeps its sign across runs, which by the methodology in
+ADR 0008 makes it real. The same measurement on the inline pool flips sign from
+run to run (0.99, 1.30, 1.07 on `out.bam`), which is the pattern noise produces
+here.
 
-Fifteen lines saved is not worth 11% on the hot path of a library whose whole
-point is that path.
+The helper would save fifteen lines and cost 11% on the hot path, and that path
+is what the library is for, so the inline pool stays.
 
 ### "The single-chunk fast path is premature optimization"
 
-It is six lines, and it was not written speculatively — it was added because
-`tiny.bam` regressed ~7% when the pool went in, consistently and in both slot
-orders (ADR 0008). One chunk is not an edge case: it is every small file and
-every query that lands inside a single bin.
+We added the six-line fast path because `tiny.bam` regressed ~7% when the pool
+went in, consistently and in both slot orders (ADR 0008). Every small file, and
+every query that falls inside a single bin, reads one chunk, so the case is
+common.
 
 ### "The abort retry is speculative complexity"
 
-This is the piece closest to the line, and the criticism has real force: jbrowse
-does not pass a `signal` to `getRecordsForRange` at all — it cancels with
-`checkStopToken` around the await — so in the main consumer this path never
-fires.
+The abort retry is the piece closest to the line, and the criticism has real
+force. jbrowse does not pass a `signal` to `getRecordsForRange` at all, and
+cancels with `checkStopToken` around the await instead, so in the main consumer
+this path never fires.
 
-It stays because sharing _introduces_ a failure mode that did not exist before
-it. Only the caller that starts a read passes its signal down to `bam.read`; if
-that caller aborts, the shared promise rejects for every waiter, including
-queries that are perfectly alive. A query failing because an unrelated query was
-cancelled is a correctness regression caused by the optimization, not a
-pre-existing risk the optimization declined to fix. Eight lines to not introduce
-it is cheap.
+We kept the retry because sharing _introduces_ a failure mode that did not exist
+before. Only the caller that starts a read passes its signal down to `bam.read`.
+If that caller aborts, the shared promise rejects for every waiter, including
+queries that are still running. A query that fails because an unrelated query
+was cancelled is a correctness regression the optimization itself introduced,
+and eight lines that avoid it are cheap.
 
-It was also, until now, the one part of the feature with **no test at all** —
-the subtlest branch in the fetch path, held up by reasoning alone. Three tests
-now cover it (`a waiter survives the read owner aborting`,
+Until this ADR, the retry was also the one part of the feature with **no test at
+all**: the subtlest branch in the fetch path, with only reasoning to show that
+it worked. Three tests now cover it
+(`a waiter survives the read owner aborting`,
 `a waiter's own abort still propagates`,
-`a genuine read failure is not retried by waiters`), each driving the case with
-a read that hangs until the test releases it, so the interleaving is
-deterministic rather than raced.
+`a genuine read failure is not retried by waiters`). Each test drives the case
+with a read that hangs until the test releases it, so the interleaving is
+deterministic.
 
-They were checked by mutation, because a concurrency test that cannot fail is
-worse than none: removing the retry kills only the first, and retrying
-unconditionally kills only the third. Each branch of the guard has exactly one
-test holding it down.
+We checked the tests by mutation, because a concurrency test that cannot fail is
+worse than none. Removing the retry fails only the first test, and retrying
+unconditionally fails only the third. Each branch of the guard is covered by
+exactly one test.
 
-It did shrink under review, and the two things that came out are worth recording
-because they read as necessary and were not:
+Review removed two pieces of the retry. Both look necessary and are not:
 
 - `pending.signal !== opts.signal` was **redundant**. If the two are the same
   object and it is aborted, then `opts.signal.aborted` is true, so the "did _we_
@@ -127,41 +129,43 @@ because they read as necessary and were not:
   change the outcome.
 - The explicit "a sibling waiter may already have started the retry, so join
   that instead" branch was **re-implementing the function it was inside**.
-  Recursing into `_cachedChunkFeatures` covers it, and covers more: it also
-  re-checks `chunkFeatureCache`, which by then may be populated.
+  Recursing into `_cachedChunkFeatures` handles that case and also re-checks
+  `chunkFeatureCache`, which may be populated by then.
 
 ### "Why is `inFlightChunks` a second map instead of part of the cache?"
 
-Covered in ADR 0007's rejected alternatives: `ChunkFeatureCache`'s budget is in
-decompressed bytes, and `entry.bytes` is only known once the read resolves.
-Storing promises there means either an unbudgeted window or teaching the LRU to
-hold unsized entries. A short-lived side map keeps the budget logic untouched.
+ADR 0007's rejected alternatives cover this. `ChunkFeatureCache`'s budget is in
+decompressed bytes, and `entry.bytes` is known only once the read resolves. To
+store promises there, we would have to accept an unbudgeted window or teach the
+LRU to hold unsized entries. A short-lived side map leaves the budget logic
+untouched.
 
 ### "Fix it in jbrowse instead"
 
-Covered in ADR 0007: the adapter cannot know that two different coordinate
-ranges map to one chunk. That is index knowledge and it lives here, and any
-other consumer that fans out hits the same cost.
+ADR 0007 covers this. The adapter has no way to tell that two different
+coordinate ranges map to one chunk, because that mapping comes from the index,
+which bam-js reads. Any other consumer that fans out pays the same cost.
 
-## What would actually make this smaller
+## What would make this smaller
 
-Honest list, in case the trade-offs change:
+If the trade-offs change, these changes would shrink the code:
 
-- **Serialize chunk reads behind a global queue.** Collapses the duplicate work
-  without the in-flight map, but by removing concurrency rather than sharing it
-  — it gives up all of ADR 0008.
+- **Serialize chunk reads behind a global queue.** A global queue removes the
+  duplicate work without the in-flight map, but it does so by removing
+  concurrency, which gives up all of ADR 0008.
 - **Stop forwarding `opts.signal` to `bam.read`,** or refcount waiters and abort
-  only when all of them have. Either makes the abort retry dead code, and
-  deleting it removes `InFlightChunk` entirely — `inFlightChunks` becomes a map
-  of bare promises. That is the one piece with a clear deletion trigger.
+  only when all of them have. Either change makes the abort retry dead code, and
+  deleting the retry removes `InFlightChunk` entirely, leaving `inFlightChunks`
+  a map of bare promises. The retry is the one piece with a clear deletion
+  trigger.
 - **Drop the single-chunk fast path** if the pool ever gets cheap enough that
   `tiny.bam` shows parity. Re-measure before assuming it has.
 
 ## Consequences
 
-- The mechanism is ~45 non-comment lines and each piece has a measurement
-  attached. None of it is defensible from first principles alone, which is why
-  these ADRs exist.
-- Anything removed from it should be removed the way the two clauses above were:
-  by showing the simpler code is equivalent or that the measurement no longer
-  reproduces — not by asserting it looks like too much.
+- The mechanism is ~45 non-comment lines, and each piece has a measurement
+  attached, because first principles alone would not justify any of them. These
+  ADRs record those measurements.
+- To remove a piece, show that the simpler code is equivalent or that the
+  measurement no longer reproduces, as review did for the two pieces above. A
+  piece looking like too much is not a reason to remove it.

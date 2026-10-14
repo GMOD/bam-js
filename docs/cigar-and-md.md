@@ -1,12 +1,13 @@
 # CIGAR, MD, and how the walk decodes mismatches
 
-Background for `getMismatches`/`forEachMismatch`. The API reference is
-[api.md](api.md#mismatches); this page covers what the two fields contain.
+This page explains the two fields that `getMismatches` and `forEachMismatch`
+read. The API reference is [api.md](api.md#mismatches).
 
 ## CIGAR
 
-A run-length description of how the read aligns, in order. Each op has a length
-and a letter, and each consumes read bases, reference bases, or both:
+CIGAR describes how the read aligns, in order, as a run-length list of ops. Each
+op has a length and a letter, and each consumes read bases, reference bases, or
+both:
 
 | op  | meaning                 | read | ref |
 | --- | ----------------------- | ---- | --- |
@@ -21,19 +22,19 @@ and a letter, and each consumes read bases, reference bases, or both:
 | `P` | padding                 | no   | no  |
 
 `M` means "aligned", not "matching". Most aligners emit `M` for both, so the
-CIGAR alone locates indels and clips but carries nothing about substitutions.
-`--eqx`-style aligners emit `=`/`X` instead, which does carry them.
+CIGAR alone locates indels and clips but not substitutions. `--eqx`-style
+aligners emit `=`/`X` instead, and those ops mark the substitutions.
 
 BAM stores the op count in 16 bits, so a read with more than 65535 ops keeps a
 `<seqlen>S<reflen>N` placeholder in the record and the real CIGAR in a `CG` tag.
-`record.CIGAR` and `record.NUMERIC_CIGAR` follow that transparently.
+`record.CIGAR` and `record.NUMERIC_CIGAR` return the real CIGAR from the tag.
 
 ## MD
 
-An aux tag that fills in what `M` left out, over the reference-consuming aligned
-bases only — a number is that many matching bases, a letter is a reference base
-the read differs from, and `^` plus letters is the reference bases a `D` op
-deleted. Insertions, clips and `N` never appear in it.
+MD is an aux tag that fills in what `M` leaves out, over the aligned bases that
+consume the reference. A number is that many matching bases, a letter is a
+reference base the read differs from, and `^` plus letters lists the reference
+bases a `D` op deleted. Insertions, clips and `N` never appear in it.
 
 ## A worked example
 
@@ -45,7 +46,7 @@ SEQ    ACGGTCAACGTTA
 MD     3A5^GG3
 ```
 
-Walking them together — CIGAR sets the frame, and only the `M` runs consume MD:
+The walk steps through the CIGAR ops in order, and only the `M` runs consume MD:
 
 | CIGAR | read  | ref     | MD             | reported                              |
 | ----- | ----- | ------- | -------------- | ------------------------------------- |
@@ -62,8 +63,8 @@ insertion between them consumes no reference.
 
 `forEachMismatchNumeric` in [`src/mismatches.ts`](../src/mismatches.ts) makes
 one pass over the packed CIGAR, tracking a read offset and a reference offset.
-Indels, skips and clips come straight off the CIGAR. Substitutions come from the
-first of these that is available:
+Indels, skips and clips come directly from the CIGAR. Substitutions come from
+the first of these that is available:
 
 1. **the `MD` tag** — cheapest, and what the aligner asserted
 2. **reference bases** — `opts.ref`, or whatever `setReference` bound; compared
@@ -71,18 +72,18 @@ first of these that is available:
 3. **`X` CIGAR ops** — these give the position, but name the reference base only
    if 1 or 2 also supplied it (`refBaseCode` is 0 otherwise)
 
-With none of them, the walk still reports indels and clips in full and skips
-substitutions entirely. The record does not contain their positions.
+With none of them, the walk reports every indel and clip and no substitutions,
+because the record does not contain the substitution positions.
 
-## Traps this walk avoids
+## Decoding mistakes the walk avoids
 
-- `M` does not mean match, and `=`/`X` CIGARs carry substitutions the `MD` path
-  would otherwise look for.
+- `M` does not mean match, and a CIGAR with `=`/`X` ops marks substitutions that
+  the walk would otherwise look up in `MD`.
 - MD counts reference bases; the CIGAR counts both, so their offsets diverge at
   every insertion and clip.
-- A deletion's `^GG` payload needs stepping over, not reading as matches, or
-  every later position in the read lands on the wrong part of the tag.
-- Most aligners omit MD entirely, so the reference has to stand in for it.
+- The walk has to step over a deletion's `^GG` rather than read it as matches;
+  otherwise every later position in the read maps to the wrong part of the tag.
+- Most aligners omit MD entirely, so the walk needs the reference bases instead.
 - A read with `SEQ` of `*` has no bases at all, but its `X` ops still consume
   reference and still have to advance the walk.
 

@@ -7,4 +7,4 @@ description:
 
 # Todo
 
-No committed items. Proposals live in [ideas/](ideas/).
+No committed items. Proposals are in [ideas/](ideas/).

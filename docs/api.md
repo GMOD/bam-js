@@ -136,9 +136,9 @@ mate-pairing options. It accepts the cache options but does not use them.
 
 ## `streamBamRecords`
 
-Reads every record of a BAM in file order without an index, for a file no index
-can address, such as an unsorted or name-sorted BAM. It yields an array of
-records per window.
+`streamBamRecords` reads every record of a BAM in file order without an index,
+for a file no index can address, such as an unsorted or name-sorted BAM. It
+yields an array of records per window.
 
 ```typescript
 import { streamBamRecords } from '@gmod/bam'

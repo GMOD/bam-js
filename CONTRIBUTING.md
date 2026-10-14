@@ -20,9 +20,10 @@ same commit:
 dot -Tsvg docs/img/dataflow.dot -o docs/img/dataflow.svg
 ```
 
-No automated check catches this — graphviz is not a dependency and different
-versions emit different SVG bytes, so a staleness check would fail on toolchain
-drift rather than on a stale diagram.
+CI does not check that the SVG matches the `.dot`. Graphviz is not a dependency,
+and different graphviz versions emit different SVG bytes, so a byte comparison
+would fail when the graphviz version changed rather than when the diagram fell
+out of date.
 
 [docs/api.md](docs/api.md) is written by hand, and `test/apiDocs.test.ts` fails
 when it misses an export of `src/index.ts`, a constructor option, or a public
@@ -32,8 +33,8 @@ internal.
 
 ## Benchmarks
 
-`benchmarks/bam.bench.ts` compares two refs side by side rather than timing one
-build, since a number with nothing to compare it against means little.
+`benchmarks/bam.bench.ts` times two refs side by side, so each number has a
+baseline to compare against.
 
 ```sh
 pnpm bench                            # origin/main vs your current branch
@@ -42,17 +43,16 @@ pnpm benchonly                        # reuse whatever was built last time
 ```
 
 `scripts/build-both-branches.sh` builds each ref in a throwaway git worktree
-into `esm_branch1/` and `esm_branch2/`, so your checkout is never switched and
-your local edits are left alone — which also means only committed work is
-measured.
+into `esm_branch1/` and `esm_branch2/`. The script never switches your checkout
+or touches your local edits, so the benchmark measures only committed work.
 
-Every benchmark region is pinned by a record-count assertion in
-`test/benchmark-regions.test.ts`. A query naming a contig its file does not have
-returns `[]` before touching any of the code being measured, so it stays green
-while timing nothing but `getHeader()` — seven of the ten cases were in exactly
-that state before they were pinned
+A record-count assertion in `test/benchmark-regions.test.ts` pins every
+benchmark region. A query for a contig the file lacks returns `[]` before it
+reaches the code under measurement, so the benchmark still passes while it times
+only `getHeader()`. Seven of the ten cases were in that state before the test
+pinned them
 ([ADR 0004](agent-docs/architecture-decision-records/0004-pin-benchmark-regions-with-a-test.md)).
-Change a region and the test tells you what it now yields.
+If you change a region, the test reports how many records it now returns.
 
 ## Publishing
 
@@ -65,6 +65,6 @@ This repo is already configured. To set up a new package:
 npm >=11.10.0 and 2FA).
 
 Once npm publish succeeds, the `release` job creates the GitHub release for the
-tag, taking its notes from that version's CHANGELOG.md section — which
-`scripts/release-notes.sh` extracts, so run that with a version to preview a
-release's notes.
+tag. `scripts/release-notes.sh` copies the release notes from that version's
+CHANGELOG.md section, so run the script with a version to preview a release's
+notes.

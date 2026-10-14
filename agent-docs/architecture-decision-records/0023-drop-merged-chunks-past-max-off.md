@@ -1,7 +1,8 @@
 # ADR 0023 — Drop merged chunks that start past htslib's `max_off`
 
-Status: Accepted, implemented. Changes what ADR 0010's early stop and ADR 0017's
-byte forecast are left to do; both carry a note pointing here.
+Status: Accepted, implemented. This ADR changes what ADR 0010's early stop and
+ADR 0017's byte forecast still have to do, and both ADRs have a note pointing
+here.
 
 ## Context
 
@@ -16,10 +17,10 @@ first one that exists is a record past the query, and in a coordinate-sorted
 file so is everything after it. That offset is `max_off`, and `maxOffset` in
 `indexFile.ts` computes it.
 
-It is a bound rather than a forecast. It rests on the sort order `appendInRange`
-and the early stop already assume, which is a different thing from the
-linear-index forecast ADR 0017 declined to prune a fetch with: that one really
-can drop records.
+`max_off` is a bound rather than a forecast. It depends only on the sort order
+that `appendInRange` and the early stop already assume. The linear-index
+forecast that ADR 0017 declined to prune a fetch with is different, because that
+forecast can drop records.
 
 ## Decision
 
@@ -33,9 +34,9 @@ same pruning.
 
 ## Where in the pipeline: three variants measured
 
-Bytes and requests with the chunk cache cleared before every query, 48 windows
-per file from 400bp to 500kb spread over each file's data. Every variant
-returned the same records in the same order in every window.
+The table shows bytes and requests with the chunk cache cleared before every
+query, over 48 windows per file from 400bp to 500kb spread across each file's
+data. Every variant returned the same records in the same order in every window.
 
 | file                      | before        | drop, then merge | merge, then drop (shipped) |
 | ------------------------- | ------------- | ---------------- | -------------------------- |
@@ -49,20 +50,22 @@ Dropping before the merge saves more bytes on a cold query: 29% against 16% on
 out.bam. Requests fall by the same amount either way.
 
 Trimming, htslib's own treatment, adds nothing to either. Across out.bam's 48
-windows only 7 raw chunks straddle `max_off`, and trimming them saves 33KB: a
-raw chunk is a run of one bin's records, the record at `max_off` belongs to
-another bin, and a raw chunk crosses it only where htslib joined two of its
-chunks through a shared BGZF block. So the parsing-review handoff's split
-between trimming and dropping was really a split between before and after the
-merge. Its trimmed figure for out.bam (−41%) matches the drop-then-merge column,
-and its drop-only figure (−26%) the merge-then-drop one, over different windows.
+windows only 7 raw chunks straddle `max_off`, and trimming them saves 33KB. A
+raw chunk is a run of one bin's records, and the record at `max_off` belongs to
+another bin, so a raw chunk crosses `max_off` only where htslib joined two of
+its chunks through a shared BGZF block. The parsing-review handoff's split
+between trimming and dropping was therefore a split between before and after the
+merge. Over different windows, its trimmed figure for out.bam (−41%) matches the
+drop-then-merge column, and its drop-only figure (−26%) matches the
+merge-then-drop one.
 
 ## Why after the merge: panning
 
 The merged chunk is the cache key (ADR 0019). Dropping before the merge ends
 each merged chunk at the last raw chunk below `max_off`, which moves with the
-query end, so every step of a pan mints a new key over bytes it has already
-parsed. Total bytes over a pan with a warm cache, window/step/count:
+query end, so every step of a pan creates a new key over bytes it has already
+parsed. The table gives total bytes over a pan with a warm cache, with each pan
+written as window/step/count:
 
 | file                | pan          | before | drop, then merge | merge, then drop |
 | ------------------- | ------------ | -----: | ---------------: | ---------------: |
@@ -96,23 +99,25 @@ its right.
 A merged chunk starting at or past `max_off` holds only records at or past it,
 and every one of those starts at or past the query end. The drop needs the file
 to be coordinate-sorted, which `appendInRange` and the early stop already
-require. Checked rather than argued: the record list, compared by `fileOffset`
-and in order, matched the old reader in every window of every run above, and the
-samtools agreement suite passes.
+require. We checked this rather than argued it. The record list, compared by
+`fileOffset` and in order, matched the old reader in every window of every run
+above, and the samtools agreement suite passes.
 
 ## The early stop (ADR 0010) stays
 
-No window in `test/data` fires it any more: `max_off` removes the chunks it used
-to find. Real files still do. On jb2bench's 1000x.longread a 1kb window resolves
-to 13 chunks and the stop reads 6; on 2mb.100x.longread, 7 and 6. The handoff
-measured the stop saving 12% on 1000x.longread, where `max_off` prunes nothing.
-The early-stop tests now supply their chunk list through
-`test/lib/syntheticQuery.ts`, since no fixture gives them one.
+`max_off` removes the chunks the early stop used to find, so the stop no longer
+fires in any window over `test/data`. It still fires on real files. On
+jb2bench's 1000x.longread a 1kb window resolves to 13 chunks and the stop reads
+6; on 2mb.100x.longread, 7 and 6. The handoff measured the stop saving 12% on
+1000x.longread, where `max_off` prunes nothing. The early-stop tests now supply
+their chunk list through `test/lib/syntheticQuery.ts`, since no fixture gives
+them one.
 
 ## The byte forecast (ADR 0017), re-measured
 
 `estimatedBytesForRegions` calls `blocksForRange`, so it inherits the pruning.
-Over 64 windows per file from 1kb to 200kb, against the bytes a cold query read:
+The table compares the forecast with the bytes a cold query read, over 64
+windows per file from 1kb to 200kb:
 
 | file           | windows off by >5% | forecast ≠ sum of chunks | worst miss        |
 | -------------- | -----------------: | -----------------------: | ----------------- |
@@ -121,21 +126,22 @@ Over 64 windows per file from 1kb to 200kb, against the bytes a cold query read:
 | ultra-long-ont |             29 → 0 |                    0 → 0 | +27% → exact      |
 | volvox, ecoli  |              0 → 0 |                    0 → 0 | exact             |
 
-Summing every chunk `blocksForRange` returns now equals the bytes read in 316 of
-those 320 windows. The other 4 are exactly the windows where `chunksLikelyRead`
-still changes the answer, and it changes it downward, by up to 83%. On this
-corpus it now fires only when it is wrong.
+The sum of every chunk `blocksForRange` returns now equals the bytes read in 316
+of those 320 windows. The other 4 are exactly the windows where
+`chunksLikelyRead` still changes the answer, and it changes it downward, by up
+to 83%. On this corpus `chunksLikelyRead` now changes the answer only where the
+change is wrong.
 
-It stays for now. ADR 0017 was built for COLO829BL, a hosted 40x ONT BAM whose
-narrow windows offered 43.5MB and read 7.8MB, and that file is not reproducible
-offline. If `max_off` brings those windows down to what is read, as it did
-chr22_nanopore's 22 chunks to 1, `chunksLikelyRead` and `getHighestChunk` should
-go. The handoff's 27% undershoot on 1000x.longread is untouched by this change,
-since `max_off` prunes nothing there, and was not re-measured.
+`chunksLikelyRead` stays for now. ADR 0017 was built for COLO829BL, a hosted 40x
+ONT BAM whose narrow windows offered 43.5MB and read 7.8MB, and that file is not
+reproducible offline. If `max_off` brings those windows down to what is read, as
+it did chr22_nanopore's 22 chunks to 1, `chunksLikelyRead` and `getHighestChunk`
+should go. The handoff's 27% undershoot on 1000x.longread is untouched by this
+change, since `max_off` prunes nothing there, and was not re-measured.
 
 ## Reproducing
 
-The scripts lived in a session scratchpad. They wrap a `LocalFile`'s `read` to
+The scripts were in a session scratchpad. They wrap a `LocalFile`'s `read` to
 sum lengths and count calls, monkeypatch `index.blocksForRange` with each
 variant, call `clearFeatureCache()` before every cold query, place windows over
 the span between the first and last mapped read that `samtools view` reports,
