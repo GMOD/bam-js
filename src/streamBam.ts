@@ -215,6 +215,47 @@ export async function* streamBamRecords<T extends BamRecordLike = BAMFeature>({
     }
   }
 
+  const parseRecords = (bytes: Uint8Array, start: number, sink: T[]) => {
+    const dataView = new DataView(
+      bytes.buffer,
+      bytes.byteOffset,
+      bytes.byteLength,
+    )
+    let blockStart = start
+    while (blockStart + 4 <= bytes.length) {
+      const blockSize = readBlockSize(dataView, blockStart)
+      const blockEnd = blockStart + 4 + blockSize - 1
+      if (blockEnd >= bytes.length) {
+        break
+      }
+      sink.push(
+        new RecordClass(
+          bytes,
+          blockStart,
+          blockEnd,
+          // An indexed read derives fileOffset from the record's BGZF virtual
+          // offset, which nothing here has: there is no index to seek back
+          // with. Its ordinal in the file is the other thing that identifies a
+          // record by position, and it is the same for a given file whatever
+          // the window size, so it is as stable as a virtual offset without
+          // pretending to be one.
+          //
+          // NOT the hash of the record bytes that readBamFeatures falls back
+          // to when it has no positions: the two byte-identical records in
+          // exact_duplicate.bam collide on any content hash, and hashing
+          // every record cost ~40% of the walk (135ms of 340ms over out.bam,
+          // measured with crc32) where a counter costs nothing. The fallback
+          // only fires on an unusual path there; here it would fire on every
+          // record.
+          recordIndex++,
+          dataView,
+        ),
+      )
+      blockStart = blockEnd + 1
+    }
+    return blockStart
+  }
+
   try {
     topUp()
     while (queue.length > 0) {
@@ -253,17 +294,18 @@ export async function* streamBamRecords<T extends BamRecordLike = BAMFeature>({
         blocksEnd < compressed.length ? compressed.slice(blocksEnd) : undefined
 
       const decompressed = await inflate(compressed, blocks, blocksEnd, pool)
-      const bytes = recordCarry
-        ? concatUint8Array([recordCarry, decompressed])
-        : decompressed
-      const dataView = new DataView(
-        bytes.buffer,
-        bytes.byteOffset,
-        bytes.byteLength,
-      )
-
-      let blockStart = 0
+      const sink: T[] = []
+      let bytes = decompressed
+      let start = 0
       if (!sawHeader) {
+        bytes = recordCarry
+          ? concatUint8Array([recordCarry, decompressed])
+          : decompressed
+        const dataView = new DataView(
+          bytes.buffer,
+          bytes.byteOffset,
+          bytes.byteLength,
+        )
         if (bytes.length < 8 || dataView.getInt32(0, true) !== BAM_MAGIC) {
           throw new Error('not a BAM file: bad magic')
         }
@@ -283,43 +325,38 @@ export async function* streamBamRecords<T extends BamRecordLike = BAMFeature>({
           indexToChr: refs.indexToChr,
         })
         sawHeader = true
-        blockStart = refs.end
+        start = refs.end
+      } else if (recordCarry) {
+        // Finish the one record the last window cut off in a buffer of its
+        // own, and parse the rest of this window in place, rather than copying
+        // the whole window to put the carry in front of it.
+        const sizeBytes = concatUint8Array([
+          recordCarry.subarray(0, 4),
+          decompressed.subarray(0, Math.max(0, 4 - recordCarry.length)),
+        ])
+        const need =
+          sizeBytes.length < 4
+            ? Number.POSITIVE_INFINITY
+            : 4 +
+              readBlockSize(
+                new DataView(sizeBytes.buffer, sizeBytes.byteOffset, 4),
+                0,
+              ) -
+              recordCarry.length
+        if (need > decompressed.length) {
+          recordCarry = concatUint8Array([recordCarry, decompressed])
+          continue
+        }
+        parseRecords(
+          concatUint8Array([recordCarry, decompressed.subarray(0, need)]),
+          0,
+          sink,
+        )
+        start = need
       }
 
-      const sink: T[] = []
-      while (blockStart + 4 <= bytes.length) {
-        const blockSize = readBlockSize(dataView, blockStart)
-        const blockEnd = blockStart + 4 + blockSize - 1
-        if (blockEnd >= bytes.length) {
-          break
-        }
-        sink.push(
-          new RecordClass(
-            bytes,
-            blockStart,
-            blockEnd,
-            // An indexed read derives fileOffset from the record's BGZF virtual
-            // offset, which nothing here has: there is no index to seek back
-            // with. Its ordinal in the file is the other thing that identifies a
-            // record by position, and it is the same for a given file whatever
-            // the window size, so it is as stable as a virtual offset without
-            // pretending to be one.
-            //
-            // NOT the hash of the record bytes that readBamFeatures falls back
-            // to when it has no positions: the two byte-identical records in
-            // exact_duplicate.bam collide on any content hash, and hashing
-            // every record cost ~40% of the walk (135ms of 340ms over out.bam,
-            // measured with crc32) where a counter costs nothing. The fallback
-            // only fires on an unusual path there; here it would fire on every
-            // record.
-            recordIndex++,
-            dataView,
-          ),
-        )
-        blockStart = blockEnd + 1
-      }
-      recordCarry =
-        blockStart < bytes.length ? bytes.slice(blockStart) : undefined
+      const end = parseRecords(bytes, start, sink)
+      recordCarry = end < bytes.length ? bytes.slice(end) : undefined
 
       if (sink.length > 0) {
         yield sink

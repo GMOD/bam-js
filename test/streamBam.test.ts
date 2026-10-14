@@ -6,7 +6,10 @@
 // BAM records in half, and the tests below run windows small enough to make
 // both happen many times over one fixture.
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { crc32, deflateRawSync } from 'node:zlib'
 
 import { unzip } from '@gmod/bgzf-filehandle'
 import { describe, expect, test } from 'vitest'
@@ -103,8 +106,8 @@ test('the header fires once, before the first batch', async () => {
 test('records carried across window boundaries decode identically', async () => {
   const whole = identities(await collect({ bamPath: nanopore }))
 
-  // one window per BGZF block, so nearly every window ends mid-record and the
-  // record carry is exercised on almost every iteration
+  // the smallest window. htslib starts each record in a fresh block when it
+  // fits, so this cuts few records; the reblocked test below cuts every one
   const perBlock = await collect({ bamPath: nanopore, windowSize: 1 })
   expect(perBlock.length).toBeGreaterThan(10)
   expect(identities(perBlock)).toStrictEqual(whole)
@@ -113,6 +116,65 @@ test('records carried across window boundaries decode identically', async () => 
   // is a different length every time
   const ragged = await collect({ bamPath: nanopore, windowSize: 100_001 })
   expect(identities(ragged)).toStrictEqual(whole)
+})
+
+function bgzfBlock(data: Uint8Array) {
+  const payload = deflateRawSync(data)
+  const block = new Uint8Array(18 + payload.length + 8)
+  const view = new DataView(block.buffer)
+  block.set([0x1f, 0x8b, 8, 4, 0, 0, 0, 0, 0, 0xff, 6, 0, 0x42, 0x43, 2, 0])
+  view.setUint16(16, block.length - 1, true)
+  block.set(payload, 18)
+  view.setUint32(18 + payload.length, crc32(data), true)
+  view.setUint32(22 + payload.length, data.length, true)
+  return block
+}
+
+/**
+ * `file` rewritten so that every BGZF block ends two bytes into a record's
+ * length field. htslib starts a record in a fresh block whenever it fits, so
+ * in its files a window rarely cuts a record at all, let alone mid-length.
+ */
+async function reblockMidLength(file: string) {
+  const bytes = await unzip(readFileSync(file))
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  let pos = 8 + view.getInt32(4, true)
+  const nRef = view.getInt32(pos, true)
+  pos += 4
+  for (let i = 0; i < nRef; i++) {
+    pos += 8 + view.getInt32(pos, true)
+  }
+  const cuts = [pos]
+  while (pos < bytes.length) {
+    cuts.push(pos + 2)
+    pos += 4 + view.getInt32(pos, true)
+  }
+  cuts.push(bytes.length)
+  const blocks = [bgzfBlock(bytes.subarray(0, cuts[0]))]
+  for (let i = 1; i < cuts.length; i++) {
+    for (let at = cuts[i - 1]!; at < cuts[i]!; at += 60_000) {
+      blocks.push(
+        bgzfBlock(bytes.subarray(at, Math.min(at + 60_000, cuts[i]!))),
+      )
+    }
+  }
+  blocks.push(bgzfBlock(new Uint8Array(0)))
+  const out = path.join(
+    mkdtempSync(path.join(tmpdir(), 'bam-js-')),
+    'reblocked.bam',
+  )
+  writeFileSync(out, Buffer.concat(blocks))
+  return out
+}
+
+test('records cut inside their length field decode identically', async () => {
+  const whole = identities(await collect({ bamPath: nanopore }))
+  const reblocked = await reblockMidLength(nanopore)
+  for (const windowSize of [1, 100_001, undefined]) {
+    expect(
+      identities(await collect({ bamPath: reblocked, windowSize })),
+    ).toStrictEqual(whole)
+  }
 })
 
 test('agrees with the indexed reader over a whole reference', async () => {
