@@ -6,7 +6,7 @@
 // ADR 0019 measures that `chunkCacheKey` is the MERGED chunk's span and the
 // merge is query-dependent, so a pan re-parses bytes it already had. It sizes
 // two strategies: the merged key we ship, and a raw-bin-chunk key that fixes
-// the waste but explodes the entry count (6 -> 41, 14 -> 179 on long-read).
+// the waste but explodes the entry count (6 -> 41, 60 -> 179 on long-read).
 //
 // This adds two more, and one of them works.
 //

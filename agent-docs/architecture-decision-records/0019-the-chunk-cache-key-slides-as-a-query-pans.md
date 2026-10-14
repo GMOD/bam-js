@@ -123,17 +123,17 @@ raw, so **one fetch has to fill N cache entries**. `SharedReadCache.get()` fills
 one key per call, so the change also needs a batch-fill path in
 `@gmod/shared-read-cache`.
 
-**The raw key multiplies the entry count on the files that gain nothing.** The
-long-read fixtures go from 6 → 41 and 60 → 179 entries, so they pay more LRU
-churn and per-entry overhead for no benefit. An attempt should expect to make
-the raw key conditional rather than universal.
+**The raw key multiplies the entry count on the files that gain least.** The
+long-read fixtures, which save 7-12%, go from 6 → 41 and 60 → 179 entries, so
+they pay more LRU churn and per-entry overhead for a small saving. An attempt
+should expect to make the raw key conditional rather than universal.
 
 **Re-keying affects four ADRs.** ADR 0006 (records are shared across queries,
 and would be shared at a different granularity), ADR 0010 (the early stop reads
 `featureLists[ci][0]`; finer chunks change when it fires, and its measured "the
 stop always fired inside the first batch" result would have to be
 re-established), ADR 0011 (merging), and ADR 0014/0016 (cache sizing, now with
-up to 10x the entries under the same byte budget).
+up to about 7x the entries under the same byte budget).
 
 ## Serving a subset from a cached superset is wrong
 

@@ -182,7 +182,7 @@ file with a short-read tail.
 
 `CIGAR` appends the length and the op character separately rather than
 concatenating them first, which avoids an intermediate cons string per op and is
-1.33-1.68x faster on long reads, where this accessor dominates. A precomputed
+about 1.3x faster on long reads, where this accessor dominates. A precomputed
 op-char table is _slower_ than `String.fromCharCode`, because V8 already returns
 an interned single-character string
 ([ADR 0012](../agent-docs/architecture-decision-records/0012-cram-js-decode-optimizations-mostly-do-not-transfer.md),
