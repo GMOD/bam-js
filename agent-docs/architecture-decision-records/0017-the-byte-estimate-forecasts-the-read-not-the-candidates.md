@@ -93,12 +93,12 @@ interval, so BAM sees a mild version of the failure, which is what the 2Mb row
 above shows. A 1.4Mb deletion spans 90 intervals, and the bound fails
 completely.
 
-An empty prefix marks that complete failure. It means the index cannot order
+An empty prefix marks that complete failure and means the index cannot order
 these chunks, not that the query needs nothing. Falling back to every chunk
 there restores the old behaviour, which is safe by construction. The fallback
-gives up the win on one fixture, chr22_nanopore, where an ultra-long read holds
-the 10kb window's entry low in the same way, so the estimate keeps summing all
-22 chunks. It costs no accuracy anywhere else.
+costs no accuracy on any fixture but chr22_nanopore, where an ultra-long read
+holds the 10kb window's entry low in the same way, so the estimate keeps summing
+all 22 chunks and gives up the win.
 
 **We reverted the port to tabix-js** instead of shipping it with the fallback.
 The fallback fires on every long-feature file we measured there, so the change

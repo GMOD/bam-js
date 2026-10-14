@@ -44,12 +44,11 @@ rather than the summary's mean, per the methodology note below:
 | shortreads_300x (5.1 MB) |         38.7 ms |  123 ms (3.2x) |      48.0 ms (1.2x) |
 | chr22_nanopore (14.1 MB) |         83.8 ms |  241 ms (2.9x) |      91.2 ms (1.1x) |
 
-Wasm is 2.6–3.5x faster than JS and **at parity with native zlib**. The zlib
-column settles the question. Wasm already matches native zlib, so the remaining
-decompression headroom is outside the codec, in running several blocks at once.
-The worker pool does that, because BGZF blocks inflate independently, and it
-scales close to linearly up to about four workers (bgzf-filehandle's
-`docs/worker-pool.md`).
+Wasm is 2.6–3.5x faster than JS and **at parity with native zlib**. Because the
+zlib column shows wasm already matching native zlib, the remaining decompression
+headroom is outside the codec, in running several blocks at once. The worker
+pool does that, because BGZF blocks inflate independently, and it scales close
+to linearly up to about four workers (bgzf-filehandle's `docs/worker-pool.md`).
 
 ## Why the parser is not
 
@@ -94,11 +93,11 @@ only a CSI goes through wasm, because a CSI is itself bgzip-compressed.
 
 ## Benchmarking note
 
-Read the `min` column, not the mean vitest prints in its summary. ADR 0003's
-methodology section explains why. This box often runs at a load average above
-100, where the tail is noise and the floor is the signal. The means and the
-minima differ enough to matter: pako comes out 2.6–3.3x on the summary and
-2.6–3.5x on the minima.
+Read the `min` column, not the mean vitest prints in its summary. As ADR 0003's
+methodology section explains, this box often runs at a load average above 100,
+where the tail is noise and the floor is the signal. The means and the minima
+differ enough to matter: pako comes out 2.6–3.3x on the summary and 2.6–3.5x on
+the minima.
 
 Before timing any arm, the benchmark asserts that all three decompress to
 identical bytes, so an arm that did less work fails instead of looking fast. The

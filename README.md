@@ -26,8 +26,8 @@ for (const record of records) {
 }
 ```
 
-URLs work in node and the browser. For local files, pass `bamPath` and
-`baiPath`.
+URLs work in node and the browser, and local files take `bamPath` and `baiPath`
+instead.
 
 ### Range caching
 

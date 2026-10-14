@@ -64,8 +64,8 @@ same assumption one level up. A BAM that violates it already returned short
 results.
 
 The table counts the chunks a query would need if it stopped at the first chunk
-whose first record starts at/after `max`. No case showed a non-monotonic chunk
-order.
+whose first record starts at/after `max`, and no case in it showed a
+non-monotonic chunk order.
 
 | file / window                          | chunks | fetched | needed | saving |
 | -------------------------------------- | ------ | ------- | ------ | ------ |
@@ -289,8 +289,8 @@ A completed-prefix check examines chunk `i` only once every chunk before it has
 finished. The check keeps the barrier's full determinism and was the obvious
 answer, but it changes nothing here: chunk 6 is 3.5MB and slow, so while it is
 in flight the other five workers consume all 21 tiny tail chunks, and the prefix
-is blocked at exactly the boundary that would have stopped it. We measured 28
-requests, unchanged.
+is blocked at exactly the boundary that would have stopped it. The query still
+made 28 requests, as many as the stock reader.
 
 ### The fixture, and why it is synthetic
 

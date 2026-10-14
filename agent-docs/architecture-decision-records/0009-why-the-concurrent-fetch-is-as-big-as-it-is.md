@@ -121,7 +121,7 @@ worse than none. Removing the retry fails only the first test, and retrying
 unconditionally fails only the third. Each branch of the guard is covered by
 exactly one test.
 
-Review removed two pieces of the retry. Both look necessary and are not:
+Review removed two pieces of the retry that look necessary and are not:
 
 - `pending.signal !== opts.signal` was **redundant**. If the two are the same
   object and it is aborted, then `opts.signal.aborted` is true, so the "did _we_
@@ -134,15 +134,15 @@ Review removed two pieces of the retry. Both look necessary and are not:
 
 ### "Why is `inFlightChunks` a second map instead of part of the cache?"
 
-ADR 0007's rejected alternatives cover this. `ChunkFeatureCache`'s budget is in
-decompressed bytes, and `entry.bytes` is known only once the read resolves. To
-store promises there, we would have to accept an unbudgeted window or teach the
-LRU to hold unsized entries. A short-lived side map leaves the budget logic
+`ChunkFeatureCache`'s budget is in decompressed bytes, and `entry.bytes` is
+known only once the read resolves, as ADR 0007's rejected alternatives record.
+To store promises there, we would have to accept an unbudgeted window or teach
+the LRU to hold unsized entries. A short-lived side map leaves the budget logic
 untouched.
 
 ### "Fix it in jbrowse instead"
 
-ADR 0007 covers this. The adapter has no way to tell that two different
+As ADR 0007 records, the adapter has no way to tell that two different
 coordinate ranges map to one chunk, because that mapping comes from the index,
 which bam-js reads. Any other consumer that fans out pays the same cost.
 
@@ -163,9 +163,8 @@ If the trade-offs change, these changes would shrink the code:
 
 ## Consequences
 
-- The mechanism is ~45 non-comment lines, and each piece has a measurement
-  attached, because first principles alone would not justify any of them. These
-  ADRs record those measurements.
+- The mechanism is ~45 non-comment lines, and each piece has a measurement in
+  these ADRs, because first principles alone would not justify any of them.
 - To remove a piece, show that the simpler code is equivalent or that the
   measurement no longer reproduces, as review did for the two pieces above. A
   piece looking like too much is not a reason to remove it.

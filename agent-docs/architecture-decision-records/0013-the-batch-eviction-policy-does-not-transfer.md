@@ -40,9 +40,9 @@ favourable case `'batch'` could ask for:
 | `lru`   | 5720ms    | 42      | 181 MB |
 | `batch` | 6407ms    | 42      | 311 MB |
 
-`'batch'` makes no improvement. It has the same refill count and is marginally
-slower, and it retains 311 MB against a 100 MB budget where `lru` retains 181
-MB.
+`'batch'` makes no improvement, since it has the same refill count as `lru` and
+is marginally slower. It also retains 311 MB against a 100 MB budget where `lru`
+retains 181 MB.
 
 `'batch'` cannot retain a working set larger than the budget either. It spares
 what the batch touched, ends the batch still over the limit and clears the
@@ -65,10 +65,11 @@ Stay on `'lru'`. Do not port `'batch'`.
   follow.
 
 - **`'batch'` is second-chance, not unbounded.** It spares entries touched
-  during the batch and then clears the flags, so the next batch evicts them if
-  they were not touched again. It runs one batch behind. The overshoot above is
-  the trade-off the package documents: "a batch that touches more than the whole
-  budget leaves the cache over it until the next batch lands".
+  during the batch and then clears the flags. Eviction therefore runs one batch
+  behind, and the next batch evicts any entry it does not touch again. The
+  overshoot above is the trade-off the package documents: "a batch that touches
+  more than the whole budget leaves the cache over it until the next batch
+  lands".
 
 ## Correction — how the first draft of this ADR got it wrong
 
@@ -78,9 +79,9 @@ errors, both easy to repeat:
 
 1. **It measured `test/data`.** ADR 0012 opens by warning that those files are
    correctness fixtures, and that sizing against them is how its own conclusions
-   came out wrong the first time. The policy choice is a sizing question. The
-   realistic corpus (`~/src/jb2bench/data`) puts bam at 0.72–5.3x, i.e. over the
-   line.
+   came out wrong the first time. The policy choice is a sizing question too,
+   and the realistic corpus (`~/src/jb2bench/data`) puts bam at 0.72–5.3x, i.e.
+   over the line.
 
 2. **It read `totalSize` with the budget in place**, which reports what survived
    eviction rather than what the query needed. On the fixtures the two coincide,

@@ -198,10 +198,10 @@ behind `readAhead` and the batching.
 | `fileOffset`             | `number`                       | an id unique to the record within the file                  |
 | `reference`              | `PackedReference \| undefined` | whatever `setReference` bound                               |
 
-`end`, `CIGAR` and `tags` decode on first access and then stay on the record.
-Every other field decodes on each access. A read with more than 65535 CIGAR
-operations stores its CIGAR in a `CG` tag, and `CIGAR`, `NUMERIC_CIGAR`, `end`
-and `num_cigar_ops` all read the real CIGAR from it.
+`end`, `CIGAR` and `tags` decode on first access and then stay on the record,
+while every other field decodes on each access. A read with more than 65535
+CIGAR operations stores its CIGAR in a `CG` tag, and `CIGAR`, `NUMERIC_CIGAR`,
+`end` and `num_cigar_ops` all read the real CIGAR from it.
 
 ### Methods
 

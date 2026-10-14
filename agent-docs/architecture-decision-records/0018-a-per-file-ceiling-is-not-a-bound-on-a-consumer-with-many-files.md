@@ -7,7 +7,7 @@ no default change). Extends ADR 0015/0016 rather than superseding them.
 
 ADR 0015 set `DEFAULT_MAX_CACHE_BYTES` to 1 GB, sized so a six-window pan on the
 deepest fixture measured (569 MB) never thrashes. ADR 0016 then audited
-retention and found no growth. Both are about **one file**.
+retention and found no growth, but both concern only **one file**.
 
 jbrowse holds one `BamFile` per adapter config for the life of the track and
 passes no budget, so the ceiling is per open track. We had not measured what
@@ -62,8 +62,8 @@ At an equal aggregate ceiling, the shared budget does better than the split on
 both measures (1024 MB held and 4 refills, against 773 MB held and 16 refills),
 because it evicts from a member only what is globally least-recently-used. It
 evicts the entries of tracks nobody is looking at first, so the track being
-panned keeps a whole working set however many tracks are open. An equal split
-cannot do that.
+panned keeps a whole working set however many tracks are open, which an equal
+split cannot do.
 
 ## Consequences / rationale
 
@@ -73,8 +73,8 @@ cannot do that.
   sees no change.
 
 - **A bound on memory costs re-reads, and the number is not small.** Six tracks
-  under a shared gigabyte cost 33 revisit refills against 0. We accept that
-  trade-off. The budget lowers the ceiling a browsing session can reach, but it
+  under a shared gigabyte cost 33 revisit refills against 0, a trade-off we
+  accept. The budget lowers the ceiling a browsing session can reach, but it
   does not make the working set smaller. Below the working set, refills climb as
   ADR 0014 measured, with or without a shared budget. At 256 MB across three
   tracks, the cold pass itself rose from 70 refills to 110.

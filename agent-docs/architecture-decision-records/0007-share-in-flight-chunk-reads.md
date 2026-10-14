@@ -99,15 +99,14 @@ before.
   which rejects a dead-on-arrival query without touching the index, but that
   check does not fix this bug, because the signal fires _after_ it.
 
-  `joinChunkRead` then guards the case a second time. The second guard is
-  deliberate even though no call reaches it, because `_cachedChunkFeatures`
-  rejects first, with no `await` in between. An invariant that fails with no
-  error should not depend on a check twenty lines away, and this is the bug that
-  shipped. `@gmod/cram` guards the same spot for the same reason, and
-  `@gmod/abortable-promise-cache`, which both libraries reimplement rather than
-  depend on, handles it in `AggregateAbortController.addSignal` by passing an
-  already-aborted input straight to `handleAborted` instead of counting it as a
-  waiter.
+  `joinChunkRead` then guards the case a second time on purpose. No call reaches
+  that guard, because `_cachedChunkFeatures` rejects first, with no `await` in
+  between. An invariant that fails with no error should not depend on a check
+  twenty lines away, and this is the bug that shipped. `@gmod/cram` guards the
+  same spot for the same reason, and `@gmod/abortable-promise-cache`, which both
+  libraries reimplement rather than depend on, handles it in
+  `AggregateAbortController.addSignal` by passing an already-aborted input
+  straight to `handleAborted` instead of counting it as a waiter.
 
   The redundancy costs mutation coverage, because mutation testing catches
   neither check alone while the other still produces correct behaviour. Only

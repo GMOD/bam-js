@@ -69,8 +69,7 @@ memory keeps growing.
 - **Local single-query performance is unchanged, by construction.**
   `benchmarks/bam.bench.ts` issues one sequential query against a local file,
   the one workload that neither this change nor ADR 0007 targets, because it has
-  no round trips to hide and no concurrent queries to share. Parity is the
-  expected result.
+  no round trips to hide and no concurrent queries to share.
 
   An interleaved A/B (both implementations in one process, alternating order, 15
   iterations) confirms it, with `out.bam` 43.8 → 41.5 ms, `shortreads_300x` 40.7

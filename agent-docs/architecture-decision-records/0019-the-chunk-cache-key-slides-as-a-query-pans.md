@@ -115,9 +115,9 @@ bytes, but it raises the number of cache entries, as the last column shows.
 
 ## Why it is parked
 
-**The raw key is not a one-repo change.** Merging has to stay for I/O. ADR 0011
-measured that dropping it takes a bare consumer from 6 reads to 95-378 _and_
-downloads more, because each small chunk adds its own tail padding to the
+**The raw key is not a one-repo change.** Merging has to stay for I/O, because
+ADR 0011 measured that dropping it takes a bare consumer from 6 reads to 95-378
+_and_ downloads more, because each small chunk adds its own tail padding to the
 download. The fetch unit must therefore stay merged while the cache unit becomes
 raw, so **one fetch has to fill N cache entries**. `SharedReadCache.get()` fills
 one key per call, so the change also needs a batch-fill path in
@@ -139,7 +139,7 @@ up to 10x the entries under the same byte budget).
 
 A containment-aware lookup, which serves a subset chunk out of a cached
 **superset** entry instead of requiring an exact key match, needs no re-keying
-and looks like a small change. The lookup is incorrect.
+and looks like a small change, but it is incorrect.
 
 `makeDisjoint` guarantees that the chunks _of one query_ do not overlap. Its
 docstring explains that when they do overlap, the query returns every record in

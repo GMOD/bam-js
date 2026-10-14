@@ -50,8 +50,8 @@ which is the top accessor cost on long reads. We timed two alternatives, 20k ops
 | precomputed 16-entry op-char string table                    | 284 ms     |
 | digits written into a `Uint8Array`, one `TextDecoder.decode` | 314 ms     |
 
-V8's rope concatenation already beats both. The precomputed table is _slower_,
-against intuition, so don't assume it helps.
+With V8's rope concatenation, the current loop beats both alternatives. Even the
+precomputed table is _slower_, against intuition, so don't assume it helps.
 
 ### 2. Allocation-free virtual-offset scanning in `BAI._parse`
 
@@ -64,8 +64,9 @@ numeric `minBlock`/`minData` tracking, 8237 entries × 60 reps:
 | current (`findFirstData(f, fromBytes(...))`) | **0.845 ms** |
 | numeric min, no allocation                   | 1.055 ms     |
 
-Escape analysis already handles the allocation. Index parse is 2.2 ms on the
-largest test `.bai` (393 KB) anyway, and it is memoized per file.
+The allocating version wins because escape analysis already handles the
+allocation. Index parse is 2.2 ms on the largest test `.bai` (393 KB) anyway,
+and it is memoized per file.
 
 ### 3. Switching `get name` to `TextDecoder`
 

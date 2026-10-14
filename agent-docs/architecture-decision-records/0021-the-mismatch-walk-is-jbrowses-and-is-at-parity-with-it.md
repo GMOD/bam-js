@@ -35,7 +35,7 @@ Computing the region-clamped comparison bounds with `Math.max`/`Math.min`
 against ±Infinity looked free and was not. The result is a Float64, `cmpHi`
 passes it into `jHi`, and `jHi` bounds the innermost two-bases-per-byte loop, so
 the two calls per record cost ~8% of the reference path on dense short reads.
-Ternaries keep the bound a Smi.
+The code uses ternaries instead, which keep the bound a Smi.
 
 ## Consequences / rationale
 

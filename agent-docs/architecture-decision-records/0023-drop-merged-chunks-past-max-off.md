@@ -17,7 +17,7 @@ first one that exists is a record past the query, and in a coordinate-sorted
 file so is everything after it. That offset is `max_off`, and `maxOffset` in
 `indexFile.ts` computes it.
 
-`max_off` is a bound rather than a forecast. It depends on the sort order that
+`max_off` is a bound rather than a forecast, resting on the sort order that
 `appendInRange` and the early stop already assume. The linear-index forecast
 that ADR 0017 declined to prune a fetch with is different, because that forecast
 can drop records.
@@ -99,19 +99,19 @@ its right.
 A merged chunk starting at or past `max_off` holds only records at or past it,
 and every one of those starts at or past the query end. The drop needs the file
 to be coordinate-sorted, which `appendInRange` and the early stop already
-require. We checked this rather than argued it. The record list, compared by
-`fileOffset` and in order, matched the old reader in every window of every run
-above, and the samtools agreement suite passes.
+require. We checked the drop against the old reader rather than arguing it. The
+record list, compared by `fileOffset` and in order, matched in every window of
+every run above, and the samtools agreement suite passes.
 
 ## The early stop (ADR 0010) stays
 
 `max_off` removes the chunks the early stop used to find, so the stop no longer
-fires in any window over `test/data`. It still fires on real files. On
-jb2bench's 1000x.longread a 1kb window resolves to 13 chunks and the stop reads
-6; on 2mb.100x.longread, 7 and 6. The handoff measured the stop saving 12% on
-1000x.longread, where `max_off` prunes nothing. The early-stop tests now supply
-their chunk list through `test/lib/syntheticQuery.ts`, since no fixture gives
-them one.
+fires in any window over `test/data`. The stop still fires on real files,
+reading 6 of the 13 chunks a 1kb window resolves to on jb2bench's
+1000x.longread, and 6 of 7 on 2mb.100x.longread. The handoff measured the stop
+saving 12% on 1000x.longread, where `max_off` prunes nothing. The early-stop
+tests now supply their chunk list through `test/lib/syntheticQuery.ts`, since no
+fixture gives them one.
 
 ## The byte forecast (ADR 0017), re-measured
 
@@ -141,8 +141,8 @@ change, since `max_off` prunes nothing there, and was not re-measured.
 
 ## Reproducing
 
-The scripts were in a session scratchpad. They wrap a `LocalFile`'s `read` to
-sum lengths and count calls, monkeypatch `index.blocksForRange` with each
-variant, call `clearFeatureCache()` before every cold query, place windows over
-the span between the first and last mapped read that `samtools view` reports,
-and start each pan at the middle of that span.
+The scripts, kept in a session scratchpad, wrap a `LocalFile`'s `read` to sum
+lengths and count calls, monkeypatch `index.blocksForRange` with each variant,
+call `clearFeatureCache()` before every cold query, place windows over the span
+between the first and last mapped read that `samtools view` reports, and start
+each pan at the middle of that span.

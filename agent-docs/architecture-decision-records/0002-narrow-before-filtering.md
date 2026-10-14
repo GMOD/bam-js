@@ -24,8 +24,8 @@ either order, but their costs are far from symmetric:
 - `appendInRange` relies on the coordinate sort and `break`s once it passes
   `max`, so it touches roughly the records up to the window plus the window
   itself.
-- `applyFilters` has no such structure. It touches **every** record in the
-  chunk, and for `tagFilter` decodes a tag on each one.
+- `applyFilters` has no such structure and touches **every** record in the
+  chunk, decoding a tag on each one for `tagFilter`.
 
 A cached chunk routinely holds tens of thousands of records while the query
 covers a handful. Measured on `shortreads_300x.bam`, a warm 400 bp query
@@ -58,8 +58,8 @@ if (filterBy) {
 - Same 400 bp query: `flagExclude` 1.77 → 0.046 ms, `tagFilter` 3.79 → 0.056 ms.
   A warm narrow+tagfilter loop is 9.3x (shortreads) / 33x (nanopore) faster end
   to end.
-- Swapping the order was safe. Filtering does not reorder records, so
-  `appendInRange`'s early `break` on the coordinate sort still held, and both
-  predicates are per-record and independent.
-- The change left the unfiltered path alone. That path still appends straight
-  into `result`, and after ADR 0005 it is the only path left.
+- Swapping the order was safe because both predicates are per-record and
+  independent. Filtering also does not reorder records, so `appendInRange`'s
+  early `break` on the coordinate sort still held.
+- The unfiltered path did not change and still appends straight into `result`.
+  After ADR 0005 it is the only path left.

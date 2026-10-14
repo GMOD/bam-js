@@ -10,8 +10,8 @@ because the expensive work is done by the time it runs. The question is whether
 bam-js should own it at all.
 
 `jbrowse-components` is the primary consumer, and the origin of every
-`flagInclude`/`flagExclude` reference outside this repo. We checked what it does
-with `filterBy`.
+`flagInclude`/`flagExclude` reference outside this repo, so we checked what it
+does with `filterBy`.
 
 **bam-js's `tagFilter` is already dead code there.** JBrowse's `FilterBy`
 (`plugins/alignments/src/shared/types.ts`) is:
@@ -45,8 +45,8 @@ Three more findings point the same way:
   `filterTagValue` in `shared/util.ts`, duplicating bam-js's.
 - **CRAM already does it the right way.** `CramAdapter.shouldFilterRecord`
   handles flags, `tagFilters`, `readName`, _and_ RG resolution through the SAM
-  header, entirely in the adapter. cram-js has no `filterBy`. BAM is the
-  inconsistent one.
+  header, entirely in the adapter. cram-js has no `filterBy`, which leaves BAM
+  as the inconsistent one.
 
 ## Decision
 

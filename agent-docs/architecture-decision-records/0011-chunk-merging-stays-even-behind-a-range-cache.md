@@ -78,8 +78,9 @@ We swept the gap while the harness existed. Each cell is
 
 A 256KB gap matches the cache's own granularity, and would be the natural
 refinement if the cache were the thing to optimize for. It nearly doubles the
-bytes on `out.bam`'s narrow windows and quadruples its request count. 1MB is
-worse still. Both directions from 65000 lose.
+bytes on `out.bam`'s narrow windows and quadruples its request count, and 1MB is
+worse still. The 65000 gap therefore beats both wider gaps and the unmerged
+reads in the first table.
 
 **Merging weakens the early stop.** The interaction is why a wider gap costs
 more than the extra bridged bytes alone explain. A merged chunk is bigger, so it

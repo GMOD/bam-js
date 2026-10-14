@@ -36,11 +36,11 @@ Without the option, or when every read has `MD`, bam-js fetches no reference.
 
 ## Where the worker pool sits
 
-The purple node is opt-in. With a `bgzfWorkerPool`, chunk decompression moves
-off the main thread; without one, the same code runs in-process. The pool
-receives a chunk's blocks and leaves the record building after them on the
-calling thread, because decompression is where a query's time goes (see below)
-and there is little else worth moving.
+The purple node runs only when a caller passes a `bgzfWorkerPool`, which moves
+chunk decompression off the main thread. Without one, the same code runs
+in-process. The pool receives a chunk's blocks and leaves the record building
+after them on the calling thread, because decompression is where a query's time
+goes (see below) and there is little else worth moving.
 
 "Off the main thread" means off the caller's thread. Every step above can run
 off the main thread, so a consumer can run the whole diagram in a worker, and

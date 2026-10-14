@@ -81,7 +81,7 @@ one, and `1000x.shortread` also reaches zero refills.
 ## Rejected: make the entries smaller instead
 
 The obvious alternative is to keep a small budget and reduce entry size, so the
-LRU has something to order. The chunk size rules this out.
+LRU has something to order, but the chunk size rules this out.
 
 A single entry on `1000x.longread` is 180.7 MB decompressed. At the measured
 ratios that is ~86 MB compressed, 17x `optimizeChunks`' 5 MB merge cap, so the

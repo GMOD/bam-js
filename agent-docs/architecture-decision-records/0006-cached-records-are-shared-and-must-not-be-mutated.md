@@ -76,10 +76,10 @@ record.
   | shortreads_300x.bam       | 53,596  | ~3-5 ms  | ~7-11 ms | ~2.3x |
   | chr22_nanopore_subset.bam | 757     | ~0.1 ms  | ~0.2 ms  | ~2x   |
 
-  Only the shortreads row matters. At 757 records the nanopore case is tenths of
-  a millisecond either way, so its ratio is noise around a number too small to
-  care about; it is listed to show the cost tracks record count rather than file
-  size.
+  Only the shortreads row matters, because at 757 records the nanopore case is
+  tenths of a millisecond either way and its ratio is noise around a number too
+  small to care about. The table lists it to show that the cost tracks record
+  count rather than file size.
 
   A warm query on a dense short-read region roughly doubles. ADR 0001 made that
   query 19.6x faster, and the buffer cache would give back a real part of the

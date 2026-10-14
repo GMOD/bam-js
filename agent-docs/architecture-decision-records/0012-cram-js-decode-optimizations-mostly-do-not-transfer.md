@@ -52,16 +52,16 @@ reads).
    | 50           | **14.6ms** | 17.9ms               |
    | 200          | 60.3ms     | **36.1ms**           |
 
-   `indexOf` only wins past ~100 bytes, and Z tags here are MD/RG/PG-sized. The
-   loop stays. (tabix-js's `parseNameBytes` does use `indexOf`, on different
+   `indexOf` only wins past ~100 bytes, and Z tags here are MD/RG/PG-sized, so
+   the loop stays. (tabix-js's `parseNameBytes` does use `indexOf`, on different
    input with much longer runs.)
 
 5. **Binary search over the index.** BAI/CSI already resolve bins by hash lookup
    rather than scanning. A loop over the _present_ bins, instead of a sweep over
-   the requested bin range, is 2.5x faster on a whole-chromosome query. That
-   gain is 0.28ms → 0.11ms against a 100ms+ decompress, and the result inverts
-   (much worse) for the small ranges that `fetchPairs` issues, one per mate. We
-   rejected it.
+   the requested bin range, is 2.5x faster on a whole-chromosome query. We
+   rejected it because that gain is 0.28ms → 0.11ms against a 100ms+ decompress,
+   and the result inverts (much worse) for the small ranges that `fetchPairs`
+   issues, one per mate.
 
 We also measured and rejected two other changes while in the area:
 `{__proto__: null}` instead of `Object.create(null)` for the tags object (1.03x
@@ -210,9 +210,9 @@ the distribution is **bimodal**, and the fixtures showed only one mode:
 | shortreads_300x         | 2.0          | 9    | 9     | 0.2%  |
 | chr22_nanopore          | 2.1          | 11   | 24    | 5.5%  |
 
-Long-read MD averages 9083 bytes. We built and measured a hybrid that probes 32
-bytes inline and then calls `indexOf`. It was **2.67–2.70x** faster on the MM/SA
-miss walks for 200x/1000x longread, and a stable **1.13x slower** on
+With long-read MD averaging 9083 bytes, we built and measured a hybrid that
+probes 32 bytes inline and then calls `indexOf`. It was **2.67–2.70x** faster on
+the MM/SA miss walks for 200x/1000x longread, and a stable **1.13x slower** on
 shortreads_300x (three runs: 1.13/1.14/1.12, reproducible and above the noise
 floor).
 
@@ -268,7 +268,7 @@ The conditions ADR 0003 warned about have got worse: this box idles at load
 average ~20 on 16 cores. When we timed an accessor by re-querying between
 passes, decompression noise swamped deltas under ~20%, and the same fixture
 flipped direction between runs. The method that worked fetches the record set
-once per build, then alternates timed passes over the same arrays. Neither `seq`
-nor the CIGAR string build is memoized, so a repeated pass redoes exactly the
-work under test with no I/O in the loop. Timings are min-of-41, in alternating
-order. Anything under ~1.2x on a sub-2ms case is still noise.
+once per build, then alternates timed passes over the same arrays and reports
+the minimum of 41. Neither `seq` nor the CIGAR string build is memoized, so a
+repeated pass redoes exactly the work under test with no I/O in the loop.
+Anything under ~1.2x on a sub-2ms case is still noise.

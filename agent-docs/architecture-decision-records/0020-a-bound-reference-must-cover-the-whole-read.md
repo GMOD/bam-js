@@ -26,11 +26,11 @@ other's sequence.
 `setReference(ref)` **throws unless `ref` covers `[record.start, record.end)`**,
 and `getRecordsForRange` only binds regions that do.
 
-A covering region is not per-query state. Every query that binds one binds the
-same reference bases over the read's whole span, so a rebinding by another query
-cannot change what this read reports. A partial region resolves whatever part of
-the read it happens to cover, so the answer depends on which query bound it
-last.
+A covering region is not per-query state, because every query that binds one
+binds the same reference bases over the read's whole span. A rebinding by
+another query therefore cannot change what this read reports. A partial region
+resolves whatever part of the read it happens to cover, so the answer depends on
+which query bound it last.
 
 `getRecordsForRange` therefore fetches the **union span of the reads that need
 the reference**, not the queried range, and binds only the reads the returned
