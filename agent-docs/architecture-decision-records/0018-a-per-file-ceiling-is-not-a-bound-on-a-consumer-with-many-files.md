@@ -95,7 +95,7 @@ split cannot do.
   file in a script or forty in a worker pool. The consumer knows, so the
   consumer should create the budget, one per worker, and hand it to every file.
 
-## What this does not establish
+## A shared budget bounds retained memory, not peak memory
 
 Peak memory is still unbounded, on the same grounds as ADR 0015: reads in flight
 are never evicted, six run at once, and a query holds every chunk it parsed

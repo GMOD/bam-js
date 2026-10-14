@@ -265,7 +265,7 @@ mean (6.31 -> 5.50 median), prefix faster in four of six. The network link
 varies by ±3s, so treat the request and byte counts as the result; the times
 show only a consistent direction.
 
-### What this costs
+### The stop index stays deterministic; the overshoot does not
 
 **The stop index stays deterministic; the overshoot does not.** Whether a chunk
 is past the query is monotone in chunk index, because `optimizeChunks` returns

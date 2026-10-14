@@ -92,7 +92,7 @@ An entry's key is the _merged_ chunk span a query resolved to, and merging
 depends on the query, so two overlapping pans can decode the same bytes under
 two keys. That costs some short-read files real work and leaves deep long-read
 data untouched; the fix is known and parked, with the numbers in
-[optimizations.md](optimizations.md#what-is-left).
+[optimizations.md](optimizations.md#the-chunk-cache-key-slides-as-a-query-pans).
 
 ## The byte-range cache underneath
 

@@ -123,7 +123,7 @@ for ≤8 ops. It was not reliably better than the unconditional form on any
 fixture, so we dropped it for the simpler code. In absolute terms the trade is
 +0.18ms on 53.6k short reads against −10ms on 757 nanopore reads.
 
-## Who pays for these accessors — cross-referenced against jbrowse-components
+## jbrowse's default pileup reads neither `seq` nor `CIGAR`
 
 We checked both wins against the real consumer afterwards, and the check changes
 how to read them. Read this section before quoting the numbers above at anyone.

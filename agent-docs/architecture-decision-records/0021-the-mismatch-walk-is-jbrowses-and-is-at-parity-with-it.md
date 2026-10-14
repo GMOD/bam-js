@@ -68,7 +68,7 @@ version walks every CIGAR op of every read (12.9ms) and this one exits
 immediately (0.003ms), for the same empty output. One pan step past a long read
 produces that case, so it is common.
 
-## What adopting it costs jbrowse
+## Adopting the walk changes only jbrowse's type constants
 
 Adopting the walk costs jbrowse almost nothing, which was not obvious. The walk
 emits `@gmod/cram`'s vocabulary, not jbrowse's, but the two vocabularies differ

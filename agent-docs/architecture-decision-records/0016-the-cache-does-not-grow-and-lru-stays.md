@@ -78,7 +78,7 @@ constrained budget, such as a memory-limited embedding, is the case where
 W-TinyLFU or 2Q would justify their complexity, and that case should be measured
 against the 100 MB row rather than against the defaults.
 
-## What this does not establish
+## No eviction policy bounds peak memory
 
 Peak memory is still unbounded by any of this, and no policy changes that. Six
 in-flight reads on 1000x long-read data is 476 MB before retention holds

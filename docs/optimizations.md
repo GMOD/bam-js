@@ -182,7 +182,7 @@ file with a short-read tail.
 
 `CIGAR` appends the length and the op character separately rather than
 concatenating them first, which avoids an intermediate cons string per op and is
-1.23-1.35x faster on long reads, where this accessor dominates. A precomputed
+1.33-1.68x faster on long reads, where this accessor dominates. A precomputed
 op-char table is _slower_ than `String.fromCharCode`, because V8 already returns
 an interned single-character string
 ([ADR 0012](../agent-docs/architecture-decision-records/0012-cram-js-decode-optimizations-mostly-do-not-transfer.md),
@@ -316,20 +316,21 @@ process rather than about one file, so this library cannot make them.
 - **Gating on `estimatedBytesForRegions`** before issuing a query at all, as the
   forecasting section above describes.
 
-## What is left
+## The chunk cache key slides as a query pans
 
 We measured one waste and have not fixed it. The cache keys on the _merged_
 chunk span, and merging depends on the query, so a pan whose windows overlap
 decodes the same bytes under two keys. The waste is containment (one parse fully
 redoing another) on shallow-to-moderate short-read files whose bin chunks abut,
-including the volvox demo file, where a twelve-window pan decompresses 71% more
-than it needs to. It does not affect deep long-read data at ordinary zoom.
+including the volvox demo file, where 71% of what a twelve-window pan
+decompresses is waste. It does not affect deep long-read data at ordinary zoom.
 
-Keying on raw chunks recovers exactly that waste and never costs bytes, but it
-stays parked rather than pending. The fetch unit must stay merged for the I/O
-reasons above, so one fetch would fill several cache entries, which needs a
-change in `@gmod/shared-read-cache` too. Entry counts would also rise up to 10x
-on the long-read files that gain nothing.
+Keying on raw chunks recovers exactly that waste and never costs bytes, but the
+fetch unit must stay merged for the I/O reasons above, so one fetch would fill
+several cache entries, and entry counts would rise on the long-read files. A
+canonical partition of the index avoids both costs: it has fewer entries than
+the merged key, and one fetch fills one entry, so `@gmod/shared-read-cache`
+needs no change. Nobody has built it yet.
 [ADR 0019](../agent-docs/architecture-decision-records/0019-the-chunk-cache-key-slides-as-a-query-pans.md)
 has the numbers, the design that would work, and the variant that looks obvious
 and is wrong.

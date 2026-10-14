@@ -94,7 +94,7 @@ form abutting chains**. Deep long-read data is untouched at ordinary zoom.
 Volvox is the demo file, so the 71% waste applies to everyone who tries jbrowse
 for the first time, on 0.9 MB.
 
-## What fixing it would be worth
+## Keying on raw chunks recovers all the waste but adds entries
 
 We computed the merged and raw keys from the same index walk, without changing
 any code:
