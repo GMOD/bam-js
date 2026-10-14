@@ -55,9 +55,8 @@ raw chunk is a run of one bin's records, and the record at `max_off` belongs to
 another bin, so a raw chunk crosses `max_off` only where htslib joined two of
 its chunks through a shared BGZF block. The parsing-review handoff's split
 between trimming and dropping was therefore a split between before and after the
-merge. Over different windows, its trimmed figure for out.bam (−41%) matches the
-drop-then-merge column, and its drop-only figure (−26%) matches the
-merge-then-drop one.
+merge. Its trimmed figure for out.bam (−41%) matches the drop-then-merge column,
+and its drop-only figure (−26%) the merge-then-drop one, over different windows.
 
 ## Why after the merge: panning
 
@@ -126,11 +125,10 @@ windows per file from 1kb to 200kb:
 | ultra-long-ont |             29 → 0 |                    0 → 0 | +27% → exact      |
 | volvox, ecoli  |              0 → 0 |                    0 → 0 | exact             |
 
-The sum of every chunk `blocksForRange` returns now equals the bytes read in 316
-of those 320 windows. The other 4 are exactly the windows where
-`chunksLikelyRead` still changes the answer, and it changes it downward, by up
-to 83%. On this corpus `chunksLikelyRead` now changes the answer only where the
-change is wrong.
+Summing every chunk `blocksForRange` returns now equals the bytes read in 316 of
+those 320 windows. The other 4 are exactly the windows where `chunksLikelyRead`
+still changes the answer, and it changes it downward, by up to 83%. On this
+corpus `chunksLikelyRead` now fires only when it is wrong.
 
 `chunksLikelyRead` stays for now. ADR 0017 was built for COLO829BL, a hosted 40x
 ONT BAM whose narrow windows offered 43.5MB and read 7.8MB, and that file is not

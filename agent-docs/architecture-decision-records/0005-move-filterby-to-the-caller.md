@@ -38,9 +38,9 @@ Three more findings point the same way:
 - **The filtering is already split across two layers.** `BamAdapter.getFeatures`
   passes `filterBy` down, then runs its own loop applying `readName` and the
   plural `tagFilters`. Its comment describes the split: _"@gmod/bam applies only
-  flags + a single tagFilter; multiple tag filters are AND-ed here."_ By that
-  design, one tag filter would be applied in a different place from the other N,
-  except that bam-js never applies it at all.
+  flags + a single tagFilter; multiple tag filters are AND-ed here."_ One tag
+  filter would be applied in a different place from the other N, except that
+  bam-js never applies it at all.
 - **JBrowse already has its own copies** of `filterReadFlag` and
   `filterTagValue` in `shared/util.ts`, duplicating bam-js's.
 - **CRAM already does it the right way.** `CramAdapter.shouldFilterRecord`
@@ -65,9 +65,9 @@ Move all filtering to the caller and drop `filterBy` from bam-js: `FilterBy`,
 
 - **Removes a bug class.** ADR 0002 exists only because filtering was
   library-internal and therefore easy to apply at the wrong point, over a whole
-  cached chunk instead of the query's records. A caller can filter only the
-  records it was handed, which bam-js has already narrowed to the range, so a
-  caller cannot make that mistake.
+  cached chunk instead of the query's records. A caller can only filter what it
+  was handed, which is already range-narrowed, so a caller cannot make that
+  mistake.
 
 - **Simplifies the cache contract.** `chunkCacheKey`'s "keyed on the byte span
   only, not on filterBy" caveat goes away with the option.
@@ -84,7 +84,7 @@ Move all filtering to the caller and drop `filterBy` from bam-js: `FilterBy`,
   | 10% of records     | 0.29 MB | 7.8 MB        |
   | 0 records          | 0.01 MB | 7.8 MB        |
 
-  Filtering can reclaim only the ~120 B wrapper objects, never the payload. Even
+  Filtering can only reclaim the ~120 B wrapper objects, never the payload. Even
   at 90% rejection that frees 2.4 MB of 10.5 MB, and under 1% on long reads (757
   nanopore records over a 24.4 MB buffer), so filtering frees next to nothing on
   exactly the files where memory matters most. Shrinking what a chunk pins would
@@ -116,6 +116,6 @@ clamped to the viewport, and any single MD-less read sets it, so the difference
 is noise in practice.
 
 The order of the two changes mattered in one direction only. Dropping the option
-from bam-js _without_ moving jbrowse-components would have turned off the flag
-masks with no warning, because the option is optional and its absence is not a
-type error.
+from bam-js _without_ moving jbrowse-components would have stopped applying the
+flag masks with no warning, because the option is optional and its absence is
+not a type error.

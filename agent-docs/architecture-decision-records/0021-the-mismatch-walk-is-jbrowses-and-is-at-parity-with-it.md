@@ -84,14 +84,14 @@ in exactly one thing a consumer can see:
   collides with BAM's own op numbering, where 0 is M and 2 is D, against 0 =
   mismatch and 2 = deletion.
 
-Three other differences look like they matter, and no consumer can see them:
+The differences that look like they matter turn out to be invisible:
 
 - **Deletion `bases`** is `''` here and `'*'` in jbrowse's walk, but every
   consumer drops it (`{type: 'deletion', start, length}`). The same holds for a
   skip's `'N'`.
 - **A clip's `length`** is 0 here and 1 in jbrowse's walk, but
   `collectMismatches` sets `length: 1` itself and the render path reads
-  `cliplen` and ignores `length`, as a comment in jbrowse states.
+  `cliplen` and ignores `length`, as jbrowse's own comment says outright.
 - **Positions** are absolute here and read-relative there, but `refStart` is a
   parameter, so passing 0 gives the read-relative behaviour at no cost.
 

@@ -5,7 +5,7 @@ Status: Accepted (no code change; records the retention audit and closes the
 
 ## Context
 
-ADR 0015 raised `DEFAULT_MAX_CACHE_BYTES` to 1 GB. A ceiling that size raises
+ADR 0015 raised `DEFAULT_MAX_CACHE_BYTES` to 1 GB. A ceiling that size invites
 two fair questions, and both need a measurement rather than an argument:
 
 1. Does memory actually stay bounded as a user scrolls into new regions over a
@@ -13,7 +13,7 @@ two fair questions, and both need a measurement rather than an argument:
 2. Is LRU the right policy? Panning to new areas is a **scan**, and scans are
    the workload LRU handles worst.
 
-## 1. Retention, measured three ways: no growth
+## 1. Retention — measured three ways, no growth
 
 **Revisiting a fixed set of windows.** We ran 240 windows for six laps at the
 shipped defaults:
@@ -24,7 +24,7 @@ shipped defaults:
 | `1000x.longread` | 943 MB flat | 573 MB flat |      60 |
 
 RSS and cache held are flat from lap 2 onward. **The plateau proves less than it
-seems to**, because on those fixtures the file's whole chunk set fits under 1
+looks like**, because on those fixtures the file's whole chunk set fits under 1
 GB, so eviction never ran once and the plateau follows from the chunk set's size
 alone.
 
@@ -59,11 +59,11 @@ _home_:
 | 400 MB         |                             0 | 314 MB |
 | 1024 MB (ship) |                         **0** | 314 MB |
 
-LRU's weakness on scans is real and severe, **and it disappears entirely above
-the working set**. At the shipped default there is no eviction pressure on
-realistic data, so W-TinyLFU, 2Q, ARC or any size-aware admission policy would
-change nothing at all. The scan problem was a symptom of the undersized budget,
-which ADR 0014 already fixed.
+LRU's weakness on scans is real and severe, **and it vanishes entirely above the
+working set**. At the shipped default there is no eviction pressure on realistic
+data, so W-TinyLFU, 2Q, ARC or any size-aware admission policy would change
+nothing at all. The scan problem was a symptom of the undersized budget, which
+ADR 0014 already fixed.
 
 ## Decision
 
@@ -72,11 +72,11 @@ Keep `'lru'`. Do not adopt a scan-resistant or size-aware policy.
 ## Don't re-attempt without
 
 A workload where eviction runs at the shipped defaults. The 47 re-reads in the
-100 MB row are what a better policy would recover, and the docs now tell people
-not to use that configuration. A consumer that needs a constrained budget, such
-as a memory-limited embedding, is the case where W-TinyLFU or 2Q would justify
-their complexity, and that case should be measured against the 100 MB row rather
-than against the defaults.
+100 MB row are what a better policy would recover, and that row is now a
+configuration the docs tell people not to use. A consumer that needs a
+constrained budget, such as a memory-limited embedding, is the case where
+W-TinyLFU or 2Q would justify their complexity, and that case should be measured
+against the 100 MB row rather than against the defaults.
 
 ## What this does not establish
 

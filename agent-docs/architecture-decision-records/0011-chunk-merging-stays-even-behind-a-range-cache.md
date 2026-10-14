@@ -82,7 +82,7 @@ bytes on `out.bam`'s narrow windows and quadruples its request count, and 1MB is
 worse still. The 65000 gap therefore beats both wider gaps and the unmerged
 reads in the first table.
 
-**Merging weakens the early stop.** The interaction is why a wider gap costs
+**Merging weakens the early stop.** The interaction is why a wider gap hurts
 more than the extra bridged bytes alone explain. A merged chunk is bigger, so it
 is less likely to sit _wholly_ past the query, and the batch-and-stop from ADR
 0010 fires later or not at all. Smaller chunks let the stop discriminate more
@@ -94,9 +94,8 @@ between the two effects.
 Keep the merge step and keep 65000. A comment on `optimizeChunks` records the
 rationale, so it is visible where the constants are.
 
-Removing the merge step would optimize for one consumer's caching layer at the
-direct expense of every other consumer, and would not pay off even for that
-consumer.
+Removing the merge step optimizes for one consumer's caching layer at the direct
+expense of every other consumer, and does not even pay off for that consumer.
 
 ## What would change the answer
 

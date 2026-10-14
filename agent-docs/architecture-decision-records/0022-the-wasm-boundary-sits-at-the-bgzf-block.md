@@ -9,8 +9,8 @@ Status: Accepted (documents the existing split; rejects widening it)
 block; `unzipChunkSlice` for a query chunk; and the worker pool that
 `unzipChunkSlice` fans blocks out to. Everything else, including index parsing,
 record construction, field decoding and mismatch walking, is JavaScript. This
-ADR records why the boundary sits there, because "port the parser to wasm too"
-is the obvious next idea and it is wrong.
+ADR records why that line is where it is, since "port the parser to wasm too" is
+the obvious next thought and it is wrong.
 
 ## Decision
 
@@ -30,7 +30,7 @@ Inflate takes most of a cold query's time. Per-query times from ADR 0003, min of
 
 Inflate is 70–90% of a cold query on every fixture.
 
-Wasm inflate is also much faster than the JS it replaced (`pako`, through
+Wasm inflate is also a real win over the JS it replaced (`pako`, through
 bgzf-filehandle 6.0.0; wasm arrived in 6.0.1). The benchmark compares it with a
 per-block `inflateRaw`, which is what a pure-JS BGZF reader does, and with
 node's native `zlib` as the reference floor. The benchmark is bgzf-filehandle's
@@ -64,19 +64,19 @@ There are three reasons, in order of weight.
    access, and ADR 0003 shows a consumer typically touches a handful of them. A
    wasm parser would have to either serialize records back across the boundary
    (paying for fields nobody reads) or hand back a handle per field (a crossing
-   per access, on the hot paths). Either is worse than reading the bytes in
-   place.
+   per access, on the paths that are hot). Both are worse than reading the bytes
+   in place.
 
 3. **The wasm heap only ever grows.** `WebAssembly.Memory` never shrinks, so
-   every byte routed through wasm is reserved for the life of the module. One
-   inflate of one chunk can afford that, and a parser holding records could not.
-   The same limit is why `unzip` checks the gzip/BGZF header in **JS** before
-   calling in: rejecting a plain gzip file inside wasm would permanently reserve
-   the file's size on the way to the error.
+   every byte routed through wasm is reserved for the life of the module. That
+   is affordable for one inflate of one chunk and would not be for a parser
+   holding records. It is also why `unzip` sniffs the gzip/BGZF header in **JS**
+   before calling in: rejecting a plain gzip file inside wasm would permanently
+   reserve the file's size on the way to the error.
 
 The same reasoning keeps index parsing in JS. A `.bai` parse is 2.2 ms on the
-largest test index and is memoized per file (ADR 0003 §2). Of the index formats,
-only a CSI goes through wasm, because a CSI is itself bgzip-compressed.
+largest test index and is memoized per file (ADR 0003 §2). Only CSI touches wasm
+at all, and only because a CSI is itself bgzip-compressed.
 
 ## Consequences
 
@@ -96,8 +96,8 @@ only a CSI goes through wasm, because a CSI is itself bgzip-compressed.
 Read the `min` column, not the mean vitest prints in its summary. As ADR 0003's
 methodology section explains, this box often runs at a load average above 100,
 where the tail is noise and the floor is the signal. The means and the minima
-differ enough to matter: pako comes out 2.6–3.3x on the summary and 2.6–3.5x on
-the minima.
+disagree by enough to matter: pako reads as 2.6–3.3x on the summary and 2.6–3.5x
+on the minima.
 
 Before timing any arm, the benchmark asserts that all three decompress to
 identical bytes, so an arm that did less work fails instead of looking fast. The

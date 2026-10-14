@@ -8,8 +8,8 @@ Status: Accepted
 no `MD` tag, which is most reads from most aligners. Those bases come from
 outside the file, so the library needs a way to attach them to the record.
 
-jbrowse-components took the obvious route, which is the bug
-[ADR 0006](0006-cached-records-are-shared-and-must-not-be-mutated.md) describes:
+The obvious way is what jbrowse-components did, and it is the bug
+[ADR 0006](0006-cached-records-are-shared-and-must-not-be-mutated.md) is about:
 
 ```js
 record.ref = regionSeq
@@ -65,8 +65,8 @@ call retains nothing, so the covering rule does not apply to it.
 
 - **A per-query wrapper object** (what jbrowse-components does now, and what ADR
   0006 recommends). The wrapper is correct, and it stays available through
-  `opts.ref`. As the primary API, though, it stops a consumer from calling
-  `record.getMismatches()` and getting an answer. The consumer has to thread the
+  `opts.ref`. As the primary API, though, it means a consumer cannot call
+  `record.getMismatches()` and get an answer. The consumer has to thread the
   reference from the query to every call site by hand, which is the plumbing the
   decision above removes.
 

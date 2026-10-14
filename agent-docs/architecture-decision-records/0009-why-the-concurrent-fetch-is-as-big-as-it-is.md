@@ -45,11 +45,10 @@ caps concurrency at 6.
 chunk inflated is a decompressed buffer pinned for as long as any record views
 into it. Without the cap, the loop inflates all of them at once. In a browser,
 the transport that matters, the cap changes nothing, because browsers allow 6
-connections per host anyway, so requests 7..N would queue in the browser instead
-of in our loop.
+connections per host anyway, so requests 7..N would queue in the browser rather
+than in our loop.
 
-Five lines of code turn an unbounded memory spike into a queue, which is worth
-it.
+Five lines to convert an unbounded memory spike into a queue is a good trade.
 
 When this ADR was first written, `fetchPairs` still fanned out over mate chunks
 with an unbounded `Promise.all`, and the ADR noted the inconsistency. A
@@ -80,8 +79,7 @@ The benchmark is an interleaved A/B: both implementations alternate within one
 process, with the order rotated per round, and the result is the min of 9
 rounds. The regression keeps its sign across runs, which by the methodology in
 ADR 0008 makes it real. The same measurement on the inline pool flips sign from
-run to run (0.99, 1.30, 1.07 on `out.bam`), which is the pattern noise produces
-here.
+run to run (0.99, 1.30, 1.07 on `out.bam`), which is what noise looks like here.
 
 The helper would save fifteen lines and cost 11% on the hot path, and that path
 is what the library is for, so the inline pool stays.
@@ -100,12 +98,12 @@ force. jbrowse does not pass a `signal` to `getRecordsForRange` at all, and
 cancels with `checkStopToken` around the await instead, so in the main consumer
 this path never fires.
 
-We kept the retry because sharing _introduces_ a failure mode that did not exist
-before. Only the caller that starts a read passes its signal down to `bam.read`.
-If that caller aborts, the shared promise rejects for every waiter, including
-queries that are still running. A query that fails because an unrelated query
-was cancelled is a correctness regression the optimization itself introduced,
-and eight lines that avoid it are cheap.
+The retry stays because sharing _introduces_ a failure mode that did not exist
+before it. Only the caller that starts a read passes its signal down to
+`bam.read`. If that caller aborts, the shared promise rejects for every waiter,
+including queries that are still running. A query that fails because an
+unrelated query was cancelled is a correctness regression the optimization
+itself introduced, and eight lines that avoid it are cheap.
 
 Until this ADR, the retry was also the one part of the feature with **no test at
 all**: the subtlest branch in the fetch path, with only reasoning to show that
@@ -114,11 +112,11 @@ it worked. Three tests now cover it
 `a waiter's own abort still propagates`,
 `a genuine read failure is not retried by waiters`). Each test drives the case
 with a read that hangs until the test releases it, so the interleaving is
-deterministic.
+deterministic rather than raced.
 
 We checked the tests by mutation, because a concurrency test that cannot fail is
-worse than none. Removing the retry fails only the first test, and retrying
-unconditionally fails only the third. Each branch of the guard is covered by
+worse than none. Removing the retry kills only the first test, and retrying
+unconditionally kills only the third. Each branch of the guard is covered by
 exactly one test.
 
 Review removed two pieces of the retry that look necessary and are not:
@@ -129,35 +127,34 @@ Review removed two pieces of the retry that look necessary and are not:
   change the outcome.
 - The explicit "a sibling waiter may already have started the retry, so join
   that instead" branch was **re-implementing the function it was inside**.
-  Recursing into `_cachedChunkFeatures` handles that case and also re-checks
-  `chunkFeatureCache`, which may be populated by then.
+  Recursing into `_cachedChunkFeatures` covers that case and also re-checks
+  `chunkFeatureCache`, which by then may be populated.
 
 ### "Why is `inFlightChunks` a second map instead of part of the cache?"
 
 `ChunkFeatureCache`'s budget is in decompressed bytes, and `entry.bytes` is
 known only once the read resolves, as ADR 0007's rejected alternatives record.
-To store promises there, we would have to accept an unbudgeted window or teach
-the LRU to hold unsized entries. A short-lived side map leaves the budget logic
-untouched.
+Storing promises there means either an unbudgeted window or teaching the LRU to
+hold unsized entries. A short-lived side map keeps the budget logic untouched.
 
 ### "Fix it in jbrowse instead"
 
-As ADR 0007 records, the adapter has no way to tell that two different
-coordinate ranges map to one chunk, because that mapping comes from the index,
-which bam-js reads. Any other consumer that fans out pays the same cost.
+As ADR 0007 records, the adapter cannot know that two different coordinate
+ranges map to one chunk, because that mapping comes from the index, which bam-js
+reads. Any other consumer that fans out hits the same cost.
 
 ## What would make this smaller
 
 If the trade-offs change, these changes would shrink the code:
 
 - **Serialize chunk reads behind a global queue.** A global queue removes the
-  duplicate work without the in-flight map, but it does so by removing
-  concurrency, which gives up all of ADR 0008.
+  duplicate work without the in-flight map, but by removing concurrency rather
+  than sharing it, which gives up all of ADR 0008.
 - **Stop forwarding `opts.signal` to `bam.read`,** or refcount waiters and abort
   only when all of them have. Either change makes the abort retry dead code, and
-  deleting the retry removes `InFlightChunk` entirely, leaving `inFlightChunks`
-  a map of bare promises. The retry is the one piece with a clear deletion
-  trigger.
+  deleting the retry removes `InFlightChunk` entirely, and `inFlightChunks`
+  becomes a map of bare promises. The retry is the one piece with a clear
+  deletion trigger.
 - **Drop the single-chunk fast path** if the pool ever gets cheap enough that
   `tiny.bam` shows parity. Re-measure before assuming it has.
 

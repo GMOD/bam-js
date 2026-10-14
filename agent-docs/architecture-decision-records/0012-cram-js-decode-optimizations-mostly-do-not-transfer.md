@@ -11,7 +11,7 @@ to this parser. We mapped each onto bam-js and measured it on the real fixtures.
 
 The starting point is still ADR 0003: BGZF decompression is 70–90% of a cold
 query, and everything here is a lazy accessor the consumer pays for only if it
-touches it. The table re-measures accessor cost, cold, min-of-5:
+touches it. We re-measured accessor cost, cold, min-of-5:
 
 | fixture                   |  seq |  tags | CIGAR |  name |
 | ------------------------- | ---: | ----: | ----: | ----: |
@@ -57,18 +57,18 @@ reads).
    input with much longer runs.)
 
 5. **Binary search over the index.** BAI/CSI already resolve bins by hash lookup
-   rather than scanning. A loop over the _present_ bins, instead of a sweep over
-   the requested bin range, is 2.5x faster on a whole-chromosome query. We
-   rejected it because that gain is 0.28ms → 0.11ms against a 100ms+ decompress,
-   and the result inverts (much worse) for the small ranges that `fetchPairs`
-   issues, one per mate.
+   rather than scanning. Iterating the _present_ bins instead of sweeping the
+   requested bin range is 2.5x faster on a whole-chromosome query. We rejected
+   it because that gain is 0.28ms → 0.11ms against a 100ms+ decompress, and the
+   result inverts (much worse) for the small ranges that `fetchPairs` issues,
+   one per mate.
 
 We also measured and rejected two other changes while in the area:
 `{__proto__: null}` instead of `Object.create(null)` for the tags object (1.03x
 slower, because V8 does not fast-path it here), and a `Map` for tags (1.56x
 faster, but a public API break).
 
-## Adopted changes
+## What was adopted
 
 ### `seq`: a 4-base table for the sub-threshold path (1.7–1.8x)
 
@@ -84,14 +84,14 @@ measured end-to-end, min-of-41 over a fixed record set, with no I/O in the loop:
 | ultra-long-ont  | 5.7ms  | 5.8ms      | neutral |
 
 The table costs ~6ms to fill and retains ~2MB, so it is built lazily **and**
-behind a warmup counter. A build on first use was a 1.4x loss on long-read files
-with a short-read tail (ecoli_nanopore: 27 sub-300bp reads of 480, chm1: 5 of
-204), because those files paid the whole build to save microseconds. The counter
-is module-global because the table is shared, so the build has to amortize over
-the total short decodes in the process, not per file.
+behind a warmup counter. Building on first use was a 1.4x loss on long-read
+files with a short-read tail (ecoli_nanopore: 27 sub-300bp reads of 480, chm1: 5
+of 204), because those files paid the whole build to save microseconds. The
+counter is module-global because the table is shared, so the build has to
+amortize over the total short decodes in the process, not per file.
 
-The >300bp `TextDecoder` path is untouched, and the 4-base table does not catch
-up with it there: at 1000bp the decoder is still 1.16x ahead, at 15000bp 1.68x.
+The >300bp `TextDecoder` path is untouched, and the 4-base table does not reach
+it: at 1000bp the decoder is still 1.16x ahead, at 15000bp 1.68x.
 
 ### `CIGAR`: two appends per op instead of one (1.3–1.7x on long reads)
 
@@ -110,10 +110,10 @@ the rope:
 
 **The CIGAR change partially supersedes ADR 0003 §1**, which rejected rewriting
 this loop. That ADR tested a precomputed 16-entry op-char table and a
-digits-into-a-Uint8Array-plus-TextDecoder rewrite. Both still lose: the op-char
-table re-measured 1.13x slower even on top of this change, because V8 already
-returns an interned single-character string from `fromCharCode`. ADR 0003 never
-tested the third approach, splitting the concat.
+digits-into-a-Uint8Array-plus-TextDecoder rewrite. Both are still losers: the
+op-char table re-measured 1.13x slower even on top of this change, because V8
+already returns an interned single-character string from `fromCharCode`. ADR
+0003 never tested a third approach, splitting the concat.
 
 The two short-read rows disagree in direction (1.14x slower vs 1.28x faster) on
 1-op CIGARs at sub-2ms magnitudes. That difference is this box's noise floor,
@@ -142,7 +142,7 @@ fixture**, as it should.
 The string accessors cost time in modification/methylation rendering,
 `perBaseLetter` color mode, soft-clip display, `modCoverage`, the feature-detail
 panel and `toJSON`, and SAM export. They also cost time for direct bam-js
-consumers, the users these accessors are mainly for.
+consumers, which is who these accessors are for.
 
 **On the modification path the win is real but small**, because `seq` dominates
 it and long reads take the (untouched, correct) `TextDecoder` branch.
@@ -158,8 +158,8 @@ MM fixture with enough reads to measure:
 | `CIGAR` string | 0.479ms | **0.365ms** | 1.31x                       |
 | `getTag('ML')` | 0.378ms | 0.387ms     | —                           |
 
-CIGAR is ~12% of that path, so 1.31x on it nets ~5% overall, which matches the
-end-to-end number (1.06x).
+CIGAR is ~12% of that path, so 1.31x on it nets ~5% overall, which is what the
+end-to-end number showed (1.06x).
 
 **The bigger win there is on the jbrowse side, not here.**
 `extractModifications` does `parseCigar2(feature.get('CIGAR'))`, and
@@ -173,10 +173,10 @@ on that path it is worth more than this ADR's CIGAR change.
 
 ## What the realistic corpus changed — measured on jb2bench
 
-The fixtures in `test/data` are correctness fixtures, and two conclusions below
-came out wrong the first time because we sized optimizations against them.
+The fixtures in `test/data` are correctness fixtures, and sizing optimizations
+against them is how the two conclusions below came out wrong the first time.
 `~/src/jb2bench/data` has simulated 20x/200x/1000x short- and long-read BAMs
-over one 250kb window, the same files jbrowse's render benchmarks use.
+over one 250kb window, which is what jbrowse's own render benchmarks use.
 
 **Accessors are a third of the heaviest query, not a few percent.** We replayed
 exactly what `extractFeatureArrays` + `buildBaseFeatureData` + `forEachMismatch`
@@ -219,9 +219,9 @@ floor).
 **We reverted it anyway**, because of how the corpus weights the two cases. The
 long-read win is 23ms against a 2725ms query (0.8%), because decompression
 dominates there. The short-read loss falls on a 365ms query where tag walking
-really is ~23%. A change that slows the dominant case to speed up a case that is
-99.4% decompression is the wrong trade. Don't re-attempt without a long-read
-profile where the query is not decompression-bound.
+really is ~23%. Making the dominant case worse to speed up a case that is 99.4%
+decompression is the wrong trade. Don't re-attempt without a long-read profile
+where the query is not decompression-bound.
 
 ### Adopted on this corpus: `getTagAlt`, one walk instead of two
 

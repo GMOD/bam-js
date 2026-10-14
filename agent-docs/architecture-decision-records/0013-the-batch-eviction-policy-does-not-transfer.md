@@ -26,10 +26,10 @@ first, which is what `'batch'` would have done. The policies diverge only when
 **one query's working set exceeds `maxCacheBytes`**.
 
 cram is 2.75x over that line, with `maxSize: 20000` records against a
-55,000-record range. bam crosses the line too (see ADR 0014), so the choice
-matters for bam, and we measured it.
+55,000-record range. bam crosses the line too (see ADR 0014), so the question is
+live, and we measured it rather than argued it.
 
-## Measurement past the crossover
+## Measured where the crossover is crossed
 
 We measured `1000x.longread` with a 100kb window (533.5 MB working set) at the
 then-default 100 MB budget. That working set is 5.3x over the line, the most
@@ -93,5 +93,5 @@ errors, both easy to repeat:
 
 A case where `'batch'` retains a working set `'lru'` drops **and** the hit rate
 moves. The table above, a query 5.3x over budget, is the natural candidate.
-There the two policies are within noise on time, and `'batch'` holds 1.7x the
+There the two policies are within noise on time, and `'batch'` is 1.7x worse on
 memory.

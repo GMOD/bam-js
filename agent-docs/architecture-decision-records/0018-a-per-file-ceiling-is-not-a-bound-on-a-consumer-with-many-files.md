@@ -46,7 +46,7 @@ browsed and then panned back, counting refills on the revisit:
 | 512 MB          |         918 MB |               8 |
 | 1024 MB (ship)  |        1109 MB |               0 |
 
-The cold pass over the same ground took 98 refills, so the 128 MB row is **worse
+The cold pass over the same ground was 98 refills, so the 128 MB row is **worse
 than having no cache at all**. 128 MB is what each of eight tracks sharing a
 gigabyte would get. An equal split cannot work, because dividing by the track
 count shrinks each share below a working set.
@@ -58,8 +58,8 @@ files hold jointly and that evicts the globally least-recently-used entry across
 all of them. The budget is opt-in; `maxCacheBytes` keeps its 1 GB default and
 its meaning.
 
-At an equal aggregate ceiling, the shared budget does better than the split on
-both measures (1024 MB held and 4 refills, against 773 MB held and 16 refills),
+At an equal aggregate ceiling, the shared budget beats the split on both
+measures (1024 MB held and 4 refills, against 773 MB held and 16 refills),
 because it evicts from a member only what is globally least-recently-used. It
 evicts the entries of tracks nobody is looking at first, so the track being
 panned keeps a whole working set however many tracks are open, which an equal
@@ -72,7 +72,7 @@ split cannot do.
   budget is a ceiling, not an allocation, so a consumer that was never near it
   sees no change.
 
-- **A bound on memory costs re-reads, and the number is not small.** Six tracks
+- **Bounding memory costs re-reads, and the number is not small.** Six tracks
   under a shared gigabyte cost 33 revisit refills against 0, a trade-off we
   accept. The budget lowers the ceiling a browsing session can reach, but it
   does not make the working set smaller. Below the working set, refills climb as
@@ -86,10 +86,9 @@ split cannot do.
 - **The budget holds members weakly.** A budget that outlived a closed track and
   kept its `BamFile` reachable would cause exactly the kind of leak it is meant
   to prevent, because jbrowse reclaims a closed track by dropping the last
-  strong reference to its adapter. The budget stores a `WeakRef` to each member
+  strong reference to its adapter. The budget holds a `WeakRef` to each member
   with the member's last known weight, and credits that weight back when it
-  finds the member collected. A consumer therefore has no `unregister` to
-  forget.
+  finds the member collected. There is no `unregister` for a consumer to forget.
 
 - **The shared budget is not a default.** A default shared budget would need a
   scope to be shared _within_, and the library cannot tell whether it serves one

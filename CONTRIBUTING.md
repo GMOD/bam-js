@@ -47,12 +47,12 @@ into `esm_branch1/` and `esm_branch2/`. The script never switches your checkout
 or touches your local edits, so the benchmark measures only committed work.
 
 A record-count assertion in `test/benchmark-regions.test.ts` pins every
-benchmark region. A query for a contig the file lacks returns `[]` before it
-reaches the code under measurement, so the benchmark still passes while it times
-only `getHeader()`. Seven of the ten cases were in that state before the test
-pinned them
+benchmark region. A query naming a contig its file does not have returns `[]`
+before touching any of the code being measured, so the benchmark stays green
+while timing nothing but `getHeader()`. Seven of the ten cases were in exactly
+that state before the test pinned them
 ([ADR 0004](agent-docs/architecture-decision-records/0004-pin-benchmark-regions-with-a-test.md)).
-If you change a region, the test reports how many records it now returns.
+Change a region and the test tells you what it now yields.
 
 ## Publishing
 

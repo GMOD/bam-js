@@ -24,13 +24,13 @@ corpus:
 59/59 and 98/98 are total misses, so at 100 MB the cache returns nothing it was
 asked for on those two corpora.
 
-## Scale set by the consumer's byte gate
+## What sets the scale — the consumer's byte gate, not how deep data can get
 
-A cache sized against the deepest data available would be sized for queries that
+Sizing this against the deepest data available would be sizing against queries
 nobody issues, because jbrowse gates BAM queries before making them.
 `BamAdapter.getRegionByteSize` calls `estimatedBytesForRegions`, and jbrowse
 compares the result against the adapter's `fetchSizeLimit`. Over the limit, the
-user gets "region too large" instead of a query.
+user gets "region too large" rather than a query.
 
 The gate counts **compressed** bytes from the index, and this cache budgets
 **decompressed** bytes. The BGZF ratio converts one to the other, and we
@@ -50,8 +50,8 @@ Direct bam-js consumers have no gate at all.
 
 `DEFAULT_MAX_CACHE_BYTES = 512 * 1024 * 1024`.
 
-A 512 MB budget holds a six-window pan at both the stock gate and the raised
-one, and `1000x.shortread` also reaches zero refills.
+512 MB clears a six-window pan at both the stock gate and the raised one, with
+`1000x.shortread` reaching zero refills as a side effect.
 
 ## Consequences / rationale
 
@@ -60,9 +60,9 @@ one, and `1000x.shortread` also reaches zero refills.
   `200x.longread` 124 MB, `200x.shortread` 156 MB. The budget binds only where
   the old default was returning a 0% hit rate.
 
-- **Don't pick a number between one query and several.** In that range the cache
-  holds memory and returns nothing. Either size above the working set, or pass
-  `Infinity` and bound memory another way.
+- **Don't pick a number between one query and several.** That is the region
+  where the cache costs memory and returns nothing. Either size above the
+  working set, or pass `Infinity` and bound memory another way.
 
 - **The budget is a retention bound, not a peak-memory bound**, and the docs now
   say so. Three things sit outside it: a read in flight is never evicted and six
@@ -86,9 +86,9 @@ LRU has something to order, but the chunk size rules this out.
 A single entry on `1000x.longread` is 180.7 MB decompressed. At the measured
 ratios that is ~86 MB compressed, 17x `optimizeChunks`' 5 MB merge cap, so the
 entry is not a merge product. The BAI lists it as one chunk of that size, and
-lowering the merge cap cannot shrink it. Splitting the chunk would mean dividing
-it at BGZF block boundaries that records straddle, which is the reason ADR 0001
-gives for making the chunk the cache unit in the first place.
+lowering the merge cap cannot shrink it. Splitting the chunk would mean
+sub-dividing it at BGZF block boundaries with records straddling them, which is
+the reason ADR 0001 gives for the cache unit being the chunk in the first place.
 
 ## Methodology
 

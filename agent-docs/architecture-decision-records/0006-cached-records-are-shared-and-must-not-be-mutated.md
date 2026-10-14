@@ -9,10 +9,10 @@ decoded from. `_cachedChunkFeatures` returns `entry.features` — the same array
 of the same `BamRecord` instances — to every query that resolves to that chunk
 key.
 
-Two `getRecordsForRange` calls can therefore return _the same object_ to the
-caller. The sharing is common, and happens whenever the queries produce the same
-merged chunk span, which includes re-querying one range and two nearby ranges
-covered by one chunk.
+Two `getRecordsForRange` calls can therefore hand the caller _the same object_.
+The sharing is common, and happens whenever the queries produce the same merged
+chunk span, which includes re-querying one range and two nearby ranges covered
+by one chunk.
 
 The sharing is easy to miss, because two _different_ ranges usually produce
 different chunk keys (`optimizeChunks` merges per query; see ADR 0001's "Known
@@ -63,13 +63,13 @@ record.
   `cpositions` / `dpositions` in the entry, re-run `readBamFeatures` per query).
   Every caller would get its own objects, so the hazard would disappear
   library-wide, which makes this the principled fix. It also keeps the expensive
-  half of the cache, since the download and the inflate still happen only once.
+  half of the cache, since the download and the inflate still only happen once.
 
   The buffer cache costs a record scan on every warm query. We measured the scan
   on this machine, min-of-40 after 15 warmup rounds, by re-running
   `readBamFeatures` over the buffers a warm query already holds. Without the
-  warmup, a cold timing reports the scan about 2x too expensive, and JIT
-  accounts for the whole difference.
+  warmup, a cold timing reports the scan about 2x too expensive, and the whole
+  difference is JIT.
 
   | file                      | records | warm now | + scan   | ratio |
   | ------------------------- | ------- | -------- | -------- | ----- |
@@ -82,7 +82,7 @@ record.
   count rather than file size.
 
   A warm query on a dense short-read region roughly doubles. ADR 0001 made that
-  query 19.6x faster, and the buffer cache would give back a real part of the
+  query 19.6x faster, and the buffer cache would give back a real slice of the
   gain, permanently and for every consumer, to defend against a mistake that one
   consumer made and has fixed. The scan is already near its floor (~0.1
   µs/record, dominated by object allocation), so there is no obvious way to make

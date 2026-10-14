@@ -21,11 +21,11 @@ The expensive work is in the lazy accessors, which run only when the consumer
 reads them. On 53k short reads: `tags` ≈ `seq` ≫ `CIGAR` > `name` ≫ `end`. On
 long reads `CIGAR` dominates (74 ms for 757 records averaging 2171 ops).
 
-Any change that avoids a re-decompress therefore saves more than any amount of
-parser micro-tuning. ADR 0001 matters far more than this one for that reason,
-and the remaining decompression headroom is in `bgzf-filehandle`. That package
-runs libdeflate in wasm, roughly at parity with native `zlib` on the same data,
-so the only real win left there is parallelizing across BGZF blocks in workers.
+Anything that avoids a re-decompress therefore beats any amount of parser
+micro-tuning. That is why ADR 0001 matters far more than this one, and why the
+remaining decompression headroom is in `bgzf-filehandle`. That package runs
+libdeflate in wasm, roughly at parity with native `zlib` on the same data, so
+the only real win left there is parallelizing across BGZF blocks in workers.
 
 ## Decision
 
@@ -35,10 +35,10 @@ Don't re-attempt them without new evidence.
 ### 1. Rewriting the `CIGAR` string builder
 
 > **Partially superseded by ADR 0012.** ADR 0012 re-measured the two
-> alternatives below, and both still lose. A third, which this ADR never tried,
-> splits the concat into two appends and drops the intermediate cons string; it
-> is worth 1.3–1.7x on long reads and has landed. "Don't rewrite this loop" was
-> too strong a conclusion to draw from these two data points.
+> alternatives below, and both are still losers. A third, which this ADR never
+> tried, splits the concat into two appends and drops the intermediate cons
+> string; it is worth 1.3–1.7x on long reads and has landed. "Don't rewrite this
+> loop" was too strong a conclusion to draw from these two data points.
 
 `get CIGAR` does `result += length + String.fromCharCode(opCode)` in a loop,
 which is the top accessor cost on long reads. We timed two alternatives, 20k ops
@@ -120,10 +120,10 @@ reads every record's name twice plus every candidate mate's once (warm
 
 We rejected it anyway, because `fetchPairs` is the only caller that re-reads a
 name. `jbrowse-components`' `buildBaseFeatureData` reads `feature.get('name')`
-exactly once per feature and copies it into a `FeatureData`; the `readName`
-filter in `BamAdapter.getFeatures` only runs when a user has typed a read-name
-filter. A memo read once only adds cost, and on a 22 443-record chunk it adds
-two costs: +180 KB for the extra field slot on every record whether or not
+exactly once per feature and copies it into its own `FeatureData`; the
+`readName` filter in `BamAdapter.getFeatures` only fires when a user has typed a
+read-name filter. A memo read once is pure cost, and on a 22 443-record chunk it
+adds two costs: +180 KB for the extra field slot on every record whether or not
 `name` is touched, and +520 KB of name strings held for as long as the chunk
 stays cached. Without the memo, those strings are freed along with the
 consumer's copy. jbrowse-components never uses `viewAsPairs`, the one path that
@@ -131,15 +131,15 @@ benefits.
 
 Note that the `name` crossover above is _not_ the same as the one in
 `decodeTagString` (`SHORT_STRING_THRESHOLD = 32`), which was measured separately
-for Z/H tag values. There the threshold is a real win, because `TextDecoder`'s
-~0.35 µs fixed setup dominates at MD/RG/PG lengths, where char codes are 4x
-faster at 8 bytes and 2x at 16.
+for Z/H tag values and is a real win there, because `TextDecoder`'s ~0.35 µs
+fixed setup dominates at MD/RG/PG lengths, where char codes are 4x faster at 8
+bytes and 2x at 16.
 
 ## Benchmarking methodology
 
-This dev box often sits at load average >100 on 16 cores. Under that load,
-accessors that a change did not touch moved 2x between runs, so single-shot
-timings are worthless. These steps give repeatable numbers:
+This dev box often sits at load average >100 on 16 cores, where single-shot
+timings are worthless, since accessors that a change did not touch moved 2x
+between runs. These steps give repeatable numbers:
 
 - Build the baseline from `HEAD`'s `src` into a scratch dir with
   `git archive HEAD src tsconfig.json | tar -x -C <dir>` and `tsc` there. Never

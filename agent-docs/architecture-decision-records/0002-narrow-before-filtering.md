@@ -2,10 +2,10 @@
 
 Status: Superseded by ADR 0005 (`filterBy` removed from bam-js entirely)
 
-The reordering below was correct, and because of it the removal in ADR 0005 adds
-no cost. A caller can filter only the records bam-js returns, and bam-js has
-already narrowed those to the query range. This ADR stays as the record of why
-in-library filtering was the wrong design.
+The reordering below was correct and is why the removal in ADR 0005 adds no
+cost. A caller can only filter the records bam-js returns, which are already
+range-narrowed. This ADR stays as the record of why in-library filtering was the
+wrong design.
 
 ## Context
 
@@ -18,8 +18,8 @@ const records = filterBy
 appendInRange(records, chrId, min, max, result)
 ```
 
-Filtering and narrowing are independent predicates, so the result is the same in
-either order, but their costs are far from symmetric:
+Filtering and narrowing are independent predicates, so the result is the same
+either way, but their costs are far from symmetric:
 
 - `appendInRange` relies on the coordinate sort and `break`s once it passes
   `max`, so it touches roughly the records up to the window plus the window

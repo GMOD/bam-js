@@ -23,8 +23,8 @@ benchmarks ran clean, reported plausible-looking numbers, and measured nothing
 but `getHeader()`. The three biggest files, which hold the long-read and
 high-depth cases the suite was written to measure, were among them.
 
-A benchmark has no assertions, and an empty result looks the same as a fast one,
-so no check in the codebase could catch the wrong names.
+A benchmark has no assertions, and an empty result is indistinguishable from a
+fast one, so no check in the codebase could catch the wrong names.
 
 ## Decision
 

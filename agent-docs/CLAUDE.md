@@ -13,7 +13,7 @@ Top level is exactly `TODO.md` and this file. Everything else is filed:
   copied content. Delete a handoff when its thread lands.
 - `todo/` — committed work, one file per item with `metadata.category`, `area`,
   `first_move` and `order`; `TODO.md` indexes them. It does not exist until
-  there is an item. Commitment, not size, decides between `todo/` and `ideas/`.
+  there is an item. `todo/` vs `ideas/` is commitment, not size.
 - Tried and declined → a sentence at the code that would re-try it, with the
   number, rather than a rejected-ideas shelf.
 - What a session did and which commits → git already holds it.

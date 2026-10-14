@@ -65,7 +65,7 @@ The merged spans therefore slide across a pan, and each span is a fresh key:
 
 **The raw bin chunks are query-independent.** They come from `binIndex` and are
 the same objects whatever the query. Only the merge depends on the query, so a
-fix is possible.
+fix is conceivable.
 
 ## What it costs today
 
@@ -89,8 +89,8 @@ parsed span:
 In every row, waste appears **iff** `contained > 0`. The waste comes from
 containment, where one parse fully redoes another, and not from partial overlap.
 
-The waste affects **shallow-to-moderate short-read data whose bin chunks form
-abutting chains**, and leaves deep long-read data untouched at ordinary zoom.
+The affected profile is **shallow-to-moderate short-read data whose bin chunks
+form abutting chains**. Deep long-read data is untouched at ordinary zoom.
 Volvox is the demo file, so the 71% waste applies to everyone who tries jbrowse
 for the first time, on 0.9 MB.
 
@@ -110,8 +110,8 @@ any code:
 | 200x.longread   | 20k/5k   | 54.9 MB    | 54.9 MB  | 0%      | 6 → **41**   |
 | 1000x.longread  | 100k/25k | 288.0 MB   | 268.4 MB | 7%      | 60 → **179** |
 
-A key on the raw chunks recovers exactly the measured waste and never costs
-bytes, but it raises the number of cache entries, as the last column shows.
+Keying on raw chunks recovers exactly the measured waste and never costs bytes,
+but it raises the number of cache entries, as the last column shows.
 
 ## Why it is parked
 
@@ -145,9 +145,10 @@ and looks like a small change, but it is incorrect.
 docstring explains that when they do overlap, the query returns every record in
 the overlap twice, "rendered twice, counted twice in coverage, and colliding on
 any id derived from fileOffset". A cached superset is not one of the current
-query's chunks and can overlap the others, so serving from it brings the
-duplicates back. Removing them would need dedup by `fileOffset` across the whole
-result, a Set over every returned record, on queries that return 500k of them.
+query's chunks and can overlap the others, so serving from it reintroduces
+exactly those duplicates. Removing them would need dedup by `fileOffset` across
+the whole result, a Set over every returned record, on queries that return 500k
+of them.
 
 A superset lookup also weakens the early stop. A superset's first record is
 earlier than the subset's, so `isPastQuery` fires less often and the query reads
@@ -159,8 +160,8 @@ section records the failure so that nobody has to rediscover it.
 ## A key that does not slide
 
 The raw key above fixes the waste at two costs: the entry count explodes, and
-one fetch has to fill N entries. Both costs follow from choosing the _finest_
-query-independent unit, and a coarser unit exists.
+one fetch has to fill N entries. Both are consequences of choosing the _finest_
+query-independent unit, and a coarser one exists.
 
 **Canonical.** Merge the refId's whole chunk list once, by the same gap and span
 rules, into a partition of the file. A query cannot change the partition,
@@ -181,12 +182,13 @@ Compare the three columns with each other, not with the earlier section.
 | 200x.longread   |  63.08 MB / 16 |   57.26 / 41 |   **55.31 / 6** |
 | 1000x.longread  | 291.74 MB / 60 | 278.97 / 179 | **269.27 / 14** |
 
-**The canonical key answers both objections.** On the long-read files it has 6
-and 14 entries where the raw key has 41 and 179, _fewer than the merged key that
+**Both objections go away.** On the long-read files the canonical key has 6 and
+14 entries where the raw key has 41 and 179, _fewer than the merged key that
 ships today_, because merging over a whole contig gives coarser chunks than
-merging one query's slice of it. The entry-count cost above therefore belongs to
-the raw key and not to re-keying in general. One fetch also fills exactly one
-entry, so no batch-fill path is needed and the change stays in this repo.
+merging one query's slice of it. The entry-count cost above is therefore
+specific to the raw key, not to re-keying. One fetch also fills exactly one
+entry, so there is no batch-fill path to build and the change stays in this
+repo.
 
 **The canonical key converges, and the merged key does not.** When the pan grows
 from 10 windows to 30, canonical stays at 13.94 MB on 200x.shortread, while
@@ -200,16 +202,16 @@ bigger than the query's own and the reader fetches it whole. **The span cap does
 not fix it.** Caps of 0.25MB, 1MB and 5MB all give ~64.8 MB, since the partition
 can never be finer than the file's raw BAI chunks, which are already ~5MB at
 that depth. That fixture also has almost no redundancy to remove (2.3% measured
-from the consumer side), so it pays for over-fetch and saves almost nothing. The
-regression suggests making the canonical key conditional on chunk shape, which
-is where item 1 below arrives from the other direction.
+from the consumer side), so it is paying over-fetch for a saving that is not
+there. The regression points at making the canonical key conditional on chunk
+shape, the same conclusion item 1 below reaches from the other direction.
 
-**A failed alternative, recorded so nobody re-proposes it.** Snapping a query's
+**A failed alternative, recorded so it is not re-proposed.** Snapping a query's
 merged span outward to linear-index boundaries, a fixed grid instead of a fixed
 partition, looked like it would make the granularity a parameter. At one
 interval the boundaries sit where the merged spans already start and end, so the
-result is the same as today. Coarser grids over-fetch catastrophically (25x on
-1000x.shortread at 16 intervals).
+result is indistinguishable from today's. Coarser grids over-fetch
+catastrophically (25x on 1000x.shortread at 16 intervals).
 
 ## If someone picks this up
 

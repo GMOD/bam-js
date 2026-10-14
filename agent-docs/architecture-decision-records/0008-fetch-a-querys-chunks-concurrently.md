@@ -58,9 +58,9 @@ memory keeps growing.
 
   The request count and byte count are **identical** in both columns, so the
   concurrency cuts latency without adding bandwidth or request amplification,
-  and the two layers work together. The counts match because of the byte-level
-  dedup in the layer below: when several of our concurrent chunk reads fall
-  inside the same 256 KB block, it merges them into one fetch.
+  and the two layers compose. The counts match because of the byte-level dedup
+  in the layer below: when several of our concurrent chunk reads fall inside the
+  same 256 KB block, it merges them into one fetch.
 
   `RemoteFileWithRangeCache` dedups _bytes_ but not _decompression_, so it does
   nothing for duplicate inflates. ADR 0007's dedup is therefore still needed
@@ -114,25 +114,25 @@ memory keeps growing.
 
 The first A/B of this change showed a consistent **2x slowdown** on
 `shortreads_300x` and `chr22_nanopore`, reproduced across separate processes at
-15 iterations. The slowdown came entirely from the laptop running on battery.
-CPU frequency scaling made the second process measured look slower regardless of
-which implementation it ran. Reversing the order reversed the "regression", and
-interleaving the two implementations within one process showed parity, as did
-re-running everything on mains power.
+15 iterations. The slowdown was entirely an artifact of the laptop running on
+battery. CPU frequency scaling made the second process measured look slower
+regardless of which implementation it ran. Reversing the order reversed the
+"regression", and interleaving the two implementations within one process showed
+parity, as did re-running everything on mains power.
 
-We also tested directly the intermediate hypothesis that concurrent
-`unzipChunkSlice` calls thrash the shared wasm linear memory via `memory.grow`.
-Decompressing the same pre-read buffers sequentially and concurrently, with no
-bam-js involved, **refuted** it, since concurrent was 0.79–1.04x, i.e. no worse.
+We also tested the intermediate hypothesis that concurrent `unzipChunkSlice`
+calls thrash the shared wasm linear memory via `memory.grow`, by decompressing
+the same pre-read buffers sequentially and concurrently with no bam-js involved.
+The test **refuted** it: concurrent was 0.79–1.04x, i.e. no worse.
 
 **`pnpm bench` has the same weakness.** tinybench runs all of variant A's
-iterations, then all of B's, without interleaving per iteration, so it has
-exactly this bias. In the full suite run in both slot orders, every result
-flipped sign except `tiny.bam` (1.08x / 1.07x, consistently slower, which is the
-real single-chunk regression) and `volvox-sorted` (1.01x / 1.06x, same
+iterations, then all of B's, without interleaving per iteration, so it is
+subject to exactly this bias. Running the full suite in both slot orders, every
+result flipped sign except `tiny.bam` (1.08x / 1.07x, consistently slower, which
+is the real single-chunk regression) and `volvox-sorted` (1.01x / 1.06x, same
 direction). The apparent 1.22x regression on `cho.bam` and the apparent 1.80x
 win on `another_chm1_id_difference` both reversed and were artifacts.
 
-For any effect in this repo under ~20%, run the suite in both slot orders and
-discard anything that flips, or measure the variants rotated within a single
-process. Also check the power source.
+For anything in this repo where the effect is under ~20%, run the suite in both
+slot orders and discard anything that flips, or measure the variants rotated
+within a single process. Also check the power source.

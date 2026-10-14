@@ -17,8 +17,8 @@ if (!entry) {
 
 Two queries that overlap _in time_ therefore both downloaded and both inflated
 the same chunk, and the second `set` simply overwrote the first. The cache
-prevented re-reading a chunk later, but no code prevented two reads of it at
-once.
+protected against re-reading a chunk later, but no code protected against
+reading it twice at once.
 
 Overlapping queries are the primary consumer's normal access pattern.
 `jbrowse-components` renders a row of adjacent blocks, and
@@ -60,10 +60,11 @@ before.
   within one process over 15 iterations, found the two identical within noise on
   `out.bam`, `shortreads_300x.bam` and `chr22_nanopore_subset.bam`.
 
-- **In-flight sharing strengthens ADR 0006.** Sharing was already the rule for
-  records that come from the cache, and the in-flight map extends it to records
-  that come from a concurrent read, so there is no longer a timing-dependent
-  case where two queries get independently-decoded copies of one chunk.
+- **In-flight sharing strengthens ADR 0006 rather than weakening it.** Sharing
+  was already the rule for records that come from the cache, and this makes it
+  hold for records that come from a concurrent read too, so there is no longer a
+  timing-dependent case where two queries get independently-decoded copies of
+  one chunk.
 
 - **One caller's abort does not cancel a joined read.** A shared read is
   cancelled only when _all_ of its callers have given up. `InFlightChunk` holds
@@ -109,7 +110,7 @@ before.
   straight to `handleAborted` instead of counting it as a waiter.
 
   The redundancy costs mutation coverage, because mutation testing catches
-  neither check alone while the other still produces correct behaviour. Only
+  neither check alone, since the other still produces correct behaviour. Only
   removing both reproduces the bug, and the tests catch that, because they
   assert the behaviour rather than either line.
 
@@ -120,14 +121,15 @@ before.
   cancels the query in flight while the next query wants most of the same
   chunks, so exactly the chunks still being read got read twice. The retry also
   recursed without bound. jbrowse's `RemoteFileWithRangeCache.joinChunk`, the
-  same retry one layer further down on 256 KiB chunks, limits its version to one
-  attempt to avoid a recursion whose depth depends on how the aborts interleave.
+  same retry one layer further down on 256 KiB chunks, bounds its version at one
+  attempt precisely to avoid a recursion whose depth depends on how the aborts
+  interleave.
 
   `@gmod/cram` reached the same design independently and at the same time; see
   its ADR 0003. The two now match, so a consumer threading one stop token
   through both adapters gets the same cancellation semantics from each.
 
-  An earlier version of this note called the path cold, because "jbrowse does
+  An earlier version of this note said the path was cold, because "jbrowse does
   not pass a `signal` to `getRecordsForRange` at all". `BamAdapter.getFeatures`
   now wraps the read in `withStopTokenSignal` and threads a real signal down, so
   the path is hot on every pan.

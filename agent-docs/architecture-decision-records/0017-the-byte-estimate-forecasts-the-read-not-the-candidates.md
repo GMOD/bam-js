@@ -12,8 +12,8 @@ Status: Accepted, implemented. Builds directly on ADR 0010 (the early stop).
 
 `estimatedBytesForRegions` summed `fetchedSize()` over every chunk
 `blocksForRange` returned. Those chunks are the set a query _could_ need, which
-on a long-read file is much larger than the set it reads. ADR 0010 deals with
-the same gap from the fetch side.
+on a long-read file is much larger than the set it reads. ADR 0010 is about the
+same asymmetry, seen from the fetch side.
 
 We measured COLO829BL (ONT R10, chr3, hosted), comparing the sum over every
 chunk with the bytes `getRecordsForRange` pulls through an instrumented
@@ -28,7 +28,7 @@ filehandle:
 
 The sum is 5.6x over on the narrow windows. Every window smaller than a
 linear-index interval resolves to the same chunks, so the number does not fall
-as the caller zooms in. The method's only consumer is a "you are about to
+as the caller zooms in. The only consumer of this method is a "you are about to
 download a lot" gate, so both properties mislead it in the same direction. The
 gate warns on views that cost a fraction of what it claims, and it tells the
 reader to zoom in, which cannot lower the number.
@@ -72,11 +72,11 @@ above it. A fetch pruned at that offset would drop those records with no error.
 The change is worth making only because a forecast tolerates error and a fetch
 does not. A forecast that is sometimes 20% under warns slightly early, where a
 fetch that is sometimes short returns wrong data. The approximation is therefore
-defined in `chunksLikelyRead`, which only `estimatedBytesForRegions` reaches,
-and `blocksForRange` is unchanged, so no query returns a different record
-because of this change.
+defined in `chunksLikelyRead`, is reachable only from
+`estimatedBytesForRegions`, and `blocksForRange` is untouched, so no query
+returns a different record because of this change.
 
-## Why the empty-prefix fallback exists
+## What the empty-prefix fallback is for, and how it was found
 
 We ported the same forecast to tabix-js, whose `getLines` has an even earlier
 stop (it starts one chunk in flight and widens only after finishing one), and
@@ -89,8 +89,8 @@ track, where the old behaviour had been exact.
 
 Any feature much longer than the linear-index interval breaks this bound in the
 same way, in tabix-js or anywhere else. An ONT read is ~24kb against a 16kb
-interval, so BAM sees a mild version of the failure, which is what the 2Mb row
-above shows. A 1.4Mb deletion spans 90 intervals, and the bound fails
+interval, so BAM is exposed to a mild version of the failure, which is what the
+2Mb row above shows. A 1.4Mb deletion spans 90 intervals, and the bound fails
 completely.
 
 An empty prefix marks that complete failure and means the index cannot order
@@ -102,7 +102,7 @@ all 22 chunks and gives up the win.
 
 **We reverted the port to tabix-js** instead of shipping it with the fallback.
 The fallback fires on every long-feature file we measured there, so the change
-would have added risk and improved nothing. In bam-js the fallback fires on one
+would have been all risk and no win. In bam-js the fallback fires on one
 fixture, and the real files keep the 5.6x improvement.
 
 ## Alternatives

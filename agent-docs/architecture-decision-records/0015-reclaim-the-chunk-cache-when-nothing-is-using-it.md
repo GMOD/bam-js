@@ -12,14 +12,14 @@ analysis still holds, but the 512 MB figure was a compromise, made against the
 wrong constraint.
 
 We chose 512 MB to be defensible as a **resting** level, because the ceiling is
-one. The cache enforces the budget when a read settles, so an idle cache keeps
-whatever it holds and never releases any of it. jbrowse memoizes one `BamFile`
+one. The cache enforces the budget when a read settles, so an idle cache stays
+wherever it got to and never gives anything back. jbrowse memoizes one `BamFile`
 per adapter for the life of the track (`BamAdapter.ts:23-49`) and passes no
 budget, so a tab parked on a deep region holds its whole last view until the
-track is closed, for every open track. A parked tab could therefore hold every
-megabyte of the ceiling forever, which kept the number down. Even so, 512 MB
-leaves `1000x.longread` short of the 800 MB where it stops thrashing (ADR 0014's
-table).
+track is closed, for every open track. Every megabyte of ceiling was therefore a
+megabyte a parked tab might sit on forever, which kept the number down. Even so,
+512 MB leaves `1000x.longread` short of the 800 MB where it stops thrashing (ADR
+0014's table).
 
 The resting-level constraint exists only because the cache reclaims nothing when
 idle. With idle reclamation, the ceiling stops being a resting level and can be
@@ -31,7 +31,7 @@ sized for panning instead.
   nothing has read it for that long (added in 1.4.0).
 - `DEFAULT_CACHE_IDLE_TIMEOUT_MS = 3 * 60 * 1000`, overridable per `BamFile` via
   `cacheIdleTimeoutMs`; `0` opts out.
-- `DEFAULT_MAX_CACHE_BYTES` 512 MB → **1 GB**, which holds the deepest case
+- `DEFAULT_MAX_CACHE_BYTES` 512 MB → **1 GB**, which clears the deepest case
   measured: a six-window pan on `1000x.longread` peaks at 569 MB held.
 
 The ceiling and the timeout are one decision. The ceiling is affordable
@@ -48,8 +48,9 @@ holds indefinitely.
 
 - **The timeout is three minutes, not seconds.** The target is a user who has
   gone away, not one reading the screen in front of them, and a pan back a
-  minute later should still hit. A shorter timeout would bring back ADR 0014's
-  total misses, triggered by a timer instead of a byte count and harder to see.
+  minute later should still hit. A shorter timeout would reintroduce ADR 0014's
+  total misses, triggered by a timer rather than a byte count, and harder to
+  see.
 
 - **The cache stays bounded under load.** The ceiling stops a long panning
   session from growing without limit, and the idle sweep reclaims only entries

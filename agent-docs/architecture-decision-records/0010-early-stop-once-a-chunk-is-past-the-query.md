@@ -22,7 +22,7 @@ files it is badly wrong, and the reason is the BAI linear index.
 any record overlapping that 16kb window, and `optimizeChunks` drops chunks
 entirely below it. That lower bound is the only thing narrowing a query to its
 region. One ultra-long read spanning a large region sets the bound near the
-start of the file, and then the bound drops no chunks:
+start of the file, and then the bound narrows nothing:
 
 ```
 chr22_nanopore_subset.bam.bai   ref=21   1020 linear entries, 0 unset
@@ -77,8 +77,8 @@ non-monotonic chunk order.
 | volvox 10kb                            | 3      | 0.3MB   | 2      | 43%    |
 | shortreads_300x, out.bam, volvox 100kb | 1-2    | -       | all    | 0%     |
 
-The saving appears on long reads in narrow windows, where the linear index
-degenerates. Short-read files and wide windows save nothing, because they need
+The win is concentrated on long reads in narrow windows, where the linear index
+degenerates. Short-read files and wide windows get nothing, because they need
 every chunk they were given.
 
 ## Why not yet
@@ -99,7 +99,7 @@ repeat queries, which breaks the panning property that ADR 0001 protects.
 The obvious fix is to process chunks in fixed waves of
 `MAX_CONCURRENT_CHUNK_READS` and check the stop condition at each wave boundary.
 Waves are deterministic, because the chunk index sets the wave boundaries, not
-timing. But waves reintroduce a barrier: the slowest chunk in a wave delays the
+timing. But waves reintroduce a barrier: the slowest chunk in a wave gates the
 next wave, and ADR 0008 measured that the work-stealing pool avoids exactly this
 delay.
 
@@ -111,10 +111,10 @@ The decision is a trade between three options:
   long-read narrow windows, at the cost of a barrier on every query.
 - **do nothing** — long-read narrow windows keep paying for the whole bin.
 
-The choice needs a benchmark of waves-vs-pool on the files where _no_ early stop
-is possible, since those files would pay for the change. That measurement has
-not been done, and the 7.7.0 linear-index regression came from shipping a change
-on intuition without one.
+Whichever is chosen needs a benchmark of waves-vs-pool on the files where _no_
+early stop is possible, since those files would pay for the change. That
+measurement has not been done, and shipping either half of it on intuition is
+how the 7.7.0 linear-index regression happened.
 
 ## The waves-vs-pool benchmark
 
@@ -146,7 +146,7 @@ query in the corpus, and that changes the trade completely. With ≤ 4 chunks
 there is only one wave, and one wave **is** the pool. We measured 0.99x-1.06x on
 all four, as predicted.
 
-### Measurements
+### The numbers
 
 We used two transport models, because the answer depends on which one you
 believe, and between them they bracket it. In both, `bam.read` is delayed by a
@@ -181,12 +181,12 @@ connection, behave):
 1. **When bandwidth is shared, the early stop is worth 1.50x-1.84x** on exactly
    the queries that are slow today, and is neutral (0.99x-1.04x) on every query
    that cannot stop, so it is never a loss.
-2. **When bandwidth is per-connection, the stop makes little difference**
-   (0.96x-1.54x, mostly ~1.0x). Cutting 22 requests to 6 cuts bytes by only
-   ~35%, because the big chunks come first, and bytes do not limit a
-   latency-bound query with abundant bandwidth. Browsers share bandwidth, so the
-   shared model describes the consumer that matters, and a bandwidth-rich client
-   sees no gain and no loss.
+2. **When bandwidth is per-connection, the stop is a wash** (0.96x-1.54x, mostly
+   ~1.0x). Cutting 22 requests to 6 only cuts bytes by ~35%, because the big
+   chunks come first, and bytes do not limit a latency-bound query with abundant
+   bandwidth. Browsers share bandwidth, so the shared model describes the
+   consumer that matters, but a bandwidth-rich client sees no gain rather than a
+   loss.
 3. **The barrier does not limit the gain.** waves+stop and pool+stop are within
    noise of each other on every row (1.58 vs 1.59, 1.59 vs 1.53, 1.84 vs 1.84).
    With the stop on, the query never runs a second wave, so it never reaches the

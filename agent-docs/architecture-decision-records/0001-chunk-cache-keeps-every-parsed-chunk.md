@@ -27,8 +27,8 @@ their boundary**. `optimizeChunks` merges spans until it hits a gap; the chunk
 that ends at block P and the one that starts at block P are the same virtual
 offset (`chunk[i].maxv == chunk[i+1].minv`), so the `<=`/`>=` test always fires
 between neighbours. A query spanning N chunks therefore evicted chunk 1 while
-parsing chunk 2, chunk 2 while parsing chunk 3, and so on, and finished with
-exactly one entry cached however many chunks it had just decompressed. The next
+parsing chunk 2, chunk 2 while parsing chunk 3, and so on, finishing with
+exactly one entry cached no matter how many it had just decompressed. The next
 query re-downloaded and re-inflated all of them.
 
 On `test/data/chr22_nanopore_subset.bam` a 9-chunk query kept 7 entries; the two
@@ -66,9 +66,9 @@ default 100 MB at the time; raised to 512 MB in ADR 0014) is the only bound.
   Cold wall-clock is unchanged at the min (46.7 vs 47.6 ms) but the median is
   noisier from the extra allocation. We accept the memory, because a chunk
   dropped from the cache costs a re-download _and_ a re-decompress, and
-  decompression is 70–90% of a cold query (see ADR 0003). The LRU now reaches
-  `maxCacheBytes` in use; under the old rule the cache held about one entry and
-  the 100 MB budget was nearly unreachable.
+  decompression is 70–90% of a cold query (see ADR 0003). `maxCacheBytes` is now
+  exercised too; under the old rule the cache sat at ~1 entry and the 100 MB
+  budget was nearly unreachable.
 
 - **`fetchPairs` now goes through the cache too.** It called
   `_readChunkFeatures` directly, so a `viewAsPairs` query re-downloaded and
@@ -89,8 +89,8 @@ default 100 MB at the time; raised to 512 MB in ADR 0014) is the only bound.
 
 - **Cache per BGZF block instead of per chunk.** A per-block cache would make
   reuse independent of merge geometry, but records straddle block boundaries, so
-  the parser cannot parse a block on its own. The cache unit is the chunk for
-  that reason.
+  the parser cannot parse a block on its own. This is why the cache unit is the
+  chunk.
 
 ## Known residual
 
@@ -106,8 +106,8 @@ Two ways to close it, neither taken here:
 - **Tile each ref's chunk list once** at index-parse time and have
   `blocksForRange` select intersecting tiles. Cache keys become
   query-independent, so panning always hits. Tiling changes which bytes the
-  reader fetches for remote files, so it needs a deliberate decision, not a
-  drive-by change in a performance pass.
+  reader fetches for remote files, so it needs a deliberate call rather than a
+  perf-pass drive-by.
 - **Superset lookup**: on a miss, reuse a cached entry whose span contains the
   requested one. Coordinate filtering in `appendInRange` makes the extra records
   harmless _in isolation_, but a cached span can overlap a sibling chunk's range
