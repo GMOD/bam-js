@@ -1,5 +1,6 @@
 import {
   MAX_BGZF_BLOCK_SIZE,
+  POOL_MIN_DECOMPRESSED_BYTES,
   scanBgzfBlocks,
   unzip,
 } from '@gmod/bgzf-filehandle'
@@ -40,8 +41,9 @@ const DEFAULT_READ_AHEAD = 4
  * the same range returns — the blocks of a BGZF stream are independent, which
  * is what makes any of this parallel.
  *
- * One block is not worth a round trip, the same threshold `unzipChunkSlice`
- * uses. `pool` being undefined is the ordinary case, not a failure: node has no
+ * A window smaller than `POOL_MIN_DECOMPRESSED_BYTES` inflates here, as in
+ * `unzipChunkSlice`: below it the round trip costs more than the workers save.
+ * `pool` being undefined is the ordinary case, not a failure: node has no
  * workers, and `getSharedWorkerPool` resolves to undefined there.
  */
 async function inflate(
@@ -50,7 +52,11 @@ async function inflate(
   blocksEnd: number,
   pool: BgzfWorkerPool | undefined,
 ) {
-  if (pool && blocks.length > 1) {
+  let decompressedSize = 0
+  for (const block of blocks) {
+    decompressedSize += block.decompressedSize
+  }
+  if (pool && decompressedSize >= POOL_MIN_DECOMPRESSED_BYTES) {
     const { blocks: inflated } = await pool.decompressBlocks(compressed, blocks)
     return concatUint8Array(inflated)
   }

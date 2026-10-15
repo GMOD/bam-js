@@ -47,8 +47,9 @@ rather than the summary's mean, per the methodology note below:
 Wasm is 2.6–3.5x faster than JS and **at parity with native zlib**. Because the
 zlib column shows wasm already matching native zlib, the remaining decompression
 headroom is outside the codec, in running several blocks at once. The worker
-pool does that, because BGZF blocks inflate independently, and it scales close
-to linearly up to about four workers (bgzf-filehandle's `docs/worker-pool.md`).
+pool does that, because BGZF blocks inflate independently. At four workers it
+makes a multi-megabyte chunk 1.8-2.1x faster end to end, short of linear
+(bgzf-filehandle's `docs/worker-pool.md`).
 
 ## Why the parser is not
 

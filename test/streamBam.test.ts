@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { crc32, deflateRawSync } from 'node:zlib'
 
-import { unzip } from '@gmod/bgzf-filehandle'
+import { POOL_MIN_DECOMPRESSED_BYTES, unzip } from '@gmod/bgzf-filehandle'
 import { describe, expect, test } from 'vitest'
 
 import { BamFile, streamBamRecords } from '../src/index.ts'
@@ -220,7 +220,7 @@ test('inflates through a worker pool when given one', async () => {
   const calls: number[] = []
   const pool = {
     async decompressBlocks(input: Uint8Array, blocks: BgzfBlockInfo[]) {
-      calls.push(blocks.length)
+      calls.push(blocks.reduce((sum, b) => sum + b.decompressedSize, 0))
       return {
         blocks: await Promise.all(
           blocks.map(b =>
@@ -239,7 +239,7 @@ test('inflates through a worker pool when given one', async () => {
   const expected = identities(await collect({ bamPath: nanopore }))
   const pooled = await collect({ bamPath: nanopore, bgzfWorkerPool: pool })
   expect(calls.length).toBeGreaterThan(0)
-  expect(calls.every(n => n > 1)).toBe(true)
+  expect(calls.every(bytes => bytes >= POOL_MIN_DECOMPRESSED_BYTES)).toBe(true)
   expect(identities(pooled)).toStrictEqual(expected)
 
   // a promise, as getSharedWorkerPool() hands back — including its undefined,
