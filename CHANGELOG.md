@@ -1,3 +1,19 @@
+## [10.1.0](https://github.com/GMOD/bam-js/compare/v10.0.6...v10.1.0) (2026-10-15)
+
+### Other Changes
+
+- Rewrite AI-writing tropes in docs and ADRs ([7126d51](https://github.com/GMOD/bam-js/commit/7126d5180e1b7ca31e3ea42ad9b1b0e4a92f62dd))
+- Restore claims changed by the tropes rewrite ([e859f09](https://github.com/GMOD/bam-js/commit/e859f09892f3f1f0c8fe27f0c48f11b662ee6b81))
+- Fold short verdict sentences into their neighbours ([1977b22](https://github.com/GMOD/bam-js/commit/1977b229785cc1a602dc085601710a72b3e6dd8f))
+- Fix doc errors found in the tropes audit ([87dd5c6](https://github.com/GMOD/bam-js/commit/87dd5c606d648e06a817907badbce4ae4dc954b0))
+- Restore wording the tropes rewrite changed without a trope ([f00e49f](https://github.com/GMOD/bam-js/commit/f00e49fcde27331918a6f5a6beeed6833ebd5580))
+- State the section's finding in vague headings, and fix three stale claims in optimizations.md ([5298f37](https://github.com/GMOD/bam-js/commit/5298f37978f168630986481c923c70b7845498a3))
+- Correct the CIGAR speedup and ADR 0019's entry-count claims ([c788d54](https://github.com/GMOD/bam-js/commit/c788d54703956d66a3cc4e86d8ddad446fe1270c))
+- Trim wordiness in README and docs ([e819b6e](https://github.com/GMOD/bam-js/commit/e819b6e98e35b03902420127e6f86ad09fc2d77a))
+- Copy only the straddling record between stream windows ([931e4a4](https://github.com/GMOD/bam-js/commit/931e4a476bd4f19fb1666e1a834af532a5cafcc5))
+- Use bgzf-filehandle's pool threshold in streamBamRecords ([ee24bee](https://github.com/GMOD/bam-js/commit/ee24beea6159288b05ae5af947c2ea5bf73f915a))
+- Parse pooled chunks in segments instead of joining them ([a63b070](https://github.com/GMOD/bam-js/commit/a63b07052721b8c425d5d803ad6c04857869c82d))
+
 ## [10.0.6](https://github.com/GMOD/bam-js/compare/v10.0.5...v10.0.6) (2026-10-11)
 
 ### Documentation
