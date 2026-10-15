@@ -1,4 +1,4 @@
-import { unzip, unzipChunkSlice } from '@gmod/bgzf-filehandle'
+import { unzip, unzipChunkSegments } from '@gmod/bgzf-filehandle'
 import { SharedReadCache } from '@gmod/shared-read-cache'
 
 import BAI from './bai.ts'
@@ -11,6 +11,7 @@ import {
   BAM_MAGIC,
   MAX_CONCURRENT_CHUNK_READS,
   appendInRange,
+  concatUint8Array,
   contentHash53,
   decodeHeaderText,
   optimizeChunks,
@@ -933,14 +934,21 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     // as the pending promise from getSharedWorkerPool(), and awaiting an
     // already-settled promise costs a microtask.
     const pool = await this.bgzfWorkerPool
-    const {
-      buffer: data,
-      cpositions,
-      dpositions,
-    } = await unzipChunkSlice(buf, chunk, pool)
+    // Segments rather than one buffer: a pooled chunk comes back as one per
+    // worker, and joining them is a serial copy of the whole chunk, 30-40% of a
+    // four-worker call on BAM (@gmod/bgzf-filehandle docs/worker-pool.md)
+    const { segments, cpositions, dpositions } = await unzipChunkSegments(
+      buf,
+      chunk,
+      pool,
+    )
+    let bytes = 0
+    for (const segment of segments) {
+      bytes += segment.length
+    }
     return {
-      features: this.readBamFeatures(data, cpositions, dpositions, chunk),
-      bytes: data.byteLength,
+      features: this.readBamFeatures(segments, cpositions, dpositions, chunk),
+      bytes,
     }
   }
 
@@ -949,49 +957,99 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   // them into plain arrays on the way out, and this signature is what lets that
   // copy be dropped there without a change here. Only indexed reads and
   // `.length` are used below either way.
+  //
+  // `data` is the chunk, or the segments `unzipChunkSegments` returns, which
+  // join to it. Positions are offsets in the joined chunk. A record that
+  // straddles two segments is copied into a buffer of its own; every other
+  // record is a view into its segment.
   readBamFeatures(
-    ba: Uint8Array,
+    data: Uint8Array | Uint8Array[],
     cpositions: ArrayLike<number>,
     dpositions: ArrayLike<number>,
     chunk: Chunk,
   ) {
-    let blockStart = 0
+    const segments = data instanceof Uint8Array ? [data] : data
     const sink = [] as T[]
-    let pos = 0
-
-    const dataView = new DataView(ba.buffer, ba.byteOffset, ba.byteLength)
+    const minData = chunk.minv.dataPosition
     const hasDpositions = dpositions.length > 0
     const hasCpositions = cpositions.length > 0
+    let pos = 0
+    let base = 0
+    let carry: Uint8Array | undefined
+    let carryAt = 0
 
-    while (blockStart + 4 < ba.length) {
-      const blockSize = readBlockSize(dataView, blockStart)
-      const blockEnd = blockStart + 4 + blockSize - 1
-
+    const emit = (
+      ba: Uint8Array,
+      dataView: DataView,
+      blockStart: number,
+      blockEnd: number,
+      joinedStart: number,
+    ) => {
       if (hasDpositions) {
-        const target = blockStart + chunk.minv.dataPosition
+        const target = joinedStart + minData
         while (pos < dpositions.length && target >= dpositions[pos]!) {
           pos++
         }
       }
-
-      if (blockEnd < ba.length) {
-        const feature = new this.RecordClass(
+      sink.push(
+        new this.RecordClass(
           ba,
           blockStart,
           blockEnd,
           hasCpositions
             ? cpositions[pos]! * (1 << 8) +
-                (blockStart - dpositions[pos]!) +
-                chunk.minv.dataPosition +
+                (joinedStart - dpositions[pos]!) +
+                minData +
                 1
             : contentHash53(ba, blockStart, blockEnd),
           dataView,
-        )
+        ),
+      )
+    }
 
-        sink.push(feature)
+    for (const segment of segments) {
+      let blockStart = 0
+      if (carry) {
+        const sizeBytes = concatUint8Array([
+          carry.subarray(0, 4),
+          segment.subarray(0, Math.max(0, 4 - carry.length)),
+        ])
+        const need =
+          sizeBytes.length < 4
+            ? Number.POSITIVE_INFINITY
+            : 4 +
+              readBlockSize(new DataView(sizeBytes.buffer), 0) -
+              carry.length
+        if (need > segment.length) {
+          carry = concatUint8Array([carry, segment])
+          base += segment.length
+          continue
+        }
+        const record = concatUint8Array([carry, segment.subarray(0, need)])
+        emit(record, new DataView(record.buffer), 0, record.length - 1, carryAt)
+        blockStart = need
+        carry = undefined
       }
 
-      blockStart = blockEnd + 1
+      const dataView = new DataView(
+        segment.buffer,
+        segment.byteOffset,
+        segment.byteLength,
+      )
+      while (blockStart + 4 < segment.length) {
+        const blockEnd =
+          blockStart + 4 + readBlockSize(dataView, blockStart) - 1
+        if (blockEnd >= segment.length) {
+          break
+        }
+        emit(segment, dataView, blockStart, blockEnd, base + blockStart)
+        blockStart = blockEnd + 1
+      }
+      if (blockStart < segment.length) {
+        carry = segment.slice(blockStart)
+        carryAt = base + blockStart
+      }
+      base += segment.length
     }
     return sink
   }

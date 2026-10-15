@@ -251,6 +251,27 @@ covers the other side of that call: one wasm call per chunk rather than per
 block, how the pool splits a chunk's blocks across workers, and what its
 measurements rejected.
 
+### A pooled chunk is parsed in segments, not joined
+
+`_readChunkFeatures` reads a chunk with `unzipChunkSegments`, so a pooled chunk
+arrives as one buffer per worker. Joining them was a serial copy of the whole
+chunk on the calling thread. `readBamFeatures` parses each segment in place and
+copies only a record that straddles two.
+
+Cold `getRecordsForRange` in headless Chrome on an i9-12900K, four workers, min
+of 15, two runs, both builds on bgzf-filehandle 6.8.0:
+
+| query                      | records | segments vs joined |
+| -------------------------- | ------- | ------------------ |
+| volvox-sorted ctgA:0-100k  | 9,596   | 1.18-1.42x         |
+| shortreads_300x 10kb       | 11,199  | 1.20-1.31x         |
+| shortreads_300x 100kb      | 53,596  | 1.29-1.38x         |
+| chr22_nanopore 100kb       | 35      | 1.10-1.12x         |
+| chr22_nanopore 800kb       | 757     | 1.11-1.13x         |
+| ultra-long-ont 9:135-137Mb | 75      | 1.20-1.22x         |
+
+Against no pool, the same queries went from 1.3-2.2x to 1.5-2.5x.
+
 ## Streaming a whole file
 
 `streamBamRecords` keeps `readAhead` window reads in flight at once, and the
