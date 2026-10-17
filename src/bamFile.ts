@@ -935,8 +935,8 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     // already-settled promise costs a microtask.
     const pool = await this.bgzfWorkerPool
     // Segments rather than one buffer: a pooled chunk comes back as one per
-    // worker, and joining them is a serial copy of the whole chunk, 30-40% of a
-    // four-worker call on BAM (@gmod/bgzf-filehandle docs/worker-pool.md)
+    // worker call, and joining them is a serial copy of the whole chunk, 30-40%
+    // of a four-worker call on BAM (@gmod/bgzf-filehandle docs/worker-pool.md)
     const { segments, cpositions, dpositions } = await unzipChunkSegments(
       buf,
       chunk,
