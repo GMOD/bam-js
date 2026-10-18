@@ -312,8 +312,8 @@ one file, so this library cannot make them.
   under its own 1GB ceiling. Dividing the ceiling by the track count is worse
   than doing nothing.
 - **A coalescing range cache under the filehandle.** `RemoteFileWithRangeCache`
-  fetches in 256KB aligned blocks, joins contiguous runs into one request and
-  dedups in flight. It composes with the concurrent chunk fetch instead of
+  stores the byte extents it fetched, merges the gaps nearby reads leave into
+  one request and dedups in flight. It composes with the concurrent chunk fetch instead of
   conflicting with it (the byte counts above are identical with and without it),
   because the range cache dedups _bytes_ while the chunk cache dedups
   _decompression_. Its idle timeout is deliberately five times bam-js's, because

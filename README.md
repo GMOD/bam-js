@@ -35,8 +35,8 @@ With `bamUrl`, bam-js sends a separate HTTP request for each byte range a query
 reads ([this visualizer](https://cmdcolin.github.io/bam_index_visualizer) draws
 them).
 [`@gmod/range-cache-filehandle`](https://github.com/GMOD/range-cache-filehandle)
-fetches in 256 KiB chunks, so neighboring ranges share a request and later
-queries reuse chunks it already has:
+fetches only the bytes it does not hold yet, merging nearby reads into one
+request, and later queries reuse the bytes it already has:
 
 ```typescript
 import { RemoteFileWithRangeCache } from '@gmod/range-cache-filehandle'
