@@ -1,6 +1,7 @@
 # ADR 0004 — Pin every benchmark region with a record-count test
 
-Status: Accepted
+Status: Superseded. The benchmark and this test were removed in October 2026,
+when vitest 5 dropped `bench`.
 
 ## Context
 

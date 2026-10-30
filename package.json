@@ -40,8 +40,6 @@
     "preversion": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test --run && pnpm build",
     "postversion": "git push --follow-tags",
     "build": "pnpm build:esm && pnpm build:es5",
-    "benchonly": "vitest bench",
-    "bench": "./scripts/build-both-branches.sh \"$BRANCH1\" \"$BRANCH2\" && vitest bench",
     "version": "git-cliff --tag v$npm_package_version --unreleased --prepend CHANGELOG.md && git add CHANGELOG.md"
   },
   "keywords": [
