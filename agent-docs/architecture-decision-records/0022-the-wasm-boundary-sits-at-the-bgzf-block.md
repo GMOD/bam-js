@@ -33,9 +33,9 @@ Inflate is 70–90% of a cold query on every fixture.
 Wasm inflate is also a real win over the JS it replaced (`pako`, through
 bgzf-filehandle 6.0.0; wasm arrived in 6.0.1). The benchmark compares it with a
 per-block `inflateRaw`, which is what a pure-JS BGZF reader does, and with
-node's native `zlib` as the reference floor. The benchmark is bgzf-filehandle's
-`benchmarks/inflate.bench.ts` (`pnpm benchonly inflate`); read its `min` column
-rather than the summary's mean, per the methodology note below:
+node's native `zlib` as the reference floor. The benchmark was bgzf-filehandle's
+`benchmarks/inflate.bench.ts`, now `pnpm bench:inflate`; read its `min` column
+rather than the mean, per the methodology note below:
 
 | file                     | wasm libdeflate | pako per block | node zlib per block |
 | ------------------------ | --------------: | -------------: | ------------------: |
