@@ -31,9 +31,10 @@ for (const record of records) {
 Local files take `bamPath` and `baiPath`. A CSI index takes `csiUrl` or
 `csiPath`, and is required for references longer than 2^29.
 
-Coordinates are 0-based half-open, where `samtools view` takes 1-based closed,
-so `samtools view file.bam ctgA:1-50000` returns the same records as
-`getRecordsForRange('ctgA', 0, 50000)`. An unknown reference returns `[]`.
+- Coordinates are 0-based half-open, where `samtools view` takes 1-based closed,
+  so `samtools view file.bam ctgA:1-50000` returns the same records as
+  `getRecordsForRange('ctgA', 0, 50000)`.
+- An unknown reference returns `[]`.
 
 ## Mismatches
 
@@ -50,9 +51,10 @@ for (const { code, refPos, length, bases } of record.getMismatches()) {
 // D 109 2     two reference bases deleted from 109
 ```
 
-`code` is a CIGAR char code (88 for `X`). `String.fromCharCode(code)` gives the
-letter without allocating a small string, since V8 interns single-character
-strings, and bam-js uses it for speed too.
+- `code` is a CIGAR char code (88 for `X`).
+- `String.fromCharCode(code)` gives the letter without allocating a small
+  string, since V8 interns single-character strings. bam-js uses it for speed
+  too.
 
 ### Mismatches without an `MD` tag
 
@@ -133,10 +135,10 @@ await bam.getRecordsForRange('chr1', 0, 1_000_000, {
 
 ### Range caching
 
-With `bamUrl`, each byte range a query reads is a separate HTTP request
-([visualizer](https://cmdcolin.github.io/bam_index_visualizer)).
-[`@gmod/range-cache-filehandle`](https://github.com/GMOD/range-cache-filehandle)
-merges nearby reads into one request and reuses bytes across queries:
+- With `bamUrl`, each byte range a query reads is a separate HTTP request
+  ([visualizer](https://cmdcolin.github.io/bam_index_visualizer)).
+- [`@gmod/range-cache-filehandle`](https://github.com/GMOD/range-cache-filehandle)
+  merges nearby reads into one request and reuses bytes across queries.
 
 ```typescript
 import { RemoteFileWithRangeCache } from '@gmod/range-cache-filehandle'
@@ -150,9 +152,11 @@ const bam = new BamFile({
 ### Worker pool
 
 A worker pool decompresses BGZF across threads. Against decompressing
-in-process, it inflates 2.7-4.1x faster at eight workers, and a 22-view pan/zoom
-over 1000x long reads ran 1.95x faster end to end at four
-([measurements](docs/optimizations.md)).
+in-process:
+
+- it inflates 2.7-4.1x faster at eight workers
+- a 22-view pan/zoom over 1000x long reads ran 1.95x faster end to end at four
+  ([measurements](docs/optimizations.md))
 
 ```typescript
 import { getSharedWorkerPool } from '@gmod/bgzf-filehandle'
@@ -164,10 +168,10 @@ const bam = new BamFile({
 })
 ```
 
-`getSharedWorkerPool()` resolves to `undefined` under node or where workers are
-forbidden, and bam-js then decompresses in-process. See
-[bgzf-filehandle's docs](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/worker-pool.md)
-for pool size and lifecycle.
+- `getSharedWorkerPool()` resolves to `undefined` under node or where workers
+  are forbidden, and bam-js then decompresses in-process.
+- [bgzf-filehandle's docs](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/worker-pool.md)
+  cover pool size and lifecycle.
 
 ## Unsorted BAM
 
