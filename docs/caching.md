@@ -74,8 +74,9 @@ decompressed bytes, not the heap. On deep data the heap can be much larger:
   still does.
 - The cache weighs an entry once, when its read settles, and records grow after
   that. `end`, `tags` and `NUMERIC_CIGAR` each memoize onto the record the first
-  time you touch them, and a renderer touches them on every visible read. We
-  measured the result at +38% over the weighed size.
+  time you touch them, and a renderer touches them on every visible read. On
+  `chr22_nanopore_subset.bam`, a chunk weighed at 20.4MB retained a further
+  7.8MB (+38%) once its 383 records had been consumed.
 
 Size these against what you want to keep, and bound total memory in code that
 can see the whole process.

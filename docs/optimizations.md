@@ -175,16 +175,17 @@ The cost of each accessor's first touch, over a whole query's records (min of
 | shortreads_300x (53.6k)   | 51ms |  61ms |   5ms |  17ms |
 | chr22_nanopore (757 long) | 16ms | 0.9ms |  68ms | 0.3ms |
 
-Only `seq` on short reads and `CIGAR` on long ones are worth tuning.
+`getTag` avoids the `tags` cost on short reads. The accessors worth tuning are
+`seq` on short reads and `CIGAR` on long ones.
 
 ### `seq` and `CIGAR`
 
 `seq` decodes four bases per iteration off a 65536-entry table below 300bp and
-switches to a `Uint16Array` fill plus one `TextDecoder` above it. Concat wins by
-2-4x below the crossover, and the decoder by 5-8x above. `seq` builds the 4-base
-table lazily, and only after 1024 short decodes have gone through the process,
-because filling it costs ~6ms and retains ~2MB, which is a loss on a long-read
-file with a short-read tail.
+switches to a `Uint16Array` fill plus one `TextDecoder` above it. The table wins
+by 2-4x below the crossover, and the decoder by 5-8x above. `seq` builds the
+4-base table lazily, and only after 1024 short decodes have gone through the
+process, because filling it costs ~6ms and retains ~2MB, which is a loss on a
+long-read file with a short-read tail.
 
 `CIGAR` appends the length and the op character separately rather than
 concatenating them first, which avoids an intermediate cons string per op and is
