@@ -158,9 +158,6 @@ const records = await bam.getRecordsForRange('1', 2000000, 2000001)
   records
 - [docs/optimizations.md](docs/optimizations.md): the measurements behind the
   read path's design
-- [agent-docs/architecture-decision-records/](agent-docs/architecture-decision-records/):
-  design decisions, with their measurements
-- [CONTRIBUTING.md](CONTRIBUTING.md): development and release
 
 ## Academic use
 
