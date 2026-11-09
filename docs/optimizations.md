@@ -6,7 +6,8 @@ This page gives the reasons and measurements behind each step of the query path.
 Two costs dominate a query that finds nothing cached: inflating the BGZF blocks
 it fetched, and the network round trip it pays per chunk. Nearly everything
 below is about one of them. Building records out of those bytes takes a small
-fraction of either. The table gives the time per query, min of 5 runs
+fraction of either. The table gives the time per query from a local file, so the
+fetch column has no network cost, min of 5 runs
 ([ADR 0003](../agent-docs/architecture-decision-records/0003-where-bam-query-time-goes.md)):
 
 | file                                    | fetch |    inflate | build records |
@@ -84,9 +85,8 @@ amortizes it
 
 One query spans ~15 chunks (14.8 on average for a 20kb window on the 18MB
 `out.bam`), and each is its own range request, so reading them one after another
-costs a round trip apiece, which is the dominant cost of a remote query, ahead
-of decompression. The table models a 50ms RTT through jbrowse's own caching
-fetch layer:
+costs a round trip apiece. The table models a 50ms RTT through jbrowse's own
+caching fetch layer:
 
 | file                  | requests | bytes  | sequential | concurrent |
 | --------------------- | -------- | ------ | ---------- | ---------- |
@@ -141,8 +141,9 @@ batch of six. An earlier attempt checked the stop inside the work-stealing pool,
 where a warm cache made it stop later. The same query read 6 chunks cold and 9
 warm, so a repeat query did _more_ I/O than the first. There is only one
 barrier, because a query that gets through its first six chunks without stopping
-needs them, which caps the cost of being wrong at 0.92x-0.95x, against
-0.82x-0.88x with a barrier on every wave
+needs them, which caps the worst case at 0.92x-0.95x of the speed of a pool with
+no barrier, against 0.82x-0.88x with a barrier on every wave (simulated 50ms
+round trip, 20MB/s shared)
 ([ADR 0010](../agent-docs/architecture-decision-records/0010-early-stop-once-a-chunk-is-past-the-query.md)).
 
 ### Forecasting a query costs no I/O
@@ -267,16 +268,17 @@ copies only a record that straddles two.
 Cold `getRecordsForRange` in headless Chrome on an i9-12900K, four workers, min
 of 15, two runs, both builds on bgzf-filehandle 6.8.0:
 
-| query                      | records | segments vs joined |
-| -------------------------- | ------- | ------------------ |
-| volvox-sorted ctgA:0-100k  | 9,596   | 1.18-1.42x         |
-| shortreads_300x 10kb       | 11,199  | 1.20-1.31x         |
-| shortreads_300x 100kb      | 53,596  | 1.29-1.38x         |
-| chr22_nanopore 100kb       | 35      | 1.10-1.12x         |
-| chr22_nanopore 800kb       | 757     | 1.11-1.13x         |
-| ultra-long-ont 9:135-137Mb | 75      | 1.20-1.22x         |
+| query                      | records | speedup of segments over joined |
+| -------------------------- | ------- | ------------------------------- |
+| volvox-sorted ctgA:0-100k  | 9,596   | 1.18-1.42x                      |
+| shortreads_300x 10kb       | 11,199  | 1.20-1.31x                      |
+| shortreads_300x 100kb      | 53,596  | 1.29-1.38x                      |
+| chr22_nanopore 100kb       | 35      | 1.10-1.12x                      |
+| chr22_nanopore 800kb       | 757     | 1.11-1.13x                      |
+| ultra-long-ont 9:135-137Mb | 75      | 1.20-1.22x                      |
 
-Against no pool, the same queries went from 1.3-2.2x to 1.5-2.5x.
+Relative to no pool, the pool's speedup on the same queries rose from 1.3-2.2x
+with joined buffers to 1.5-2.5x with segments.
 
 ## Streaming a whole file
 
@@ -305,11 +307,13 @@ Some of the biggest wins come from decisions about the whole process rather than
 one file, so this library cannot make them.
 [jbrowse-components](https://github.com/GMOD/jbrowse-components) makes these:
 
-- **One `bgzfWorkerPool` per JS context**, passed to every adapter. We measured
-  it at 1.95x end to end on a 22-view pan/zoom over 1000x long-read data (real
-  HTTP, headless Chrome, 4 workers, same 38,246 records either way). jbrowse
-  creates one pool per RPC worker rather than one per file, since the RPC worker
-  is the scope with spare cores. The blocks cross to the workers as
+- **One `bgzfWorkerPool` per JS context**, passed to every adapter.
+  jbrowse-components measured it 1.95x faster end to end than in-process
+  decompression on a 22-view pan/zoom over 1000x long-read data (real HTTP,
+  headless Chrome, 4 workers, same 38,246 records either way,
+  [bgzf-filehandle's docs](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/worker-pool.md#end-to-end-in-a-consumer)).
+  jbrowse creates one pool per RPC worker rather than one per file, since the
+  RPC worker is the scope with spare cores. The blocks cross to the workers as
   transferables, so the fan-out costs one pass over the compressed bytes and
   needs no cross-origin isolation.
 - **One `cacheBudget` per JS context**, also passed to every adapter, because
