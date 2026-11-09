@@ -22,21 +22,21 @@ const bam = new BamFile({
 const records = await bam.getRecordsForRange('chr1', 10000, 20000)
 
 for (const record of records) {
-  console.log(record.name, record.start, record.CIGAR)
+  for (const { code, refPos, bases } of record.getMismatches()) {
+    console.log(record.name, String.fromCharCode(code), refPos, bases)
+  }
 }
 ```
 
-URLs work in node and the browser, and local files take `bamPath` and `baiPath`
-instead.
+Local files take `bamPath` and `baiPath`. Substitutions need more setup, see
+[Mismatches](#mismatches).
 
 ### Range caching
 
-With `bamUrl`, bam-js sends a separate HTTP request for each byte range a query
-reads ([this visualizer](https://cmdcolin.github.io/bam_index_visualizer) draws
-them).
+With `bamUrl`, each byte range a query reads is a separate HTTP request
+([visualizer](https://cmdcolin.github.io/bam_index_visualizer)).
 [`@gmod/range-cache-filehandle`](https://github.com/GMOD/range-cache-filehandle)
-fetches only the bytes it does not hold yet, merging nearby reads into one
-request, and later queries reuse the bytes it already has:
+merges nearby reads into one request and reuses bytes across queries:
 
 ```typescript
 import { RemoteFileWithRangeCache } from '@gmod/range-cache-filehandle'
@@ -56,18 +56,30 @@ returns `[]`.
 
 ## Records
 
+A record is one alignment, a line of `samtools view`. Each `BamRecord` decodes a
+field only when you read it.
+
 ```typescript
-record.name // read name
+record.name // read name (QNAME)
 record.start // 0-based start
+record.end // 0-based exclusive end
 record.CIGAR // '50M2I48M'
 record.seq // read sequence
+record.mq // mapping quality
 record.getTag('NM') // one auxiliary tag
 record.isReverseComplemented() // the usual SAM flags
+record.getMismatches() // differences from the reference
 ```
 
-Queries return records unfiltered, and overlapping queries share them, so treat
-them as read-only. `getTag` decodes one tag instead of all of them, which makes
-it the cheap way to filter:
+A query returns:
+
+- every record that overlaps the range, including ones that start before or end
+  after it
+- all of them, unfiltered: secondary, supplementary, duplicate and QC-failed
+- index chunk order, not coordinate order
+- records shared between overlapping queries, so treat them as read-only
+
+`getTag` decodes one tag, which makes it the cheap way to filter:
 
 ```typescript
 const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
@@ -79,8 +91,8 @@ const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
 
 ## Mismatches
 
-`record.getMismatches()` lists each difference between a read and the reference:
-substitutions, insertions, deletions, reference skips and clips.
+`record.getMismatches()` lists substitutions, insertions, deletions, reference
+skips and clips.
 
 ```typescript
 // a read at 100 with CIGAR 5M1I4M2D3M, SEQ ACGGTCAACGTTA and MD 3A5^GG3
@@ -93,14 +105,14 @@ for (const { code, refPos, length, bases } of record.getMismatches()) {
 ```
 
 A substitution needs the read's `MD` tag or the reference bases. Most aligners
-leave `MD` off, so pass `fetchReferenceSequence: (refName, start, end) => ...`
-to `BamFile`. bam-js calls it only for a query with a read that lacks `MD`.
+omit `MD`, so pass `fetchReferenceSequence: (refName, start, end) => ...` to
+`BamFile`, which bam-js calls only for a query with a read that lacks `MD`.
 [docs/api.md](docs/api.md#mismatches) has the fields and options.
 
 ## Worker pool
 
-A worker pool spreads BGZF decompression across threads, which measured 2.7-4.1x
-faster on the pool's own fixtures:
+A worker pool decompresses BGZF across threads, 2.7-4.1x faster on the pool's
+own fixtures:
 
 ```typescript
 import { getSharedWorkerPool } from '@gmod/bgzf-filehandle'
@@ -112,15 +124,15 @@ const bam = new BamFile({
 })
 ```
 
-The pool is `undefined` under node and wherever the host forbids workers, and
-bam-js then decompresses in-process, so the option is safe to pass everywhere.
+The pool is `undefined` under node or where workers are forbidden, and bam-js
+then decompresses in-process. See
 [bgzf-filehandle's docs](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/worker-pool.md)
-cover pool size and lifecycle.
+for pool size and lifecycle.
 
 ## Unsorted BAM
 
-For an unsorted or name-sorted BAM, `streamBamRecords` reads the file from start
-to end, an array of records at a time:
+`streamBamRecords` reads an unsorted or name-sorted BAM from start to end, an
+array of records at a time:
 
 ```typescript
 import { streamBamRecords } from '@gmod/bam'
