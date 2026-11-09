@@ -209,10 +209,10 @@ it can compare against a read's already-packed `NUMERIC_SEQ` a byte (two bases)
 at a time, unpacking only the rare byte that differs. That packing is the walk's
 only per-base pass, and it runs once per region rather than once per read.
 
-`getRecordsForRange` calls `fetchReferenceSequence` at most once per query, for
-the union span of the reads that lack an MD tag, and binds the result only to
-reads it fully covers, because a partial binding would be per-query state
-written onto a record shared between queries
+`getRecordsForRange` binds the fetched reference
+([api.md](api.md#reference-sequence)) only to reads it fully covers, because a
+partial binding would be per-query state written onto a record shared between
+queries
 ([ADR 0020](../agent-docs/architecture-decision-records/0020-a-bound-reference-must-cover-the-whole-read.md)).
 
 The walk itself is jbrowse's, kept byte-for-byte equivalent, with two changes
@@ -229,7 +229,8 @@ stored as one BAM read without walking the rest of its CIGAR
 The cache holds parsed chunks and bounds itself by decompressed bytes rather
 than entry count, because a record is a view into its chunk's buffer and one
 entry keeps the whole buffer alive. [caching.md](caching.md) covers sizing, the
-idle sweep, the shared budget, and the one waste we measured and have not fixed.
+idle sweep, the shared budget, and
+[the one waste we measured and have not fixed](caching.md#a-hit-needs-the-same-chunk-span-not-just-the-same-bytes).
 
 ## Decompression
 
@@ -306,7 +307,8 @@ one file, so this library cannot make them.
   `maxCacheBytes` is per file and a browser holds one file per open track
   ([caching.md](caching.md#cachebudget-bounds-a-consumer-with-many-files)).
 - **A coalescing range cache under the filehandle**, which dedups _bytes_ while
-  the chunk cache dedups _decompression_, so the two compose
+  the chunk cache dedups _decompression_, so the two compose and the byte counts
+  are identical with and without it
   ([caching.md](caching.md#the-byte-range-cache-underneath)).
 - **`recordClass` instead of a wrapper object**, so a read is one object rather
   than a record plus a wrapper around it. That saves ~33-40 bytes per read

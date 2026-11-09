@@ -38,15 +38,17 @@ The purple node runs only when a caller passes a `bgzfWorkerPool`, which moves
 chunk decompression off the main thread. Without one, the same code runs
 in-process. The pool receives a chunk's blocks and leaves the record building
 after them on the calling thread. Decompression is where a query's time is (see
-[below](#where-wasm-sits)), so there is little else worth moving. A consumer can
-also run the whole diagram in a worker, and the purple node is then a further
-pool underneath it.
+[optimizations.md](optimizations.md)), so there is little else worth moving. A
+consumer can also run the whole diagram in a worker, and the purple node is then
+a further pool underneath it.
 
 ## Where wasm sits
 
 Everything orange is wasm, in
 [`@gmod/bgzf-filehandle`](https://github.com/GMOD/bgzf-filehandle), and all of
 it decompresses BGZF blocks. Reading the index and decoding records both stay in
-JS. [optimizations.md](optimizations.md#decompression) has the share of a
-query's time that decompression takes, why a call crosses the boundary once per
-chunk, and why there is no faster codec to reach for.
+JS. [optimizations.md](optimizations.md) opens with the share of a query's time
+that decompression takes, and its
+[Decompression](optimizations.md#decompression) section explains why a call
+crosses the boundary once per chunk and why there is no faster codec to reach
+for.
