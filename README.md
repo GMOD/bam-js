@@ -59,8 +59,8 @@ for (const { code, refPos, length, bases } of record.getMismatches()) {
 ### Mismatches without an `MD` tag
 
 A substitution inside an `M` run needs the read's `MD` tag or the reference
-bases. Most aligners omit `MD`, so give `BamFile` a `fetchReferenceSequence`,
-here backed by [`@gmod/indexedfasta`](https://github.com/GMOD/indexedfasta-js):
+bases. Most aligners omit `MD`, so pass a `fetchReferenceSequence`, here backed
+by [`@gmod/indexedfasta`](https://github.com/GMOD/indexedfasta-js):
 
 ```typescript
 import { IndexedFasta } from '@gmod/indexedfasta'
@@ -78,10 +78,8 @@ const bam = new BamFile({
 - `start` and `end` are 0-based half-open, and the string returned begins at
   `start`.
 - `refName` is the name you passed to `getRecordsForRange`, so map it if the
-  FASTA spells it differently (`chr1` and `1`). A name the FASTA lacks gives
-  `undefined`, so `?? ''` yields no substitutions and no error.
-- Reads past the end of a short string get no `M`-run substitutions, but keep
-  their indels and clips.
+  FASTA spells it differently (`chr1` and `1`). Return `''` for a name it lacks.
+- Reads past the end of a short string get no `M`-run substitutions.
 
 [docs/api.md](docs/api.md#mismatches) has the fields, options and the span a
 query asks for.
