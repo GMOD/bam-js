@@ -86,8 +86,7 @@ query asks for.
 
 ## Records
 
-A record is one alignment, a line of `samtools view`, and a `BamRecord` decodes
-a field only when you read it.
+A record is one alignment, a line of `samtools view`.
 
 ```typescript
 record.name // read name (QNAME)
@@ -96,23 +95,14 @@ record.end // 0-based exclusive end
 record.CIGAR // '50M2I48M'
 record.seq // read sequence
 record.mq // mapping quality
-record.getTag('NM') // one auxiliary tag
+record.getTag('NM') // one auxiliary tag, cheaper than record.tags
 record.isReverseComplemented() // the usual SAM flags
 ```
 
-- A query returns every record that overlaps the range, including ones that
-  start before or end after it.
-- Records are unfiltered (secondary, supplementary, duplicate and QC-failed too)
-  and arrive in index chunk order, not coordinate order.
+- A query returns every overlapping record, unfiltered (secondary,
+  supplementary, duplicate and QC-failed too), in index chunk order rather than
+  coordinate order.
 - Overlapping queries share records, so treat them as read-only.
-
-`getTag` decodes one tag, which makes it the cheap way to filter:
-
-```typescript
-const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
-  r => r.isProperlyPaired() && !r.isSecondary() && r.getTag('RG') === 'rg1',
-)
-```
 
 [docs/api.md](docs/api.md#bamrecord) lists every field and method.
 
@@ -131,12 +121,8 @@ await bam.getRecordsForRange('chr1', 0, 1_000_000, {
 
 ## Performance
 
-### Range caching
-
-- With `bamUrl`, each byte range a query reads is a separate HTTP request
-  ([visualizer](https://cmdcolin.github.io/bam_index_visualizer)).
-- [`@gmod/range-cache-filehandle`](https://github.com/GMOD/range-cache-filehandle)
-  merges nearby reads into one request and reuses bytes across queries.
+[`@gmod/range-cache-filehandle`](https://github.com/GMOD/range-cache-filehandle)
+merges nearby reads into one HTTP request and reuses bytes across queries:
 
 ```typescript
 import { RemoteFileWithRangeCache } from '@gmod/range-cache-filehandle'
@@ -147,14 +133,11 @@ const bam = new BamFile({
 })
 ```
 
-### Worker pool
-
-A worker pool decompresses BGZF across threads. Against decompressing
-in-process:
-
-- it inflates 2.7-4.1x faster at eight workers
-- a 22-view pan/zoom over 1000x long reads ran 1.95x faster end to end at four
-  ([measurements](docs/optimizations.md))
+A worker pool decompresses BGZF across threads, 2.7-4.1x faster inflating and
+1.95x end to end on a pan/zoom over 1000x long reads, against decompressing
+in-process ([measurements](docs/optimizations.md)). `getSharedWorkerPool()`
+resolves to `undefined` under node, where bam-js decompresses in-process
+([pool size and lifecycle](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/worker-pool.md)):
 
 ```typescript
 import { getSharedWorkerPool } from '@gmod/bgzf-filehandle'
@@ -166,15 +149,10 @@ const bam = new BamFile({
 })
 ```
 
-- `getSharedWorkerPool()` resolves to `undefined` under node or where workers
-  are forbidden, and bam-js then decompresses in-process.
-- [bgzf-filehandle's docs](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/worker-pool.md)
-  cover pool size and lifecycle.
-
 ## Unsorted BAM
 
 `streamBamRecords` reads an unsorted or name-sorted BAM from start to end, an
-array of records at a time:
+array of records at a time ([options](docs/api.md#streambamrecords)):
 
 ```typescript
 import { streamBamRecords } from '@gmod/bam'
@@ -185,8 +163,6 @@ for await (const records of streamBamRecords({ bamPath: 'unsorted.bam' })) {
   }
 }
 ```
-
-[docs/api.md](docs/api.md#streambamrecords) has the options.
 
 ## htsget
 
@@ -200,7 +176,7 @@ const bam = new HtsgetFile({
 const records = await bam.getRecordsForRange('1', 2000000, 2000001)
 ```
 
-[docs/api.md](docs/api.md#htsgetfile) shows how to add authentication.
+[Authentication](docs/api.md#htsgetfile) goes through its `fetch` option.
 
 ## Docs
 
