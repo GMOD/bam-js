@@ -561,7 +561,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
   /**
    * Reference bases for a region, packed for
    * {@link BamRecord.forEachMismatch}'s `opts.ref`, or undefined when no
-   * `fetchReferenceSequence` was configured.
+   * `fetchReferenceSequence` was configured or it returned undefined.
    *
    * The way to resolve a read that is longer than the region you are looking at
    * — a contig or a whole chromosome stored as one BAM read. Those are never
