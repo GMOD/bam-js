@@ -238,6 +238,18 @@ test('a query whose reads all carry MD asks for no reference at all', async () =
   expect(records[0]!.reference).toBeUndefined()
 })
 
+test('a fetcher that returns undefined leaves reads unresolved without throwing', async () => {
+  const bam = new BamFile({
+    bamPath: 'test/data/ecoli_nanopore.bam',
+    fetchReferenceSequence: async () => undefined,
+  })
+  await bam.getHeader()
+  const [first] = await bam.getRecordsForRange('ref000001|chr', 10000, 20000)
+  expect(first).toBeDefined()
+  expect(first!.reference).toBeUndefined()
+  expect(await bam.getReferenceRegion('ref000001|chr', 0, 10)).toBeUndefined()
+})
+
 // ecoli_nanopore is long reads with no MD anywhere, i.e. the case the option
 // exists for. The reference it is served is synthetic — what is under test is
 // the plumbing, and a made-up reference exercises it harder than a real one

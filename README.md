@@ -69,8 +69,8 @@ const fasta = new IndexedFasta({ path: 'ref.fa', faiPath: 'ref.fa.fai' })
 const bam = new BamFile({
   bamPath: 'file.bam',
   baiPath: 'file.bam.bai',
-  fetchReferenceSequence: async (refName, start, end, opts) =>
-    (await fasta.getSequence(refName, start, end, opts)) ?? '',
+  fetchReferenceSequence: (refName, start, end, opts) =>
+    fasta.getSequence(refName, start, end, opts),
 })
 ```
 

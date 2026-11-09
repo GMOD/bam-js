@@ -66,13 +66,16 @@ export interface BamRecordLike {
  * does not cover are then left unresolved. Returning bases from somewhere else,
  * e.g. clipping the LEFT of the requested range, cannot be detected and
  * resolves every read against the wrong position.
+ *
+ * Return `undefined` when the source cannot resolve `refName`, such as a name
+ * its FASTA lacks: the reads are then left without reference bases.
  */
 export type ReferenceSequenceFetcher = (
   refName: string,
   start: number,
   end: number,
   opts?: BaseOpts,
-) => Promise<string>
+) => Promise<string | undefined>
 
 export type BamRecordClass<T extends BamRecordLike = BAMFeature> = new (
   byteArray: Uint8Array,
@@ -586,10 +589,8 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
     // per-base pass in it. Length comes from what came back rather than from
     // what was asked for, so a callback that clips at the end of the contig
     // still leaves the bases it did return usable.
-    return packReference(
-      await fetchReferenceSequence(refName, start, end, opts),
-      start,
-    )
+    const seq = await fetchReferenceSequence(refName, start, end, opts)
+    return seq === undefined ? undefined : packReference(seq, start)
   }
 
   /**

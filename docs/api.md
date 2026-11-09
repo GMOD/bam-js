@@ -85,7 +85,8 @@ Overlapping queries share records, so treat them as read-only
 `fetchReferenceSequence(refName, start, end, opts?)` returns reference bases
 beginning at `start`.
 
-- `refName` is as you passed it to `getRecordsForRange`.
+- `refName` is as you passed it to `getRecordsForRange`. Return `undefined` for
+  a name the source lacks.
 - It is not called when every read has `MD`.
 - A short return is fine, for example at the end of a contig. Reads the bases do
   not cover whole get no substitutions.
