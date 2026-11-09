@@ -4,11 +4,11 @@
 and adjacent queries reuse decompressed records. Three constructor options bound
 the cache:
 
-| option               | default | question                                     |
-| -------------------- | ------- | -------------------------------------------- |
-| `maxCacheBytes`      | 1GB     | how much may _this file_ retain?             |
-| `cacheIdleTimeoutMs` | 3min    | how long may it retain it while idle?        |
-| `cacheBudget`        | none    | how much may _all my files together_ retain? |
+| option               | default | bounds                                              |
+| -------------------- | ------- | --------------------------------------------------- |
+| `maxCacheBytes`      | 1GB     | decompressed bytes retained by this file            |
+| `cacheIdleTimeoutMs` | 3min    | how long an idle cache keeps its chunks             |
+| `cacheBudget`        | none    | decompressed bytes retained by all files sharing it |
 
 `clearFeatureCache()` drops everything immediately. `HtsgetFile` accepts the
 same options but fills no cache, because it reads whole ticket blocks rather
@@ -20,19 +20,22 @@ The cache accepts a chunk of any size, eviction skips reads in flight, and the
 cache drops only values it has already returned. A budget can make a query
 slower, never make one fail or come back short.
 
-**The default binds less often than its size suggests.** On the deepest data we
+The default binds less often than its size suggests. On the deepest data we
 measure (1000x coverage long reads, 240 windows over six laps), the cache
 settles at 573MB across 60 entries and never evicts at the 1GB default. Treat
 the ceiling as a limit for a session that pans forever, not as a parameter you
 tune often.
+([ADR 0016](../agent-docs/architecture-decision-records/0016-the-cache-does-not-grow-and-lru-stays.md))
 
-**Don't pick a number between one query and several.** Below one query's working
-set, the cache evicts each chunk before the next pan can reuse it. The hit rate
-is then zero, every pan decompresses every chunk again, and the unevictable
-entries hold the memory anyway. At a 200MB budget on that same file the cache
-holds exactly one entry, because one chunk there decompresses to 181MB. Size
-above the working set, or pass `Infinity` and bound memory some other way.
-([ADR 0014](../agent-docs/architecture-decision-records/0014-size-the-chunk-cache-to-hold-several-queries.md))
+Size `maxCacheBytes` above the working set of the several queries a pan makes,
+not one. Below it, the cache evicts each chunk before the next pan can reuse it,
+so the hit rate is zero, every pan decompresses every chunk again, and the
+unevictable entries hold the memory anyway. At a 200MB budget on that same file
+the cache holds exactly one entry, because one chunk there decompresses to
+181MB. Pass `Infinity` and bound memory some other way if you cannot size above
+it.
+([ADR 0014](../agent-docs/architecture-decision-records/0014-size-the-chunk-cache-to-hold-several-queries.md),
+[ADR 0016](../agent-docs/architecture-decision-records/0016-the-cache-does-not-grow-and-lru-stays.md))
 
 ## `cacheIdleTimeoutMs` frees an idle cache
 
@@ -43,23 +46,24 @@ The clock runs from the last _read_ of a chunk, or from when its parse finished
 if nothing has read it since, so panning back and forth over one region never
 expires it, and a slow chunk still gets the full timeout in which to be reused.
 On a pan that held 331MB, the cache held 0MB once idle. Pass `0` to disable.
-([ADR 0015](../agent-docs/architecture-decision-records/0015-reclaim-the-chunk-cache-when-nothing-is-using-it.md))
+([ADR 0015](../agent-docs/architecture-decision-records/0015-reclaim-the-chunk-cache-when-nothing-is-using-it.md),
+[ADR 0016](../agent-docs/architecture-decision-records/0016-the-cache-does-not-grow-and-lru-stays.md))
 
 ## `cacheBudget` bounds a consumer with many files
 
 `maxCacheBytes` applies per file, so it does not bound the total for a consumer
-that opens one file per track. Three moderately deep alignment tracks browsing
-eight windows retained 1109MB with no cache anywhere near its own 1GB ceiling,
-enough to run a tab out of memory.
+that opens one file per track. With three moderately deep alignment tracks over
+eight windows, the caches retained 1109MB in total with none near its own 1GB
+ceiling, enough to run a tab out of memory.
 
 Pass one `SharedBudget` (from `@gmod/shared-read-cache`) per worker and hand it
-to every file. A shared budget lets tracks nobody is looking at yield their
-space to the one the user is panning. Dividing `maxCacheBytes` by the track
-count instead puts each track below its working set, as described above: at
-128MB a track re-reads every chunk on every pan.
+to every file. A shared budget evicts the chunks of tracks nobody is looking at
+to make room for the track the user is panning. Dividing `maxCacheBytes` by the
+track count instead puts each track below its working set, as described above:
+at 128MB a track re-reads every chunk on every pan.
 ([ADR 0018](../agent-docs/architecture-decision-records/0018-a-per-file-ceiling-is-not-a-bound-on-a-consumer-with-many-files.md))
 
-## None of them bound peak memory
+## The cache options bound retained bytes, not peak memory
 
 `maxCacheBytes`, `cacheIdleTimeoutMs` and `cacheBudget` bound retained
 decompressed bytes, not the heap. On deep data the heap can be much larger:
@@ -76,41 +80,34 @@ decompressed bytes, not the heap. On deep data the heap can be much larger:
 Size these against what you want to keep, and bound total memory in code that
 can see the whole process.
 
-## Records are shared
-
-Overlapping queries share the records they return, so treat them as read-only. A
-field you attach to a record appears on it for every other query that holds it.
-([ADR 0006](../agent-docs/architecture-decision-records/0006-cached-records-are-shared-and-must-not-be-mutated.md))
-
 ## A hit needs the same chunk span, not just the same bytes
 
-We measured one waste and have not fixed it. The cache keys on the _merged_
-chunk span a query resolved to, and merging depends on the query, so a pan whose
-windows overlap decodes the same bytes under two keys. The waste is containment
-(one parse fully redoing another) on shallow-to-moderate short-read files whose
-bin chunks abut, including the volvox demo file, where 71% of what a
-twelve-window pan decompresses is waste. It does not affect deep long-read data
-at ordinary zoom.
+The cache keys on the _merged_ chunk span a query resolved to, and merging
+depends on the query, so a pan whose windows overlap decodes the same bytes
+under two keys. One parse fully redoing another happens on shallow-to-moderate
+short-read files whose bin chunks abut, including the volvox demo file, where
+71% of what a twelve-window pan decompresses is redundant. It does not affect
+deep long-read data at ordinary zoom.
 
-Keying on raw chunks recovers exactly that waste and never costs bytes, but the
-fetch unit must stay merged for the I/O reasons in
+Keying on raw chunks recovers it without costing bytes, but the fetch unit must
+stay merged for the I/O reasons in
 [optimizations.md](optimizations.md#choosing-and-fetching-chunks), so one fetch
-would fill several cache entries, and entry counts would rise on the long-read
-files. A canonical partition of the index avoids both costs: it has fewer
-entries than the merged key, and one fetch fills one entry, so
-`@gmod/shared-read-cache` needs no change. Nobody has built it yet.
-[ADR 0019](../agent-docs/architecture-decision-records/0019-the-chunk-cache-key-slides-as-a-query-pans.md)
-has the numbers, the design that would work, and the variant that looks obvious
+would fill several cache entries, and entry counts on long-read files rise up to
+7x (60 to 179). A canonical partition of the index has fewer entries than the
+merged key and fills one entry per fetch, so `@gmod/shared-read-cache` needs no
+change. Neither is built. Serving a subset from a cached superset looks cheaper
 and is wrong.
+[ADR 0019](../agent-docs/architecture-decision-records/0019-the-chunk-cache-key-slides-as-a-query-pans.md)
+has the numbers and the design.
 
 ## The byte-range cache underneath
 
-Everything above caches what a chunk _parsed to_. A byte-range cache on the
+The options above bound the cache of parsed chunks. A byte-range cache on the
 filehandle, such as
 [@gmod/range-cache-filehandle](https://github.com/GMOD/range-cache-filehandle),
 caches the compressed bytes underneath, so size the two together.
 
-The byte-range cache sees a read only when the chunk cache misses, so its
+The byte-range cache receives a read only when the chunk cache misses, so its
 defaults are deliberately looser: a 15-minute idle window against the 3 minutes
 here. Once a chunk-cache entry expires, the byte-range cache keeps a re-read
 from becoming a re-download (its

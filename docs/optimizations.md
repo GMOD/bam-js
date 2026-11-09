@@ -63,6 +63,12 @@ binning scheme, which is far more than a query reads. Before any I/O,
   while the merge declines to join them, which on `test/data/out.bam` had 5 of
   6551 records coming back duplicated.
 
+`blocksForRange` then drops every merged chunk that starts at or past `max_off`,
+computed from the binning index alone as in htslib's `hts_itr_query`, except
+that whole chunks are dropped rather than trimmed. The drop comes after the
+merge: dropping first made a pan read up to 79% more bytes than before
+([ADR 0023](../agent-docs/architecture-decision-records/0023-drop-merged-chunks-past-max-off.md)).
+
 `clampChunkEnds` then pulls each chunk's end down to the next known BGZF block
 boundary rather than over-reading a full maximum-size block. The clamp gives
 smaller fetches and a smaller `estimatedBytesForRegions`, with no extra I/O.
@@ -116,16 +122,18 @@ decompressions and 86ms, faster than serial, as a caller fanning out expects
 
 ### The query stops once a chunk is past it
 
-The BAI linear index is the only thing narrowing a query to its region, and on
-long-read data it narrows nothing: one ultra-long read covering a large span
-holds the entry near the start of the file. A narrow window therefore reads
-every chunk of every overlapping bin. On `chr22_nanopore_subset.bam`, a 10kb
-window reads 22 chunks and 9.3MB, 66% of the file, and returns **zero** records.
+The BAI linear index bounds a query only from the left, and on long-read data it
+narrows nothing: one ultra-long read covering a large span holds the entry near
+the start of the file. Without the `max_off` bound from ADR 0023, a narrow
+window therefore reads every chunk of every overlapping bin. On
+`chr22_nanopore_subset.bam`, a 10kb window read 22 chunks and 9.3MB, 66% of the
+file, and returned **zero** records. `max_off` now takes that window to 1 chunk
+before any read, and the stop below is the backstop for chunks it cannot bound.
 
 Chunks come back sorted by `minv`, and a coordinate-sorted BAM stores records in
 `(ref_id, start)` order, so once a chunk's first record starts past the query,
-every record after it does too. Stopping there takes that 10kb window from 22
-chunks to 1.
+every record after it does too. Stopping there alone takes that 10kb window from
+22 chunks to 1.
 
 Two things make the stop deterministic: whether a chunk is past the query is
 monotone in chunk index, and the fetch waits at one barrier after the first

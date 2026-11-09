@@ -52,10 +52,37 @@ single-character string. bam-js builds `CIGAR` the same way, 1.13x faster than a
 lookup table of letters.
 
 A substitution inside an `M` run needs the read's `MD` tag or the reference
-bases. Most aligners omit `MD`, so pass
-`fetchReferenceSequence: (refName, start, end) => ...` to `BamFile`, which
-bam-js calls only for a query with a read that lacks `MD`.
-[docs/api.md](docs/api.md#mismatches) has the fields and options.
+bases. Most aligners omit `MD`, so give `BamFile` a `fetchReferenceSequence`,
+here backed by [`@gmod/indexedfasta`](https://github.com/GMOD/indexedfasta-js):
+
+```typescript
+import { IndexedFasta } from '@gmod/indexedfasta'
+
+const fasta = new IndexedFasta({ path: 'ref.fa', faiPath: 'ref.fa.fai' })
+
+const bam = new BamFile({
+  bamPath: 'file.bam',
+  baiPath: 'file.bam.bai',
+  fetchReferenceSequence: async (refName, start, end, opts) =>
+    (await fasta.getSequence(refName, start, end, opts)) ?? '',
+})
+```
+
+- `start` and `end` are 0-based half-open, and the string returned begins at
+  `start`.
+- `refName` is the name you passed to `getRecordsForRange`, so map it if the
+  FASTA spells it differently, for example `chr1` and `1`. A name the FASTA
+  lacks returns `undefined`, which `?? ''` turns into no substitutions without
+  an error.
+- It is called at most once per query, for the span of the reads that lack `MD`,
+  and never when every read has one. A slow source needs its own cache, since a
+  later query over the same reads calls it again.
+- Reads that extend past a short string get no substitutions inside `M` runs;
+  their indels and clips are still reported.
+- `opts` carries the query's `signal`.
+
+[docs/api.md](docs/api.md#mismatches) has the fields and options, and
+[Reference sequence](docs/api.md#reference-sequence) the span a query asks for.
 
 ## Coordinates
 
@@ -98,6 +125,21 @@ const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
 
 [docs/api.md](docs/api.md#bamrecord) lists every field and method.
 
+## CSI, header and cancellation
+
+```typescript
+const bam = new BamFile({ bamUrl, csiUrl }) // required for references longer than 2^29
+
+await bam.getHeader() // parsed SAM header
+await bam.getHeaderText()
+
+const controller = new AbortController()
+await bam.getRecordsForRange('chr1', 0, 1_000_000, {
+  signal: controller.signal,
+  onProgress: (bytesDownloaded, totalBytes) => {},
+})
+```
+
 ## Range caching
 
 With `bamUrl`, each byte range a query reads is a separate HTTP request
@@ -131,8 +173,8 @@ const bam = new BamFile({
 })
 ```
 
-The pool is `undefined` under node or where workers are forbidden, and bam-js
-then decompresses in-process. See
+`getSharedWorkerPool()` resolves to `undefined` under node or where workers are
+forbidden, and bam-js then decompresses in-process. See
 [bgzf-filehandle's docs](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/worker-pool.md)
 for pool size and lifecycle.
 

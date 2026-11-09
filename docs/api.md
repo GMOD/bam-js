@@ -87,8 +87,7 @@ beginning at `start`. bam-js calls it at most once per query, for the span of
 the reads that have no `MD` tag, and not at all when every read has one. The
 callback can return fewer bases than asked for, for example at the end of a
 contig, and bam-js then reports no substitutions for any read the bases do not
-cover whole. It receives `refName` as the file spells it, before
-`renameRefSeqs`.
+cover whole. It receives `refName` as you passed it to `getRecordsForRange`.
 
 The span is the query's range plus however far its edge reads extend past it,
 and bam-js does not clamp it, so for a BAM of reads as long as a chromosome, the
@@ -208,16 +207,16 @@ read the real CIGAR from it.
 
 ### Methods
 
-| Method                       | Returns                   | Description                                                       |
-| ---------------------------- | ------------------------- | ----------------------------------------------------------------- |
-| `getTag(name)`               | tag value or `undefined`  | one auxiliary tag, without decoding the rest                      |
-| `getTagRaw(name)`            | `Uint8Array \| undefined` | a string tag's bytes, skipping the conversion to a string         |
-| `getTagAlt(name, alt)`       | tag value or `undefined`  | either of two alias tags, such as `MM` and `Mm`, in one pass      |
-| `seqAt(i)`                   | `string \| undefined`     | the base at a read position                                       |
-| `getMismatches(opts?)`       | `Mismatch[]`              | each difference from the reference; see [Mismatches](#mismatches) |
-| `forEachMismatch(cb, opts?)` |                           | the same differences, one call each                               |
-| `setReference(ref)`          |                           | bind reference bases to resolve substitutions against             |
-| `toJSON()`                   | object                    | the record as a plain object                                      |
+| Method                       | Returns                  | Description                                                       |
+| ---------------------------- | ------------------------ | ----------------------------------------------------------------- |
+| `getTag(name)`               | tag value or `undefined` | one auxiliary tag, without decoding the rest                      |
+| `getTagRaw(name)`            | tag value or `undefined` | the tag, with a `Z` or `H` string as its `Uint8Array` bytes       |
+| `getTagAlt(name, alt)`       | tag value or `undefined` | either of two alias tags, such as `MM` and `Mm`, in one pass      |
+| `seqAt(i)`                   | `string \| undefined`    | the base at a read position                                       |
+| `getMismatches(opts?)`       | `Mismatch[]`             | each difference from the reference; see [Mismatches](#mismatches) |
+| `forEachMismatch(cb, opts?)` |                          | the same differences, one call each                               |
+| `setReference(ref)`          |                          | bind reference bases to resolve substitutions against             |
+| `toJSON()`                   | object                   | the record as a plain object                                      |
 
 ### Flag methods
 
