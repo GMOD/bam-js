@@ -51,10 +51,9 @@ for (const { code, refPos, length, bases } of record.getMismatches()) {
 // D 109 2     two reference bases deleted from 109
 ```
 
-- `code` is a CIGAR char code (88 for `X`).
-- `String.fromCharCode(code)` gives the letter without allocating a small
-  string, since V8 interns single-character strings. bam-js uses it for speed
-  too.
+`code` is a CIGAR char code (88 for `X`). `String.fromCharCode(code)` gives the
+letter without allocating a small string, since V8 interns single-character
+strings, and bam-js uses it for speed too.
 
 ### Mismatches without an `MD` tag
 
@@ -126,11 +125,7 @@ const bam = new BamFile({
 })
 ```
 
-A worker pool decompresses BGZF across threads, 2.7-4.1x faster inflating and
-1.95x end to end on a pan/zoom over 1000x long reads, against decompressing
-in-process ([measurements](docs/optimizations.md)). `getSharedWorkerPool()`
-resolves to `undefined` under node, where bam-js decompresses in-process
-([pool size and lifecycle](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/worker-pool.md)):
+A worker pool decompresses BGZF across threads:
 
 ```typescript
 import { getSharedWorkerPool } from '@gmod/bgzf-filehandle'
@@ -141,6 +136,12 @@ const bam = new BamFile({
   bgzfWorkerPool: getSharedWorkerPool(),
 })
 ```
+
+- Against in-process decompression, it inflates 2.7-4.1x faster, and a pan/zoom
+  over 1000x long reads ran 1.95x faster end to end
+  ([measurements](docs/optimizations.md)).
+- It resolves to `undefined` under node, which decompresses in-process
+  ([pool size and lifecycle](https://github.com/GMOD/bgzf-filehandle/blob/main/docs/worker-pool.md)).
 
 ## Unsorted BAM
 

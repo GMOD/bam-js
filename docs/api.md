@@ -83,15 +83,17 @@ Overlapping queries share records, so treat them as read-only
 ### Reference sequence
 
 `fetchReferenceSequence(refName, start, end, opts?)` returns reference bases
-beginning at `start`, for `refName` as you passed it to `getRecordsForRange`. It
-is not called when every read has `MD`. A short return is fine, for example at
-the end of a contig, and reads the bases do not cover whole get no
-substitutions.
+beginning at `start`.
 
-The span is the query's range plus however far its edge reads extend past it,
-unclamped, so for reads as long as a chromosome it can be the whole chromosome.
-To avoid that, clamp inside the callback and resolve the remaining reads a
-window at a time with `getReferenceRegion` and the mismatch `ref` option.
+- `refName` is as you passed it to `getRecordsForRange`.
+- It is not called when every read has `MD`.
+- A short return is fine, for example at the end of a contig. Reads the bases do
+  not cover whole get no substitutions.
+- The span is the query's range plus however far its edge reads extend past it,
+  unclamped, so for reads as long as a chromosome it can be the whole
+  chromosome. To avoid that, clamp inside the callback and resolve the remaining
+  reads a window at a time with `getReferenceRegion` and the mismatch `ref`
+  option.
 
 ### `recordClass`
 
@@ -123,11 +125,12 @@ const bam = new HtsgetFile({
 })
 ```
 
-`HtsgetFile` takes `baseUrl`, `trackId`, and `recordClass`,
-`fetchReferenceSequence`, `maxCacheBytes` and `cacheIdleTimeoutMs` as in
-`BamFile`. With no index, only `getRecordsForRange`, `getHeader` and
-`getHeaderText` do work, and the server decides what a range returns, so the
-mate-pairing options are ignored.
+- It takes `baseUrl`, `trackId`, and `recordClass`, `fetchReferenceSequence`,
+  `maxCacheBytes` and `cacheIdleTimeoutMs` as in `BamFile`.
+- With no index, only `getRecordsForRange`, `getHeader` and `getHeaderText` do
+  work.
+- The server decides what a range returns, so the mate-pairing options are
+  ignored.
 
 `fetch` applies to the ticket request only. Data blocks use the global `fetch`
 and may be on another host, so put a block's credentials in the `headers` the
@@ -197,11 +200,12 @@ behind `readAhead` and the batching.
 | `fileOffset`             | `number`                       | an id unique to the record within the file                  |
 | `reference`              | `PackedReference \| undefined` | whatever `setReference` bound                               |
 
-`end`, `tags`, `length_on_ref`, `NUMERIC_CIGAR` and `NUMERIC_MD` decode on first
-access and then stay on the record, while every other field, `CIGAR` included,
-decodes on each access. A read with more than 65535 CIGAR operations stores its
-CIGAR in a `CG` tag, and `CIGAR`, `NUMERIC_CIGAR`, `end` and `num_cigar_ops` all
-read the real CIGAR from it.
+- `end`, `tags`, `length_on_ref`, `NUMERIC_CIGAR` and `NUMERIC_MD` decode on
+  first access and then stay on the record. Every other field, `CIGAR` included,
+  decodes on each access.
+- A read with more than 65535 CIGAR operations stores its CIGAR in a `CG` tag,
+  and `CIGAR`, `NUMERIC_CIGAR`, `end` and `num_cigar_ops` all read the real
+  CIGAR from it.
 
 ### Methods
 
