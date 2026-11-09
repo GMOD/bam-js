@@ -182,8 +182,8 @@ function compareRefBase(
  * `record.forEachMismatch()` is this function with the record's own fields
  * filled in, and is what most code should call.
  *
- * Nothing here allocates per difference except the `bases` string, and that
- * only for substitutions and insertions.
+ * Nothing here allocates per difference except the `bases` string of an
+ * insertion of two or more bases.
  *
  * @param cigar packed CIGAR ops, i.e. `record.NUMERIC_CIGAR`
  * @param numericSeq 4-bit packed SEQ, i.e. `record.NUMERIC_SEQ`

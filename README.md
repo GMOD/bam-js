@@ -111,8 +111,9 @@ omit `MD`, so pass `fetchReferenceSequence: (refName, start, end) => ...` to
 
 ## Worker pool
 
-A worker pool decompresses BGZF across threads, 2.7-4.1x faster on the pool's
-own fixtures:
+A worker pool decompresses BGZF across threads: 2.7-4.1x faster inflating at
+eight workers, 1.95x end to end on a 22-view pan/zoom over 1000x long reads with
+four ([measurements](docs/optimizations.md)):
 
 ```typescript
 import { getSharedWorkerPool } from '@gmod/bgzf-filehandle'
@@ -137,7 +138,7 @@ array of records at a time:
 ```typescript
 import { streamBamRecords } from '@gmod/bam'
 
-for await (const records of streamBamRecords({ bamUrl: 'unsorted.bam' })) {
+for await (const records of streamBamRecords({ bamPath: 'unsorted.bam' })) {
   for (const record of records) {
     // ...
   }

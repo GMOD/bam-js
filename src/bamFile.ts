@@ -249,7 +249,7 @@ export default class BamFile<T extends BamRecordLike = BAMFeature> {
      * 180MB and six in flight is 476MB, neither of which this number can bound.
      *
      * The fourth is that an entry is weighed ONCE, when its read settles, and
-     * records grow after that: `end`, `CIGAR` and `tags` each memoize onto the
+     * records grow after that: `end`, `tags` and `NUMERIC_CIGAR` each memoize onto the
      * record the first time they are read, which is what a renderer does to
      * every visible read. Measured on `chr22_nanopore_subset.bam`, a chunk
      * weighed at 20.4MB retained a further 7.8MB — +38% — once its 383 records

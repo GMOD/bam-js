@@ -24,7 +24,7 @@ const bam = new BamFile({
 | Option                               | Default                  | Description                                                                                        |
 | ------------------------------------ | ------------------------ | -------------------------------------------------------------------------------------------------- |
 | `bamUrl`, `bamPath`, `bamFilehandle` |                          | the BAM, as a URL, a local path, or a generic-filehandle2 handle                                   |
-| `baiUrl`, `baiPath`, `baiFilehandle` | the BAM's `.bai` sibling | a BAI index                                                                                        |
+| `baiUrl`, `baiPath`, `baiFilehandle` | the BAM's `.bai` sibling | a BAI index; the default is inferred from `bamUrl` or `bamPath`, and a `csi*` option overrides it  |
 | `csiUrl`, `csiPath`, `csiFilehandle` |                          | a CSI index, required for references longer than 2^29                                              |
 | `fetchReferenceSequence`             |                          | reference bases for reads with no `MD` tag; see [Reference sequence](#reference-sequence)          |
 | `bgzfWorkerPool`                     |                          | a worker pool, or the promise of one, to decompress on; see the [README](../README.md#worker-pool) |
@@ -42,17 +42,17 @@ A `path` reads local disk, so it works only in node.
 | ------------------------------------------------ | ------------------------------ | --------------------------------------------------------------------------- |
 | `getRecordsForRange(refName, start, end, opts?)` | `Promise<BamRecord[]>`         | records overlapping the range; `[]` for a name the file lacks               |
 | `getHeader(opts?)`                               | parsed SAM header              | the header, parsed once and cached                                          |
-| `getHeaderText(opts?)`                           | `Promise<string>`              | the header text                                                             |
+| `getHeaderText(opts?)`                           | `Promise<string \| undefined>` | the header text                                                             |
 | `hasRefSeq(refName, opts?)`                      | `Promise<boolean>`             | whether the file has the reference                                          |
 | `lineCount(refName, opts?)`                      | `Promise<number>`              | records on the reference, from the index; 0 if absent                       |
-| `indexCov(refName, start?, end?, opts?)`         | `{ start, end, score }[]`      | read density over 16 kb windows, from the BAI linear index; `[]` for CSI    |
+| `indexCov(refName, start?, end?)`                | `{ start, end, score }[]`      | read density over 16 kb windows, from the BAI linear index; `[]` for CSI    |
 | `estimatedBytesForRegions(regions, opts?)`       | `Promise<number>`              | compressed bytes a `{ refName, start, end }[]` would fetch                  |
 | `blocksForRange(refName, start, end, opts?)`     | `Promise<Chunk[]>`             | the chunks a query would read                                               |
 | `getReferenceRegion(refName, start, end, opts?)` | `PackedReference \| undefined` | reference bases for `forEachMismatch`'s `ref`, via `fetchReferenceSequence` |
 | `clearFeatureCache()`                            |                                | drop the chunk cache now                                                    |
 
 Every `opts` takes `signal` and `onProgress`. On a method that downloads the
-index, `onProgress` reports that download.
+index, `onProgress` reports that download first, then any chunk reads.
 
 | Property                   | Description                                                   |
 | -------------------------- | ------------------------------------------------------------- |
@@ -63,13 +63,13 @@ index, `onProgress` reports that download.
 
 ### `getRecordsForRange` options
 
-| Option          | Default  | Description                                                        |
-| --------------- | -------- | ------------------------------------------------------------------ |
-| `signal`        |          | an `AbortSignal` that cancels the query                            |
-| `onProgress`    |          | `(bytesDownloaded, totalBytes) => void`, called per chunk          |
-| `viewAsPairs`   | `false`  | also fetch the mate of each read whose mate lies outside the range |
-| `pairAcrossChr` | `false`  | with `viewAsPairs`, also fetch mates on other references           |
-| `maxInsertSize` | `200000` | with `viewAsPairs`, skip mates farther away than this              |
+| Option          | Default  | Description                                                                         |
+| --------------- | -------- | ----------------------------------------------------------------------------------- |
+| `signal`        |          | an `AbortSignal` that cancels the query                                             |
+| `onProgress`    |          | `(bytesDownloaded, totalBytes) => void`, called per chunk                           |
+| `viewAsPairs`   | `false`  | also fetch the mate of each read whose mate lies outside the range                  |
+| `pairAcrossChr` | `false`  | with `viewAsPairs`, also fetch mates on other references                            |
+| `maxInsertSize` | `200000` | with `viewAsPairs`, skip mates farther away than this; ignored with `pairAcrossChr` |
 
 A read is returned when it shares at least one base with the range, as in
 `samtools view`. A record that covers no reference, such as an unmapped read
@@ -86,8 +86,9 @@ Overlapping queries share records, so treat them as read-only
 beginning at `start`. bam-js calls it at most once per query, for the span of
 the reads that have no `MD` tag, and not at all when every read has one. The
 callback can return fewer bases than asked for, for example at the end of a
-contig, and bam-js then reports no substitutions for the reads past the bases it
-returned.
+contig, and bam-js then reports no substitutions for any read the bases do not
+cover whole. It receives `refName` as the file spells it, before
+`renameRefSeqs`.
 
 The span is the query's range plus however far its edge reads extend past it,
 and bam-js does not clamp it, so for a BAM of reads as long as a chromosome, the
@@ -125,14 +126,15 @@ const bam = new HtsgetFile({
 })
 ```
 
-`HtsgetFile` takes `baseUrl` and `trackId`, plus `recordClass` and
-`fetchReferenceSequence` as in `BamFile`, and has the same query methods. The
-optional `fetch` makes the ticket request and the requests for the data blocks
-the ticket lists. Those blocks can be on another host, so attach credentials
-only for hosts you trust.
+`HtsgetFile` takes `baseUrl` and `trackId`, plus `recordClass`,
+`fetchReferenceSequence`, `maxCacheBytes` and `cacheIdleTimeoutMs` as in
+`BamFile`. Only `getRecordsForRange`, `getHeader` and `getHeaderText` do work,
+since there is no index. The optional `fetch` makes the ticket request only. The
+data blocks use the global `fetch`, and may be on another host, so a block's
+credentials belong in the `headers` the ticket gives for its url.
 
 The server decides what a range returns, so `HtsgetFile` ignores the
-mate-pairing options. It accepts the cache options but does not use them.
+mate-pairing options.
 
 ## `streamBamRecords`
 
@@ -144,7 +146,7 @@ yields an array of records per window.
 import { streamBamRecords } from '@gmod/bam'
 
 for await (const records of streamBamRecords({
-  bamUrl: 'reads.bam',
+  bamPath: 'reads.bam',
   onHeader: h => console.log(h.headerText),
 })) {
   for (const record of records) {
@@ -198,10 +200,11 @@ behind `readAhead` and the batching.
 | `fileOffset`             | `number`                       | an id unique to the record within the file                  |
 | `reference`              | `PackedReference \| undefined` | whatever `setReference` bound                               |
 
-`end`, `CIGAR` and `tags` decode on first access and then stay on the record,
-while every other field decodes on each access. A read with more than 65535
-CIGAR operations stores its CIGAR in a `CG` tag, and `CIGAR`, `NUMERIC_CIGAR`,
-`end` and `num_cigar_ops` all read the real CIGAR from it.
+`end`, `tags`, `length_on_ref`, `NUMERIC_CIGAR` and `NUMERIC_MD` decode on first
+access and then stay on the record, while every other field, `CIGAR` included,
+decodes on each access. A read with more than 65535 CIGAR operations stores its
+CIGAR in a `CG` tag, and `CIGAR`, `NUMERIC_CIGAR`, `end` and `num_cigar_ops` all
+read the real CIGAR from it.
 
 ### Methods
 
@@ -271,13 +274,15 @@ record.getMismatches()
 //   { code: 68, refPos: 109, length: 2, bases: '', qual: -1, refBaseCode: 0, clipLength: 0 },
 // ]
 
+import { MISMATCH_SUBST } from '@gmod/bam'
+
 record.forEachMismatch(
   (code, refPos, length, bases, qual, refBaseCode, clipLength) => {
     if (code === MISMATCH_SUBST) {
-      drawBase(refPos, bases, qual)
+      console.log(refPos, bases, qual)
     }
   },
-  { start, end, origin: record.start },
+  { start: 100, end: 200, origin: record.start },
 )
 ```
 
@@ -317,10 +322,33 @@ The walk uses the first of these that applies:
 3. the reference `setReference` bound, which `getRecordsForRange` binds when the
    file has a `fetchReferenceSequence`
 
-With none of them, the walk reports indels and clips but no substitutions.
-`setReference` throws unless the region covers the whole read, because queries
-share records and a per-query binding would give one query's reads another
-query's bases. `opts.ref` keeps nothing on the record and takes any region.
+With none of them, the walk reports indels and clips, and substitutions only
+from `X` CIGAR ops, with `refBaseCode` 0, but none from `M` runs. `setReference`
+throws unless the region covers the whole read, because queries share records
+and a per-query binding would give one query's reads another query's bases.
+`opts.ref` keeps nothing on the record and takes any region.
+
+### Which to call
+
+- `forEachMismatch` is the default. It passes the record's `NUMERIC_CIGAR`,
+  `NUMERIC_SEQ`, `NUMERIC_MD` and `qual` to `forEachMismatchNumeric`, so it
+  builds no `CIGAR` or `seq` string, and it allocates only for an insertion of
+  two or more bases.
+- `getMismatches` is `forEachMismatch` plus one object per difference: about 8%
+  slower at under one difference per read, about 3x at thousands.
+- `forEachMismatchNumeric` is for code with the arrays and no record, see
+  [below](#without-a-bamrecord). Called through a record it costs the same as
+  `forEachMismatch`. On arrays already held it skips two `subarray` calls per
+  read (`NUMERIC_SEQ`, `qual`), about 3ms per 53,596 short reads and nothing on
+  long reads.
+
+| ms per pass over all reads, min of 40 passes, Node 24                                           | `getMismatches` | `forEachMismatch` | numeric, arrays read off the record | numeric, arrays held |
+| ----------------------------------------------------------------------------------------------- | --------------- | ----------------- | ----------------------------------- | -------------------- |
+| `shortreads_300x.bam`: 53,596 reads, 35,437 differences from `MD`                               | 9.2             | 8.5               | 8.2                                 | 5.0                  |
+| `chr22_nanopore_subset.bam`: 757 reads, 8,146,791 differences against a synthetic all-`A` `ref` | 280-296         | 97-104            | 97-108                              | 96-105               |
+
+The passes are warm, with `NUMERIC_CIGAR` and `NUMERIC_MD` already memoized on
+the records. The first pass over fresh records took about 45ms on both files.
 
 ### Without a `BamRecord`
 

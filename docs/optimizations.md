@@ -153,11 +153,11 @@ costing a fraction of the estimate
 
 `readBamFeatures` only walks block sizes and allocates one object per record,
 which is the 0.1-15ms per query in the table above. Every expensive field is a
-lazy accessor that decodes only when the consumer reads it, and `end`, `CIGAR`
-and `tags` memoize onto the record once read. `name` is deliberately not
-memoized, because consumers read it about once. A cache would cost a field slot
-on every record and keep every name string in memory for as long as the chunk
-stays cached, to save zero decodes.
+lazy accessor that decodes only when the consumer reads it, and `end`, `tags`
+and `NUMERIC_CIGAR` memoize onto the record once read. `name` is deliberately
+not memoized, because consumers read it about once. A cache would cost a field
+slot on every record and keep every name string in memory for as long as the
+chunk stays cached, to save zero decodes.
 
 The cost of each accessor's first touch, over a whole query's records (min of
 5):

@@ -71,8 +71,9 @@ packed `SEQ`
 
 `X` ops give a substitution's position but name the reference base only when MD
 or a reference also supplied it (`refBaseCode` is 0 otherwise). With none of
-them, the walk still reports indels and clips in full and skips substitutions
-entirely, because the record does not contain their positions.
+them, the walk still reports indels, clips and `X` ops in full and skips the
+substitutions inside `M` runs, because the record does not contain their
+positions.
 
 ## Decoding mistakes the walk avoids
 

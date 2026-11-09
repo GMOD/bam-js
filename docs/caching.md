@@ -69,9 +69,9 @@ decompressed bytes, not the heap. On deep data the heap can be much larger:
 - A query holds every chunk it parsed until it returns, whether or not the cache
   still does.
 - The cache weighs an entry once, when its read settles, and records grow after
-  that. `end`, `CIGAR` and `tags` each memoize onto the record the first time
-  you touch them, and a renderer touches them on every visible read. We measured
-  the result at +38% over the weighed size.
+  that. `end`, `tags` and `NUMERIC_CIGAR` each memoize onto the record the first
+  time you touch them, and a renderer touches them on every visible read. We
+  measured the result at +38% over the weighed size.
 
 Size these against what you want to keep, and bound total memory in code that
 can see the whole process.
