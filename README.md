@@ -54,6 +54,8 @@ for (const { code, refPos, length, bases } of record.getMismatches()) {
 letter without allocating a small string, since V8 interns single-character
 strings, and bam-js uses it for speed too.
 
+### Mismatches without an `MD` tag
+
 A substitution inside an `M` run needs the read's `MD` tag or the reference
 bases. Most aligners omit `MD`, so give `BamFile` a `fetchReferenceSequence`,
 here backed by [`@gmod/indexedfasta`](https://github.com/GMOD/indexedfasta-js):
