@@ -298,8 +298,8 @@ fields the methods read.
 
 Compare `code` against the exported `MISMATCH_SUBST`, `MISMATCH_INSERTION` and
 the other `MISMATCH_*` constants. They are CIGAR char codes, the same values
-`@gmod/cram` reports, so `MISMATCH_DELETION` is 68 (`'D'`) rather than BAM's
-packed op number 2.
+`@gmod/cram` exports as `RF_SUBST` and the other `RF_*` constants, so
+`MISMATCH_DELETION` is 68 (`'D'`) rather than BAM's packed op number 2.
 
 | Option         | Description                                                                           |
 | -------------- | ------------------------------------------------------------------------------------- |
