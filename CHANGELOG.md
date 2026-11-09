@@ -1,3 +1,45 @@
+## [10.2.0](https://github.com/GMOD/bam-js/compare/v10.1.0...v10.2.0) (2026-11-09)
+
+### Chores
+
+- Drop the vitest benchmarks ([8f75f41](https://github.com/GMOD/bam-js/commit/8f75f41ba5186077f42cd2af3b700a823d6d032d))
+
+### Documentation
+
+- Point ADR 0022 at bgzf-filehandle's bench:inflate ([a9c22bd](https://github.com/GMOD/bam-js/commit/a9c22bd2c961b0fb2c38387f7f6d915682d69ccc))
+- Consolidate overlapping explanations ([ae07d4d](https://github.com/GMOD/bam-js/commit/ae07d4d8720d4fef2783fde408f084cfcf4ffaf8))
+- Fix links and a stub left by the consolidation ([1fa97fb](https://github.com/GMOD/bam-js/commit/1fa97fb1250aa4e94e92c2a374d74b220caaef4c))
+- Drop the ADR and CONTRIBUTING entries from the README docs list ([7033a7e](https://github.com/GMOD/bam-js/commit/7033a7ee49afe242bd5f12ee60aaf329d99bc7b8))
+- Lead the README with getMismatches and explain records ([8cdab70](https://github.com/GMOD/bam-js/commit/8cdab70107416863a26cb4d3c47c5d96a784417f))
+- Fix audit findings and add which-mismatch-method guidance ([5b86f3a](https://github.com/GMOD/bam-js/commit/5b86f3ab7d35106b52f119f17cb91821dde36c52))
+- Lead the README with mismatches and fix review findings ([575f132](https://github.com/GMOD/bam-js/commit/575f132115c098802ccbeb6db8e2371ce0951a51))
+- Explain fetchReferenceSequence, CSI and cancellation; tighten caching.md ([24826ce](https://github.com/GMOD/bam-js/commit/24826ceeb5ad37350b779a6a68149b3e8f1ab2e2))
+- Name the table approach and source the +38% retained-memory figure ([8d18a9b](https://github.com/GMOD/bam-js/commit/8d18a9b1cb8cee62ddb34eaf693af58d28b19fab))
+- Trim and reorganize the README and api.md ([c99bfb9](https://github.com/GMOD/bam-js/commit/c99bfb920a00a4905a40ff37977dd1a0dddda406))
+- Trim caching.md and cigar-and-md.md ([5ae2ec6](https://github.com/GMOD/bam-js/commit/5ae2ec63f81c40cfa09d6042eb58c98823ebd55e))
+- Make mismatches without an MD tag a README subsection ([47eabc6](https://github.com/GMOD/bam-js/commit/47eabc6fc09c9347d0a85fef67106e5d4242cafa))
+- Say cram exports the mismatch codes as RF_* ([86de1f2](https://github.com/GMOD/bam-js/commit/86de1f2cafdf5b4304a4d8b28bbc55c6a25e6e79))
+- Name the actor where the purple node 'runs' ([b70d6d3](https://github.com/GMOD/bam-js/commit/b70d6d318812a77a3dab14339b6b8577e0a63cd7))
+- Use bullets for dense README paragraphs ([e523713](https://github.com/GMOD/bam-js/commit/e523713b4ee1915156cb2c3ff9c2e30cad30589d))
+- State the baselines behind the optimizations figures ([0983f8c](https://github.com/GMOD/bam-js/commit/0983f8cf9f00037aa243c8069f0092cab1e12e7f))
+- Shorten the README's reference-sequence bullets ([47cf5d9](https://github.com/GMOD/bam-js/commit/47cf5d95382d06ab0f0ea0c76c1d77e178324038))
+- Condense the README's records and performance sections ([f57b54f](https://github.com/GMOD/bam-js/commit/f57b54f19d24f7fd600206d143a8d6c28d1b2939))
+- Drop the fetchReferenceSequence bullets from the README ([6aaa138](https://github.com/GMOD/bam-js/commit/6aaa138975806fad5fd6d06d0890c6e6eedebb11))
+- Bullet the worker pool section and long api.md paragraphs ([2256c9f](https://github.com/GMOD/bam-js/commit/2256c9f98c3dd3c56b213b9d289fff40381c99e6))
+- Note that getReferenceRegion returns undefined for an undefined fetch result ([4964b5f](https://github.com/GMOD/bam-js/commit/4964b5f9b7f117f8479f3f90042fb06300113c7e))
+
+### Features
+
+- Treat an undefined fetchReferenceSequence result as an unavailable reference ([f5f08d1](https://github.com/GMOD/bam-js/commit/f5f08d158f39f38522dc426d6ebc5920eaeeecc4))
+
+### Other Changes
+
+- Bump deps ([95a12ba](https://github.com/GMOD/bam-js/commit/95a12ba2be8f36fef39f2733da1cc715020c8495))
+- A pooled chunk comes back as one segment per worker call ([9e01f47](https://github.com/GMOD/bam-js/commit/9e01f47ac1df5193b8ee08fe18c1f860d4b32c74))
+- Describe @gmod/range-cache-filehandle 2.0, which stores fetched extents rather than 256 KiB chunks ([970e129](https://github.com/GMOD/bam-js/commit/970e129bfbc71377d796c2006b396ec3181d1838))
+- Reflow docs/optimizations.md for prettier ([b638a68](https://github.com/GMOD/bam-js/commit/b638a68cc781567a9585e63cb733a947d44e6294))
+- Lint with oxlint and typecheck/build with tsrs (TypeScript 7.1 beta) ([8be345f](https://github.com/GMOD/bam-js/commit/8be345fc724bfa23425076d2b0049d0cf7dc5c4e))
+
 ## [10.1.0](https://github.com/GMOD/bam-js/compare/v10.0.6...v10.1.0) (2026-10-15)
 
 ### Other Changes
