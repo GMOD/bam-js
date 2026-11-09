@@ -64,16 +64,15 @@ insertion between them consumes no reference.
 `forEachMismatchNumeric` in [`src/mismatches.ts`](../src/mismatches.ts) makes
 one pass over the packed CIGAR, tracking a read offset and a reference offset.
 Indels, skips and clips come straight off the CIGAR. Substitutions come from the
-first of these that is available:
+`MD` tag if the read has one, which is what the aligner asserted, and otherwise
+from reference bases, compared two bases per byte against the read's 4-bit
+packed `SEQ`
+([where those bases come from](api.md#where-the-reference-bases-come-from)).
 
-1. **the `MD` tag** — cheapest, and what the aligner asserted
-2. **reference bases** — `opts.ref`, or whatever `setReference` bound; compared
-   two bases per byte against the read's 4-bit packed `SEQ`
-3. **`X` CIGAR ops** — these give the position, but name the reference base only
-   if 1 or 2 also supplied it (`refBaseCode` is 0 otherwise)
-
-With none of them, the walk still reports indels and clips in full and skips
-substitutions entirely, because the record does not contain their positions.
+`X` ops give a substitution's position but name the reference base only when MD
+or a reference also supplied it (`refBaseCode` is 0 otherwise). With none of
+them, the walk still reports indels and clips in full and skips substitutions
+entirely, because the record does not contain their positions.
 
 ## Decoding mistakes the walk avoids
 

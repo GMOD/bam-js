@@ -84,11 +84,24 @@ field you attach to a record appears on it for every other query that holds it.
 
 ## A hit needs the same chunk span, not just the same bytes
 
-An entry's key is the _merged_ chunk span a query resolved to, and merging
-depends on the query, so two overlapping pans can decode the same bytes under
-two keys. That costs some short-read files real work and leaves deep long-read
-data untouched; the fix is known and parked, with the numbers in
-[optimizations.md](optimizations.md#the-chunk-cache-key-slides-as-a-query-pans).
+We measured one waste and have not fixed it. The cache keys on the _merged_
+chunk span a query resolved to, and merging depends on the query, so a pan whose
+windows overlap decodes the same bytes under two keys. The waste is containment
+(one parse fully redoing another) on shallow-to-moderate short-read files whose
+bin chunks abut, including the volvox demo file, where 71% of what a
+twelve-window pan decompresses is waste. It does not affect deep long-read data
+at ordinary zoom.
+
+Keying on raw chunks recovers exactly that waste and never costs bytes, but the
+fetch unit must stay merged for the I/O reasons in
+[optimizations.md](optimizations.md#choosing-and-fetching-chunks), so one fetch
+would fill several cache entries, and entry counts would rise on the long-read
+files. A canonical partition of the index avoids both costs: it has fewer
+entries than the merged key, and one fetch fills one entry, so
+`@gmod/shared-read-cache` needs no change. Nobody has built it yet.
+[ADR 0019](../agent-docs/architecture-decision-records/0019-the-chunk-cache-key-slides-as-a-query-pans.md)
+has the numbers, the design that would work, and the variant that looks obvious
+and is wrong.
 
 ## The byte-range cache underneath
 

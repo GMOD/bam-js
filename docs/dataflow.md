@@ -26,13 +26,11 @@ query.
 
 The green node at the bottom is the one place a second data source enters. A
 caller supplies `fetchReferenceSequence`, and bam-js calls it at most once per
-query, for the union span of the reads that arrived without an `MD` tag, to
-resolve their substitutions. The call runs after `viewAsPairs`, so the same rule
-covers a mate pulled from another chunk. bam-js binds the bases only to reads
-that the returned region covers whole, because a partial binding would put
-per-query state on a record shared between queries
-([ADR 0020](../agent-docs/architecture-decision-records/0020-a-bound-reference-must-cover-the-whole-read.md)).
-Without the option, or when every read has `MD`, bam-js fetches no reference.
+query, after `viewAsPairs`, so the same rule covers a mate pulled from another
+chunk. Without the option, or when every read has `MD`, bam-js fetches no
+reference. [api.md](api.md#reference-sequence) has the contract and
+[optimizations.md](optimizations.md#mismatches) why a bound reference must cover
+the whole read.
 
 ## Where the worker pool sits
 
@@ -40,17 +38,15 @@ The purple node runs only when a caller passes a `bgzfWorkerPool`, which moves
 chunk decompression off the main thread. Without one, the same code runs
 in-process. The pool receives a chunk's blocks and leaves the record building
 after them on the calling thread. Decompression is where a query's time is (see
-below), so there is little else worth moving. A consumer can also run the whole
-diagram in a worker, and the purple node is then a further pool underneath it.
+[below](#where-wasm-sits)), so there is little else worth moving. A consumer can
+also run the whole diagram in a worker, and the purple node is then a further
+pool underneath it.
 
 ## Where wasm sits
 
 Everything orange is wasm, in
 [`@gmod/bgzf-filehandle`](https://github.com/GMOD/bgzf-filehandle), and all of
 it decompresses BGZF blocks. Reading the index and decoding records both stay in
-JS.
-
-With nothing cached, decompression takes 70-90% of a query's wall clock, against
-0.1-15ms building records. A call crosses the boundary once per chunk, never per
-record. [optimizations.md](optimizations.md#decompression) explains why, and why
-there is no faster codec to reach for.
+JS. [optimizations.md](optimizations.md#decompression) has the share of a
+query's time that decompression takes, why a call crosses the boundary once per
+chunk, and why there is no faster codec to reach for.

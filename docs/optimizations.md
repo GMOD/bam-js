@@ -227,13 +227,9 @@ stored as one BAM read without walking the rest of its CIGAR
 ## The chunk cache
 
 The cache holds parsed chunks and bounds itself by decompressed bytes rather
-than entry count. Records are views into their chunk's buffer, so one entry
-keeps the whole buffer in memory, and an entry count says nothing about memory.
-Size the cache to hold several queries, not one. Below a single query's working
-set, the cache evicts each chunk before the next pan can reuse it, so the hit
-rate drops to zero rather than falling gradually. [caching.md](caching.md)
-covers sizing, the idle sweep, and why a consumer with many files needs a shared
-budget instead.
+than entry count, because a record is a view into its chunk's buffer and one
+entry keeps the whole buffer alive. [caching.md](caching.md) covers sizing, the
+idle sweep, the shared budget, and the one waste we measured and have not fixed.
 
 ## Decompression
 
@@ -306,20 +302,12 @@ one file, so this library cannot make them.
   is the scope with spare cores. The blocks cross to the workers as
   transferables, so the fan-out costs one pass over the compressed bytes and
   needs no cross-origin isolation.
-- **One `cacheBudget` per JS context**, also passed to every adapter.
-  `maxCacheBytes` is per file, and a browser holds one file per open track, so
-  three deep tracks browsing eight windows retained 1109MB with every cache well
-  under its own 1GB ceiling. Dividing the ceiling by the track count is worse
-  than doing nothing.
-- **A coalescing range cache under the filehandle.** `RemoteFileWithRangeCache`
-  stores the byte extents it fetched, merges the gaps nearby reads leave into
-  one request and dedups in flight. It composes with the concurrent chunk fetch
-  instead of conflicting with it (the byte counts above are identical with and
-  without it), because the range cache dedups _bytes_ while the chunk cache
-  dedups _decompression_. Its idle timeout is deliberately five times bam-js's,
-  because compressed bytes take less memory to keep. Once the parsed cache
-  expires, a re-read still hits the range cache instead of triggering a
-  re-download.
+- **One `cacheBudget` per JS context**, also passed to every adapter, because
+  `maxCacheBytes` is per file and a browser holds one file per open track
+  ([caching.md](caching.md#cachebudget-bounds-a-consumer-with-many-files)).
+- **A coalescing range cache under the filehandle**, which dedups _bytes_ while
+  the chunk cache dedups _decompression_, so the two compose
+  ([caching.md](caching.md#the-byte-range-cache-underneath)).
 - **`recordClass` instead of a wrapper object**, so a read is one object rather
   than a record plus a wrapper around it. That saves ~33-40 bytes per read
   retained, which adds up on a deep pileup.
@@ -332,27 +320,8 @@ one file, so this library cannot make them.
   file holds reads without MD. A `packReference` region stores its start, so a
   region packed before the records arrive can still resolve the position of any
   read within it. The overlap saves ~20% of an uncached query at a CDN-like RTT.
-- **Gating on `estimatedBytesForRegions`** before issuing a query at all, as the
-  forecasting section above describes.
-
-## The chunk cache key slides as a query pans
-
-We measured one waste and have not fixed it. The cache keys on the _merged_
-chunk span, and merging depends on the query, so a pan whose windows overlap
-decodes the same bytes under two keys. The waste is containment (one parse fully
-redoing another) on shallow-to-moderate short-read files whose bin chunks abut,
-including the volvox demo file, where 71% of what a twelve-window pan
-decompresses is waste. It does not affect deep long-read data at ordinary zoom.
-
-Keying on raw chunks recovers exactly that waste and never costs bytes, but the
-fetch unit must stay merged for the I/O reasons above, so one fetch would fill
-several cache entries, and entry counts would rise on the long-read files. A
-canonical partition of the index avoids both costs: it has fewer entries than
-the merged key, and one fetch fills one entry, so `@gmod/shared-read-cache`
-needs no change. Nobody has built it yet.
-[ADR 0019](../agent-docs/architecture-decision-records/0019-the-chunk-cache-key-slides-as-a-query-pans.md)
-has the numbers, the design that would work, and the variant that looks obvious
-and is wrong.
+- **Gating on `estimatedBytesForRegions`** before issuing a query at all
+  ([forecasting](#forecasting-a-query-costs-no-io)).
 
 ## Further reading
 
