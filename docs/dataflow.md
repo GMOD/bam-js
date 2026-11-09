@@ -34,13 +34,13 @@ the whole read.
 
 ## Where the worker pool sits
 
-The purple node runs only when a caller passes a `bgzfWorkerPool`, which moves
-chunk decompression off the main thread. Without one, the same code runs
-in-process. The pool receives a chunk's blocks and leaves the record building
-after them on the calling thread. Decompression is where a query's time is (see
-[optimizations.md](optimizations.md)), so there is little else worth moving. A
-consumer can also run the whole diagram in a worker, and the purple node is then
-a further pool underneath it.
+The library uses the purple node only when a caller passes a `bgzfWorkerPool`,
+which moves chunk decompression off the main thread. Without one, it
+decompresses in-process. The pool receives a chunk's blocks and leaves the
+record building after them on the calling thread. Decompression is where a
+query's time is (see [optimizations.md](optimizations.md)), so there is little
+else worth moving. A consumer can also run the whole diagram in a worker, and
+the purple node is then a further pool underneath it.
 
 ## Where wasm sits
 
