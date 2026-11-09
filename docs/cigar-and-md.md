@@ -70,22 +70,18 @@ from reference bases, compared two bases per byte against the read's 4-bit
 packed `SEQ`
 ([where those bases come from](api.md#where-the-reference-bases-come-from)).
 
-`X` ops give a substitution's position but name the reference base only when MD
-or a reference also supplied it (`refBaseCode` is 0 otherwise). With none of
-them, the walk still reports indels, clips and `X` ops in full and skips the
-substitutions inside `M` runs, because the record does not contain their
-positions.
+An `X` op gives a substitution's position but names the reference base only when
+MD or a reference supplied it (`refBaseCode` is 0 otherwise). Without either,
+the walk skips the substitutions inside `M` runs, whose positions the record
+does not hold.
 
 ## Decoding mistakes the walk avoids
 
 Each of these has been a bug in a downstream consumer:
 
-- `M` does not mean match, and a CIGAR with `=`/`X` ops marks substitutions that
-  the walk would otherwise look up in `MD`.
 - MD counts reference bases; the CIGAR counts both, so their offsets diverge at
   every insertion and clip.
 - The walk has to step over a deletion's `^GG` rather than read it as matches;
   otherwise every later position in the read maps to the wrong part of the tag.
-- Most aligners omit MD entirely, so the walk needs the reference bases instead.
 - A read with `SEQ` of `*` has no bases at all, but its `X` ops still consume
   reference and still have to advance the walk.

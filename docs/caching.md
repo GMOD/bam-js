@@ -16,15 +16,11 @@ than index chunks.
 
 ## `maxCacheBytes` never refuses a read
 
-The cache accepts a chunk of any size, eviction skips reads in flight, and the
-cache drops only values it has already returned. A budget can make a query
-slower, never make one fail or come back short.
+A budget can make a query slower, never make one fail or come back short.
 
-The default binds less often than its size suggests. On the deepest data we
-measure (1000x coverage long reads, 240 windows over six laps), the cache
-settles at 573MB across 60 entries and never evicts at the 1GB default. Treat
-the ceiling as a limit for a session that pans forever, not as a parameter you
-tune often.
+On the deepest data we measure (1000x long reads, 240 windows over six laps),
+the cache settles at 573MB across 60 entries and never evicts at the 1GB
+default, so the ceiling matters only to a session that pans forever.
 ([ADR 0016](../agent-docs/architecture-decision-records/0016-the-cache-does-not-grow-and-lru-stays.md))
 
 Size `maxCacheBytes` above the working set of the several queries a pan makes,
@@ -40,12 +36,10 @@ it.
 ## `cacheIdleTimeoutMs` frees an idle cache
 
 The cache checks `maxCacheBytes` only when a read settles, so an idle cache sits
-at whatever level it reached until the idle sweep frees it.
-
-The clock runs from the last _read_ of a chunk, or from when its parse finished
-if nothing has read it since, so panning back and forth over one region never
-expires it, and a slow chunk still gets the full timeout in which to be reused.
-On a pan that held 331MB, the cache held 0MB once idle. Pass `0` to disable.
+at whatever level it reached until the idle sweep frees it. The clock runs from
+a chunk's last _read_, or from when its parse finished if nothing has read it,
+so panning back and forth over one region never expires it. On a pan that held
+331MB, the cache held 0MB once idle. Pass `0` to disable.
 ([ADR 0015](../agent-docs/architecture-decision-records/0015-reclaim-the-chunk-cache-when-nothing-is-using-it.md),
 [ADR 0016](../agent-docs/architecture-decision-records/0016-the-cache-does-not-grow-and-lru-stays.md))
 
