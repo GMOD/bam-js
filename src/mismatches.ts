@@ -542,7 +542,7 @@ export function forEachMismatchNumeric(
       // not a difference this reports (the D above already is) but do have to
       // be stepped over, or every later position in the read reads off the
       // wrong part of the tag.
-      // eslint-disable-next-line @typescript-eslint/no-confusing-non-null-assertion
+      // oxlint-disable-next-line typescript/no-confusing-non-null-assertion
       if (hasMD && mdIdx < mdLength && md[mdIdx]! === 94) {
         mdIdx++
         while (mdIdx < mdLength && md[mdIdx]! >= 65) {

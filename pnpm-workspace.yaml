@@ -6,6 +6,11 @@ minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
   - '@gmod/*'
   - '@jbrowse/quick-lru'
+  # TypeScript 7.1 ships only as the tsrs beta (published 2026-11-07), which
+  # the 3-day quarantine would hold back until 2026-11-10. tsrs and its
+  # per-platform binaries only; drop this once the beta ages in.
+  - 'tsrs'
+  - '@tsrs/*'
 allowBuilds:
   esbuild: true
   unrs-resolver: true

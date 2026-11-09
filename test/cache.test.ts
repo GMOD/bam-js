@@ -152,8 +152,8 @@ test('an early-stopped query returns the same records as a wide one', async () =
   const expected = wide.filter(r => r.start < max && r.end >= min)
 
   expect(narrow.length).toBeGreaterThan(0)
-  expect(narrow.map(r => r.fileOffset).sort()).toEqual(
-    expected.map(r => r.fileOffset).sort(),
+  expect(narrow.map(r => r.fileOffset).sort((a, b) => a - b)).toEqual(
+    expected.map(r => r.fileOffset).sort((a, b) => a - b),
   )
 })
 

@@ -1,0 +1,87 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "import", "oxc"],
+  "categories": {
+    "correctness": "error"
+  },
+  "env": {
+    "builtin": true,
+    "es2026": true,
+    "node": true
+  },
+  "rules": {
+    "eslint/no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "ignoreRestSiblings": true,
+        "caughtErrors": "none"
+      }
+    ],
+    "eslint/no-console": ["error", { "allow": ["error", "warn"] }],
+    "eslint/curly": "error",
+    "eslint/eqeqeq": "error",
+    "eslint/object-shorthand": "error",
+    "eslint/preserve-caught-error": "error",
+    "unicorn/no-new-array": "off",
+    "unicorn/no-empty-file": "off",
+    "unicorn/no-useless-spread": "off",
+    "import/export": "off",
+    "oxc/erasing-op": "off",
+    "oxc/no-accumulating-spread": "error",
+    "typescript/parameter-properties": "error",
+    "typescript/consistent-type-imports": "error",
+    "typescript/consistent-type-exports": "error",
+    "typescript/no-confusing-non-null-assertion": "error",
+    "typescript/no-unnecessary-condition": "error",
+    "typescript/no-confusing-void-expression": "error",
+    "typescript/no-mixed-enums": "error",
+    "typescript/no-unnecessary-boolean-literal-compare": "error",
+    "typescript/no-unnecessary-template-expression": "error",
+    "typescript/no-unnecessary-type-arguments": "error",
+    "typescript/no-unnecessary-type-assertion": "error",
+    "typescript/no-unsafe-enum-comparison": "error",
+    "typescript/non-nullable-type-assertion-style": "error",
+    "typescript/only-throw-error": "error",
+    "typescript/prefer-find": "error",
+    "typescript/prefer-includes": "error",
+    "typescript/prefer-promise-reject-errors": "error",
+    "typescript/prefer-reduce-type-parameter": "error",
+    "typescript/prefer-regexp-exec": "error",
+    "typescript/prefer-return-this-type": "error",
+    "typescript/prefer-string-starts-ends-with": "error",
+    "typescript/related-getter-setter-pairs": "error",
+    "typescript/require-array-sort-compare": "error",
+    "typescript/switch-exhaustiveness-check": [
+      "error",
+      { "considerDefaultExhaustiveForUnions": true }
+    ],
+    "typescript/use-unknown-in-catch-callback-variable": "error",
+    "typescript/dot-notation": "error",
+    "typescript/restrict-template-expressions": "off",
+    "typescript/no-base-to-string": "off",
+    "typescript/unbound-method": "off",
+    "typescript/no-misused-promises": "off",
+    "typescript/no-unsafe-member-access": "off",
+    "typescript/no-unsafe-argument": "off",
+    "typescript/no-unsafe-assignment": "off",
+    "typescript/no-unsafe-call": "off",
+    "typescript/no-unsafe-return": "off",
+    "typescript/restrict-plus-operands": "off",
+    "typescript/require-await": "off",
+    "typescript/prefer-nullish-coalescing": "off",
+    "typescript/no-unnecessary-type-parameters": "off",
+    "typescript/no-unnecessary-type-conversion": "off",
+    "typescript/prefer-optional-chain": "off",
+    "typescript/return-await": "off"
+  },
+  "ignorePatterns": [
+    "dist",
+    "esm",
+    "coverage",
+    "benchmarks",
+    "scripts",
+    "profile-bam.js",
+    ".claude"
+  ]
+}

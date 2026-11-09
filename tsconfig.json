@@ -1,15 +1,16 @@
 {
-  "include": ["src"],
+  // The project every checker reads: tsrs, and the type-aware oxlint, which
+  // looks up the nearest tsconfig.json for each file. Emitting is
+  // tsconfig.build.json, which narrows this to src/.
+  "include": ["src", "test", "vitest.config.ts"],
   "compilerOptions": {
     "target": "es2022",
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "lib": ["esnext", "dom"],
     "types": ["node"],
-    "rootDir": "src",
-    "outDir": "dist",
-    "declaration": true,
-    "sourceMap": true,
+    "rootDir": ".",
+    "noEmit": true,
     "strict": true,
     "allowImportingTsExtensions": true,
     "rewriteRelativeImportExtensions": true,
