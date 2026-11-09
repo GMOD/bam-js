@@ -28,8 +28,12 @@ for (const record of records) {
 }
 ```
 
-Local files take `bamPath` and `baiPath`. Substitutions inside `M` runs need
-more setup, see [Mismatches](#mismatches).
+Local files take `bamPath` and `baiPath`. A CSI index takes `csiUrl` or
+`csiPath`, and is required for references longer than 2^29.
+
+Coordinates are 0-based half-open, where `samtools view` takes 1-based closed,
+so `samtools view file.bam ctgA:1-50000` returns the same records as
+`getRecordsForRange('ctgA', 0, 50000)`. An unknown reference returns `[]`.
 
 ## Mismatches
 
@@ -47,9 +51,8 @@ for (const { code, refPos, length, bases } of record.getMismatches()) {
 ```
 
 `code` is a CIGAR char code (88 for `X`). `String.fromCharCode(code)` gives the
-letter without allocating a small string, since V8 returns an interned
-single-character string. bam-js builds `CIGAR` the same way, 1.13x faster than a
-lookup table of letters.
+letter without allocating a small string, since V8 interns single-character
+strings, and bam-js uses it for speed too.
 
 A substitution inside an `M` run needs the read's `MD` tag or the reference
 bases. Most aligners omit `MD`, so give `BamFile` a `fetchReferenceSequence`,
@@ -71,30 +74,18 @@ const bam = new BamFile({
 - `start` and `end` are 0-based half-open, and the string returned begins at
   `start`.
 - `refName` is the name you passed to `getRecordsForRange`, so map it if the
-  FASTA spells it differently, for example `chr1` and `1`. A name the FASTA
-  lacks returns `undefined`, which `?? ''` turns into no substitutions without
-  an error.
-- It is called at most once per query, for the span of the reads that lack `MD`,
-  and never when every read has one. A slow source needs its own cache, since a
-  later query over the same reads calls it again.
-- Reads that extend past a short string get no substitutions inside `M` runs;
-  their indels and clips are still reported.
-- `opts` carries the query's `signal`.
+  FASTA spells it differently (`chr1` and `1`). A name the FASTA lacks gives
+  `undefined`, so `?? ''` yields no substitutions and no error.
+- Reads past the end of a short string get no `M`-run substitutions, but keep
+  their indels and clips.
 
-[docs/api.md](docs/api.md#mismatches) has the fields and options, and
-[Reference sequence](docs/api.md#reference-sequence) the span a query asks for.
-
-## Coordinates
-
-Coordinates are 0-based half-open, where `samtools view` takes 1-based closed,
-so `samtools view file.bam ctgA:1-50000` returns the same records as
-`getRecordsForRange('ctgA', 0, 50000)`. A query for a reference the file lacks
-returns `[]`.
+[docs/api.md](docs/api.md#mismatches) has the fields, options and the span a
+query asks for.
 
 ## Records
 
-A record is one alignment, a line of `samtools view`. Each `BamRecord` decodes a
-field only when you read it.
+A record is one alignment, a line of `samtools view`, and a `BamRecord` decodes
+a field only when you read it.
 
 ```typescript
 record.name // read name (QNAME)
@@ -105,14 +96,12 @@ record.seq // read sequence
 record.mq // mapping quality
 record.getTag('NM') // one auxiliary tag
 record.isReverseComplemented() // the usual SAM flags
-record.getMismatches() // differences from the reference
 ```
 
 - A query returns every record that overlaps the range, including ones that
   start before or end after it.
-- Records are unfiltered: secondary, supplementary, duplicate and QC-failed
-  reads come back too.
-- Records arrive in index chunk order, not coordinate order.
+- Records are unfiltered (secondary, supplementary, duplicate and QC-failed too)
+  and arrive in index chunk order, not coordinate order.
 - Overlapping queries share records, so treat them as read-only.
 
 `getTag` decodes one tag, which makes it the cheap way to filter:
@@ -125,11 +114,9 @@ const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
 
 [docs/api.md](docs/api.md#bamrecord) lists every field and method.
 
-## CSI, header and cancellation
+## Header and cancellation
 
 ```typescript
-const bam = new BamFile({ bamUrl, csiUrl }) // required for references longer than 2^29
-
 await bam.getHeader() // parsed SAM header
 await bam.getHeaderText()
 
@@ -140,7 +127,9 @@ await bam.getRecordsForRange('chr1', 0, 1_000_000, {
 })
 ```
 
-## Range caching
+## Performance
+
+### Range caching
 
 With `bamUrl`, each byte range a query reads is a separate HTTP request
 ([visualizer](https://cmdcolin.github.io/bam_index_visualizer)).
@@ -156,12 +145,12 @@ const bam = new BamFile({
 })
 ```
 
-## Worker pool
+### Worker pool
 
-A worker pool decompresses BGZF across threads. Relative to decompressing
+A worker pool decompresses BGZF across threads. Against decompressing
 in-process, it inflates 2.7-4.1x faster at eight workers, and a 22-view pan/zoom
 over 1000x long reads ran 1.95x faster end to end at four
-([measurements](docs/optimizations.md)):
+([measurements](docs/optimizations.md)).
 
 ```typescript
 import { getSharedWorkerPool } from '@gmod/bgzf-filehandle'
@@ -212,13 +201,11 @@ const records = await bam.getRecordsForRange('1', 2000000, 2000001)
 ## Docs
 
 - [docs/api.md](docs/api.md): every option, method and `BamRecord` field
-- [docs/cigar-and-md.md](docs/cigar-and-md.md): what `CIGAR` and `MD` contain,
-  and how the mismatch walk reads them
+- [docs/cigar-and-md.md](docs/cigar-and-md.md): what `CIGAR` and `MD` contain
 - [docs/caching.md](docs/caching.md): sizing the chunk cache
-- [docs/dataflow.md](docs/dataflow.md): a diagram of a query from index to
-  records
-- [docs/optimizations.md](docs/optimizations.md): the measurements behind the
-  read path's design
+- [docs/dataflow.md](docs/dataflow.md): a query from index to records
+- [docs/optimizations.md](docs/optimizations.md): measurements behind the read
+  path
 
 ## Academic use
 

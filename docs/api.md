@@ -72,8 +72,8 @@ index, `onProgress` reports that download first, then any chunk reads.
 | `maxInsertSize` | `200000` | with `viewAsPairs`, skip mates farther away than this; ignored with `pairAcrossChr` |
 
 A read is returned when it shares at least one base with the range, as in
-`samtools view`. A record that covers no reference, such as an unmapped read
-placed at its mate's position, covers the one base it sits at.
+`samtools view`. An unmapped read placed at its mate's position covers the one
+base it sits at.
 
 Records arrive in index chunk order, which is not coordinate order, and
 `viewAsPairs` mates come last, so sort them if you need position order.
@@ -83,17 +83,15 @@ Overlapping queries share records, so treat them as read-only
 ### Reference sequence
 
 `fetchReferenceSequence(refName, start, end, opts?)` returns reference bases
-beginning at `start`. bam-js calls it at most once per query, for the span of
-the reads that have no `MD` tag, and not at all when every read has one. The
-callback can return fewer bases than asked for, for example at the end of a
-contig, and bam-js then reports no substitutions for any read the bases do not
-cover whole. It receives `refName` as you passed it to `getRecordsForRange`.
+beginning at `start`, for `refName` as you passed it to `getRecordsForRange`. It
+is not called when every read has `MD`. A short return is fine, for example at
+the end of a contig, and reads the bases do not cover whole get no
+substitutions.
 
 The span is the query's range plus however far its edge reads extend past it,
-and bam-js does not clamp it, so for a BAM of reads as long as a chromosome, the
-span can be the whole chromosome. A sequence source that cannot afford that can
-clamp inside the callback and resolve the remaining reads a window at a time
-with `getReferenceRegion` and the mismatch `ref` option.
+unclamped, so for reads as long as a chromosome it can be the whole chromosome.
+To avoid that, clamp inside the callback and resolve the remaining reads a
+window at a time with `getReferenceRegion` and the mismatch `ref` option.
 
 ### `recordClass`
 
@@ -125,15 +123,15 @@ const bam = new HtsgetFile({
 })
 ```
 
-`HtsgetFile` takes `baseUrl` and `trackId`, plus `recordClass`,
+`HtsgetFile` takes `baseUrl`, `trackId`, and `recordClass`,
 `fetchReferenceSequence`, `maxCacheBytes` and `cacheIdleTimeoutMs` as in
-`BamFile`. Only `getRecordsForRange`, `getHeader` and `getHeaderText` do work,
-since there is no index. The optional `fetch` makes the ticket request only. The
-data blocks use the global `fetch`, and may be on another host, so a block's
-credentials belong in the `headers` the ticket gives for its url.
+`BamFile`. With no index, only `getRecordsForRange`, `getHeader` and
+`getHeaderText` do work, and the server decides what a range returns, so the
+mate-pairing options are ignored.
 
-The server decides what a range returns, so `HtsgetFile` ignores the
-mate-pairing options.
+`fetch` applies to the ticket request only. Data blocks use the global `fetch`
+and may be on another host, so put a block's credentials in the `headers` the
+ticket gives for its url.
 
 ## `streamBamRecords`
 
