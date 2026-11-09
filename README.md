@@ -28,24 +28,34 @@ for (const record of records) {
 }
 ```
 
-Local files take `bamPath` and `baiPath`. Substitutions need more setup, see
-[Mismatches](#mismatches).
+Local files take `bamPath` and `baiPath`. Substitutions inside `M` runs need
+more setup, see [Mismatches](#mismatches).
 
-### Range caching
+## Mismatches
 
-With `bamUrl`, each byte range a query reads is a separate HTTP request
-([visualizer](https://cmdcolin.github.io/bam_index_visualizer)).
-[`@gmod/range-cache-filehandle`](https://github.com/GMOD/range-cache-filehandle)
-merges nearby reads into one request and reuses bytes across queries:
+`record.getMismatches()` lists substitutions, insertions, deletions, reference
+skips and clips.
 
 ```typescript
-import { RemoteFileWithRangeCache } from '@gmod/range-cache-filehandle'
-
-const bam = new BamFile({
-  bamFilehandle: new RemoteFileWithRangeCache(url),
-  baiFilehandle: new RemoteFileWithRangeCache(`${url}.bai`),
-})
+// a read at 100 with CIGAR 5M1I4M2D3M, SEQ ACGGTCAACGTTA and MD 3A5^GG3
+for (const { code, refPos, length, bases } of record.getMismatches()) {
+  console.log(String.fromCharCode(code), refPos, length, bases)
+}
+// X 103 1 G   substitution to G
+// I 105 0 C   one base inserted before 105
+// D 109 2     two reference bases deleted from 109
 ```
+
+`code` is a CIGAR char code (88 for `X`). `String.fromCharCode(code)` gives the
+letter without allocating a small string, since V8 returns an interned
+single-character string. bam-js builds `CIGAR` the same way, 1.13x faster than a
+lookup table of letters.
+
+A substitution inside an `M` run needs the read's `MD` tag or the reference
+bases. Most aligners omit `MD`, so pass
+`fetchReferenceSequence: (refName, start, end) => ...` to `BamFile`, which
+bam-js calls only for a query with a read that lacks `MD`.
+[docs/api.md](docs/api.md#mismatches) has the fields and options.
 
 ## Coordinates
 
@@ -71,13 +81,12 @@ record.isReverseComplemented() // the usual SAM flags
 record.getMismatches() // differences from the reference
 ```
 
-A query returns:
-
-- every record that overlaps the range, including ones that start before or end
-  after it
-- all of them, unfiltered: secondary, supplementary, duplicate and QC-failed
-- index chunk order, not coordinate order
-- records shared between overlapping queries, so treat them as read-only
+- A query returns every record that overlaps the range, including ones that
+  start before or end after it.
+- Records are unfiltered: secondary, supplementary, duplicate and QC-failed
+  reads come back too.
+- Records arrive in index chunk order, not coordinate order.
+- Overlapping queries share records, so treat them as read-only.
 
 `getTag` decodes one tag, which makes it the cheap way to filter:
 
@@ -89,31 +98,28 @@ const records = (await bam.getRecordsForRange('chr1', 0, 100000)).filter(
 
 [docs/api.md](docs/api.md#bamrecord) lists every field and method.
 
-## Mismatches
+## Range caching
 
-`record.getMismatches()` lists substitutions, insertions, deletions, reference
-skips and clips.
+With `bamUrl`, each byte range a query reads is a separate HTTP request
+([visualizer](https://cmdcolin.github.io/bam_index_visualizer)).
+[`@gmod/range-cache-filehandle`](https://github.com/GMOD/range-cache-filehandle)
+merges nearby reads into one request and reuses bytes across queries:
 
 ```typescript
-// a read at 100 with CIGAR 5M1I4M2D3M, SEQ ACGGTCAACGTTA and MD 3A5^GG3
-for (const { code, refPos, length, bases } of record.getMismatches()) {
-  console.log(String.fromCharCode(code), refPos, length, bases)
-}
-// X 103 1 G   substitution to G
-// I 105 0 C   one base inserted before 105
-// D 109 2     two reference bases deleted from 109
-```
+import { RemoteFileWithRangeCache } from '@gmod/range-cache-filehandle'
 
-A substitution needs the read's `MD` tag or the reference bases. Most aligners
-omit `MD`, so pass `fetchReferenceSequence: (refName, start, end) => ...` to
-`BamFile`, which bam-js calls only for a query with a read that lacks `MD`.
-[docs/api.md](docs/api.md#mismatches) has the fields and options.
+const bam = new BamFile({
+  bamFilehandle: new RemoteFileWithRangeCache(url),
+  baiFilehandle: new RemoteFileWithRangeCache(`${url}.bai`),
+})
+```
 
 ## Worker pool
 
-A worker pool decompresses BGZF across threads: 2.7-4.1x faster inflating at
-eight workers, 1.95x end to end on a 22-view pan/zoom over 1000x long reads with
-four ([measurements](docs/optimizations.md)):
+A worker pool decompresses BGZF across threads. Relative to decompressing
+in-process, it inflates 2.7-4.1x faster at eight workers, and a 22-view pan/zoom
+over 1000x long reads ran 1.95x faster end to end at four
+([measurements](docs/optimizations.md)):
 
 ```typescript
 import { getSharedWorkerPool } from '@gmod/bgzf-filehandle'

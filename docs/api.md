@@ -315,28 +315,30 @@ packed op number 2.
 ### Where the reference bases come from
 
 A substitution can be reported only when something supplies the reference base.
-The walk uses the first of these that applies:
+The walk uses the first of these, in this order, that applies:
 
-1. the read's `MD` tag
-2. `opts.ref`, a region packed with `packReference(seq, start)`
-3. the reference `setReference` bound, which `getRecordsForRange` binds when the
-   file has a `fetchReferenceSequence`
+- the read's `MD` tag
+- `opts.ref`, a region packed with `packReference(seq, start)`
+- the reference `setReference` bound, which `getRecordsForRange` binds when the
+  file has a `fetchReferenceSequence`
 
-With none of them, the walk reports indels and clips, and substitutions only
-from `X` CIGAR ops, with `refBaseCode` 0, but none from `M` runs. `setReference`
+With none of them, the walk reports indels, clips and `X` ops (with
+`refBaseCode` 0) and skips the substitutions inside `M` runs. `setReference`
 throws unless the region covers the whole read, because queries share records
 and a per-query binding would give one query's reads another query's bases.
 `opts.ref` keeps nothing on the record and takes any region.
 
 ### Which to call
 
-- `forEachMismatch` is the default. It passes the record's `NUMERIC_CIGAR`,
-  `NUMERIC_SEQ`, `NUMERIC_MD` and `qual` to `forEachMismatchNumeric`, so it
-  builds no `CIGAR` or `seq` string, and it allocates only for an insertion of
-  two or more bases.
-- `getMismatches` is `forEachMismatch` plus one object per difference: about 8%
-  slower at under one difference per read, about 3x at thousands.
-- `forEachMismatchNumeric` is for code with the arrays and no record, see
+- `getMismatches` is the convenient form. It is `forEachMismatch` plus one
+  object per difference: about 8% slower at under one difference per read, about
+  3x at thousands.
+- `forEachMismatch` is the one for a hot path. It passes the record's
+  `NUMERIC_CIGAR`, `NUMERIC_SEQ`, `NUMERIC_MD` and `qual` to
+  `forEachMismatchNumeric`, so it builds no `CIGAR` or `seq` string. It
+  allocates two `subarray` views per read (`NUMERIC_SEQ`, `qual`), and otherwise
+  only for an insertion of two or more bases.
+- `forEachMismatchNumeric` is for code with the arrays and no record; see
   [below](#without-a-bamrecord). Called through a record it costs the same as
   `forEachMismatch`. On arrays already held it skips two `subarray` calls per
   read (`NUMERIC_SEQ`, `qual`), about 3ms per 53,596 short reads and nothing on

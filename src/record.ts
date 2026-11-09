@@ -1006,9 +1006,9 @@ export default class BamRecord {
    * Substitutions come from the MD tag when the read has one, and otherwise
    * from comparing SEQ against reference bases — which have to come from
    * {@link setReference}, `opts.ref`, or the file's `fetchReferenceSequence`.
-   * With neither MD nor reference, indels and clips are still reported in full
-   * and substitutions are not reported at all: nothing in the record says where
-   * they are.
+   * With neither MD nor reference, indels, clips and `X` ops are still reported
+   * in full and the substitutions inside `M` runs are not: nothing in the
+   * record says where they are.
    *
    * @param callback called as
    *   `(code, refPos, length, bases, qual, refBaseCode, clipLength)`

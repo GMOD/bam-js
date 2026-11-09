@@ -34,7 +34,7 @@ holds exactly one entry, because one chunk there decompresses to 181MB. Size
 above the working set, or pass `Infinity` and bound memory some other way.
 ([ADR 0014](../agent-docs/architecture-decision-records/0014-size-the-chunk-cache-to-hold-several-queries.md))
 
-## `cacheIdleTimeoutMs` is the only thing that gives memory back
+## `cacheIdleTimeoutMs` frees an idle cache
 
 The cache checks `maxCacheBytes` only when a read settles, so an idle cache sits
 at whatever level it reached until the idle sweep frees it.

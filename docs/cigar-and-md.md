@@ -46,7 +46,8 @@ SEQ    ACGGTCAACGTTA
 MD     3A5^GG3
 ```
 
-The walk steps through the CIGAR ops in order, and only the `M` runs consume MD:
+The walk steps through the CIGAR ops in order. `M` runs consume MD's counts and
+letters, and a `D` consumes its `^` run:
 
 | CIGAR | read  | ref     | MD             | reported                              |
 | ----- | ----- | ------- | -------------- | ------------------------------------- |
@@ -77,6 +78,8 @@ positions.
 
 ## Decoding mistakes the walk avoids
 
+Each of these has been a bug in a downstream consumer:
+
 - `M` does not mean match, and a CIGAR with `=`/`X` ops marks substitutions that
   the walk would otherwise look up in `MD`.
 - MD counts reference bases; the CIGAR counts both, so their offsets diverge at
@@ -86,5 +89,3 @@ positions.
 - Most aligners omit MD entirely, so the walk needs the reference bases instead.
 - A read with `SEQ` of `*` has no bases at all, but its `X` ops still consume
   reference and still have to advance the walk.
-
-Every one of these has been a bug in a downstream consumer.
