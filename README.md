@@ -75,14 +75,7 @@ const bam = new BamFile({
 })
 ```
 
-- `start` and `end` are 0-based half-open, and the string returned begins at
-  `start`.
-- `refName` is the name you passed to `getRecordsForRange`, so map it if the
-  FASTA spells it differently (`chr1` and `1`). Return `''` for a name it lacks.
-- Reads past the end of a short string get no `M`-run substitutions.
-
-[docs/api.md](docs/api.md#mismatches) has the fields, options and the span a
-query asks for.
+[docs/api.md](docs/api.md#reference-sequence) has the callback's contract.
 
 ## Records
 
