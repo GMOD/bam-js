@@ -1,3 +1,21 @@
+## [10.3.0](https://github.com/GMOD/bam-js/compare/v10.2.0...v10.3.0) (2026-11-15)
+
+### Chores
+
+- Drop persisted checkout credentials and the publish job's cache ([3cfedee](https://github.com/GMOD/bam-js/commit/3cfedee7641c4bb756e5f7f48ad40715fbfa28b4))
+
+### Documentation
+
+- Trusted publishing adds provenance without a --provenance flag ([84a51d1](https://github.com/GMOD/bam-js/commit/84a51d1a696aa6cae37cfa4d9d101a286d8b9754))
+
+### Features
+
+- A pair's overlapping opposite-strand mates are led by the forward one, and pairOrientation answers from the fields ([b6691ff](https://github.com/GMOD/bam-js/commit/b6691ff69d2ea942724e297b6abc534471e8cdbd))
+
+### Other Changes
+
+- Bump deps, drop unused dev deps and stale ignores ([7c49f35](https://github.com/GMOD/bam-js/commit/7c49f358480b81756c68de04a766802df7ef2310))
+
 ## [10.2.0](https://github.com/GMOD/bam-js/compare/v10.1.0...v10.2.0) (2026-11-09)
 
 ### Chores
