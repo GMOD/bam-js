@@ -34,8 +34,8 @@ internal.
 ## Publishing
 
 Releases publish automatically via GitHub Actions using npm trusted publishing
-(OIDC, no stored token). The workflow requires `--provenance` and
-`id-token: write` permissions.
+(OIDC, no stored token). The publish job needs `id-token: write`; trusted
+publishing attaches provenance without a `--provenance` flag.
 
 This repo is already configured, and setting up a new package takes
 `npm trust github <pkg> --file publish.yml --repo GMOD/<repo>` (requires
