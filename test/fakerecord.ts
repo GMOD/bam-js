@@ -12,6 +12,7 @@ export default class FakeRecord extends Record {
   private _flags: number
   private pos: number
   private matePos: number
+  private seqLength: number
 
   constructor(
     read1: boolean,
@@ -24,12 +25,14 @@ export default class FakeRecord extends Record {
       nextRefId = 1,
       pos = 0,
       matePos = 0,
+      seqLength = 0,
     }: {
       extraFlags?: number
       refId?: number
       nextRefId?: number
       pos?: number
       matePos?: number
+      seqLength?: number
     } = {},
   ) {
     const byteArray = Buffer.from(new Uint8Array(52))
@@ -49,6 +52,7 @@ export default class FakeRecord extends Record {
     this.refid = refId
     this.pos = pos
     this.matePos = matePos
+    this.seqLength = seqLength
     this._flags =
       0x1 |
       (read1 ? 0x40 : 0x80) |
@@ -79,5 +83,9 @@ export default class FakeRecord extends Record {
 
   override get next_pos() {
     return this.matePos
+  }
+
+  override get seq_length() {
+    return this.seqLength
   }
 }

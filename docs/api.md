@@ -207,6 +207,14 @@ behind `readAhead` and the batching.
 - A read with more than 65535 CIGAR operations stores its CIGAR in a `CG` tag,
   and `CIGAR`, `NUMERIC_CIGAR`, `end` and `num_cigar_ops` all read the real
   CIGAR from it.
+- `pair_orientation` names the mate whose 5' end is leftmost first, and both
+  mates of a pair give the same string. Opposite-strand mates on one reference
+  starting closer than `seq_length` are led by the forward one, so the pair of a
+  fragment shorter than its reads is `F1R2` or `F2R1`; the leftmost start leads
+  every other pair, read1 a tie or a record with no mate position, and the lower
+  reference id a pair on two references. `template_length` is not read.
+  `pairOrientation(flags, start, seqLength, mateStart)` gives the same answer
+  for mates on one reference without a record.
 
 ### Methods
 
@@ -376,6 +384,7 @@ import.
 | `DEFAULT_MAX_CACHE_BYTES`, `DEFAULT_CACHE_IDLE_TIMEOUT_MS`                                                                   | the cache defaults                                                  |
 | `MISMATCH_SUBST`, `MISMATCH_INSERTION`, `MISMATCH_DELETION`, `MISMATCH_REF_SKIP`, `MISMATCH_SOFT_CLIP`, `MISMATCH_HARD_CLIP` | the mismatch `code` values                                          |
 | `forEachMismatchNumeric`                                                                                                     | the mismatch walk without a record                                  |
+| `pairOrientation`                                                                                                            | a pair's orientation string without a record                        |
 | `packReference`, `referenceNibble`, `CHAR_CODE_FROM_NIBBLE`                                                                  | build a packed reference region and read bases from it              |
 | `BamOpts`, `BaseOpts`                                                                                                        | _type_: the options the query and index methods take                |
 | `Mismatch`, `MismatchCallback`, `MismatchOptions`                                                                            | _type_: the mismatch methods' result and arguments                  |

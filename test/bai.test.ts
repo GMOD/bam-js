@@ -2,6 +2,7 @@ import { LocalFile } from 'generic-filehandle2'
 import { expect, test, vi } from 'vitest'
 
 import FakeRecord from './fakerecord.ts'
+import { pairOrientation } from '../src/index.ts'
 import Chunk from '../src/chunk.ts'
 import { BAI, BamFile, BamRecord } from '../src/index.ts'
 import { maxOffset } from '../src/indexFile.ts'
@@ -237,9 +238,9 @@ test('read as pairs returns each mate once', async () => {
 
 // Both mates of one pair must produce the same string, otherwise the two halves
 // of a normal pair render as different orientations. This is the reference
-// implementation the orientation table has to agree with; it is a copy of
-// jbrowse-components plugins/alignments/src/shared/pairOrientation.ts, which is
-// also what the CRAM adapter uses.
+// implementation the orientation table has to agree with for mates a read
+// length or more apart, which the fixture's zero seq_length makes of every pair
+// here.
 function referenceOrientation({
   isRead1,
   isSelfRev,
@@ -340,6 +341,91 @@ test('pair orientation of a canonical FR pair', () => {
   expect(ff.pair_orientation).toBe('F1F2')
   const rr = new FakeRecord(true, 'R', 'R', 100, { pos: 100, matePos: 300 })
   expect(rr.pair_orientation).toBe('R1R2')
+})
+
+// A fragment shorter than its reads: both mates start on nearly the same base,
+// and the forward mate's 5' end is the leftmost whichever mate starts first.
+const SHORT_FRAGMENTS = [
+  { pos: 1876, matePos: 1876 }, // equal starts
+  { pos: 3000, matePos: 3002 }, // dovetail, self left
+  { pos: 3002, matePos: 3000 }, // dovetail, self right
+] as const
+
+test('a pair of overlapping opposite-strand mates is led by the forward one', () => {
+  for (const loci of SHORT_FRAGMENTS) {
+    for (const tlen of [150, -150, 0]) {
+      const reverseRead1 = new FakeRecord(true, 'R', 'F', tlen, {
+        ...loci,
+        seqLength: 150,
+      })
+      expect(reverseRead1.pair_orientation).toBe('F2R1')
+      const forwardRead2 = new FakeRecord(false, 'F', 'R', tlen, {
+        pos: loci.matePos,
+        matePos: loci.pos,
+        seqLength: 150,
+      })
+      expect(forwardRead2.pair_orientation).toBe('F2R1')
+      const forwardRead1 = new FakeRecord(true, 'F', 'R', tlen, {
+        ...loci,
+        seqLength: 150,
+      })
+      expect(forwardRead1.pair_orientation).toBe('F1R2')
+    }
+  }
+})
+
+test('mates a read length apart keep the leftmost-start order', () => {
+  const outward = new FakeRecord(true, 'R', 'F', -550, {
+    pos: 1000,
+    matePos: 1400,
+    seqLength: 150,
+  })
+  expect(outward.pair_orientation).toBe('R1F2')
+  const outwardMate = new FakeRecord(false, 'F', 'R', 550, {
+    pos: 1400,
+    matePos: 1000,
+    seqLength: 150,
+  })
+  expect(outwardMate.pair_orientation).toBe('R1F2')
+})
+
+test('overlapping same-strand mates keep the leftmost-start order', () => {
+  const left = new FakeRecord(true, 'R', 'R', 0, {
+    pos: 1000,
+    matePos: 1050,
+    seqLength: 150,
+  })
+  expect(left.pair_orientation).toBe('R1R2')
+  const tie = new FakeRecord(false, 'F', 'F', 0, {
+    pos: 1000,
+    matePos: 1000,
+    seqLength: 150,
+  })
+  expect(tie.pair_orientation).toBe('F1F2')
+})
+
+test('a record with no mate position is led by read1', () => {
+  const read1 = new FakeRecord(true, 'R', 'F', 0, {
+    pos: 3000,
+    matePos: -1,
+    seqLength: 150,
+  })
+  expect(read1.pair_orientation).toBe('R1F2')
+  const read2 = new FakeRecord(false, 'F', 'R', 0, {
+    pos: 3002,
+    matePos: -1,
+    seqLength: 150,
+  })
+  expect(read2.pair_orientation).toBe('R1F2')
+})
+
+test('pairOrientation answers from the fields alone', () => {
+  expect(pairOrientation(83, 3000, 150, 3002)).toBe('F2R1')
+  expect(pairOrientation(163, 3002, 150, 3000)).toBe('F2R1')
+  expect(pairOrientation(83, 1000, 150, 1400)).toBe('R1F2')
+  expect(pairOrientation(83, 3000, 150, undefined)).toBe('R1F2')
+  expect(pairOrientation(83, 1876, 0, 1876)).toBe('R1F2')
+  expect(pairOrientation(16, 3000, 150, 3002)).toBeUndefined()
 })
 
 test('pair orientation is undefined only for unpaired reads', () => {

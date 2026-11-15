@@ -5,7 +5,7 @@ export {
   default as BamFile,
 } from './bamFile.ts'
 export { default as CSI } from './csi.ts'
-export { default as BamRecord } from './record.ts'
+export { default as BamRecord, pairOrientation } from './record.ts'
 export { default as HtsgetFile } from './htsget.ts'
 
 // The index-free whole-file walk, for BAMs an index cannot address. Kept out of

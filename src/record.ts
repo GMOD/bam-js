@@ -75,14 +75,59 @@ function seqretQuads() {
 // Precomputed pair orientation strings, indexed by
 //   ((flags >> 4) & 0x7) | (selfIsLeft ? 8 : 0)
 // bits 0-2 are flag bits 0x10 (self reverse), 0x20 (mate reverse), 0x40 (read1);
-// bit 3 is whether this read is the leftmost of the pair. The read2 flag (0x80)
-// is deliberately not consulted — "not read1" is what decides the numbering, so
-// a record with neither flag set reads the same as read2.
+// bit 3 is whether this read leads the pair. The read2 flag (0x80) is
+// deliberately not consulted — "not read1" is what decides the numbering, so a
+// record with neither flag set reads the same as read2.
 // prettier-ignore
 const PAIR_ORIENTATION_TABLE = [
   'F1F2','F1R2','R1F2','R1R2','F2F1','F2R1','R2F1','R2R1',
   'F2F1','R2F1','F2R1','R2R1','F1F2','R1F2','F1R2','R1R2',
 ]
+
+function orientationString(flags: number, leads: boolean) {
+  return flags & Constants.BAM_FPAIRED
+    ? PAIR_ORIENTATION_TABLE[((flags >> 4) & 0x7) | (leads ? 8 : 0)]
+    : undefined
+}
+
+// The mate whose 5' end is leftmost leads. A fragment shorter than its reads
+// puts both mates on nearly the same start, the reverse one often a few bases
+// left (a dovetail), and its 5' end is still the rightmost: so opposite-strand
+// mates starting closer than a read length are led by the forward one. Leftmost
+// start decides every other pair, and read1 a tie, an order both mates evaluate
+// the same way.
+function leadsMate(
+  flags: number,
+  start: number,
+  seqLength: number,
+  mateStart: number | undefined,
+) {
+  const reverse = (flags & Constants.BAM_FREVERSE) !== 0
+  const read1 = (flags & Constants.BAM_FREAD1) !== 0
+  return mateStart === undefined
+    ? read1
+    : reverse !== ((flags & Constants.BAM_FMREVERSE) !== 0) &&
+        Math.abs(start - mateStart) < seqLength
+      ? !reverse
+      : start !== mateStart
+        ? start < mateStart
+        : read1
+}
+
+/**
+ * The orientation string (`F1R2`, `R1F2`, ...) of a paired record whose mate
+ * is on the same reference, for a caller holding the fields without a
+ * BamRecord, such as a SAM parser. `mateStart` is undefined where the file
+ * gives no mate position. Undefined for an unpaired record.
+ */
+export function pairOrientation(
+  flags: number,
+  start: number,
+  seqLength: number,
+  mateStart: number | undefined,
+) {
+  return orientationString(flags, leadsMate(flags, start, seqLength, mateStart))
+}
 const ASCII_CIGAR_CODES = [
   77, 73, 68, 78, 83, 72, 80, 61, 88, 63, 63, 63, 63, 63, 63, 63,
 ]
@@ -905,32 +950,27 @@ export default class BamRecord {
   }
 
   // Must come out identical from either mate, or the two halves of one normal
-  // pair render as different orientations. The leftmost mate is therefore picked
-  // by a total order on (refId, pos) that both mates evaluate the same way, with
-  // a read1-first tie-break for equal loci.
+  // pair render as different orientations: `pairOrientation` for mates on one
+  // reference, the lower reference id leading across two.
   //
-  // Deriving "leftmost" from template_length looks tempting — the spec makes
+  // Deriving the leader from template_length looks tempting — the spec makes
   // tlen positive for the leftmost segment and negative for the rightmost — but
   // aligners leave tlen at 0 whenever the insert size is unavailable, which
   // includes every cross-reference pair. Both mates then read as "not leftmost"
   // and disagree with each other.
   // (see also: gmod/cram-js src/cramFile/record.ts getPairOrientation)
   get pair_orientation() {
-    const f = this.flags
-    if (!(f & Constants.BAM_FPAIRED)) {
-      return undefined
-    }
     const refId = this.ref_id
     const mateRefId = this.next_refid
-    const pos = this.start
     const matePos = this.next_pos
-    const selfIsLeft =
-      refId !== mateRefId
-        ? refId < mateRefId
-        : pos !== matePos
-          ? pos < matePos
-          : !!(f & Constants.BAM_FREAD1)
-    return PAIR_ORIENTATION_TABLE[((f >> 4) & 0x7) | (selfIsLeft ? 8 : 0)]
+    return refId === mateRefId
+      ? pairOrientation(
+          this.flags,
+          this.start,
+          this.seq_length,
+          matePos < 0 ? undefined : matePos,
+        )
+      : orientationString(this.flags, refId < mateRefId)
   }
 
   get bin_mq_nl() {
